@@ -2299,7 +2299,7 @@ addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 let drag = null, pitch = 0;
 const cvs = renderer.domElement;
-cvs.addEventListener('pointerdown', e => { if (!started) return; if (MODE === 'bball' && BB.poss === 'player' && !renderer.xr.isPresenting) { BB.charging = true; BB.charge = 0; BB.chargeDir = 1; } drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId }; try { cvs.setPointerCapture(e.pointerId); } catch (_) { /* ok */ } });
+cvs.addEventListener('pointerdown', e => { if (!started) return; if (MODE === 'bball' && BB.poss === 'player' && !renderer.xr.isPresenting) { BB.charging = true; BB.charge = 0; BB.chargeDir = 1; } else if (MODE === 'bball' && (BB.poss === 'rim' || BB.poss === 'shot')) BB.deskBlockT = 0.6; drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId }; try { cvs.setPointerCapture(e.pointerId); } catch (_) { /* ok */ } });
 cvs.addEventListener('pointermove', e => {
   if (!drag || renderer.xr.isPresenting) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
@@ -2787,6 +2787,27 @@ function updateBball(dt, head, vr) {
     if (BB.poss === 'shot' && BB.shooter === 'player' && !BB.blocked && BB.vel.y > 0) for (const hnd of P.hand) {
       if (hnd.getWorldPosition(tmpV2).distanceTo(ball.position) < 0.24) { BB.blocked = true; BB.vel.set(rr(-2, 2), 1, 3); BB.poss = 'loose'; BB.shooter = null; sClank(); say('BLOCKED!', 1.5, RIM); }
     }
+    // you block Rimshot's shot: a raised hand in the ball's path early in its flight (VR),
+    // or a click while you're close and in front of him (desktop)
+    if (BB.poss === 'shot' && BB.shooter === 'rim' && !BB.blocked && BB.t < 0.45) {
+      let blocked = false;
+      if (vr) for (const C of ctrls) {
+        if (!C.src) continue;
+        const hp = C.grip.getWorldPosition(tmpV2);
+        if (hp.y > head.y + 0.1 && Math.hypot(hp.x - ball.position.x, hp.z - ball.position.z) < 0.45 && Math.abs(hp.y - ball.position.y) < 0.6) blocked = true;
+      }
+      else if (BB.deskBlockT > 0 && Math.hypot(head.x - P.root.position.x, head.z - P.root.position.z) < 1.4) blocked = true;
+      if (blocked) {
+        BB.blocked = true; BB.poss = 'loose'; BB.shooter = null;
+        const away = new V3(ball.position.x - CT.hoop.x, 0, ball.position.z - CT.hoop.z).normalize();
+        BB.vel.set(away.x * 4 + rr(-1.5, 1.5), 1.5, away.z * 4 + rr(-1.5, 1.5));
+        sBonk(); rumble(1, 200);
+        for (let i = 0; i < 20; i++) emit(ball.position.x, ball.position.y, ball.position.z, rr(-1.5, 1.5), rr(0, 2), rr(-1.5, 1.5), pick([0xffd23f, 0xffffff]), rr(0.4, 0.9), -4, 0);
+        showPopup('Get that shit out of here!', 2.5);
+        setTimeout(() => say(pick(['Foul!', 'Man...', 'Okay, okay.']), 1.6, RIM), 900);
+      }
+    }
+    if (BB.deskBlockT > 0) BB.deskBlockT -= dt;
     const pickupOk = BB.poss === 'loose' || (BB.t > 0.6 && ball.position.y < 2.5 && BB.vel.y < 0);
     if (pickupOk && BB.phase === 'play') {
       let got = false;
