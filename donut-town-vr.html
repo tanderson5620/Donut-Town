@@ -1756,23 +1756,32 @@ function paigeTrip(dt, head) {
   T.t += dt; let run = 0, air = false, cheer = false;
   const faceTo = (x, z, k = 6) => { r.rotation.y += wrap(Math.atan2(x - r.position.x, z - r.position.z) - r.rotation.y) * Math.min(1, dt * k); };
   const goTo = (x, z, sp) => { const dx = x - r.position.x, dz = z - r.position.z, d = Math.hypot(dx, dz); if (d > 0.05) { const st = Math.min(d, sp * dt); r.position.x += dx / d * st; r.position.z += dz / d * st; faceTo(x, z, 8); } return d; };
+  const f = camera.getWorldDirection(new V3()); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
   switch (T.phase) {
-    case 'ready': // takes off 0.75 s after Beau
-      faceTo(T.x1, T.z1, 10); cheer = false;
-      if (T.t >= 0.75) { T.phase = 'jump'; T.t = 0; T.x0 = r.position.x; T.z0 = r.position.z; say("He's the cutiest boy!!!", T.T + 1.2, GLAZE); tone(500, 0.4, 'sine', 0.1, 1100); }
+    case 'ready': // watches Beau fly, turning to follow him, then takes off 3 s after he did
+      faceTo(b.x, b.z, 10);
+      if (T.t >= 3) { T.phase = 'jump'; T.t = 0; T.x0 = r.position.x; T.z0 = r.position.z; r.rotation.y = Math.atan2(T.x1 - T.x0, T.z1 - T.z0); tone(500, 0.4, 'sine', 0.1, 1100); }
       break;
     case 'jump': {
       const u = Math.min(1, T.t / T.T); air = true;
       r.position.x = T.x0 + (T.x1 - T.x0) * u; r.position.z = T.z0 + (T.z1 - T.z0) * u; r.position.y = 4 * T.h * u * (1 - u);
-      if (u >= 1) { r.position.y = 0; T.phase = 'wait'; T.t = 0; tone(80, 0.18, 'sine', 0.2, 45); for (let i = 0; i < 12; i++) emit(r.position.x, 0.05, r.position.z, rr(-1, 1), rr(0.3, 1), rr(-1, 1), 0xb8a888, rr(0.5, 0.9)); }
+      if (u >= 1) { r.position.y = 0; T.phase = 'pickup'; T.t = 0; tone(80, 0.18, 'sine', 0.2, 45); for (let i = 0; i < 12; i++) emit(r.position.x, 0.05, r.position.z, rr(-1, 1), rr(0.3, 1), rr(-1, 1), 0xb8a888, rr(0.5, 0.9)); }
       break;
     }
-    case 'wait': faceTo(b.x, b.z); cheer = true; if (BEAU.mode !== 'eat' && BEAU.mode !== 'chase') { T.phase = 'run'; T.t = 0; } break;
-    case 'run': { // right beside him, matching his pace
-      const y = BEAU.yaw, sx = b.x + Math.cos(y) * 0.9, sz = b.z - Math.sin(y) * 0.9;
-      if (goTo(sx, sz, 11) < 0.6) { const k = Math.min(1, dt * 10); r.position.x += (sx - r.position.x) * k; r.position.z += (sz - r.position.z) * k; r.rotation.y += wrap(y - r.rotation.y) * k; } // lock in step beside him
-      run = BEAU.spd > 0.5 ? 1 : 0; if (run) T.ph = BEAU.ph * 0.8; // stride in time with Beau
-      if (BEAU.mode !== 'return') { T.phase = 'with'; T.t = 0; }
+    case 'pickup': { // walk over and scoop him up onto her right shoulder
+      const d = Math.hypot(b.x - r.position.x, b.z - r.position.z);
+      if (d > 0.5 && T.t < 4) { goTo(b.x, b.z, 3); run = 0.6; }
+      else { faceTo(b.x, b.z); cheer = true; if (BEAU.mode === 'waitP' || T.t > 6) { T.phase = 'carry'; T.t = 0; BEAU.mode = 'ride'; BEAU.mt = 0; sYip(); const td = Math.hypot(head.x - r.position.x, head.z - r.position.z); say("He's the cutest boy, Beau's the cutest boy!", td / 7 + 2, GLAZE); } }
+      break;
+    }
+    case 'carry': { // run back to you with Beau riding along
+      const tx = head.x + f.x * 1.7 + f.z * 0.5, tz = head.z + f.z * 1.7 - f.x * 0.5;
+      run = 1;
+      if (goTo(tx, tz, 7) < 0.4 || T.t > 30) {
+        // set him down between you and her, then the inevitable happens
+        T.phase = 'with'; T.t = 0;
+        if (BEAU.on) { const B = BEAU.B.root; B.position.set(r.position.x - f.x * 0.6, 0, r.position.z - f.z * 0.6); BEAU.mode = 'fart'; BEAU.mt = 0; BEAU.farted = false; }
+      }
       break;
     }
     case 'with':
@@ -1782,7 +1791,7 @@ function paigeTrip(dt, head) {
       break;
     case 'home': run = 0.55; if (goTo(GZ_HOME.x, GZ_HOME.z, 2.6) < 0.06 || T.t > 60) { r.position.set(GZ_HOME.x, 0, GZ_HOME.z); GZ.trip = null; } break;
   }
-  if (T.phase !== 'run') T.ph += dt * run * 13;
+  T.ph += dt * run * 13;
   return { run, air, cheer, ph: T.ph };
 }
 function updateGlaze(dt, t, head) {
@@ -3049,7 +3058,7 @@ TREAT.mesh.scale.setScalar(1.6); TREAT.mesh.visible = false; scene.add(TREAT.mes
 function grabTreat(C) {
   if (MODE !== 'town') return;
   if (!BEAU.on) { toast('Win Beau from Rimshot first, then he\'ll want these!', 3.5); return; }
-  if (TREAT.state === 'held' || BEAU.mode === 'chase' || BEAU.mode === 'eat') return;
+  if (TREAT.state === 'held' || ['chase', 'eat', 'waitP', 'ride'].includes(BEAU.mode)) return;
   TREAT.state = 'held'; TREAT.C = C; TREAT.mesh.visible = true; TREAT.mesh.rotation.set(0, 0, 0);
   if (C) { C.grip.add(TREAT.mesh); TREAT.mesh.position.set(0, -0.01, -0.07); } else { camera.add(TREAT.mesh); TREAT.mesh.position.set(0.16, -0.17, -0.45); }
   rumble(0.3, 60); showPopup('Want a treat? Yeah, big Beau?', 3);
@@ -3181,7 +3190,20 @@ function updateBeau(dt, head, vr) {
       BEAU.chompT = (BEAU.chompT || 0) - dt;
       if (BEAU.chompT <= 0) { BEAU.chompT = rr(0.12, 0.22); sChomp(0); const hp = B.head.getWorldPosition(tmpV); for (let i = 0; i < 3; i++) emit(hp.x, hp.y - 0.05, hp.z, rr(-0.5, 0.5), rr(0.3, 1), rr(-0.5, 0.5), pick([0xc98a4b, 0xe8e0d0]), rr(0.4, 0.8)); }
       B.neck.rotation.x = 0.9 + Math.sin(BEAU.mt * 22) * 0.25;
-      if (BEAU.mt > 2.6) { tone(120, 0.25, 'sine', 0.2, 60); setMode('return'); }
+      if (BEAU.mt > 2.6) { tone(120, 0.25, 'sine', 0.2, 60); setMode(GZ.trip ? 'waitP' : 'return'); }
+      break;
+    }
+    case 'waitP': { // sits by the treat spot and watches Paige come to get him
+      BEAU.spd = 0; faceYaw(gp.x, gp.z, r, dt, 6); BEAU.happy = Math.max(BEAU.happy, 0.3);
+      if (!GZ.trip) setMode('return');
+      break;
+    }
+    case 'ride': { // perched on Paige's right shoulder on the way back
+      BEAU.spd = 0; sitBias = 1; BEAU.happy = 1; tongueFlick = true;
+      const a = GLAZE.root.rotation.y, rx = -Math.cos(a), rz = Math.sin(a);
+      r.position.x = gp.x + rx * 0.13 - Math.sin(a) * 0.04; r.position.z = gp.z + rz * 0.13 - Math.cos(a) * 0.04;
+      hop = gp.y + GLAZE.body.position.y + 1.2; BEAU.yaw = a;
+      if (!GZ.trip || GZ.trip.phase !== 'carry') setMode('follow');
       break;
     }
     case 'return': { // trots right back up to you...
@@ -3202,7 +3224,7 @@ function updateBeau(dt, head, vr) {
       break;
     }
   }
-  r.rotation.y = BEAU.yaw; r.position.y = hop;
+  r.rotation.y = BEAU.yaw; r.position.y = hop; r.scale.setScalar(BEAU.mode === 'ride' ? 0.8 : 1.3); B.shadow.visible = BEAU.mode !== 'ride';
   const speed = BEAU.spd;
   // sit when stopped, trot when moving, rear up to lick
   BEAU.sit = clamp(BEAU.sit + (speed > 0 || rear || flying !== null ? -dt * 8 : dt * 2), 0, Math.max(sitBias, BEAU.mode === 'follow' || BEAU.mode === 'fart' ? 1 : 0.6));
