@@ -3250,7 +3250,7 @@ function updatePopup(dt) {
   if (POP.t <= 0) POP.m.visible = false;
 }
 
-// ===== dev shortcuts (left controller): Y = reset the game, Y+X together = skip the 1v1 and get Beau now. Desktop: Y / Y+X keys =====
+// ===== dev shortcuts (left controller): Y = reset the game, X (or Y+X) = skip the 1v1 and get Beau now. Desktop: Y / X keys =====
 const DEV = { y: false, x: false, combo: false };
 function devReset() {
   if (MODE !== 'town') { toast('Leave the minigame first, then press Y to reset', 3); return; }
@@ -3275,8 +3275,8 @@ function devBeau() {
 }
 function pollDev(vr) {
   let y = !!keys.KeyY, x = !!keys.KeyX;
-  if (vr) for (const C of ctrls) { const gp = C.src && C.src.gamepad; if (C.hand !== 'left' || !gp) continue; y = y || !!(gp.buttons[5] && gp.buttons[5].pressed); x = x || !!(gp.buttons[4] && gp.buttons[4].pressed); }
-  if (y && x && !DEV.combo) { DEV.combo = true; devBeau(); }
+  if (vr) for (const C of ctrls) { const gp = C.src && C.src.gamepad; if (!gp || C.hand === 'right') continue; y = y || !!(gp.buttons[5] && gp.buttons[5].pressed); x = x || !!(gp.buttons[4] && gp.buttons[4].pressed); }
+  if (x && !DEV.x && !DEV.combo) { DEV.combo = true; devBeau(); } // X (alone or with Y) = Beau now
   if (!y && DEV.y && !DEV.combo) devReset(); // Y alone: reset on release
   if (!y && !x) DEV.combo = false;
   DEV.y = y; DEV.x = x;

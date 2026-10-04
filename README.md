@@ -16,7 +16,7 @@ A WebXR game for Meta Quest 2, built as one self-contained HTML file (`donut-tow
 
 ## Controls
 - **Quest:** left stick moves (head-relative), right stick snap-turns 30°. Point a controller and pull the trigger to press buttons or grab donuts; touching a donut with a hand also catches it. A wrist HUD is attached to the left controller. You see your own hands (fingers curl with the trigger and grip) and sleeved arms, solved with 2-bone IK from the head to each controller (`attachPlayerHand`, `updatePlayerArms`).
-- **Dev shortcuts (temporary, `pollDev`):** press **Y** (left controller, or the Y key) to reset the game: new story, back to spawn, Rimshot returns, Beau leaves. Hold **Y + X** together to skip the 1v1: Rimshot leaves and Beau appears right away.
+- **Dev shortcuts (temporary, `pollDev`):** press **Y** (left controller, or the Y key) to reset the game: new story, back to spawn, Rimshot returns, Beau leaves. Press **X** (or Y + X) to skip the 1v1: Rimshot leaves and Beau appears right away.
 - **Desktop:** WASD or arrow keys to move (Shift to run), drag to look, click to interact. The HUD is a corner overlay that reuses the same canvas.
 
 ## Locomotion and collisions
