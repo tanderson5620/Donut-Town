@@ -2949,7 +2949,7 @@ function giveBeau(near) {
   BEAU.hit = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.45, 0.55), new THREE.MeshBasicMaterial({ visible: false }));
   BEAU.hit.position.y = 0.25; BEAU.hit.userData.beau = true; B.root.add(BEAU.hit);
   const f = camera.getWorldDirection(new V3()); f.y = 0; f.normalize();
-  B.root.position.set(near.x + f.x * 1.2, 0, near.z + f.z * 1.2); B.root.rotation.y = Math.atan2(-f.x, -f.z);
+  B.root.position.set(near.x + f.x * 2.6, 0, near.z + f.z * 2.6); B.root.rotation.y = BEAU.yaw = Math.atan2(-f.x, -f.z); B.root.scale.setScalar(1.3);
   scene.add(B.root); BEAU.on = true; BEAU.happy = 2.5;
   setTimeout(() => { say('Arf! I\'m Beau!', 3, BEAU.B); sYip(); }, 700);
 }
@@ -2966,12 +2966,15 @@ function updateBeau(dt, head, vr) {
   BEAU.petCD -= dt; BEAU.happy = Math.max(0, BEAU.happy - dt);
   // walk a few feet in front of you
   const f = camera.getWorldDirection(new V3()); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
-  const tx = head.x + f.x * 1.2 - f.z * 0.25, tz = head.z + f.z * 1.2 + f.x * 0.25; // a few feet ahead of you
+  // dead ahead, far enough out that he's in view without looking down (~25 deg below eye level)
+  const tx = head.x + f.x * 2.6, tz = head.z + f.z * 2.6;
   const dx = tx - r.position.x, dz = tz - r.position.z, d = Math.hypot(dx, dz);
-  if (d > 12) { r.position.set(tx, 0, tz); }
+  if (d > 8) { r.position.set(tx, 0, tz); }
   let speed = 0;
-  if (d > 0.35) { speed = clamp(d * 2.2, 0.6, 4.5); const st = Math.min(d, speed * dt); r.position.x += dx / d * st; r.position.z += dz / d * st; BEAU.yaw += wrap(Math.atan2(dx, dz) - BEAU.yaw) * Math.min(1, dt * 8); }
-  else BEAU.yaw += wrap(Math.atan2(head.x - r.position.x, head.z - r.position.z) - BEAU.yaw) * Math.min(1, dt * 4);
+  if (d > 0.3) { speed = clamp(d * 3.5, 0.8, 7); const st = Math.min(d, speed * dt); r.position.x += dx / d * st; r.position.z += dz / d * st; }
+  // face the way you're walking; only cut sideways while catching up to a big turn
+  const fyaw = Math.atan2(f.x, f.z), myaw = d > 1.2 ? Math.atan2(dx, dz) : fyaw;
+  BEAU.yaw += wrap(myaw - BEAU.yaw) * Math.min(1, dt * 7);
   r.rotation.y = BEAU.yaw;
   // sit when you stop, trot when you move
   BEAU.sit = clamp(BEAU.sit + (speed > 0 ? -dt * 4 : dt * 2), 0, 1);
