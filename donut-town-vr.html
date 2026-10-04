@@ -2233,10 +2233,13 @@ for (let i = 0; i < 2; i++) {
   c.addEventListener('disconnected', () => { C.src = null; if (hudMesh.parent === grip) grip.remove(hudMesh); });
   c.addEventListener('selectstart', () => {
     if (MODE === 'bball' && BB.poss === 'player') { BB.hold = C; return; }
-    const hit = pointerHit(C); if (hit) activate(hit);
+    if (TREAT.state === 'held') return; // swing and release to throw it
+    if (C.grip.getWorldPosition(tmpV2).distanceTo(JAR.getWorldPosition(tmpV)) < 0.45) { grabTreat(C); return; }
+    const hit = pointerHit(C); if (hit && hit.obj.userData.treatJar) grabTreat(C); else if (hit) activate(hit);
   });
   c.addEventListener('selectend', () => {
-    if (MODE === 'bball' && BB.poss === 'player' && BB.hold === C && C.vel && C.vel.length() > 1.2) playerShoot(C.vel.clone().multiplyScalar(1.3));
+    if (TREAT.state === 'held' && TREAT.C === C && C.vel && C.vel.length() > 1.5) vrThrowTreat(C);
+    else if (MODE === 'bball' && BB.poss === 'player' && BB.hold === C && C.vel && C.vel.length() > 1.2) playerShoot(C.vel.clone().multiplyScalar(1.3));
     else if (BB.hold === C) BB.hold = null;
   });
   ctrls.push(C);
@@ -2248,11 +2251,12 @@ function targets() {
   if (punchable()) list.push(RIM_HIT);
   if (MODE === 'bball') list.push(ball);
   if (BEAU.on) list.push(BEAU.hit);
+  if (MODE === 'town' && TREAT.state !== 'held') list.push(JAR.hit);
   return list;
 }
 function firstHit(list) {
   const hits = raycaster.intersectObjects(list, true);
-  for (const h of hits) { let o = h.object; while (o && !o.userData.btn && !o.userData.fdObj && !o.userData.punchable && !o.userData.beau && o !== ball) o = o.parent; if (o) return { obj: o, dist: h.distance }; }
+  for (const h of hits) { let o = h.object; while (o && !o.userData.btn && !o.userData.fdObj && !o.userData.punchable && !o.userData.beau && !o.userData.treatJar && o !== ball) o = o.parent; if (o) return { obj: o, dist: h.distance }; }
   return null;
 }
 const rayRot = new THREE.Matrix4();
@@ -2269,6 +2273,7 @@ function activate(hit) {
   if (o.userData.btn) pressButton(o.userData.btn);
   else if (o.userData.punchable) punchRimshot();
   else if (o.userData.beau) petBeau();
+  else if (o.userData.treatJar) grabTreat(null);
   else if (o === ball) desktopBballClick(true);
   else if (o.userData.fdObj) catchDonut(o.userData.fdObj);
 }
@@ -2308,6 +2313,7 @@ cvs.addEventListener('pointermove', e => {
 cvs.addEventListener('pointerup', e => {
   if (!drag) return;
   if (BB.charging) { BB.charging = false; if (MODE === 'bball' && BB.poss === 'player') desktopShoot(BB.charge); drag = null; return; }
+  if (drag.moved < 6 && !renderer.xr.isPresenting && TREAT.state === 'held') { desktopThrowTreat(); drag = null; return; }
   if (drag.moved < 6 && !renderer.xr.isPresenting) {
     const r = cvs.getBoundingClientRect();
     raycaster.setFromCamera({ x: (e.clientX - r.left) / r.width * 2 - 1, y: -(e.clientY - r.top) / r.height * 2 + 1 }, camera);
@@ -2941,7 +2947,7 @@ function buildBeau() {
   B.shadow = blob(B.root, 0.4, 0.5, 0.3);
   return B;
 }
-const BEAU = { on: false, B: null, hit: null, sit: 0, ph: 0, happy: 0, barkT: 6, petCD: 0, yaw: 0, pos: new V3() };
+const BEAU = { on: false, B: null, hit: null, sit: 0, ph: 0, happy: 0, barkT: 6, petCD: 0, yaw: 0, pos: new V3(), mode: 'follow', mt: 0, spd: 0, glance: 0, glanceT: 3, paigeT: 10, farted: false };
 const sYip = () => { tone(950, 0.07, 'square', 0.05, 1250); tone(1100, 0.08, 'square', 0.045, 1400, 0.11); };
 function giveBeau(near) {
   if (BEAU.on) return;
@@ -2960,33 +2966,183 @@ function petBeau() {
   for (let i = 0; i < 8; i++) emit(tmpV.x, tmpV.y + 0.15, tmpV.z, rr(-0.3, 0.3), rr(0.4, 0.9), rr(-0.3, 0.3), pick([0xff3d7f, 0xff9fcc]), rr(0.8, 1.4), 0.3, 0);
   if (Math.random() < 0.3) say(pick(['Arf!', 'Wruff! ♥', '*happy tail wags*']), 1.8, BEAU.B);
 }
+// ----- treats: grab one from the jar on the fountain rim, hold it up, throw it for Beau -----
+function boneGeo() {
+  const parts = [new THREE.CylinderGeometry(0.014, 0.014, 0.09, 8)];
+  for (const y of [-0.045, 0.045]) for (const x of [-0.013, 0.013]) { const g = new THREE.SphereGeometry(0.02, 8, 6); g.translate(x, y, 0); parts.push(g); }
+  const g = merge(parts); g.rotateZ(Math.PI / 2); return g;
+}
+const TREAT_MAT = STD(0xc98a4b, { roughness: 0.8 });
+const JAR = new THREE.Group(); JAR.position.set(PLAZA.x + 0.5, 0.56, PLAZA.z + 1.95); scene.add(JAR);
+{
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.26, 16, 1, true), STD(0xcfe8ff, { transparent: true, opacity: 0.35, roughness: 0.1, side: THREE.DoubleSide }));
+  glass.position.y = 0.13; JAR.add(glass);
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.035, 16), STD(0x14a39a, { roughness: 0.5 })); lid.position.y = 0.3; JAR.add(lid);
+  const bg = boneGeo(); for (let i = 0; i < 7; i++) { const m = new THREE.Mesh(bg, TREAT_MAT); m.position.set(rr(-0.06, 0.06), 0.04 + i * 0.028, rr(-0.06, 0.06)); m.rotation.set(rr(-0.4, 0.4), rr(0, TAU), rr(-0.4, 0.4)); JAR.add(m); }
+  const c = document.createElement('canvas'); c.width = 256; c.height = 96; const g = c.getContext('2d');
+  g.fillStyle = '#fff8fb'; rrect(g, 4, 4, 248, 88, 20); g.fill(); g.strokeStyle = '#14a39a'; g.lineWidth = 8; g.stroke();
+  g.fillStyle = '#c23c7a'; g.font = '800 46px system-ui, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('TREATS', 128, 50);
+  const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.083), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true }));
+  tag.position.set(0, 0.14, 0.135); JAR.add(tag);
+  JAR.hit = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.4), new THREE.MeshBasicMaterial({ visible: false })); JAR.hit.position.y = 0.2; JAR.hit.userData.treatJar = true; JAR.add(JAR.hit);
+}
+const TREAT = { state: 'none', mesh: new THREE.Mesh(boneGeo(), TREAT_MAT), vel: new V3(), C: null };
+TREAT.mesh.scale.setScalar(1.6); TREAT.mesh.visible = false; scene.add(TREAT.mesh);
+function grabTreat(C) {
+  if (MODE !== 'town') return;
+  if (!BEAU.on) { toast('Win Beau from Rimshot first, then he\'ll want these!', 3.5); return; }
+  if (TREAT.state === 'held' || BEAU.mode === 'chase' || BEAU.mode === 'eat') return;
+  TREAT.state = 'held'; TREAT.C = C; TREAT.mesh.visible = true; TREAT.mesh.rotation.set(0, 0, 0);
+  if (C) { C.grip.add(TREAT.mesh); TREAT.mesh.position.set(0, -0.01, -0.07); } else { camera.add(TREAT.mesh); TREAT.mesh.position.set(0.16, -0.17, -0.45); }
+  rumble(0.3, 60); showPopup('Want a treat? Yeah, big Beau?', 3);
+  BEAU.mode = 'beg'; BEAU.happy = 3;
+}
+function throwTreat(v) {
+  const p = TREAT.mesh.getWorldPosition(new V3());
+  TREAT.mesh.parent.remove(TREAT.mesh); scene.add(TREAT.mesh); TREAT.mesh.position.copy(p);
+  TREAT.vel.copy(v); TREAT.state = 'fly'; TREAT.C = null;
+  BEAU.mode = 'chase'; BEAU.happy = 4; sYip(); setTimeout(sYip, 160);
+  setTimeout(() => { if (BEAU.on) say(pick(['ARF ARF ARF!', 'TREAT!!!', '*zoomies*']), 1.5, BEAU.B); }, 250);
+}
+function throwVel(dir, speed, elev) { // horizontal dir (normalized xz), launch speed, elevation angle
+  return new V3(dir.x * Math.cos(elev) * speed, Math.sin(elev) * speed, dir.z * Math.cos(elev) * speed);
+}
+function vrThrowTreat(C) {
+  const v = C.vel.clone(), h = Math.hypot(v.x, v.z);
+  const dir = h > 0.3 ? new V3(v.x / h, 0, v.z / h) : camera.getWorldDirection(new V3()).setY(0).normalize();
+  throwTreat(throwVel(dir, clamp(v.length() * 4.5, 14, 26), clamp(Math.atan2(v.y, Math.max(h, 0.01)), 0.35, 0.9)));
+}
+function desktopThrowTreat() {
+  const dir = camera.getWorldDirection(new V3()).setY(0).normalize();
+  throwTreat(throwVel(dir, 22, 0.6)); // ~150 ft
+}
+function updateTreat(dt) {
+  if (TREAT.state !== 'fly') return;
+  const m = TREAT.mesh, v = TREAT.vel;
+  v.y -= 9.8 * dt; m.position.addScaledVector(v, dt); m.rotation.x += dt * 12; m.rotation.y += dt * 5;
+  if (m.position.y < 0.03) { m.position.y = 0.03; v.y *= -0.3; v.x *= 0.55; v.z *= 0.55; if (Math.hypot(v.x, v.y, v.z) < 0.8) { TREAT.state = 'ground'; m.rotation.set(0, m.rotation.y, 0); } }
+  const lx = m.position.x - LAKE.x, lz = m.position.z - LAKE.z, ld = Math.hypot(lx, lz);
+  if (ld < LAKE.r + 0.5) { const k = (LAKE.r + 0.5) / Math.max(ld, 1e-4); m.position.x = LAKE.x + lx * k; m.position.z = LAKE.z + lz * k; v.x = v.z = 0; }
+  const wd = Math.hypot(m.position.x, m.position.z), wr = WORLD_R - 1; if (wd > wr) { m.position.x *= wr / wd; m.position.z *= wr / wd; v.x = v.z = 0; }
+}
+const sChomp = d => { noise(0.07, 0.4, rr(1600, 2800), 'bandpass', d); tone(rr(140, 200), 0.07, 'square', 0.1, 90, d); noise(0.12, 0.18, 600, 'lowpass', d + 0.05); };
+const sFart = () => { tone(95, 0.7, 'sawtooth', 0.22, 48); tone(70, 0.5, 'square', 0.12, 40, 0.15); noise(0.8, 0.3, 260, 'lowpass'); for (let i = 0; i < 6; i++) tone(rr(70, 130), 0.06, 'sawtooth', 0.15, 50, 0.1 + i * 0.09); };
+function beauMove(r, tx, tz, maxSp, dt) { // run toward (tx,tz); returns the remaining distance, sets BEAU.spd and turns him along the path
+  const dx = tx - r.position.x, dz = tz - r.position.z, d = Math.hypot(dx, dz);
+  BEAU.spd = 0;
+  if (d > 0.25) {
+    BEAU.spd = clamp(d * 3.5, 0.8, maxSp); const st = Math.min(d, BEAU.spd * dt);
+    r.position.x += dx / d * st; r.position.z += dz / d * st;
+    BEAU.yaw += wrap(Math.atan2(dx, dz) - BEAU.yaw) * Math.min(1, dt * 8);
+  }
+  // don't run through the fountain
+  const fx = r.position.x - PLAZA.x, fz = r.position.z - PLAZA.z, fd = Math.hypot(fx, fz);
+  if (fd < 2.35) { r.position.x = PLAZA.x + fx / Math.max(fd, 1e-4) * 2.35; r.position.z = PLAZA.z + fz / Math.max(fd, 1e-4) * 2.35; }
+  return d;
+}
+function faceYaw(x, z, r, dt, k = 6) { BEAU.yaw += wrap(Math.atan2(x - r.position.x, z - r.position.z) - BEAU.yaw) * Math.min(1, dt * k); }
 function updateBeau(dt, head, vr) {
+  updateTreat(dt);
   if (!BEAU.on || MODE === 'bball') return;
   const B = BEAU.B, r = B.root;
-  BEAU.petCD -= dt; BEAU.happy = Math.max(0, BEAU.happy - dt);
-  // walk a few feet in front of you
+  BEAU.petCD -= dt; BEAU.happy = Math.max(0, BEAU.happy - dt); BEAU.mt += dt;
   const f = camera.getWorldDirection(new V3()); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
-  // dead ahead, far enough out that he's in view without looking down (~25 deg below eye level)
-  const tx = head.x + f.x * 2.6, tz = head.z + f.z * 2.6;
-  const dx = tx - r.position.x, dz = tz - r.position.z, d = Math.hypot(dx, dz);
-  if (d > 8) { r.position.set(tx, 0, tz); }
-  let speed = 0;
-  if (d > 0.3) { speed = clamp(d * 3.5, 0.8, 7); const st = Math.min(d, speed * dt); r.position.x += dx / d * st; r.position.z += dz / d * st; }
-  // face the way you're walking; only cut sideways while catching up to a big turn
-  const fyaw = Math.atan2(f.x, f.z), myaw = d > 1.2 ? Math.atan2(dx, dz) : fyaw;
-  BEAU.yaw += wrap(myaw - BEAU.yaw) * Math.min(1, dt * 7);
-  r.rotation.y = BEAU.yaw;
-  // sit when you stop, trot when you move
-  BEAU.sit = clamp(BEAU.sit + (speed > 0 ? -dt * 4 : dt * 2), 0, 1);
+  const setMode = m => { BEAU.mode = m; BEAU.mt = 0; };
+  let hop = 0, rear = 0, tongueFlick = false, sitBias = 0;
+  const gp = GLAZE.root.position;
+  switch (BEAU.mode) {
+    case 'follow': { // dead ahead, in view without looking down, facing the way you're heading
+      const tx = head.x + f.x * 2.6, tz = head.z + f.z * 2.6;
+      if (Math.hypot(tx - r.position.x, tz - r.position.z) > 8) r.position.set(tx, 0, tz);
+      const d = beauMove(r, tx, tz, 7, dt);
+      // every 3 s: turn back and smile at you, wagging hard
+      BEAU.glanceT -= dt;
+      if (BEAU.glanceT <= 0) { BEAU.glanceT = 3; BEAU.glance = 1; }
+      if (BEAU.glance > 0) { BEAU.glance -= dt; faceYaw(head.x, head.z, r, dt, 10); BEAU.happy = Math.max(BEAU.happy, 0.3); }
+      else if (d <= 1.2) BEAU.yaw += wrap(Math.atan2(f.x, f.z) - BEAU.yaw) * Math.min(1, dt * 7);
+      // every 10 s: run over and lick Paige's face (if she's nearby)
+      BEAU.paigeT -= dt;
+      if (BEAU.paigeT <= 0) { BEAU.paigeT = 10; if (Math.hypot(gp.x - r.position.x, gp.z - r.position.z) < 40) setMode('paige'); }
+      break;
+    }
+    case 'paige': {
+      const a = GLAZE.root.rotation.y, tx = gp.x + Math.sin(a) * 0.45, tz = gp.z + Math.cos(a) * 0.45;
+      if (beauMove(r, tx, tz, 7.5, dt) < 0.3 || BEAU.mt > 9) {
+        setMode('lick'); BEAU.happy = 2.6;
+        say(pick(['Missed you Beau, so much!', 'Missed you Beau, so much! Oh, those kisses!']), 3, GLAZE); GZ.hopT = 0.7; GZ.hopBig = false;
+      }
+      break;
+    }
+    case 'lick': { // hop up to her face, tongue going
+      faceYaw(gp.x, gp.z, r, dt, 10); BEAU.spd = 0;
+      hop = Math.abs(Math.sin(BEAU.mt * 5.5)) * 0.9; rear = 1; tongueFlick = true;
+      if (Math.random() < dt * 6) { const hp = GLAZE.head.getWorldPosition(tmpV); emit(hp.x, hp.y + 0.1, hp.z, rr(-0.3, 0.3), rr(0.4, 0.8), rr(-0.3, 0.3), pick([0xff3d7f, 0xff9fcc]), rr(0.7, 1.1), 0.3, 0); }
+      if (Math.random() < dt * 3) noise(0.06, 0.12, 3000, 'bandpass');
+      if (BEAU.mt > 2.4) setMode('back');
+      break;
+    }
+    case 'back': {
+      const tx = head.x + f.x * 2.6, tz = head.z + f.z * 2.6;
+      if (beauMove(r, tx, tz, 8, dt) < 0.6) { setMode('follow'); BEAU.glance = 1; BEAU.glanceT = 3; }
+      break;
+    }
+    case 'beg': { // you're holding a treat: he sits a few feet out, in view, facing you, begging
+      if (TREAT.state !== 'held') { setMode('follow'); break; }
+      const tx = head.x + f.x * 2.2, tz = head.z + f.z * 2.2;
+      if (Math.hypot(tx - r.position.x, tz - r.position.z) > 8) r.position.set(tx, 0, tz);
+      if (beauMove(r, tx, tz, 7, dt) <= 0.6) faceYaw(head.x, head.z, r, dt, 10);
+      BEAU.happy = Math.max(BEAU.happy, 0.5); sitBias = 1; hop = BEAU.spd ? 0 : Math.abs(Math.sin(BEAU.mt * 4)) * 0.06;
+      break;
+    }
+    case 'chase': {
+      const tp = TREAT.mesh.position;
+      const d = beauMove(r, tp.x, tp.z, 11, dt);
+      if (d < 0.35 && TREAT.state === 'ground') { setMode('eat'); TREAT.state = 'none'; TREAT.mesh.visible = false; say('*CHOMP SLOBBER GNASH SLURRRP*', 2.6, BEAU.B); }
+      break;
+    }
+    case 'eat': { // disgustingly loud
+      BEAU.spd = 0; tongueFlick = true; BEAU.happy = 1;
+      BEAU.chompT = (BEAU.chompT || 0) - dt;
+      if (BEAU.chompT <= 0) { BEAU.chompT = rr(0.12, 0.22); sChomp(0); const hp = B.head.getWorldPosition(tmpV); for (let i = 0; i < 3; i++) emit(hp.x, hp.y - 0.05, hp.z, rr(-0.5, 0.5), rr(0.3, 1), rr(-0.5, 0.5), pick([0xc98a4b, 0xe8e0d0]), rr(0.4, 0.8)); }
+      B.neck.rotation.x = 0.9 + Math.sin(BEAU.mt * 22) * 0.25;
+      if (BEAU.mt > 2.6) { tone(120, 0.25, 'sine', 0.2, 60); setMode('return'); }
+      break;
+    }
+    case 'return': { // trots right back up to you...
+      const tx = head.x + f.x * 1.6, tz = head.z + f.z * 1.6;
+      if (beauMove(r, tx, tz, 8, dt) < 0.5 || BEAU.mt > 15) setMode('fart');
+      break;
+    }
+    case 'fart': { // ...turns around, and lets one rip
+      BEAU.spd = 0;
+      const away = Math.atan2(r.position.x - head.x, r.position.z - head.z);
+      BEAU.yaw += wrap(away - BEAU.yaw) * Math.min(1, dt * 8);
+      if (BEAU.mt > 0.5 && !BEAU.farted) {
+        BEAU.farted = true; sFart(); rumble(0.6, 300); say('*PFFFRRRRRT*', 2, BEAU.B);
+        setTimeout(() => showPopup('Ugh, Beau!! That was the treat?!', 2.5), 900);
+      }
+      if (BEAU.farted && BEAU.mt < 2.4 && Math.random() < dt * 25) { const tp = B.tail.getWorldPosition(tmpV); emit(tp.x, tp.y, tp.z, rr(-0.4, 0.4) - Math.sin(BEAU.yaw) * 0.6, rr(0.1, 0.4), rr(-0.4, 0.4) - Math.cos(BEAU.yaw) * 0.6, pick([0x9dbb3a, 0xb6c95a, 0x7c8f2e]), rr(1, 1.6), 0.15, 0); }
+      if (BEAU.mt > 2.6) { BEAU.farted = false; setMode('follow'); BEAU.glanceT = 0.5; }
+      break;
+    }
+  }
+  r.rotation.y = BEAU.yaw; r.position.y = hop;
+  const speed = BEAU.spd;
+  // sit when stopped, trot when moving, rear up to lick
+  BEAU.sit = clamp(BEAU.sit + (speed > 0 || rear ? -dt * 4 : dt * 2), 0, Math.max(sitBias, BEAU.mode === 'follow' || BEAU.mode === 'fart' ? 1 : 0.6));
   BEAU.ph += dt * (4 + speed * 5);
   const amp = Math.min(1, speed / 2) * 0.7, k = BEAU.sit;
-  B.legs.forEach((g, i) => { const front = i < 2, o = (i === 0 || i === 3) ? 0 : Math.PI; g.rotation.x = Math.sin(BEAU.ph + o) * amp * (1 - k) + (front ? 0.15 * k : -1.25 * k); });
-  B.body.rotation.x = -0.5 * k; B.body.position.y = 0.3 - 0.07 * k + Math.abs(Math.sin(BEAU.ph)) * 0.015 * amp;
-  // look up at you, wag (harder when happy), pant
-  const hp = B.head.getWorldPosition(tmpV), look = clamp(Math.atan2(head.y - hp.y, Math.max(0.3, Math.hypot(head.x - hp.x, head.z - hp.z))), 0, 0.9);
-  B.neck.rotation.x = -look * 0.7 + 0.5 * k; B.head.rotation.z = Math.sin(elapsed * 1.3) * 0.12 + (BEAU.happy > 0 ? Math.sin(elapsed * 9) * 0.1 : 0);
+  B.legs.forEach((g, i) => { const front = i < 2, o = (i === 0 || i === 3) ? 0 : Math.PI; g.rotation.x = Math.sin(BEAU.ph + o) * amp * (1 - k) + (front ? 0.15 * k : -1.25 * k) + (rear ? (front ? -0.9 : 0.4) : 0); });
+  B.body.rotation.x = -0.5 * k - 0.9 * rear; B.body.position.y = 0.3 - 0.07 * k + 0.08 * rear + Math.abs(Math.sin(BEAU.ph)) * 0.015 * amp;
+  // look up at you (or at Paige), wag (harder when happy), smile with his tongue out
+  const hp = B.head.getWorldPosition(tmpV), lookAt = BEAU.mode === 'lick' ? GLAZE.head.getWorldPosition(new V3()) : head;
+  const look = clamp(Math.atan2(lookAt.y - hp.y, Math.max(0.3, Math.hypot(lookAt.x - hp.x, lookAt.z - hp.z))), 0, 0.9);
+  if (BEAU.mode !== 'eat') B.neck.rotation.x = -look * 0.7 + 0.5 * k + 0.6 * rear;
+  B.head.rotation.z = Math.sin(elapsed * 1.3) * 0.12 + (BEAU.happy > 0 ? Math.sin(elapsed * 9) * 0.1 : 0);
   B.tail.rotation.z = Math.sin(elapsed * (BEAU.happy > 0 ? 26 : 14)) * (BEAU.happy > 0 ? 0.8 : 0.45);
-  B.tongue.visible = speed > 1.5 || BEAU.happy > 0;
+  B.tongue.visible = speed > 1.5 || BEAU.happy > 0 || tongueFlick;
+  B.tongue.scale.z = tongueFlick ? 0.022 * (1.2 + Math.sin(elapsed * 30) * 0.6) : 0.022;
+  B.shadow.position.y = 0.03 - hop / r.scale.y;
   // pet him by touching his head (VR)
   if (vr) for (const C of ctrls) if (C.src && C.grip.getWorldPosition(tmpV2).distanceTo(hp) < 0.22) petBeau();
   BEAU.barkT -= dt; if (BEAU.barkT <= 0) { BEAU.barkT = rr(10, 22); if (Math.hypot(head.x - r.position.x, head.z - r.position.z) < 6) sYip(); }
