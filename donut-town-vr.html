@@ -3001,7 +3001,7 @@ function throwTreat(v) {
   const p = TREAT.mesh.getWorldPosition(new V3());
   TREAT.mesh.parent.remove(TREAT.mesh); scene.add(TREAT.mesh); TREAT.mesh.position.copy(p);
   TREAT.vel.copy(v); TREAT.state = 'fly'; TREAT.C = null;
-  BEAU.mode = 'chase'; BEAU.happy = 4; sYip(); setTimeout(sYip, 160);
+  BEAU.mode = 'chase'; BEAU.mt = 0; BEAU.jump = null; BEAU.happy = 4; sYip(); setTimeout(sYip, 160);
   setTimeout(() => { if (BEAU.on) say(pick(['ARF ARF ARF!', 'TREAT!!!', '*zoomies*']), 1.5, BEAU.B); }, 250);
 }
 function throwVel(dir, speed, elev) { // horizontal dir (normalized xz), launch speed, elevation angle
@@ -3048,7 +3048,7 @@ function updateBeau(dt, head, vr) {
   BEAU.petCD -= dt; BEAU.happy = Math.max(0, BEAU.happy - dt); BEAU.mt += dt;
   const f = camera.getWorldDirection(new V3()); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
   const setMode = m => { BEAU.mode = m; BEAU.mt = 0; };
-  let hop = 0, rear = 0, tongueFlick = false, sitBias = 0;
+  let hop = 0, rear = 0, tongueFlick = false, sitBias = 0, flying = null;
   const gp = GLAZE.root.position;
   switch (BEAU.mode) {
     case 'follow': { // dead ahead, in view without looking down, facing the way you're heading
@@ -3095,9 +3095,27 @@ function updateBeau(dt, head, vr) {
       break;
     }
     case 'chase': {
-      const tp = TREAT.mesh.position;
-      const d = beauMove(r, tp.x, tp.z, 11, dt);
-      if (d < 0.35 && TREAT.state === 'ground') { setMode('eat'); TREAT.state = 'none'; TREAT.mesh.visible = false; say('*CHOMP SLOBBER GNASH SLURRRP*', 2.6, BEAU.B); }
+      // stand still and watch it fly, then leap there in one jump, however far it is
+      const tp = TREAT.mesh.position, J = BEAU.jump;
+      BEAU.spd = 0; BEAU.happy = Math.max(BEAU.happy, 0.5);
+      if (!J) {
+        faceYaw(tp.x, tp.z, r, dt, 8); hop = Math.abs(Math.sin(BEAU.mt * 9)) * 0.03; // excited little bounce
+        if (TREAT.state === 'ground') {
+          const d = Math.hypot(tp.x - r.position.x, tp.z - r.position.z);
+          BEAU.jump = { x0: r.position.x, z0: r.position.z, x1: tp.x, z1: tp.z, d, t: 0, T: clamp(0.45 + d / 22, 0.45, 2.6), h: clamp(d * 0.28, 0.4, 14) };
+          sYip(); tone(300, 0.5, 'sine', 0.12, 900); rumble(0.4, 120);
+        }
+      } else {
+        J.t += dt; const u = Math.min(1, J.t / J.T);
+        r.position.x = J.x0 + (J.x1 - J.x0) * u; r.position.z = J.z0 + (J.z1 - J.z0) * u;
+        hop = 4 * J.h * u * (1 - u); flying = -Math.atan2(4 * J.h * (1 - 2 * u), Math.max(J.d, 0.3));
+        faceYaw(J.x1, J.z1, r, dt, 12);
+        if (u >= 1) {
+          BEAU.jump = null; hop = 0; flying = 0;
+          tone(90, 0.15, 'sine', 0.2, 50); for (let i = 0; i < 12; i++) emit(J.x1, 0.05, J.z1, rr(-1, 1), rr(0.3, 1), rr(-1, 1), 0xb8a888, rr(0.5, 0.9));
+          setMode('eat'); TREAT.state = 'none'; TREAT.mesh.visible = false; say('*CHOMP SLOBBER GNASH SLURRRP*', 2.6, BEAU.B);
+        }
+      }
       break;
     }
     case 'eat': { // disgustingly loud
@@ -3129,11 +3147,11 @@ function updateBeau(dt, head, vr) {
   r.rotation.y = BEAU.yaw; r.position.y = hop;
   const speed = BEAU.spd;
   // sit when stopped, trot when moving, rear up to lick
-  BEAU.sit = clamp(BEAU.sit + (speed > 0 || rear ? -dt * 4 : dt * 2), 0, Math.max(sitBias, BEAU.mode === 'follow' || BEAU.mode === 'fart' ? 1 : 0.6));
+  BEAU.sit = clamp(BEAU.sit + (speed > 0 || rear || flying !== null ? -dt * 8 : dt * 2), 0, Math.max(sitBias, BEAU.mode === 'follow' || BEAU.mode === 'fart' ? 1 : 0.6));
   BEAU.ph += dt * (4 + speed * 5);
   const amp = Math.min(1, speed / 2) * 0.7, k = BEAU.sit;
-  B.legs.forEach((g, i) => { const front = i < 2, o = (i === 0 || i === 3) ? 0 : Math.PI; g.rotation.x = Math.sin(BEAU.ph + o) * amp * (1 - k) + (front ? 0.15 * k : -1.25 * k) + (rear ? (front ? -0.9 : 0.4) : 0); });
-  B.body.rotation.x = -0.5 * k - 0.9 * rear; B.body.position.y = 0.3 - 0.07 * k + 0.08 * rear + Math.abs(Math.sin(BEAU.ph)) * 0.015 * amp;
+  B.legs.forEach((g, i) => { const front = i < 2, o = (i === 0 || i === 3) ? 0 : Math.PI; g.rotation.x = Math.sin(BEAU.ph + o) * amp * (1 - k) + (front ? 0.15 * k : -1.25 * k) + (rear ? (front ? -0.9 : 0.4) : 0) + (flying !== null ? (front ? -1.1 : 1.0) : 0); }); // superdog pose mid-leap
+  B.body.rotation.x = -0.5 * k - 0.9 * rear + (flying || 0); B.body.position.y = 0.3 - 0.07 * k + 0.08 * rear + Math.abs(Math.sin(BEAU.ph)) * 0.015 * amp;
   // look up at you (or at Paige), wag (harder when happy), smile with his tongue out
   const hp = B.head.getWorldPosition(tmpV), lookAt = BEAU.mode === 'lick' ? GLAZE.head.getWorldPosition(new V3()) : head;
   const look = clamp(Math.atan2(lookAt.y - hp.y, Math.max(0.3, Math.hypot(lookAt.x - hp.x, lookAt.z - hp.z))), 0, 0.9);
