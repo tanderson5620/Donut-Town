@@ -25,7 +25,7 @@
 <div id="ui">
   <div class="card">
     <h1>Donut Town VR</h1>
-    <p class="tag">Catch donuts, buy sweet gifts, and win Glaze's heart.</p>
+    <p class="tag">Catch donuts, buy sweet gifts, and win Paige Glaze's heart.</p>
     <div class="row">
       <button id="vrbtn" class="big" disabled>Checking VR…</button>
       <button id="deskbtn" class="big alt">Play on desktop</button>
@@ -34,7 +34,7 @@
     <ul class="how">
       <li><b>Quest:</b> left stick moves, right stick snap-turns. Point and pull the trigger to press buttons or grab donuts, or just touch a donut with your hand.</li>
       <li><b>Desktop:</b> WASD or arrow keys to move, drag to look, click to interact.</li>
-      <li>Catch donuts at the <b>Donut Stand</b> (burnt ones cost 2), buy gifts in the shops, then give them to Glaze in the plaza.</li>
+      <li>Catch donuts at the <b>Donut Stand</b> (burnt ones cost 2), buy gifts in the shops, then give them to Paige Glaze in the plaza.</li>
     </ul>
   </div>
 </div>
@@ -567,7 +567,7 @@ function bench(x, z, ry) {
 bench(4.25, -10.6, -Math.PI / 2 - 0.3); bench(4.25, -13.4, -Math.PI / 2 + 0.3); bench(2.4, -16.4, 0.5);
 
 // Welcome sign at spawn
-woodSign(staticRoot, 'Welcome to Donut Town', 2.3, 0.62, -2.4, 1.55, 2.2, 0.3, { posts: true, sub: 'Catch donuts · Buy gifts · Win Glaze\'s heart' });
+woodSign(staticRoot, 'Welcome to Donut Town', 2.3, 0.62, -2.4, 1.55, 2.2, 0.3, { posts: true, sub: 'Catch donuts · Buy gifts · Win Paige\'s heart' });
 woodSign(staticRoot, '← Donut Stand   ·   Sprinkle Bakery →', 1.9, 0.3, -2.4, 1.06, 2.2, 0.3);
 // Arch at the far end of the street
 {
@@ -1017,9 +1017,9 @@ function buildPerson(o) {
 }
 
 // Glaze: the love interest
-const GLAZE = buildPerson({ female: true, skin: 0xe2b08c, top: 0xff6fae, legMat: STD(0x4a6fae, { map: T.denim, roughness: 0.9 }), shoe: 0xf6f6f6, eye: 0x4a7a3a, lip: 0xd9677e, brow: 0x4a2a1a });
+const GLAZE = buildPerson({ female: true, skin: 0x6e4430, top: 0xff6fae, legMat: STD(0x4a6fae, { map: T.denim, roughness: 0.9 }), shoe: 0xf6f6f6, eye: 0x3b2314, lip: 0x8a4e4a, brow: 0x140d0a }); // Paige Glaze
 {
-  const H = GLAZE.head, hair = STD(0x4a2a1a, { roughness: 0.75 }), gold = STD(0xe0b040, { roughness: 0.25, metalness: 0.9 });
+  const H = GLAZE.head, hair = STD(0x16100c, { roughness: 0.8 }), gold = STD(0xe0b040, { roughness: 0.25, metalness: 0.9 });
   const cap = new THREE.Mesh(new THREE.SphereGeometry(0.114, 20, 12, 0, TAU, 0, Math.PI * 0.36), hair); cap.scale.set(0.93, 1.07, 1.0); cap.position.y = 0.1; H.add(cap);
   const back = new THREE.Mesh(new THREE.SphereGeometry(0.115, 20, 12, Math.PI, Math.PI, 0, Math.PI * 0.74), hair); back.scale.set(0.95, 1.08, 1.02); back.position.y = 0.1; H.add(back);
   const bun = new THREE.Mesh(new THREE.SphereGeometry(0.052, 14, 10), hair); bun.position.set(0, 0.215, -0.07); H.add(bun);
@@ -1774,7 +1774,7 @@ function updateGlaze(dt, t, head) {
   if (m.visible) m.scale.y = S.won ? 0.75 : 0.25 + Math.abs(Math.sin(t * 14)) * 0.45;
   P.face.blush.forEach(b => b.material.opacity = S.aff / 100 * 0.75);
   P.face.brows.forEach(b => b.position.y = 0.041 + (S.won || GZ.hopT > 0 ? 0.006 : 0));
-  if (dist < 3.4 && !S.greeted && started) { S.greeted = true; if (!S.won) say(`Hi, I'm Glaze! I'm in the mood for ${PREF_TXT[S.pref]} today.`); }
+  if (dist < 3.4 && !S.greeted && started) { S.greeted = true; if (!S.won) say(`Hi, I'm Paige Glaze! I'm in the mood for ${PREF_TXT[S.pref]} today.`); }
   if (dist > 9) S.greeted = false;
 }
 
@@ -1811,6 +1811,7 @@ function restPose(P) {
 }
 const eyeTarget = new V3();
 function updateRunner(dt, t, head) {
+  if (RS.mode === 'gone') return;
   const P = RIM, root = P.root, F = P.face;
   const hx = head.x, hz = head.z;
   let speed = 0, lookAtPlayer = false;
@@ -1969,7 +1970,7 @@ function drawBoardHead() {
   g.clearRect(0, 0, c.width, c.height);
   g.fillStyle = '#fff4f8'; rrect(g, 2, 2, 508, 92, 18); g.fill();
   g.fillStyle = '#c23c7a'; g.textAlign = 'left'; g.textBaseline = 'middle';
-  g.font = '800 30px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif'; g.fillText(S.won ? 'Glaze is your girlfriend!' : 'Gifts for Glaze', 18, 30);
+  g.font = '800 30px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif'; g.fillText(S.won ? 'Paige is your girlfriend!' : 'Gifts for Paige Glaze', 18, 30);
   drawHeart(g, 30, 70, 16, '#ff3d7f');
   drawMeter(g, 56, 58, 370, 24, S.aff / 100);
   g.fillStyle = '#c23c7a'; g.font = '800 26px system-ui, Arial, sans-serif'; g.fillText(Math.round(S.aff) + '%', 438, 71);
@@ -2099,7 +2100,7 @@ function drawHUD() {
   drawMeter(g, 70, 154, 330, 28, S.aff / 100);
   g.fillStyle = '#fff'; g.font = '800 30px system-ui, Arial, sans-serif'; g.fillText(Math.round(S.aff) + '%', 414, 169);
   g.font = '600 25px system-ui, Arial, sans-serif'; g.fillStyle = '#ffd6ea';
-  let msg = S.msgT > 0 ? S.msg : MODE === 'bball' ? (BB.charging ? 'Power ' + '|'.repeat(Math.round(BB.charge * 20)) : `1v1: YOU ${BB.you} - ${BB.rim} RIMSHOT`) : S.won ? 'Glaze is your girlfriend! ♥' : G.active ? (G.inside ? `Catch! ${G.caught} caught, ${G.burnt} burnt` : 'Step inside the Donut Stand!') : `Glaze wants: ${PREF_TXT[S.pref]}`;
+  let msg = S.msgT > 0 ? S.msg : MODE === 'bball' ? (BB.charging ? 'Power ' + '|'.repeat(Math.round(BB.charge * 20)) : `1v1: YOU ${BB.you} - ${BB.rim} RIMSHOT`) : S.won ? 'Paige is your girlfriend! ♥' : G.active ? (G.inside ? `Catch! ${G.caught} caught, ${G.burnt} burnt` : 'Step inside the Donut Stand!') : `Paige wants: ${PREF_TXT[S.pref]}`;
   fitFont(g, msg, w - 50, 26, 600); g.fillText(msg, 26, 220);
   hudTex.needsUpdate = true;
 }
@@ -2246,11 +2247,12 @@ function targets() {
   for (const fd of flying) if (fd.state === 'fly' || fd.state === 'fall') list.push(fd.g);
   if (punchable()) list.push(RIM_HIT);
   if (MODE === 'bball') list.push(ball);
+  if (BEAU.on) list.push(BEAU.hit);
   return list;
 }
 function firstHit(list) {
   const hits = raycaster.intersectObjects(list, true);
-  for (const h of hits) { let o = h.object; while (o && !o.userData.btn && !o.userData.fdObj && !o.userData.punchable && o !== ball) o = o.parent; if (o) return { obj: o, dist: h.distance }; }
+  for (const h of hits) { let o = h.object; while (o && !o.userData.btn && !o.userData.fdObj && !o.userData.punchable && !o.userData.beau && o !== ball) o = o.parent; if (o) return { obj: o, dist: h.distance }; }
   return null;
 }
 const rayRot = new THREE.Matrix4();
@@ -2266,6 +2268,7 @@ function activate(hit) {
   const o = hit.obj;
   if (o.userData.btn) pressButton(o.userData.btn);
   else if (o.userData.punchable) punchRimshot();
+  else if (o.userData.beau) petBeau();
   else if (o === ball) desktopBballClick(true);
   else if (o.userData.fdObj) catchDonut(o.userData.fdObj);
 }
@@ -2676,7 +2679,11 @@ function endBball(early) {
     const h = headPos(new V3());
     RS.mode = 'run'; RS.t = 0; RS.acc = 0; RS.rad = 2.8; RS.a = rr(0, TAU);
     RIM.root.position.set(h.x + Math.cos(RS.a) * 2.8, 0, h.z + Math.sin(RS.a) * 2.8);
-    if (!early && BB.you > BB.rim) { S.donuts += 10; toast('You beat Rimshot! +10 donuts', 5); sWin(); }
+    if (!early && BB.you > BB.rim) {
+      S.donuts += 10; sWin();
+      RS.mode = 'gone'; RIM.root.visible = false; ball.visible = false; ballShadow.visible = false; PD.target = 0; PD.life = 0; puddle.scale.setScalar(0.001);
+      giveBeau(h); toast('You beat Rimshot! +10 donuts, and Beau is yours!', 6);
+    }
     else if (!early) toast('Rimshot wins this time. Punch him again for a rematch!', 5);
     hudDirty = true;
   });
@@ -2713,10 +2720,10 @@ function scoreFor(who) {
   for (let i = 0; i < 40; i++) emit(CT.hoop.x, CT.hoop.y - 0.3, CT.hoop.z, rr(-1, 1), rr(0.5, 2.5), rr(-1, 1), who === 'player' ? pick([0xffd23f, 0xff9fcc, 0xffffff]) : pick([0x14a39a, 0xffffff]), rr(1, 2), -3, 0);
   if (BB.you >= 3 || BB.rim >= 3) {
     BB.phase = 'over'; BB.t = 0; drawScoreboard(BB.you >= 3 ? 'YOU WIN!' : 'RIMSHOT WINS');
-    say(BB.you >= 3 ? 'Good game... you got lucky. Rematch?' : 'Cash me outside! Ha!', 4, RIM);
+    say(BB.you >= 3 ? 'Good game... you earned this. Take care of Beau for me.' : 'Cash me outside! Ha!', 4, RIM);
     if (BB.you >= 3) sWin();
   } else {
-    BB.phase = 'reset'; BB.t = 0; drawScoreboard(who === 'player' ? 'BUCKET!' : 'RIMSHOT SCORES');
+    BB.phase = 'reset'; BB.t = 0; drawScoreboard(who === 'player' ? 'BUCKET! MAKE IT, TAKE IT' : 'RIMSHOT SCORES');
     if (who === 'rim' && Math.random() < 0.6) say(pick(['Too easy!', 'Splash!', 'You can\'t guard me!']), 2, RIM);
   }
   hudDirty = true;
@@ -2759,7 +2766,11 @@ function updateBball(dt, head, vr) {
     rimFace(P, head.x, head.z, dt);
     if (BB.t > 4.5) { P.body.position.y = 0; endBball(false); BB.phase = 'off'; }
   } else if (BB.phase === 'reset') {
-    if (BB.t > 1.2) { giveBall(BB.shooter === 'player' || (BB.last === 'player' && !BB.shooter) ? 'rim' : 'player'); BB.phase = 'play'; drawScoreboard(); }
+    if (BB.t > 1.2) { // make it, take it: whoever scored checks the ball at the top of the 3-point line
+      const keeper = BB.shooter || BB.last || 'player'; BB.phase = 'play'; drawScoreboard();
+      if (keeper === 'player') { BB.phase = 'resetting'; fadeThrough(() => { placePlayer(CT.hoop.x, CT.hoop.z + 7.2, 0); RIM.root.position.set(CT.hoop.x + 0.3, 0, CT.hoop.z + 6.0); BB.defT = null; giveBall('player'); BB.phase = 'play'; }); }
+      else giveBall('rim');
+    }
   }
   // player holding the ball
   if (BB.poss === 'player') {
@@ -2788,20 +2799,36 @@ function updateBball(dt, head, vr) {
   // Rimshot's brain
   if (BB.phase !== 'over') {
     if (BB.poss === 'player') {
-      // defend: stay between you and the hoop, hands up
-      const tx = head.x + (CT.hoop.x - head.x) * 0.0, toH = new V3(CT.hoop.x - head.x, 0, CT.hoop.z - head.z), dist = toH.length(); toH.normalize();
-      const gap = Math.min(1.25, Math.max(0.6, dist - 0.8));
-      speed = rimMoveTo(P, tx + toH.x * gap, head.z + toH.z * gap, 3.4, dt);
-      rimFace(P, head.x, head.z, dt);
-      P.sh.forEach((sh, i) => { sh.rotation.x = -1.9 + Math.sin(BB.t * 3 + i) * 0.2; sh.rotation.z = (i ? 1 : -1) * 0.35; P.el[i].rotation.x = -0.25; });
-      P.th.forEach((th, i) => { th.rotation.x = -0.35; P.kn[i].rotation.x = 0.6; }); P.hips.position.y = P.hipY - 0.1;
-      F.squint = 0.2;
+      // defend: square up between you and the hoop in a low, wide stance; slide with short shuffle
+      // steps (with a little reaction lag), one hand high to contest and one low to poke at the ball,
+      // both hands up when you load a shot
+      const toH = new V3(CT.hoop.x - head.x, 0, CT.hoop.z - head.z), dist = toH.length(); toH.normalize();
+      const gap = Math.min(1.15, Math.max(0.7, dist - 0.9));
+      if (!BB.defT) BB.defT = new V3(P.root.position.x, 0, P.root.position.z);
+      BB.defT.lerp(tmpV2.set(head.x + toH.x * gap, 0, head.z + toH.z * gap), Math.min(1, dt * 4));
+      const moved = Math.min(1, rimMoveTo(P, BB.defT.x, BB.defT.z, 3.0, dt) / 2.5);
+      rimFace(P, head.x, head.z, dt, 10);
+      BB.shuf = (BB.shuf || 0) + dt * moved * 11;
+      const step = Math.sin(BB.shuf), loading = !!(BB.charging || BB.hold), hiHand = Math.sin(BB.t * 0.8) > 0 ? 1 : 0;
+      P.hips.position.y = P.hipY - 0.14 + Math.abs(step) * 0.02 * moved;
+      P.spine.rotation.x = 0.24; P.neck.rotation.x = -0.2;
+      P.th.forEach((th, i) => {
+        const s = i ? 1 : -1, w = i ? step : -step;
+        th.rotation.x = -0.6; th.rotation.z = s * (0.22 + 0.1 * w * moved);
+        P.kn[i].rotation.x = 0.9 + 0.25 * Math.max(0, w) * moved; P.feet[i].rotation.x = -0.3;
+      });
+      P.sh.forEach((sh, i) => {
+        const up = loading || i === hiHand;
+        sh.rotation.x = up ? -2.55 : -0.8 + Math.sin(BB.t * 5 + i) * 0.15; sh.rotation.z = (i ? 1 : -1) * (up ? 0.22 : 0.55);
+        P.el[i].rotation.x = up ? -0.15 : -0.55; P.hand[i].rotation.x = up ? -0.3 : 0.25;
+      });
+      F.squint = 0.25;
     } else if (BB.poss === 'loose' || BB.poss === 'shot') {
       if (BB.poss === 'loose' || ball.position.y < 3) { speed = rimMoveTo(P, ball.position.x, ball.position.z, 3.8, dt); rimFace(P, ball.position.x, ball.position.z, dt); }
     } else if (BB.poss === 'rim') {
       dribbling = true;
       if (BB.rimState === 'toTop') {
-        speed = rimMoveTo(P, CT.hoop.x, CT.hoop.z + 6.2, 3.2, dt); rimFace(P, CT.hoop.x, CT.hoop.z + 6.2, dt);
+        speed = rimMoveTo(P, CT.hoop.x, CT.hoop.z + 7.2, 3.2, dt); rimFace(P, CT.hoop.x, CT.hoop.z + 7.2, dt);
         if (speed === 0 || BB.rimT > 3) { BB.rimState = 'drive'; BB.rimT = 0; const a = rr(-1.1, 1.1), d = rr(2.2, 4.6); BB.spot.set(CT.hoop.x + Math.sin(a) * d, 0, CT.hoop.z + Math.cos(a) * d); }
       } else if (BB.rimState === 'drive') {
         speed = rimMoveTo(P, BB.spot.x, BB.spot.z, 2.7, dt); rimFace(P, BB.spot.x, BB.spot.z, dt);
@@ -2857,6 +2884,90 @@ function desktopBballClick(hitBall) {
   }
 }
 
+// ===== Beau: a cute black miniature schnauzer, your prize for beating Rimshot =====
+function buildBeau() {
+  const fur = STD(0x1c1c21, { roughness: 0.9 }), whisk = STD(0x2c2c33, { roughness: 1 }), shiny = STD(0x060606, { roughness: 0.15 });
+  const B = { legs: [], root: new THREE.Group(), body: new THREE.Group() };
+  B.root.add(B.body); B.body.position.y = 0.3;
+  const ell = (mat, sx, sy, sz, x, y, z, par) => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); par.add(m); return m; };
+  ell(fur, 0.105, 0.105, 0.2, 0, 0, 0, B.body);                       // square little body
+  ell(fur, 0.095, 0.1, 0.09, 0, 0.01, 0.13, B.body);                   // chest
+  ell(whisk, 0.08, 0.05, 0.16, 0, -0.06, 0, B.body);                   // fluffy underside "skirt"
+  for (const [x, z] of [[-0.065, 0.14], [0.065, 0.14], [-0.065, -0.13], [0.065, -0.13]]) {
+    const g = new THREE.Group(); g.position.set(x, -0.04, z); B.body.add(g);
+    g.add(new THREE.Mesh(limbGeo(0.032, 0.028, 0.22, 8), fur));
+    ell(whisk, 0.03, 0.04, 0.03, 0, -0.17, 0.005, g);                  // furnished legs
+    ell(fur, 0.03, 0.02, 0.04, 0, -0.245, 0.015, g);                   // paw
+    B.legs.push(g);
+  }
+  B.neck = new THREE.Group(); B.neck.position.set(0, 0.08, 0.17); B.body.add(B.neck);
+  B.head = new THREE.Group(); B.head.position.set(0, 0.09, 0.03); B.neck.add(B.head);
+  ell(fur, 0.075, 0.07, 0.08, 0, 0, 0, B.head);                        // skull
+  ell(fur, 0.05, 0.045, 0.075, 0, -0.02, 0.085, B.head);               // muzzle
+  for (let i = 0; i < 16; i++) { const a = rr(-1, 1); ell(whisk, 0.016, rr(0.03, 0.045), 0.016, a * 0.04, -0.06 - Math.abs(a) * 0.008, 0.1 + rr(-0.02, 0.06), B.head); } // the beard
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < 4; i++) { const h = ell(whisk, 0.022, 0.009, 0.026, s * (0.022 + i * 0.008), 0.045 - i * 0.003, 0.065 + i * 0.004, B.head); h.rotation.z = s * 0.4; h.rotation.x = -0.35; } // bushy eyebrows
+    ell(shiny, 0.016, 0.016, 0.012, s * 0.034, 0.022, 0.07, B.head);   // eyes
+    ell(new THREE.MeshBasicMaterial({ color: 0xffffff }), 0.004, 0.004, 0.002, s * 0.034 + 0.005, 0.028, 0.082, B.head);
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.07, 3), fur); ear.position.set(s * 0.055, 0.065, 0.015); ear.rotation.set(1.9, 0, s * -0.5); B.head.add(ear); // folded ears
+  }
+  ell(shiny, 0.019, 0.015, 0.015, 0, 0.005, 0.16, B.head);             // nose
+  B.tongue = ell(STD(0xff7a95, { roughness: 0.5 }), 0.014, 0.004, 0.022, 0, -0.045, 0.14, B.head);
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 18), STD(0x14a39a, { roughness: 0.5 })); collar.rotation.x = 1.2; B.neck.add(collar);
+  const tag = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.004, 12), STD(0xe0b040, { metalness: 0.9, roughness: 0.25 })); tag.rotation.x = 1.3; tag.position.set(0, -0.05, 0.05); B.neck.add(tag);
+  B.tail = new THREE.Group(); B.tail.position.set(0, 0.07, -0.19); B.body.add(B.tail);
+  const t = new THREE.Mesh(limbGeo(0.016, 0.012, 0.07, 6), fur); t.rotation.x = Math.PI; B.tail.add(t); B.tail.rotation.x = -0.5; // short perky tail
+  B.shadow = blob(B.root, 0.4, 0.5, 0.3);
+  return B;
+}
+const BEAU = { on: false, B: null, hit: null, sit: 0, ph: 0, happy: 0, barkT: 6, petCD: 0, yaw: 0, pos: new V3() };
+const sYip = () => { tone(950, 0.07, 'square', 0.05, 1250); tone(1100, 0.08, 'square', 0.045, 1400, 0.11); };
+function giveBeau(near) {
+  if (BEAU.on) return;
+  const B = BEAU.B = buildBeau();
+  BEAU.hit = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.45, 0.55), new THREE.MeshBasicMaterial({ visible: false }));
+  BEAU.hit.position.y = 0.25; BEAU.hit.userData.beau = true; B.root.add(BEAU.hit);
+  const f = camera.getWorldDirection(new V3()); f.y = 0; f.normalize();
+  B.root.position.set(near.x + f.x * 1.2, 0, near.z + f.z * 1.2); B.root.rotation.y = Math.atan2(-f.x, -f.z);
+  scene.add(B.root); BEAU.on = true; BEAU.happy = 2.5;
+  setTimeout(() => { say('Arf! I\'m Beau!', 3, BEAU.B); sYip(); }, 700);
+}
+function petBeau() {
+  if (!BEAU.on || BEAU.petCD > 0) return;
+  BEAU.petCD = 0.6; BEAU.happy = 2.5; sYip(); rumble(0.25, 60);
+  BEAU.B.head.getWorldPosition(tmpV);
+  for (let i = 0; i < 8; i++) emit(tmpV.x, tmpV.y + 0.15, tmpV.z, rr(-0.3, 0.3), rr(0.4, 0.9), rr(-0.3, 0.3), pick([0xff3d7f, 0xff9fcc]), rr(0.8, 1.4), 0.3, 0);
+  if (Math.random() < 0.3) say(pick(['Arf!', 'Wruff! ♥', '*happy tail wags*']), 1.8, BEAU.B);
+}
+function updateBeau(dt, head, vr) {
+  if (!BEAU.on || MODE === 'bball') return;
+  const B = BEAU.B, r = B.root;
+  BEAU.petCD -= dt; BEAU.happy = Math.max(0, BEAU.happy - dt);
+  // follow at your side, a little behind
+  const f = camera.getWorldDirection(new V3()); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
+  const tx = head.x - f.x * 0.5 - f.z * 0.75, tz = head.z - f.z * 0.5 + f.x * 0.75;
+  const dx = tx - r.position.x, dz = tz - r.position.z, d = Math.hypot(dx, dz);
+  if (d > 12) { r.position.set(tx, 0, tz); }
+  let speed = 0;
+  if (d > 0.35) { speed = clamp(d * 2.2, 0.6, 4.5); const st = Math.min(d, speed * dt); r.position.x += dx / d * st; r.position.z += dz / d * st; BEAU.yaw += wrap(Math.atan2(dx, dz) - BEAU.yaw) * Math.min(1, dt * 8); }
+  else BEAU.yaw += wrap(Math.atan2(head.x - r.position.x, head.z - r.position.z) - BEAU.yaw) * Math.min(1, dt * 4);
+  r.rotation.y = BEAU.yaw;
+  // sit when you stop, trot when you move
+  BEAU.sit = clamp(BEAU.sit + (speed > 0 ? -dt * 4 : dt * 2), 0, 1);
+  BEAU.ph += dt * (4 + speed * 5);
+  const amp = Math.min(1, speed / 2) * 0.7, k = BEAU.sit;
+  B.legs.forEach((g, i) => { const front = i < 2, o = (i === 0 || i === 3) ? 0 : Math.PI; g.rotation.x = Math.sin(BEAU.ph + o) * amp * (1 - k) + (front ? 0.15 * k : -1.25 * k); });
+  B.body.rotation.x = -0.5 * k; B.body.position.y = 0.3 - 0.07 * k + Math.abs(Math.sin(BEAU.ph)) * 0.015 * amp;
+  // look up at you, wag (harder when happy), pant
+  const hp = B.head.getWorldPosition(tmpV), look = clamp(Math.atan2(head.y - hp.y, Math.max(0.3, Math.hypot(head.x - hp.x, head.z - hp.z))), 0, 0.9);
+  B.neck.rotation.x = -look * 0.7 + 0.5 * k; B.head.rotation.z = Math.sin(elapsed * 1.3) * 0.12 + (BEAU.happy > 0 ? Math.sin(elapsed * 9) * 0.1 : 0);
+  B.tail.rotation.z = Math.sin(elapsed * (BEAU.happy > 0 ? 26 : 14)) * (BEAU.happy > 0 ? 0.8 : 0.45);
+  B.tongue.visible = speed > 1.5 || BEAU.happy > 0;
+  // pet him by touching his head (VR)
+  if (vr) for (const C of ctrls) if (C.src && C.grip.getWorldPosition(tmpV2).distanceTo(hp) < 0.22) petBeau();
+  BEAU.barkT -= dt; if (BEAU.barkT <= 0) { BEAU.barkT = rr(10, 22); if (Math.hypot(head.x - r.position.x, head.z - r.position.z) < 6) sYip(); }
+}
+
 // ---------- 12. Start buttons and the main loop ----------
 const ui = document.getElementById('ui'), vrBtn = document.getElementById('vrbtn'), deskBtn = document.getElementById('deskbtn'), vrMsg = document.getElementById('vrmsg');
 let xrSession = null;
@@ -2908,6 +3019,7 @@ renderer.setAnimationLoop(() => {
   if (MODE === 'bball' && BB.phase !== 'off') updateBball(dt, headV, vr); else updateRunner(dt, elapsed, headV);
   if (MODE === 'arcade') updateArcade(dt, vr);
   updatePunch(vr);
+  updateBeau(dt, headV, vr);
   updateFade(dt);
   updateGame(dt, headV);
   updateFlying(dt, vr);
