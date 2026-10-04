@@ -1,12 +1,14 @@
 // Dump Rimshot's rest-pose source geometry (root space) + skin weights for the Blender bake.
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+// Usage: node export_src.js <donut-town-vr.html> <three.min.js r128> <out.json>
+const [HTML, THREE_JS, OUT] = process.argv.slice(2);
+const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
 const fs = require('fs');
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const b = await chromium.launch({ ...(process.env.CHROME ? { executablePath: process.env.CHROME } : {}), args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const p = await b.newPage();
   p.on('pageerror', e => console.log('PAGEERROR', e.message));
-  await p.route('**/three.min.js', r => r.fulfill({ body: fs.readFileSync('package/build/three.min.js'), contentType: 'application/javascript' }));
-  await p.goto('file:///home/user/Claude-Test/donut-town-vr.html'); await p.waitForTimeout(1500);
+  await p.route('**/three.min.js', r => r.fulfill({ body: fs.readFileSync(THREE_JS), contentType: 'application/javascript' }));
+  await p.goto('file://' + require('path').resolve(HTML)); await p.waitForTimeout(1500);
   const data = await p.evaluate(() => {
     renderer.setAnimationLoop(null);
     const P = RIM; restPose(P); P.root.position.set(0, 0, 0); P.root.rotation.set(0, 0, 0); P.root.updateMatrixWorld(true);
@@ -28,7 +30,7 @@ const fs = require('fs');
     meshes.hands = { pos: hp, index: hi, si: hsi, sw: hsw };
     return { bones, meshes };
   });
-  fs.writeFileSync('rim_src.json', JSON.stringify(data));
+  fs.writeFileSync(OUT, JSON.stringify(data));
   console.log(Object.entries(data.meshes).map(([k, m]) => `${k}: ${m.pos.length / 3} verts, ${m.index.length / 3} tris`).join('\n'));
   await b.close();
 })();
