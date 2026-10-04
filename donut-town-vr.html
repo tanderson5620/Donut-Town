@@ -3250,6 +3250,38 @@ function updatePopup(dt) {
   if (POP.t <= 0) POP.m.visible = false;
 }
 
+// ===== dev shortcuts (left controller): Y = reset the game, Y+X together = skip the 1v1 and get Beau now. Desktop: Y / Y+X keys =====
+const DEV = { y: false, x: false, combo: false };
+function devReset() {
+  if (MODE !== 'town') { toast('Leave the minigame first, then press Y to reset', 3); return; }
+  reset();
+  if (TREAT.mesh.parent) TREAT.mesh.parent.remove(TREAT.mesh);
+  scene.add(TREAT.mesh); TREAT.mesh.visible = false; TREAT.state = 'none'; TREAT.C = null;
+  if (BEAU.on) { scene.remove(BEAU.B.root); BEAU.on = false; BEAU.B = null; BEAU.hit = null; }
+  Object.assign(BEAU, { mode: 'follow', mt: 0, jump: null, farted: false, paigeT: 10, glanceT: 3, glance: 0, sit: 0 });
+  rig.position.set(0, 0, 6); rig.rotation.y = 0;
+  const h = headPos(new V3());
+  RS.mode = 'run'; RS.t = 0; RS.acc = 0; RS.rad = 2.8; RS.a = rr(0, TAU);
+  RIM.root.visible = true; ball.visible = true; ballShadow.visible = true;
+  RIM.root.position.set(h.x + Math.cos(RS.a) * 2.8, 0, h.z + Math.sin(RS.a) * 2.8);
+  PD.target = 0; PD.life = 0; puddle.scale.setScalar(0.001);
+  rumble(0.5, 120); hudDirty = true;
+}
+function devBeau() {
+  if (MODE !== 'town') { toast('Leave the minigame first', 3); return; }
+  if (BEAU.on) { toast('Beau is already here!', 2); return; }
+  RS.mode = 'gone'; RIM.root.visible = false; ball.visible = false; ballShadow.visible = false; PD.target = 0; PD.life = 0; puddle.scale.setScalar(0.001);
+  giveBeau(headPos(new V3())); sWin(); toast('Shortcut: Rimshot is gone and Beau is yours!', 4);
+}
+function pollDev(vr) {
+  let y = !!keys.KeyY, x = !!keys.KeyX;
+  if (vr) for (const C of ctrls) { const gp = C.src && C.src.gamepad; if (C.hand !== 'left' || !gp) continue; y = y || !!(gp.buttons[5] && gp.buttons[5].pressed); x = x || !!(gp.buttons[4] && gp.buttons[4].pressed); }
+  if (y && x && !DEV.combo) { DEV.combo = true; devBeau(); }
+  if (!y && DEV.y && !DEV.combo) devReset(); // Y alone: reset on release
+  if (!y && !x) DEV.combo = false;
+  DEV.y = y; DEV.x = x;
+}
+
 // ---------- 12. Start buttons and the main loop ----------
 const ui = document.getElementById('ui'), vrBtn = document.getElementById('vrbtn'), deskBtn = document.getElementById('deskbtn'), vrMsg = document.getElementById('vrmsg');
 let xrSession = null;
@@ -3304,6 +3336,7 @@ renderer.setAnimationLoop(() => {
   updateBeau(dt, headV, vr);
   updatePlayerArms(vr, headV);
   updatePopup(dt);
+  if (started) pollDev(vr);
   updateFade(dt);
   updateGame(dt, headV);
   updateFlying(dt, vr);
