@@ -1776,8 +1776,13 @@ function paigeTrip(dt, head) {
     }
     case 'carry': { // run back to you with Beau riding along
       const tx = head.x + f.x * 1.7 + f.z * 0.5, tz = head.z + f.z * 1.7 - f.x * 0.5;
-      run = 1;
-      if (goTo(tx, tz, 7) < 0.4 || T.t > 30) {
+      run = 1; if (bub.t < 0.5 || bub.who !== GLAZE) say("He's the cutest boy, Beau's the cutest boy!", 3, GLAZE); // keep singing the whole way
+      if (goTo(tx, tz, 7) < 0.4 || T.t > 30) { T.phase = 'hold'; T.t = 0; say("He's the cutest boy, Beau's the cutest boy!", 2.2, GLAZE); }
+      break;
+    }
+    case 'hold': { // show him off for 2 s, Beau still on her shoulder
+      faceTo(head.x, head.z, 8); cheer = false;
+      if (T.t >= 2) {
         // set him down between you and her, then the inevitable happens
         T.phase = 'with'; T.t = 0;
         if (BEAU.on) { const B = BEAU.B.root; B.position.set(r.position.x - f.x * 0.6, 0, r.position.z - f.z * 0.6); BEAU.mode = 'fart'; BEAU.mt = 0; BEAU.farted = false; }
@@ -3203,7 +3208,7 @@ function updateBeau(dt, head, vr) {
       const a = GLAZE.root.rotation.y, rx = -Math.cos(a), rz = Math.sin(a);
       r.position.x = gp.x + rx * 0.13 - Math.sin(a) * 0.04; r.position.z = gp.z + rz * 0.13 - Math.cos(a) * 0.04;
       hop = gp.y + GLAZE.body.position.y + 1.2; BEAU.yaw = a;
-      if (!GZ.trip || GZ.trip.phase !== 'carry') setMode('follow');
+      if (!GZ.trip || (GZ.trip.phase !== 'carry' && GZ.trip.phase !== 'hold')) setMode('follow');
       break;
     }
     case 'return': { // trots right back up to you...
