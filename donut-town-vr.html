@@ -1741,11 +1741,51 @@ scene.add(ball);
 const ballShadow = blob(scene, 0.3, 0.3, 0.3);
 
 // Glaze animation: faces the player, breathes, blinks, hops on good gifts, cheers when you win
-const GZ = { blinkT: 2, blink: 0, hopT: 0, hopBig: false };
+const GZ = { blinkT: 2, blink: 0, hopT: 0, hopBig: false, trip: null };
+// Paige joins the fetch: she leaps after the treat with Beau, cheers while he eats, runs back beside him, then strolls home
+const GZ_HOME = new V3(-2.7, 0, -12.6);
+function paigeLeap(J) {
+  const r = GLAZE.root, dx = J.x1 - J.x0, dz = J.z1 - J.z0, d = Math.max(Math.hypot(dx, dz), 0.01);
+  const x1 = J.x1 - dz / d * 0.9, z1 = J.z1 + dx / d * 0.9; // land beside the treat
+  const d2 = Math.hypot(x1 - r.position.x, z1 - r.position.z);
+  GZ.trip = { phase: 'jump', t: 0, ph: 0, said: false, x0: r.position.x, z0: r.position.z, x1, z1, T: J.T, h: clamp(d2 * 0.28, 0.5, 14) };
+  r.rotation.y = Math.atan2(x1 - r.position.x, z1 - r.position.z);
+  say(pick(['Wheee! Wait for me, Beau!', 'Ooh, I want to see!']), 2, GLAZE);
+}
+function paigeTrip(dt, head) {
+  const T = GZ.trip, r = GLAZE.root, b = BEAU.on ? BEAU.B.root.position : GZ_HOME;
+  T.t += dt; let run = 0, air = false, cheer = false;
+  const faceTo = (x, z, k = 6) => { r.rotation.y += wrap(Math.atan2(x - r.position.x, z - r.position.z) - r.rotation.y) * Math.min(1, dt * k); };
+  const goTo = (x, z, sp) => { const dx = x - r.position.x, dz = z - r.position.z, d = Math.hypot(dx, dz); if (d > 0.05) { const st = Math.min(d, sp * dt); r.position.x += dx / d * st; r.position.z += dz / d * st; faceTo(x, z, 8); } return d; };
+  switch (T.phase) {
+    case 'jump': {
+      const u = Math.min(1, T.t / T.T); air = true;
+      r.position.x = T.x0 + (T.x1 - T.x0) * u; r.position.z = T.z0 + (T.z1 - T.z0) * u; r.position.y = 4 * T.h * u * (1 - u);
+      if (u >= 1) { r.position.y = 0; T.phase = 'wait'; T.t = 0; tone(80, 0.18, 'sine', 0.2, 45); for (let i = 0; i < 12; i++) emit(r.position.x, 0.05, r.position.z, rr(-1, 1), rr(0.3, 1), rr(-1, 1), 0xb8a888, rr(0.5, 0.9)); }
+      break;
+    }
+    case 'wait': faceTo(b.x, b.z); cheer = true; if (BEAU.mode !== 'eat' && BEAU.mode !== 'chase') { T.phase = 'run'; T.t = 0; } break;
+    case 'run': { // right beside him, matching his pace
+      const y = BEAU.yaw, sx = b.x + Math.cos(y) * 0.9, sz = b.z - Math.sin(y) * 0.9;
+      run = goTo(sx, sz, 9) > 0.15 || BEAU.spd > 0.5 ? 1 : 0;
+      if (BEAU.mode !== 'return') { T.phase = 'with'; T.t = 0; }
+      break;
+    }
+    case 'with':
+      faceTo(head.x, head.z);
+      if (T.t > 1.9 && !T.said) { T.said = true; say(pick(['Beau! Ew, gross!', 'Oh no, Beau! Pee-yew!']), 2.2, GLAZE); }
+      if (T.t > 3 && (BEAU.mode !== 'fart' || !BEAU.on)) { T.phase = 'home'; T.t = 0; }
+      break;
+    case 'home': run = 0.55; if (goTo(GZ_HOME.x, GZ_HOME.z, 2.6) < 0.06 || T.t > 60) { r.position.set(GZ_HOME.x, 0, GZ_HOME.z); GZ.trip = null; } break;
+  }
+  T.ph += dt * run * 13;
+  return { run, air, cheer, ph: T.ph };
+}
 function updateGlaze(dt, t, head) {
   const P = GLAZE, r = P.root;
+  const trip = GZ.trip ? paigeTrip(dt, head) : null;
   const dx = head.x - r.position.x, dz = head.z - r.position.z, dist = Math.hypot(dx, dz);
-  r.rotation.y += wrap(Math.atan2(dx, dz) - r.rotation.y) * Math.min(1, dt * 3);
+  if (!trip) r.rotation.y += wrap(Math.atan2(dx, dz) - r.rotation.y) * Math.min(1, dt * 3);
   const hy = r.position.y + 1.62 * 0.94;
   P.neck.rotation.x = lerp(P.neck.rotation.x, clamp(-Math.atan2(head.y - hy, Math.max(0.4, dist)) * 0.7, -0.4, 0.4), Math.min(1, dt * 4));
   const br = Math.sin(t * 1.7);
@@ -1768,6 +1808,20 @@ function updateGlaze(dt, t, head) {
     P.el[i].rotation.x = lerp(-0.18, -0.4, armUp);
   });
   P.th.forEach((th, i) => { th.rotation.x = lift > 0.02 ? -0.25 : 0; P.kn[i].rotation.x = lift > 0.02 ? 0.5 : 0; });
+  if (trip) { // running / leaping / cheering poses
+    if (trip.air) {
+      P.th.forEach((th, i) => { th.rotation.x = i ? -0.9 : 0.3; P.kn[i].rotation.x = i ? 0.4 : 1.1; });
+      P.sh.forEach((sh, i) => { sh.rotation.z = (i ? 1 : -1) * 2.5; sh.rotation.x = -0.2; });
+    } else if (trip.run > 0) {
+      const a = trip.run;
+      P.th.forEach((th, i) => { const ph = trip.ph + (i ? Math.PI : 0); th.rotation.x = Math.sin(ph) * 0.75 * a; P.kn[i].rotation.x = Math.max(0, -Math.cos(ph)) * 1.1 * a + 0.15 * a; });
+      P.sh.forEach((sh, i) => { sh.rotation.z = (i ? 1 : -1) * 0.18; sh.rotation.x = -Math.sin(trip.ph + (i ? Math.PI : 0)) * 0.7 * a; P.el[i].rotation.x = -0.9 * a; });
+      P.body.position.y = Math.abs(Math.sin(trip.ph)) * 0.05 * a;
+    } else if (trip.cheer) {
+      const k = (t * 2.2) % 1; P.body.position.y = Math.sin(Math.PI * k) * 0.12;
+      P.sh.forEach((sh, i) => { sh.rotation.z = (i ? 1 : -1) * (2.5 + Math.sin(t * 9 + i) * 0.25); sh.rotation.x = -0.2; });
+    }
+  }
   // mouth: talking or cheering
   const talking = bub.t > 0.3, m = P.face.mouth;
   m.visible = talking || S.won;
@@ -3103,7 +3157,7 @@ function updateBeau(dt, head, vr) {
         if (TREAT.state === 'ground') {
           const d = Math.hypot(tp.x - r.position.x, tp.z - r.position.z);
           BEAU.jump = { x0: r.position.x, z0: r.position.z, x1: tp.x, z1: tp.z, d, t: 0, T: clamp(0.45 + d / 22, 0.45, 2.6), h: clamp(d * 0.28, 0.4, 14) };
-          sYip(); tone(300, 0.5, 'sine', 0.12, 900); rumble(0.4, 120);
+          sYip(); tone(300, 0.5, 'sine', 0.12, 900); rumble(0.4, 120); paigeLeap(BEAU.jump);
         }
       } else {
         J.t += dt; const u = Math.min(1, J.t / J.T);
@@ -3250,22 +3304,11 @@ function updatePopup(dt) {
   if (POP.t <= 0) POP.m.visible = false;
 }
 
-// ===== dev shortcuts (left controller): Y = reset the game, X (or Y+X) = skip the 1v1 and get Beau now. Desktop: Y / X keys =====
+// ===== dev shortcuts (left controller): Y = reload the page (fresh game), X (or Y+X) = skip the 1v1 and get Beau now. Desktop: Y / X keys =====
 const DEV = { y: false, x: false, combo: false };
-function devReset() {
-  if (MODE !== 'town') { toast('Leave the minigame first, then press Y to reset', 3); return; }
-  reset();
-  if (TREAT.mesh.parent) TREAT.mesh.parent.remove(TREAT.mesh);
-  scene.add(TREAT.mesh); TREAT.mesh.visible = false; TREAT.state = 'none'; TREAT.C = null;
-  if (BEAU.on) { scene.remove(BEAU.B.root); BEAU.on = false; BEAU.B = null; BEAU.hit = null; }
-  Object.assign(BEAU, { mode: 'follow', mt: 0, jump: null, farted: false, paigeT: 10, glanceT: 3, glance: 0, sit: 0 });
-  rig.position.set(0, 0, 6); rig.rotation.y = 0;
-  const h = headPos(new V3());
-  RS.mode = 'run'; RS.t = 0; RS.acc = 0; RS.rad = 2.8; RS.a = rr(0, TAU);
-  RIM.root.visible = true; ball.visible = true; ballShadow.visible = true;
-  RIM.root.position.set(h.x + Math.cos(RS.a) * 2.8, 0, h.z + Math.sin(RS.a) * 2.8);
-  PD.target = 0; PD.life = 0; puddle.scale.setScalar(0.001);
-  rumble(0.5, 120); hudDirty = true;
+function devReset() { // reload the whole page: a completely fresh game
+  rumble(0.5, 120);
+  if (xrSession) xrSession.end().catch(() => {}).finally(() => location.reload()); else location.reload();
 }
 function devBeau() {
   if (MODE !== 'town') { toast('Leave the minigame first', 3); return; }
