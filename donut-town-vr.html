@@ -1846,6 +1846,7 @@ function updateGlaze(dt, t, head) {
   if (m.visible) m.scale.y = S.won ? 0.75 : 0.25 + Math.abs(Math.sin(t * 14)) * 0.45;
   P.face.blush.forEach(b => b.material.opacity = S.aff / 100 * 0.75);
   P.face.brows.forEach(b => b.position.y = 0.041 + (S.won || GZ.hopT > 0 ? 0.006 : 0));
+  if (trip) return; // no greeting chatter while she's off fetching with Beau (it would cover her song)
   if (dist < 3.4 && !S.greeted && started) { S.greeted = true; if (!S.won) say(`Hi, I'm Paige Glaze! I'm in the mood for ${PREF_TXT[S.pref]} today.`); }
   if (dist > 9) S.greeted = false;
 }
