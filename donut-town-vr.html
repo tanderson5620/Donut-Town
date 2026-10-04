@@ -1748,9 +1748,8 @@ function paigeLeap(J) {
   const r = GLAZE.root, dx = J.x1 - J.x0, dz = J.z1 - J.z0, d = Math.max(Math.hypot(dx, dz), 0.01);
   const x1 = J.x1 - dz / d * 0.9, z1 = J.z1 + dx / d * 0.9; // land beside the treat
   const d2 = Math.hypot(x1 - r.position.x, z1 - r.position.z);
-  GZ.trip = { phase: 'jump', t: 0, ph: 0, said: false, x0: r.position.x, z0: r.position.z, x1, z1, T: J.T, h: clamp(d2 * 0.28, 0.5, 14) };
+  GZ.trip = { phase: 'ready', t: 0, ph: 0, said: false, x0: r.position.x, z0: r.position.z, x1, z1, T: J.T, h: clamp(d2 * 0.28, 0.5, 14) };
   r.rotation.y = Math.atan2(x1 - r.position.x, z1 - r.position.z);
-  say(pick(['Wheee! Wait for me, Beau!', 'Ooh, I want to see!']), 2, GLAZE);
 }
 function paigeTrip(dt, head) {
   const T = GZ.trip, r = GLAZE.root, b = BEAU.on ? BEAU.B.root.position : GZ_HOME;
@@ -1758,6 +1757,10 @@ function paigeTrip(dt, head) {
   const faceTo = (x, z, k = 6) => { r.rotation.y += wrap(Math.atan2(x - r.position.x, z - r.position.z) - r.rotation.y) * Math.min(1, dt * k); };
   const goTo = (x, z, sp) => { const dx = x - r.position.x, dz = z - r.position.z, d = Math.hypot(dx, dz); if (d > 0.05) { const st = Math.min(d, sp * dt); r.position.x += dx / d * st; r.position.z += dz / d * st; faceTo(x, z, 8); } return d; };
   switch (T.phase) {
+    case 'ready': // takes off 0.75 s after Beau
+      faceTo(T.x1, T.z1, 10); cheer = false;
+      if (T.t >= 0.75) { T.phase = 'jump'; T.t = 0; T.x0 = r.position.x; T.z0 = r.position.z; say("He's the cutiest boy!!!", T.T + 1.2, GLAZE); tone(500, 0.4, 'sine', 0.1, 1100); }
+      break;
     case 'jump': {
       const u = Math.min(1, T.t / T.T); air = true;
       r.position.x = T.x0 + (T.x1 - T.x0) * u; r.position.z = T.z0 + (T.z1 - T.z0) * u; r.position.y = 4 * T.h * u * (1 - u);
@@ -1767,7 +1770,8 @@ function paigeTrip(dt, head) {
     case 'wait': faceTo(b.x, b.z); cheer = true; if (BEAU.mode !== 'eat' && BEAU.mode !== 'chase') { T.phase = 'run'; T.t = 0; } break;
     case 'run': { // right beside him, matching his pace
       const y = BEAU.yaw, sx = b.x + Math.cos(y) * 0.9, sz = b.z - Math.sin(y) * 0.9;
-      run = goTo(sx, sz, 9) > 0.15 || BEAU.spd > 0.5 ? 1 : 0;
+      if (goTo(sx, sz, 11) < 0.6) { const k = Math.min(1, dt * 10); r.position.x += (sx - r.position.x) * k; r.position.z += (sz - r.position.z) * k; r.rotation.y += wrap(y - r.rotation.y) * k; } // lock in step beside him
+      run = BEAU.spd > 0.5 ? 1 : 0; if (run) T.ph = BEAU.ph * 0.8; // stride in time with Beau
       if (BEAU.mode !== 'return') { T.phase = 'with'; T.t = 0; }
       break;
     }
@@ -1778,7 +1782,7 @@ function paigeTrip(dt, head) {
       break;
     case 'home': run = 0.55; if (goTo(GZ_HOME.x, GZ_HOME.z, 2.6) < 0.06 || T.t > 60) { r.position.set(GZ_HOME.x, 0, GZ_HOME.z); GZ.trip = null; } break;
   }
-  T.ph += dt * run * 13;
+  if (T.phase !== 'run') T.ph += dt * run * 13;
   return { run, air, cheer, ph: T.ph };
 }
 function updateGlaze(dt, t, head) {
@@ -2282,9 +2286,9 @@ for (let i = 0; i < 2; i++) {
   const C = { c, grip, line, dot, src: null, hand: '', snapReady: true };
   c.addEventListener('connected', e => {
     C.src = e.data; C.hand = e.data.handedness; attachPlayerHand(C); line.visible = !!e.data.targetRayMode && e.data.targetRayMode === 'tracked-pointer';
-    if (C.hand === 'left') grip.add(hudMesh);
+    if (C.hand === 'left') grip.add(hudMesh); else if (hudMesh.parent === grip) grip.remove(hudMesh);
   });
-  c.addEventListener('disconnected', () => { C.src = null; if (hudMesh.parent === grip) grip.remove(hudMesh); });
+  c.addEventListener('disconnected', () => { C.src = null; C.hand = ''; if (hudMesh.parent === grip) grip.remove(hudMesh); });
   c.addEventListener('selectstart', () => {
     if (MODE === 'bball' && BB.poss === 'player') { BB.hold = C; return; }
     if (TREAT.state === 'held') return; // swing and release to throw it
@@ -3243,8 +3247,11 @@ function buildPlayerHand(side) {
   return H;
 }
 function attachPlayerHand(C) {
-  if (C.handModel || !C.hand || C.hand === 'none') return;
+  if (!C.hand || C.hand === 'none') return;
   const side = C.hand === 'left' ? -1 : 1;
+  if (C.handModel && C.arm && C.arm.side === side) return;
+  // controllers can reconnect in swapped slots (sleep, tracking loss): rebuild the right-or-left hand for this slot
+  if (C.handModel) { C.grip.remove(C.handModel.g); scene.remove(C.arm.upper); scene.remove(C.arm.fore); C.handModel = null; C.arm = null; }
   C.handModel = buildPlayerHand(side); C.grip.add(C.handModel.g);
   C.arm = { side, upper: new THREE.Mesh(limbGeo(0.048, 0.04, 1, 8), PSLEEVE), fore: new THREE.Mesh(limbGeo(0.042, 0.033, 1, 8), PSLEEVE) };
   scene.add(C.arm.upper); scene.add(C.arm.fore);
@@ -3253,6 +3260,10 @@ const _Y = new V3(0, -1, 0), _S = new V3(), _W = new V3(), _E = new V3(), _d = n
 function placeLimb(m, a, b, len) { m.position.copy(a); m.quaternion.setFromUnitVectors(_Y, _d.subVectors(b, a).normalize()); m.scale.set(1, len, 1); }
 function updatePlayerArms(vr, head) {
   for (const C of ctrls) {
+    if (C.src && C.src.handedness && C.src.handedness !== C.hand) { // slot swapped hands without a reconnect event
+      C.hand = C.src.handedness; attachPlayerHand(C);
+      if (C.hand === 'left') C.grip.add(hudMesh); else if (hudMesh.parent === C.grip) C.grip.remove(hudMesh);
+    }
     if (!C.arm) continue;
     const show = vr && !!C.src;
     C.arm.upper.visible = C.arm.fore.visible = show; if (C.handModel) C.handModel.g.visible = show;
