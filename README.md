@@ -15,7 +15,7 @@ A WebXR game for Meta Quest 2, built as one self-contained HTML file (`donut-tow
 - **Audio** is synthesized with the WebAudio API (`tone()` and `noise()` helpers). There are no sound files.
 
 ## Controls
-- **Quest:** left stick moves (head-relative), right stick snap-turns 30°. Point a controller and pull the trigger to press buttons or grab donuts; touching a donut with a hand also catches it. A wrist HUD is attached to the left controller.
+- **Quest:** left stick moves (head-relative), right stick snap-turns 30°. Point a controller and pull the trigger to press buttons or grab donuts; touching a donut with a hand also catches it. A wrist HUD is attached to the left controller. You see your own hands (fingers curl with the trigger and grip) and sleeved arms, solved with 2-bone IK from the head to each controller (`attachPlayerHand`, `updatePlayerArms`).
 - **Desktop:** WASD or arrow keys to move (Shift to run), drag to look, click to interact. The HUD is a corner overlay that reuses the same canvas.
 
 ## Locomotion and collisions
@@ -56,9 +56,9 @@ The content stays wholesome and non-sexual. Keep it that way.
 
 ## Minigames
 - **DONUT DASH** (Arcade): press **Play** on the first cabinet. A Pac-Man-style game on a big screen: you're a pink donut eating sprinkles; coffee cups let you chomp the Burnt Bunch ghosts. Move with either thumbstick or WASD/arrows. Every 150 points pays 1 donut. State lives in `DD`.
-- **Punch Rimshot**: while he stares, pukes or recovers, swing a fist into him (VR), point and pull the trigger, or click him (desktop). He staggers comically, then challenges you.
+- **Punch Rimshot**: while he stares, pukes or recovers, swing a fist into him (VR), point and pull the trigger, or click him (desktop). He staggers comically, then challenges you. When he starts puking (until you've won Beau), a pop-up says "Hit him when he's down to win a dog!" (`showPopup`).
 - **1v1 at Rimshot's Court** (east of town, about x 18-33, z -6 to 8): first to 3, one point per basket. VR: hold the trigger, swing and release to throw (aim assist helps). Desktop: hold the mouse to charge, release at mid power to shoot. Grab rebounds by touching or walking into the ball; steal by touching his dribble (VR) or clicking the ball nearby (desktop). Make it, take it: the scorer keeps the ball at the top of the 3-point line. Rimshot defends in a low, wide stance with shuffle steps and a high/low hand. Winning pays 10 donuts, makes Rimshot leave for the rest of the session (`RS.mode = 'gone'`) and wins you **Beau**. State lives in `BB`; `MODE` is 'town' | 'arcade' | 'bball'.
-- **Beau**: a black miniature schnauzer (bushy brows, beard, folded ears, teal collar) built by `buildBeau()`. After you beat Rimshot he follows at your side, trots when you move, sits and looks up when you stop, wags, and yips. Pet him by touching his head (VR) or clicking him (desktop).
+- **Beau**: a black miniature schnauzer (bushy brows, beard, folded ears, teal collar) built by `buildBeau()`. After you beat Rimshot he walks a few feet ahead of you, trots when you move, sits and looks up when you stop, wags, and yips. Pet him by touching his head (VR) or clicking him (desktop).
 
 ## Characters
 Both characters are built with `buildPerson(opts)`: a hierarchical rig of hips, thighs, knees, spine, shoulders, elbows and head. `limbGeo()` makes capsule-like lathe limbs and `torsoGeo()` makes lathe torsos. `buildFace()` adds eyes (sclera, iris, pupil, glint, blinking eyelid), nose, ears, brows, lips and a hidden mouth opening.
@@ -67,7 +67,7 @@ Both characters are built with `buildPerson(opts)`: a hierarchical rig of hips, 
 - **Rimshot:** an original basketball player, teal #77 jersey. He isn't modeled on any real person; keep it that way.
   - Built by `buildAthlete()`, not `buildPerson()`: an 18-bone `THREE.Skeleton` drives `SkinnedMesh`es for the skin, jersey, shorts and a compression sleeve (r128 materials need `skinning: true`). Limbs and torso are sculpted ring grids (`skinGrid()`) with muscle bumps and blended joint weights.
   - The head is a sculpted grid (`headPoint()`), split along the mouth line so a jaw bone can open it. It has teeth, a tongue, textured eyeballs that track the player, blinking eyelids, eyebrows, ears, a fade haircut and a headband. Hands (jointed fingers, nails) and sneakers are rigid parts on their bones.
-  - Skin uses procedural color and pore normal maps. The jersey neck and arm holes are cut with an alpha mask. He is about 99k triangles (beard and hair are alpha-tested shells: stacked offset copies of the skin whose coil texture thins per layer). Skin uses `addSkinShading()`, an `onBeforeCompile` patch that wraps light past the terminator with a warm tint (fake subsurface scattering) plus a soft rim, and the face has a roughness map for the oily T-zone and lips. He dribbles in endless circles around the player at a radius of 2.8 m and about 4.2 m/s. Every 5 laps he runs this state machine (`RS.mode`):
+  - Skin uses procedural color and pore normal maps. The jersey neck and arm holes are cut with an alpha mask. He is kept light for Quest 2 (see the triangle count below; beard and hair are alpha-tested shells: stacked offset copies of the skin whose coil texture thins per layer). Skin uses `addSkinShading()`, an `onBeforeCompile` patch that wraps light past the terminator with a warm tint (fake subsurface scattering) plus a soft rim, and the face has a roughness map for the oily T-zone and lips. He dribbles in endless circles around the player at a radius of 2.8 m and about 4.2 m/s. Every 5 laps he runs this state machine (`RS.mode`):
   - `run`: circles the player for 5 laps.
   - `approach`: jogs to 1.4 m in front of where the player is looking.
   - `stare`: about 2.4 s, wide eyes, head tracks the player.
@@ -102,7 +102,7 @@ Both characters are built with `buildPerson(opts)`: a hierarchical rig of hips, 
 ## Rebuilding Rimshot's baked data
 From `tools/rimshot/`, with Playwright and `pip install bpy==4.2.0 numpy pillow` (Python 3.11):
 1. `node export_src.js`: dumps his rest-pose geometry and skin weights from the page to `rim_src.json` (paths inside assume the repo root and a local three.js; adjust them for your setup).
-2. `python bake.py rim_src.json bake_out`: voxel-remeshes body and hands into one seamless sculpt, adds veins, wrinkles and folds, decimates to a 34k-triangle game mesh, transfers weights and bakes normal + AO maps (about 90 s on 4 cores).
+2. `python bake.py rim_src.json bake_out`: voxel-remeshes body and hands into one seamless sculpt, adds veins, wrinkles and folds, decimates to an 18k-triangle game mesh (`BODY_TRIS` env var), transfers weights and bakes normal + AO maps (about 90 s on 4 cores).
 3. `python embed.py bake_out ../../donut-town-vr.html`: writes the data block into the game.
 
 ## Testing

@@ -1452,10 +1452,10 @@ function buildAthlete() {
     // short beard: shells built from the head's own beard-area triangles, skinned to head + jaw so it opens with the mouth
     const beardTex = coilTex(1024, 512, 90000, 1.3, (u, sv) => { const [bx, by, bz] = headDir(sv * PI, u * TAU - PI); return beardMask(bx, by, bz); });
     const tris = [];
-    for (let q = 0; q < index.length; q += 3) if (Math.max(bm[index[q]], bm[index[q + 1]], bm[index[q + 2]]) > 0.15) tris.push(index[q], index[q + 1], index[q + 2]);
+    for (let q = 0; q < index.length; q += 3) if (Math.min(bm[index[q]], bm[index[q + 1]], bm[index[q + 2]]) > 0.3) tris.push(index[q], index[q + 1], index[q + 2]);
     const remap = new Map(), used = [];
     for (const v of tris) if (!remap.has(v)) { remap.set(v, used.length); used.push(v); }
-    const NB = 3;
+    const NB = 2; // two beard shells keep Rimshot light enough for Quest 2
     for (let k = 0; k < NB; k++) {
       const bp = [], bu = [], bsi = [], bsw = [];
       for (const v of used) {
@@ -1537,7 +1537,7 @@ function buildAthlete() {
   // short coily hair: stacked shells over the scalp; each shell keeps only the taller coils, so the
   // hair has real depth. Density and length fall off toward the faded sides and nape.
   {
-    const PI = Math.PI, R = 18, C = 52, N = 5, q = new V3(), ctr = new V3(0, HD.cy, HD.cz);
+    const PI = Math.PI, R = 14, C = 40, N = 3, q = new V3(), ctr = new V3(0, HD.cy, HD.cz);
     const fadeStart = ph => lerp(0.93, 0.35, smooth(0.15, 0.45, ph));
     const hairDensity = (u, s) => 1 - smooth(fadeStart(Math.abs(u * 2 - 1)), 1, s);
     const hairTex = coilTex(1024, 256, 52000, 1.6, hairDensity);
@@ -1676,7 +1676,7 @@ function buildAthlete() {
     fp.moveTo(0, -0.07); pts.forEach(([x, y]) => fp.lineTo(x, y)); for (let i = n; i >= 0; i--) fp.lineTo(-pts[i][0], pts[i][1]); }
   const soleG = new THREE.ExtrudeGeometry(fp, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.005, bevelSegments: 2, curveSegments: 4 }); soleG.rotateX(Math.PI / 2);
   const outG = new THREE.ExtrudeGeometry(fp, { depth: 0.006, bevelEnabled: false }); outG.rotateX(Math.PI / 2);
-  const upperG = new THREE.SphereGeometry(1, 36, 22);
+  const upperG = new THREE.SphereGeometry(1, 22, 14);
   { const p = upperG.attributes.position, uvA = upperG.attributes.uv;
     for (let i = 0; i < p.count; i++) {
       let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
@@ -1838,7 +1838,7 @@ function updateRunner(dt, t, head) {
     const dx = hx - root.position.x, dz = hz - root.position.z;
     P.neck.rotation.x = clamp(-Math.atan2(head.y - 1.85, Math.hypot(dx, dz)), -0.5, 0.5);
     P.chest.rotation.x = Math.sin(t * 2.2) * 0.02; // heavy breathing
-    if (RS.t > 2.4) { RS.mode = 'puke'; RS.t = 0; RS.heaves = 0; PD.target = 0; }
+    if (RS.t > 2.4) { RS.mode = 'puke'; RS.t = 0; RS.heaves = 0; PD.target = 0; if (!BEAU.on) showPopup('Hit him when he\'s down to win a dog!'); }
   } else if (RS.mode === 'puke') {
     lookAtPlayer = true;
     let k = 0;
@@ -2221,13 +2221,13 @@ function ctrlModel() {
 }
 for (let i = 0; i < 2; i++) {
   const c = renderer.xr.getController(i), grip = renderer.xr.getControllerGrip(i);
-  rig.add(c); rig.add(grip); grip.add(ctrlModel());
+  rig.add(c); rig.add(grip); // your own hand is attached when the controller connects (attachPlayerHand)
   const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(0, 0, 0), new V3(0, 0, -1)]), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 }));
   line.scale.z = 4; c.add(line);
   const dot = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff })); dot.visible = false; c.add(dot);
   const C = { c, grip, line, dot, src: null, hand: '', snapReady: true };
   c.addEventListener('connected', e => {
-    C.src = e.data; C.hand = e.data.handedness; line.visible = !!e.data.targetRayMode && e.data.targetRayMode === 'tracked-pointer';
+    C.src = e.data; C.hand = e.data.handedness; attachPlayerHand(C); line.visible = !!e.data.targetRayMode && e.data.targetRayMode === 'tracked-pointer';
     if (C.hand === 'left') grip.add(hudMesh);
   });
   c.addEventListener('disconnected', () => { C.src = null; if (hudMesh.parent === grip) grip.remove(hudMesh); });
@@ -2943,9 +2943,9 @@ function updateBeau(dt, head, vr) {
   if (!BEAU.on || MODE === 'bball') return;
   const B = BEAU.B, r = B.root;
   BEAU.petCD -= dt; BEAU.happy = Math.max(0, BEAU.happy - dt);
-  // follow at your side, a little behind
+  // walk a few feet in front of you
   const f = camera.getWorldDirection(new V3()); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
-  const tx = head.x - f.x * 0.5 - f.z * 0.75, tz = head.z - f.z * 0.5 + f.x * 0.75;
+  const tx = head.x + f.x * 1.2 - f.z * 0.25, tz = head.z + f.z * 1.2 + f.x * 0.25; // a few feet ahead of you
   const dx = tx - r.position.x, dz = tz - r.position.z, d = Math.hypot(dx, dz);
   if (d > 12) { r.position.set(tx, 0, tz); }
   let speed = 0;
@@ -2966,6 +2966,90 @@ function updateBeau(dt, head, vr) {
   // pet him by touching his head (VR)
   if (vr) for (const C of ctrls) if (C.src && C.grip.getWorldPosition(tmpV2).distanceTo(hp) < 0.22) petBeau();
   BEAU.barkT -= dt; if (BEAU.barkT <= 0) { BEAU.barkT = rr(10, 22); if (Math.hypot(head.x - r.position.x, head.z - r.position.z) < 6) sYip(); }
+}
+
+// ===== your own arms and hands in VR: hands ride the controller grips, arms are solved with 2-bone IK =====
+const PSKIN = STD(0xc68a62, { roughness: 0.6 }), PSLEEVE = STD(0x2f3a4a, { roughness: 0.85 });
+function buildPlayerHand(side) {
+  // grip space: -z points along the controller, the palm wraps the handle; side = +1 right hand, -1 left
+  const H = { g: new THREE.Group(), curl: [], index: null };
+  const ell = (sx, sy, sz, x, y, z, par) => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), PSKIN); m.scale.set(sx, sy, sz); m.position.set(x, y, z); par.add(m); return m; };
+  ell(0.024, 0.045, 0.052, side * 0.028, -0.015, 0.035, H.g);                       // palm, on the outside of the handle
+  ell(0.022, 0.03, 0.03, side * 0.022, -0.02, 0.085, H.g);                          // heel of the hand / wrist
+  const finger = (y, len, r) => {                                                   // knuckle on the outside, finger wraps across the front
+    const k = new THREE.Group(); k.position.set(side * 0.04, y, -0.012); H.g.add(k);
+    const a = new THREE.Group(); a.rotation.z = -side * Math.PI / 2; k.add(a);
+    a.add(new THREE.Mesh(limbGeo(r, r * 0.9, len * 0.55, 6), PSKIN));
+    const b = new THREE.Group(); b.position.y = -len * 0.55; a.add(b);
+    b.add(new THREE.Mesh(limbGeo(r * 0.9, r * 0.8, len * 0.45, 6), PSKIN));
+    return { k, b };
+  };
+  H.index = finger(0.012, 0.075, 0.0095); H.index.k.position.z = -0.045;            // trigger finger
+  for (const [y, len] of [[-0.012, 0.08], [-0.03, 0.075], [-0.046, 0.06]]) H.curl.push(finger(y, len, 0.009));
+  const th = new THREE.Group(); th.position.set(side * 0.01, 0.022, 0.02); th.rotation.x = Math.PI / 2 + 0.25; H.g.add(th); // thumb on the stick
+  th.add(new THREE.Mesh(limbGeo(0.011, 0.009, 0.06, 6), PSKIN));
+  return H;
+}
+function attachPlayerHand(C) {
+  if (C.handModel || !C.hand || C.hand === 'none') return;
+  const side = C.hand === 'left' ? -1 : 1;
+  C.handModel = buildPlayerHand(side); C.grip.add(C.handModel.g);
+  C.arm = { side, upper: new THREE.Mesh(limbGeo(0.048, 0.04, 1, 8), PSLEEVE), fore: new THREE.Mesh(limbGeo(0.042, 0.033, 1, 8), PSLEEVE) };
+  scene.add(C.arm.upper); scene.add(C.arm.fore);
+}
+const _Y = new V3(0, -1, 0), _S = new V3(), _W = new V3(), _E = new V3(), _d = new V3(), _pole = new V3(), _r = new V3(), _f = new V3();
+function placeLimb(m, a, b, len) { m.position.copy(a); m.quaternion.setFromUnitVectors(_Y, _d.subVectors(b, a).normalize()); m.scale.set(1, len, 1); }
+function updatePlayerArms(vr, head) {
+  for (const C of ctrls) {
+    if (!C.arm) continue;
+    const show = vr && !!C.src;
+    C.arm.upper.visible = C.arm.fore.visible = show; if (C.handModel) C.handModel.g.visible = show;
+    if (!show) continue;
+    // finger curl from the trigger and grip buttons
+    const gp = C.src.gamepad, trig = gp && gp.buttons[0] ? gp.buttons[0].value : 0, sq = gp && gp.buttons[1] ? gp.buttons[1].value : 0;
+    C.handModel.index.k.rotation.y = -C.arm.side * (0.2 + trig * 0.9); C.handModel.index.b.rotation.x = 0;
+    C.handModel.curl.forEach(f => { f.k.rotation.y = -C.arm.side * (0.35 + sq * 0.9); });
+    // shoulder from the head, wrist from the controller, elbow by 2-bone IK bending down and out
+    camera.getWorldDirection(_f); _f.y = 0; if (_f.lengthSq() < 1e-4) _f.set(0, 0, -1); _f.normalize(); _r.set(-_f.z, 0, _f.x);
+    _S.copy(head).addScaledVector(_r, C.arm.side * 0.19).addScaledVector(_f, -0.06); _S.y -= 0.24;
+    C.grip.localToWorld(_W.set(C.arm.side * 0.015, -0.02, 0.1));
+    const L1 = 0.3, L2 = 0.28; _d.subVectors(_W, _S); let d = _d.length(); const dir = _d.clone().divideScalar(d || 1);
+    d = Math.min(d, L1 + L2 - 0.005);
+    const a = (L1 * L1 - L2 * L2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+    _pole.set(0, -1, 0).addScaledVector(_r, C.arm.side * 0.7).addScaledVector(_f, -0.3);
+    _pole.addScaledVector(dir, -_pole.dot(dir)).normalize();
+    _E.copy(_S).addScaledVector(dir, a).addScaledVector(_pole, h);
+    placeLimb(C.arm.upper, _S, _E, L1); placeLimb(C.arm.fore, _E, _W, _E.distanceTo(_W));
+  }
+}
+
+// ===== pop-up notice floating in front of you (also used as a desktop banner) =====
+const POP = (() => {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 256;
+  const tex = new THREE.CanvasTexture(c), m = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.225), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }));
+  m.renderOrder = 998; m.visible = false; m.position.set(0, 0.12, -1.1); camera.add(m);
+  return { c, g: c.getContext('2d'), tex, m, t: 0 };
+})();
+function showPopup(text, dur = 3.5) {
+  const { g, c } = POP;
+  g.clearRect(0, 0, c.width, c.height);
+  g.fillStyle = 'rgba(0,0,0,.25)'; rrect(g, 14, 18, c.width - 22, c.height - 26, 48); g.fill();
+  g.fillStyle = '#fff8fb'; rrect(g, 8, 8, c.width - 22, c.height - 26, 48); g.fill();
+  g.strokeStyle = '#ff5fa8'; g.lineWidth = 12; g.stroke();
+  for (const [x, y, s] of [[110, 120, 1], [930, 120, 1]]) { // paw prints
+    g.fillStyle = '#1c1c21'; g.beginPath(); g.ellipse(x, y + 18, 30 * s, 24 * s, 0, 0, TAU); g.fill();
+    for (const [dx, dy] of [[-30, -18], [-11, -36], [11, -36], [30, -18]]) { g.beginPath(); g.arc(x + dx, y + dy, 11, 0, TAU); g.fill(); }
+  }
+  g.fillStyle = '#c23c7a'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  fitFont(g, text, 700, 64, 900); g.fillText(text, c.width / 2, 116);
+  POP.tex.needsUpdate = true; POP.m.visible = true; POP.t = dur;
+  sYip(); toast(text, dur);
+}
+function updatePopup(dt) {
+  if (POP.t <= 0) return;
+  POP.t -= dt; POP.m.material.opacity = Math.min(1, POP.t * 3);
+  POP.m.scale.setScalar(1 + Math.max(0, POP.t - 3.2) * 0.6);
+  if (POP.t <= 0) POP.m.visible = false;
 }
 
 // ---------- 12. Start buttons and the main loop ----------
@@ -3020,6 +3104,8 @@ renderer.setAnimationLoop(() => {
   if (MODE === 'arcade') updateArcade(dt, vr);
   updatePunch(vr);
   updateBeau(dt, headV, vr);
+  updatePlayerArms(vr, headV);
+  updatePopup(dt);
   updateFade(dt);
   updateGame(dt, headV);
   updateFlying(dt, vr);
