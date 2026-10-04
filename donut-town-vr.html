@@ -1791,7 +1791,6 @@ function paigeTrip(dt, head) {
     }
     case 'with':
       faceTo(head.x, head.z);
-      if (T.t > 1.9 && !T.said) { T.said = true; say(pick(['Beau! Ew, gross!', 'Oh no, Beau! Pee-yew!']), 2.2, GLAZE); }
       if (T.t > 3 && (BEAU.mode !== 'fart' || !BEAU.on)) { T.phase = 'home'; T.t = 0; }
       break;
     case 'home': run = 0.55; if (goTo(GZ_HOME.x, GZ_HOME.z, 2.6) < 0.06 || T.t > 60) { r.position.set(GZ_HOME.x, 0, GZ_HOME.z); GZ.trip = null; } break;
@@ -3075,7 +3074,6 @@ function throwTreat(v) {
   TREAT.mesh.parent.remove(TREAT.mesh); scene.add(TREAT.mesh); TREAT.mesh.position.copy(p);
   TREAT.vel.copy(v); TREAT.state = 'fly'; TREAT.C = null;
   BEAU.mode = 'chase'; BEAU.mt = 0; BEAU.jump = null; BEAU.happy = 4; sYip(); setTimeout(sYip, 160);
-  setTimeout(() => { if (BEAU.on) say(pick(['ARF ARF ARF!', 'TREAT!!!', '*zoomies*']), 1.5, BEAU.B); }, 250);
 }
 function throwVel(dir, speed, elev) { // horizontal dir (normalized xz), launch speed, elevation angle
   return new V3(dir.x * Math.cos(elev) * speed, Math.sin(elev) * speed, dir.z * Math.cos(elev) * speed);
@@ -3142,7 +3140,7 @@ function updateBeau(dt, head, vr) {
       const a = GLAZE.root.rotation.y, tx = gp.x + Math.sin(a) * 0.45, tz = gp.z + Math.cos(a) * 0.45;
       if (beauMove(r, tx, tz, 7.5, dt) < 0.3 || BEAU.mt > 9) {
         setMode('lick'); BEAU.happy = 2.6;
-        say(pick(['Missed you Beau, so much!', 'Missed you Beau, so much! Oh, those kisses!']), 3, GLAZE); GZ.hopT = 0.7; GZ.hopBig = false;
+        say('Missed you Beau, so much!', 3, GLAZE); GZ.hopT = 0.7; GZ.hopBig = false;
       }
       break;
     }
@@ -3186,7 +3184,7 @@ function updateBeau(dt, head, vr) {
         if (u >= 1) {
           BEAU.jump = null; hop = 0; flying = 0;
           tone(90, 0.15, 'sine', 0.2, 50); for (let i = 0; i < 12; i++) emit(J.x1, 0.05, J.z1, rr(-1, 1), rr(0.3, 1), rr(-1, 1), 0xb8a888, rr(0.5, 0.9));
-          setMode('eat'); TREAT.state = 'none'; TREAT.mesh.visible = false; say('*CHOMP SLOBBER GNASH SLURRRP*', 2.6, BEAU.B);
+          setMode('eat'); TREAT.state = 'none'; TREAT.mesh.visible = false;
         }
       }
       break;
@@ -3222,7 +3220,7 @@ function updateBeau(dt, head, vr) {
       const away = Math.atan2(r.position.x - head.x, r.position.z - head.z);
       BEAU.yaw += wrap(away - BEAU.yaw) * Math.min(1, dt * 8);
       if (BEAU.mt > 0.5 && !BEAU.farted) {
-        BEAU.farted = true; sFart(); rumble(0.6, 300); say('*PFFFRRRRRT*', 2, BEAU.B);
+        BEAU.farted = true; sFart(); rumble(0.6, 300);
         setTimeout(() => showPopup('Ugh, Beau!! That was the treat?!', 2.5), 900);
       }
       if (BEAU.farted && BEAU.mt < 2.4 && Math.random() < dt * 25) { const tp = B.tail.getWorldPosition(tmpV); emit(tp.x, tp.y, tp.z, rr(-0.4, 0.4) - Math.sin(BEAU.yaw) * 0.6, rr(0.1, 0.4), rr(-0.4, 0.4) - Math.cos(BEAU.yaw) * 0.6, pick([0x9dbb3a, 0xb6c95a, 0x7c8f2e]), rr(1, 1.6), 0.15, 0); }
