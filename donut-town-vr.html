@@ -638,6 +638,7 @@ const lakeWater = disc(LAKE.r, new THREE.MeshPhongMaterial({ color: 0x5fa0c8, ma
 const dummy = new THREE.Object3D();
 const inTown = (x, z) => x > -14.5 && x < 14.5 && z > -33 && z < 11.5;
 const nearLake = (x, z, m) => Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + m;
+const onCourt = (x, z) => x > 16.5 && x < 34.5 && z > -8.5 && z < 9; // Rimshot's Court (1v1 basketball)
 function scatterValley(n, rmin, rmax, avoid) {
   const out = []; let tries = 0;
   while (out.length < n && tries++ < n * 30) {
@@ -661,7 +662,7 @@ const pineGeo = (() => {
 })();
 const pineMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 const townPines = [[-5.7, 2.6], [5.7, 2.6], [-5.7, -9.5], [5.7, -14.6], [-5.7, -26.8], [5.7, -26.8], [-5.7, 8.2], [5.7, 8.2], [-14, -12], [14, -12], [-13.5, 4], [13.5, 4], [-13.5, -28], [13.5, -28]];
-const valleyPines = scatterValley(300, 17, 57, (x, z) => inTown(x, z) || nearLake(x, z, 2.5) || Math.hypot(x, z - 6) < 6);
+const valleyPines = scatterValley(300, 17, 57, (x, z) => inTown(x, z) || onCourt(x, z) || nearLake(x, z, 2.5) || Math.hypot(x, z - 6) < 6);
 const slopePines = [];
 for (let i = 0, tries = 0; i < 800 && tries < 9000; tries++) {
   const r = rr(61, 165), a = rr(0, TAU), x = Math.cos(a) * r, z = Math.sin(a) * r, h = heightAt(x, z);
@@ -677,7 +678,7 @@ for (const p of [...townPines, ...valleyPines]) colliders.push(new THREE.Box3(ne
 
 const rockGeo = new THREE.IcosahedronGeometry(1, 0); rockGeo.scale(1, 0.62, 1.15); rockGeo.translate(0, 0.25, 0);
 const rocks = [
-  ...scatterValley(110, 12, 57, (x, z) => inTown(x, z) || nearLake(x, z, 1) || Math.hypot(x, z - 6) < 5).map(p => [p[0], p[1], 0, rr(0.25, 1.4)]),
+  ...scatterValley(110, 12, 57, (x, z) => inTown(x, z) || onCourt(x, z) || nearLake(x, z, 1) || Math.hypot(x, z - 6) < 5).map(p => [p[0], p[1], 0, rr(0.25, 1.4)]),
   ...Array.from({ length: 30 }, (_, i) => { const a = i / 30 * TAU; return [LAKE.x + Math.cos(a) * (LAKE.r + rr(0.8, 2.2)), LAKE.z + Math.sin(a) * (LAKE.r + rr(0.8, 2.2)), 0, rr(0.3, 1)]; }),
   ...Array.from({ length: 110 }, () => { const r = rr(62, 180), a = rr(0, TAU), x = Math.cos(a) * r, z = Math.sin(a) * r; return [x, z, heightAt(x, z) - 0.3, rr(1, 3.2)]; }),
 ];
@@ -701,7 +702,7 @@ const tuftGeo = (() => {
   return g;
 })();
 const avoidGround = (x, z) => (Math.abs(x) < 5.2 && z > -31.5 && z < 9.5) || Math.hypot(x - PLAZA.x, z - PLAZA.z) < PLAZA.r + 0.4 ||
-  (Math.abs(x) > 6.8 && Math.abs(x) < 12.4 && ((z > -8 && z < 0) || (z > -24 && z < -16))) || nearLake(x, z, 1.8);
+  (Math.abs(x) > 6.8 && Math.abs(x) < 12.4 && ((z > -8 && z < 0) || (z > -24 && z < -16))) || nearLake(x, z, 1.8) || onCourt(x, z);
 instanced(tuftGeo, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), scatterValley(4200, 0, 58, avoidGround), (d, p, col) => {
   d.position.set(p[0], 0, p[1]); d.rotation.set(0, rr(0, TAU), 0); d.scale.setScalar(rr(0.7, 1.6)); col.setHSL(rr(0.22, 0.3), 0.5, rr(0.75, 1.05));
 });
@@ -1858,6 +1859,18 @@ function updateRunner(dt, t, head) {
       for (let i = 0; i < 5; i++) emit(m.x, m.y, m.z, fx * rr(1.0, 2.0) + rr(-0.35, 0.35), rr(-0.6, 0.4), fz * rr(1.0, 2.0) + rr(-0.35, 0.35), pick([0x9fbf2a, 0xc8c43a, 0x7fa82a, 0xd6cf5a]), rr(1.4, 2.2), -9.8, 0.035);
     }
     if (RS.t > 2.4) { RS.mode = 'recover'; RS.t = 0; }
+  } else if (RS.mode === 'punched') {
+    // cartoon stagger: knocked back a step, wobbles, shakes it off, points at you
+    lookAtPlayer = RS.t > 0.9;
+    const k = Math.sin(Math.PI * Math.min(1, RS.t / 0.6));
+    if (RS.t < 0.5) { const back = 1.1 * dt; root.position.x -= Math.sin(RS.yaw) * back; root.position.z -= Math.cos(RS.yaw) * back; }
+    P.spine.rotation.x = -0.35 * k; P.neck.rotation.x = -0.4 * k; P.neck.rotation.z = Math.sin(RS.t * 18) * 0.25 * (1 - Math.min(1, RS.t / 1.4));
+    P.sh.forEach((sh, i) => { sh.rotation.z = (i ? 1 : -1) * (0.3 + 0.9 * k); });
+    if (RS.t > 1.1) { P.sh[1].rotation.x = -1.5; P.sh[1].rotation.z = 0.1; P.el[1].rotation.x = -0.1; } // points at you
+    F.wide = k; F.open = 0.5 * k;
+    if (RS.t > 2.2 && MODE === 'town') { RS.mode = 'bball-wait'; startBball(); }
+  } else if (RS.mode === 'bball-wait') {
+    lookAtPlayer = true;
   } else if (RS.mode === 'recover') {
     lookAtPlayer = true;
     const w = Math.sin(RS.t * 9);
@@ -1909,7 +1922,8 @@ const bub = (() => {
   m.visible = false; m.renderOrder = 5; scene.add(m);
   return { c, g: c.getContext('2d'), tex, m, t: 0 };
 })();
-function say(text, dur = 5) {
+function say(text, dur = 5, who = GLAZE) {
+  bub.who = who;
   const { g, c } = bub;
   g.clearRect(0, 0, c.width, c.height);
   g.fillStyle = 'rgba(0,0,0,.18)'; rrect(g, 10, 12, 492, 152, 36); g.fill();
@@ -1926,7 +1940,7 @@ function say(text, dur = 5) {
 function updateBubble(dt) {
   if (bub.t <= 0) return;
   bub.t -= dt; if (bub.t <= 0) { bub.m.visible = false; return; }
-  GLAZE.head.getWorldPosition(bub.m.position); bub.m.position.y += 0.58 + GLAZE.body.position.y * 0;
+  (bub.who || GLAZE).head.getWorldPosition(bub.m.position); bub.m.position.y += 0.58;
   bub.m.quaternion.copy(camera.getWorldQuaternion(new THREE.Quaternion()));
 }
 
@@ -2085,14 +2099,14 @@ function drawHUD() {
   drawMeter(g, 70, 154, 330, 28, S.aff / 100);
   g.fillStyle = '#fff'; g.font = '800 30px system-ui, Arial, sans-serif'; g.fillText(Math.round(S.aff) + '%', 414, 169);
   g.font = '600 25px system-ui, Arial, sans-serif'; g.fillStyle = '#ffd6ea';
-  let msg = S.msgT > 0 ? S.msg : S.won ? 'Glaze is your girlfriend! ♥' : G.active ? (G.inside ? `Catch! ${G.caught} caught, ${G.burnt} burnt` : 'Step inside the Donut Stand!') : `Glaze wants: ${PREF_TXT[S.pref]}`;
+  let msg = S.msgT > 0 ? S.msg : MODE === 'bball' ? (BB.charging ? 'Power ' + '|'.repeat(Math.round(BB.charge * 20)) : `1v1: YOU ${BB.you} - ${BB.rim} RIMSHOT`) : S.won ? 'Glaze is your girlfriend! ♥' : G.active ? (G.inside ? `Catch! ${G.caught} caught, ${G.burnt} burnt` : 'Step inside the Donut Stand!') : `Glaze wants: ${PREF_TXT[S.pref]}`;
   fitFont(g, msg, w - 50, 26, 600); g.fillText(msg, 26, 220);
   hudTex.needsUpdate = true;
 }
 function updateHUD(dt) {
   if (S.msgT > 0) { S.msgT -= dt; if (S.msgT <= 0) hudDirty = true; }
   hudTimer -= dt;
-  if (hudDirty || (G.active && hudTimer <= 0)) { drawHUD(); hudDirty = false; hudTimer = 0.25; }
+  if (hudDirty || ((G.active || BB.charging) && hudTimer <= 0)) { drawHUD(); hudDirty = false; hudTimer = 0.25; }
 }
 
 // Particles: one Points cloud, ring-buffer allocated
@@ -2216,18 +2230,27 @@ for (let i = 0; i < 2; i++) {
     if (C.hand === 'left') grip.add(hudMesh);
   });
   c.addEventListener('disconnected', () => { C.src = null; if (hudMesh.parent === grip) grip.remove(hudMesh); });
-  c.addEventListener('selectstart', () => { const hit = pointerHit(C); if (hit) activate(hit); });
+  c.addEventListener('selectstart', () => {
+    if (MODE === 'bball' && BB.poss === 'player') { BB.hold = C; return; }
+    const hit = pointerHit(C); if (hit) activate(hit);
+  });
+  c.addEventListener('selectend', () => {
+    if (MODE === 'bball' && BB.poss === 'player' && BB.hold === C && C.vel && C.vel.length() > 1.2) playerShoot(C.vel.clone().multiplyScalar(1.3));
+    else if (BB.hold === C) BB.hold = null;
+  });
   ctrls.push(C);
 }
 function targets() {
   const list = [];
   for (const b of buttons) if (b.mesh.visible && b.enabled) list.push(b.mesh);
   for (const fd of flying) if (fd.state === 'fly' || fd.state === 'fall') list.push(fd.g);
+  if (punchable()) list.push(RIM_HIT);
+  if (MODE === 'bball') list.push(ball);
   return list;
 }
 function firstHit(list) {
   const hits = raycaster.intersectObjects(list, true);
-  for (const h of hits) { let o = h.object; while (o && !o.userData.btn && !o.userData.fdObj) o = o.parent; if (o) return { obj: o, dist: h.distance }; }
+  for (const h of hits) { let o = h.object; while (o && !o.userData.btn && !o.userData.fdObj && !o.userData.punchable && o !== ball) o = o.parent; if (o) return { obj: o, dist: h.distance }; }
   return null;
 }
 const rayRot = new THREE.Matrix4();
@@ -2242,6 +2265,8 @@ function pointerHit(C) {
 function activate(hit) {
   const o = hit.obj;
   if (o.userData.btn) pressButton(o.userData.btn);
+  else if (o.userData.punchable) punchRimshot();
+  else if (o === ball) desktopBballClick(true);
   else if (o.userData.fdObj) catchDonut(o.userData.fdObj);
 }
 let hovered = new Set();
@@ -2271,7 +2296,7 @@ addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 let drag = null, pitch = 0;
 const cvs = renderer.domElement;
-cvs.addEventListener('pointerdown', e => { if (!started) return; drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId }; try { cvs.setPointerCapture(e.pointerId); } catch (_) { /* ok */ } });
+cvs.addEventListener('pointerdown', e => { if (!started) return; if (MODE === 'bball' && BB.poss === 'player' && !renderer.xr.isPresenting) { BB.charging = true; BB.charge = 0; BB.chargeDir = 1; } drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId }; try { cvs.setPointerCapture(e.pointerId); } catch (_) { /* ok */ } });
 cvs.addEventListener('pointermove', e => {
   if (!drag || renderer.xr.isPresenting) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
@@ -2279,6 +2304,7 @@ cvs.addEventListener('pointermove', e => {
 });
 cvs.addEventListener('pointerup', e => {
   if (!drag) return;
+  if (BB.charging) { BB.charging = false; if (MODE === 'bball' && BB.poss === 'player') desktopShoot(BB.charge); drag = null; return; }
   if (drag.moved < 6 && !renderer.xr.isPresenting) {
     const r = cvs.getBoundingClientRect();
     raycaster.setFromCamera({ x: (e.clientX - r.left) / r.width * 2 - 1, y: -(e.clientY - r.top) / r.height * 2 + 1 }, camera);
@@ -2338,7 +2364,497 @@ function resolve() {
   const lx = px - LAKE.x, lz = pz - LAKE.z, ld = Math.hypot(lx, lz);
   if (ld < LAKE.r + PR) { const k = (LAKE.r + PR) / Math.max(ld, 1e-4); px = LAKE.x + lx * k; pz = LAKE.z + lz * k; }
   const wd = Math.hypot(px, pz); if (wd > WORLD_R) { px *= WORLD_R / wd; pz *= WORLD_R / wd; }
+  if (MODE === 'bball') { px = clamp(px, CT.x0 + 0.3, CT.x1 - 0.3); pz = clamp(pz, CT.z0 + 0.3, CT.z1 - 0.3); }
   rig.position.x += px - h.x; rig.position.z += pz - h.z;
+}
+
+// ---------- 11b. Game modes: DONUT DASH (arcade), punching Rimshot, 1v1 basketball ----------
+let MODE = 'town'; // 'town' | 'arcade' | 'bball'
+// fade to black around the head for scene changes (comfortable in VR)
+const fader = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+fader.renderOrder = 999; fader.visible = false; camera.add(fader);
+const FADE = { phase: 0, t: 0, cb: null };
+function fadeThrough(cb) { if (FADE.phase) return; FADE.phase = 1; FADE.t = 0; FADE.cb = cb; fader.visible = true; }
+function updateFade(dt) {
+  if (!FADE.phase) return;
+  FADE.t += dt;
+  if (FADE.phase === 1) { fader.material.opacity = Math.min(1, FADE.t / 0.35); if (FADE.t >= 0.35) { const cb = FADE.cb; FADE.cb = null; FADE.phase = 2; FADE.t = 0; if (cb) cb(); } }
+  else { fader.material.opacity = Math.max(0, 1 - FADE.t / 0.45); if (FADE.t >= 0.45) { FADE.phase = 0; fader.visible = false; } }
+}
+// put the player's head at (x, z) looking along yaw (0 = -z), whatever their real-world pose is
+function placePlayer(x, z, yaw) {
+  rig.updateMatrixWorld(true);
+  const dir = camera.getWorldDirection(new V3()), headYaw = Math.atan2(-dir.x, -dir.z);
+  rig.rotation.y += wrap(yaw - headYaw); rig.updateMatrixWorld(true);
+  const h = headPos(new V3()); rig.position.x += x - h.x; rig.position.z += z - h.z;
+}
+// controller velocity from a short position history (for punches and throws)
+function trackHands(dt) {
+  for (const C of ctrls) {
+    if (!C.src) continue;
+    C.hist = C.hist || []; C.vel = C.vel || new V3();
+    C.hist.push({ p: C.grip.getWorldPosition(new V3()), dt });
+    if (C.hist.length > 5) C.hist.shift();
+    if (C.hist.length >= 3) { let T = 0; for (let i = 1; i < C.hist.length; i++) T += C.hist[i].dt; C.vel.subVectors(C.hist[C.hist.length - 1].p, C.hist[0].p).divideScalar(Math.max(T, 1e-3)); }
+  }
+}
+function stickDir(vr) { // dominant direction from either stick or the keys: 0 R, 1 D, 2 L, 3 U, -1 none
+  let x = 0, y = 0;
+  if (vr) for (const C of ctrls) { if (!C.src || !C.src.gamepad) continue; const [ax, ay] = axes(C.src.gamepad); if (Math.hypot(ax, ay) > Math.hypot(x, y)) { x = ax; y = ay; } }
+  if (keys.ArrowRight || keys.KeyD) x = 1; if (keys.ArrowLeft || keys.KeyA) x = -1; if (keys.ArrowDown || keys.KeyS) y = 1; if (keys.ArrowUp || keys.KeyW) y = -1;
+  if (Math.max(Math.abs(x), Math.abs(y)) < 0.5) return -1;
+  return Math.abs(x) > Math.abs(y) ? (x > 0 ? 0 : 2) : (y > 0 ? 1 : 3);
+}
+const sBonk = () => { tone(260, 0.25, 'square', 0.16, 70); noise(0.18, 0.25, 1400, 'bandpass'); tone(1200, 0.4, 'triangle', 0.05, 1800, 0.1); };
+const sSwish = () => { noise(0.35, 0.18, 3000, 'highpass', 0, 6000); [784, 988, 1175].forEach((f, i) => tone(f, 0.18, 'triangle', 0.1, 0, 0.1 + i * 0.08)); };
+const sClank = () => { tone(520, 0.3, 'square', 0.06, 380); noise(0.12, 0.12, 2500, 'bandpass'); };
+
+// ===== DONUT DASH: a Pac-Man spin-off on the arcade cabinet =====
+const DD = (() => {
+  const MAP = [
+    '###################', '#........#........#', '#o##.###.#.###.##o#', '#.................#', '#.##.#.#####.#.##.#',
+    '#....#...#...#....#', '####.### # ###.####', '   #.#       #.#   ', '####.# ##-## #.####', '    .  #GGG#  .    ',
+    '####.# ##### #.####', '   #.#       #.#   ', '####.# ##### #.####', '#........#........#', '#.##.###.#.###.##.#',
+    '#o.#.....P.....#.o#', '##.#.#.#####.#.#.##', '#....#...#...#....#', '#.######.#.######.#', '#.................#', '###################'];
+  const W = 19, H = 21, TS = 24, TOP = 44, c = document.createElement('canvas');
+  c.width = W * TS; c.height = H * TS + TOP;
+  const tex = new THREE.CanvasTexture(c), group = new THREE.Group(); group.visible = false; scene.add(group);
+  const sw = 1.3, sh = sw * c.height / c.width;
+  box(sw + 0.12, sh + 0.12, 0.05, L(0x2b2340), 0, 0, -0.03, group);
+  group.add(new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ map: tex })));
+  const exitBtn = makeButton(group, 0.42, 0.13, 0, -sh / 2 - 0.12, 0.01, { label: 'Exit', color: '#7b5cff', onPress: () => exitArcade() });
+  return { MAP, W, H, TS, TOP, c, g: c.getContext('2d'), tex, group, exitBtn, sh, cells: [], dots: 0, score: 0, lives: 3, level: 1, state: 'title', t: 0, fright: 0, pac: null, ghosts: [], combo: 0, waka: 0, earned: 0 };
+})();
+const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+const GHOST_COLS = ['#ff4d6d', '#ff8fc7', '#3bceac', '#ffb347'];
+function ddCell(x, y) { if (y < 0 || y >= DD.H) return '#'; return DD.cells[y][((x % DD.W) + DD.W) % DD.W]; }
+function ddOpen(x, y, ghost) { const ch = ddCell(x, y); return ch !== '#' && (ghost || (ch !== '-' && ch !== 'G')); }
+function ddReset(full) {
+  if (full) {
+    DD.cells = DD.MAP.map(r => r.split(''));
+    let px = 9, py = 15; DD.cells.forEach((r, y) => r.forEach((ch, x) => { if (ch === 'P') { px = x; py = y; r[x] = ' '; } }));
+    const seen = new Set([px + ',' + py]), q = [[px, py]]; // only keep sprinkles the donut can actually reach
+    while (q.length) { const [x, y] = q.shift(); for (const [dx, dy] of DIRS) { const nx = ((x + dx) % DD.W + DD.W) % DD.W, ny = y + dy, k = nx + ',' + ny; if (!seen.has(k) && ddOpen(nx, ny, false)) { seen.add(k); q.push([nx, ny]); } } }
+    DD.dots = 0; DD.cells.forEach((r, y) => r.forEach((ch, x) => { if (ch === '.' || ch === 'o') { if (seen.has(x + ',' + y)) DD.dots++; else r[x] = ' '; } }));
+    DD.start = [px, py];
+  }
+  DD.pac = { x: DD.start[0], y: DD.start[1], dir: 2, next: 2, mouth: 0 };
+  DD.ghosts = [[9, 7, 0], [8, 9, 2.5], [9, 9, 5], [10, 9, 7.5]].map(([x, y, wait], i) => ({ x, y, dir: 3, i, mode: i === 0 ? 'chase' : 'house', wait, home: [9, 9] }));
+  DD.fright = 0; DD.t = 0;
+}
+function ddWalk(e, dist, decide) {
+  for (let guard = 0; dist > 1e-6 && guard < 8; guard++) {
+    if (Number.isInteger(e.x) && Number.isInteger(e.y)) { const d = decide(e); if (d < 0) return; e.dir = d; }
+    const [dx, dy] = DIRS[e.dir], s = dx || dy, cur = dx ? e.x : e.y, next = s > 0 ? Math.floor(cur) + 1 : Math.ceil(cur) - 1, d = Math.abs(next - cur);
+    if (dist < d) { if (dx) e.x += s * dist; else e.y += s * dist; return; }
+    if (dx) e.x = next; else e.y = next;
+    dist -= d;
+    if (e.x < 0) e.x = DD.W - 1; else if (e.x > DD.W - 1) e.x = 0;
+  }
+}
+function ddGhostTarget(gh) {
+  const p = DD.pac;
+  if (gh.mode === 'exit') return [9, 7];
+  if (gh.mode === 'eaten') return gh.home;
+  if (gh.i === 0) return [p.x, p.y];
+  if (gh.i === 1) return [p.x + DIRS[p.dir][0] * 4, p.y + DIRS[p.dir][1] * 4];
+  if (gh.i === 2) return [2 * p.x - DD.ghosts[0].x, 2 * p.y - DD.ghosts[0].y];
+  return Math.hypot(gh.x - p.x, gh.y - p.y) > 7 ? [p.x, p.y] : [0, DD.H];
+}
+function ddGhostDecide(gh) {
+  const x = gh.x, y = gh.y, rev = (gh.dir + 2) % 4, ghostDoor = gh.mode === 'exit' || gh.mode === 'eaten';
+  if (gh.mode === 'exit' && x === 9 && y === 7) gh.mode = DD.fright > 0 ? 'fright' : 'chase';
+  if (gh.mode === 'eaten' && x === gh.home[0] && y === gh.home[1]) gh.mode = 'exit';
+  let opts = [0, 1, 2, 3].filter(d => d !== rev && ddOpen(x + DIRS[d][0], y + DIRS[d][1], true) && (ghostDoor || (ddCell(x + DIRS[d][0], y + DIRS[d][1]) !== '-')));
+  if (!opts.length) opts = [rev];
+  if (gh.mode === 'fright') return pick(opts);
+  const [tx, ty] = ddGhostTarget(gh);
+  let best = opts[0], bd = 1e9;
+  for (const d of opts) { const dd = Math.hypot(x + DIRS[d][0] - tx, y + DIRS[d][1] - ty); if (dd < bd) { bd = dd; best = d; } }
+  return best;
+}
+function startArcade() {
+  if (MODE !== 'town') return;
+  fadeThrough(() => {
+    MODE = 'arcade'; G.active = false;
+    const h = headPos(new V3()), f = camera.getWorldDirection(new V3()); f.y = 0; f.normalize();
+    DD.group.position.set(h.x + f.x * 1.15, h.y - 0.05, h.z + f.z * 1.15); DD.group.rotation.set(0, Math.atan2(-f.x, -f.z) + Math.PI, 0);
+    DD.group.visible = true; DD.score = 0; DD.lives = 3; DD.level = 1; DD.earned = 0; DD.state = 'title'; ddReset(true);
+    toast('DONUT DASH: move with a thumbstick or WASD', 4);
+  });
+}
+function exitArcade() {
+  fadeThrough(() => {
+    MODE = 'town'; DD.group.visible = false;
+    if (DD.earned) toast(`DONUT DASH paid out ${DD.earned} donuts!`, 4);
+    hudDirty = true;
+  });
+}
+function updateArcade(dt, vr) {
+  const sd = stickDir(vr);
+  DD.t += dt;
+  if (DD.state === 'title' || DD.state === 'over') { if (sd >= 0 && DD.t > 0.8) { if (DD.state === 'over') { DD.score = 0; DD.lives = 3; DD.level = 1; ddReset(true); } DD.state = 'ready'; DD.t = 0; } }
+  else if (DD.state === 'ready') { if (DD.t > 1.5) { DD.state = 'play'; DD.t = 0; } }
+  else if (DD.state === 'dead') { if (DD.t > 1.4) { if (DD.lives <= 0) { ddGameOver(); } else { ddReset(false); DD.state = 'ready'; DD.t = 0; } } }
+  else if (DD.state === 'clear') { if (DD.t > 2) { DD.level++; ddReset(true); DD.state = 'ready'; DD.t = 0; } }
+  else if (DD.state === 'play') {
+    const p = DD.pac;
+    if (sd >= 0) p.next = sd;
+    if (Number.isInteger(p.x) && Number.isInteger(p.y) === false && (sd === 0 || sd === 2) && (p.dir === 0 || p.dir === 2)) p.dir = sd; // reverse instantly
+    if (Number.isInteger(p.y) && !Number.isInteger(p.x) && (sd === 0 || sd === 2) && (p.dir === 0 || p.dir === 2)) p.dir = sd;
+    if (Number.isInteger(p.x) && !Number.isInteger(p.y) && (sd === 1 || sd === 3) && (p.dir === 1 || p.dir === 3)) p.dir = sd;
+    const speed = 6.5 + DD.level * 0.4;
+    ddWalk(p, speed * dt, e => ddOpen(e.x + DIRS[e.next][0], e.y + DIRS[e.next][1], false) ? e.next : ddOpen(e.x + DIRS[e.dir][0], e.y + DIRS[e.dir][1], false) ? e.dir : -1);
+    p.mouth += dt * 10;
+    const cx = Math.round(p.x), cy = Math.round(p.y), ch = ddCell(cx, cy);
+    if (Math.abs(p.x - cx) + Math.abs(p.y - cy) < 0.35 && (ch === '.' || ch === 'o')) {
+      DD.cells[cy][((cx % DD.W) + DD.W) % DD.W] = ' '; DD.dots--;
+      if (ch === '.') { DD.score += 10; DD.waka ^= 1; tone(DD.waka ? 420 : 300, 0.06, 'triangle', 0.06); }
+      else { DD.score += 50; DD.fright = Math.max(3, 8 - DD.level); DD.combo = 0; DD.ghosts.forEach(gh => { if (gh.mode === 'chase') { gh.mode = 'fright'; gh.dir = (gh.dir + 2) % 4; } }); noise(0.3, 0.12, 900, 'lowpass', 0, 200); }
+      if (DD.dots <= 0) { DD.state = 'clear'; DD.t = 0; [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.15, 'square', 0.08, 0, i * 0.1)); }
+    }
+    if (DD.fright > 0) { DD.fright -= dt; if (DD.fright <= 0) DD.ghosts.forEach(gh => { if (gh.mode === 'fright') gh.mode = 'chase'; }); }
+    for (const gh of DD.ghosts) {
+      if (gh.mode === 'house') { gh.wait -= dt; if (gh.wait <= 0) gh.mode = 'exit'; else continue; }
+      const sp = gh.mode === 'eaten' ? 14 : gh.mode === 'fright' ? 4.2 : 5.6 + DD.level * 0.45;
+      ddWalk(gh, sp * dt, ddGhostDecide);
+      if (Math.hypot(gh.x - p.x, gh.y - p.y) < 0.6) {
+        if (gh.mode === 'fright') { gh.mode = 'eaten'; DD.combo++; DD.score += 200 * (2 ** (DD.combo - 1)); tone(900, 0.25, 'square', 0.08, 1800); }
+        else if (gh.mode !== 'eaten') { DD.state = 'dead'; DD.t = 0; DD.lives--; tone(500, 1.0, 'sawtooth', 0.1, 60); rumble(0.6, 250); break; }
+      }
+    }
+  }
+  drawDD();
+}
+function ddGameOver() {
+  DD.state = 'over'; DD.t = 0;
+  const pay = Math.floor(DD.score / 150);
+  if (pay > 0) { S.donuts += pay; DD.earned += pay; hudDirty = true; sBuy(); }
+}
+function drawDD() {
+  const { g, c, TS, TOP, W, H } = DD;
+  g.fillStyle = '#140a1c'; g.fillRect(0, 0, c.width, c.height);
+  g.save(); g.translate(0, TOP);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const ch = DD.cells[y][x], px = x * TS, py = y * TS;
+    if (ch === '#') { g.fillStyle = '#ff86b6'; rrect(g, px + 2, py + 2, TS - 4, TS - 4, 6); g.fill(); g.fillStyle = 'rgba(120,20,70,.35)'; g.fillRect(px + 4, py + TS - 8, TS - 8, 3); }
+    else if (ch === '-') { g.fillStyle = '#ffd6ea'; g.fillRect(px, py + TS / 2 - 2, TS, 4); }
+    else if (ch === '.') { g.save(); g.translate(px + TS / 2, py + TS / 2); g.rotate((x * 7 + y * 3) % 6); g.fillStyle = ['#ff4d6d', '#ffd23f', '#3bceac', '#4d8bff', '#b76bff'][(x * 3 + y) % 5]; g.fillRect(-5, -1.5, 10, 3); g.restore(); }
+    else if (ch === 'o') { const s = 1 + 0.15 * Math.sin(elapsed * 8); g.save(); g.translate(px + TS / 2, py + TS / 2); g.scale(s, s); g.fillStyle = '#fff'; g.fillRect(-6, -6, 12, 13); g.fillStyle = '#6b3d22'; g.fillRect(-6, -6, 12, 4); g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.arc(7, 0, 3, -1.5, 1.5); g.stroke(); g.restore(); }
+  }
+  // the player: a pink sprinkle donut with a bite-shaped mouth
+  const p = DD.pac;
+  if (p && DD.state !== 'title') {
+    const px = p.x * TS + TS / 2, py = p.y * TS + TS / 2, open = DD.state === 'dead' ? Math.min(Math.PI, DD.t * 2.5) : 0.15 + 0.5 * Math.abs(Math.sin(p.mouth)), rot = [0, Math.PI / 2, Math.PI, -Math.PI / 2][p.dir];
+    g.save(); g.translate(px, py); g.rotate(rot);
+    g.fillStyle = '#d99a55'; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, TS * 0.46, open, TAU - open); g.closePath(); g.fill();
+    g.fillStyle = '#ff9fcc'; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, TS * 0.38, open, TAU - open); g.closePath(); g.fill();
+    g.fillStyle = '#140a1c'; g.beginPath(); g.arc(0, 0, TS * 0.12, 0, TAU); g.fill();
+    g.restore();
+  }
+  // ghosts: the Burnt Bunch, charred donuts with coloured icing and googly eyes
+  if (DD.state !== 'title') for (const gh of DD.ghosts) {
+    const gx = gh.x * TS + TS / 2, gy = gh.y * TS + TS / 2, r = TS * 0.45;
+    if (gh.mode !== 'eaten') {
+      const flash = gh.mode === 'fright' && DD.fright < 1.5 && Math.floor(elapsed * 6) % 2;
+      g.fillStyle = gh.mode === 'fright' ? (flash ? '#ffffff' : '#3b4bdb') : '#3a2414';
+      g.beginPath(); g.arc(gx, gy - 2, r, Math.PI, 0); g.lineTo(gx + r, gy + r);
+      for (let k = 0; k < 4; k++) g.lineTo(gx + r - (k + 0.5) * r / 2, gy + r - (k % 2 ? 0 : 5));
+      g.lineTo(gx - r, gy + r); g.closePath(); g.fill();
+      if (gh.mode !== 'fright') { g.fillStyle = GHOST_COLS[gh.i]; g.beginPath(); g.arc(gx, gy - 4, r * 0.85, Math.PI * 1.1, Math.PI * 1.9); g.lineTo(gx, gy - 2); g.fill(); }
+    }
+    const [ex, ey] = DIRS[gh.dir];
+    for (const s of [-1, 1]) { g.fillStyle = '#fff'; g.beginPath(); g.arc(gx + s * 4.5, gy - 2, 4, 0, TAU); g.fill(); g.fillStyle = '#123'; g.beginPath(); g.arc(gx + s * 4.5 + ex * 2, gy - 2 + ey * 2, 2, 0, TAU); g.fill(); }
+  }
+  g.restore();
+  // header
+  g.fillStyle = '#ffd6ea'; g.font = '900 24px system-ui, Arial, sans-serif'; g.textBaseline = 'middle';
+  g.textAlign = 'left'; g.fillText('SCORE ' + DD.score, 10, TOP / 2);
+  g.textAlign = 'center'; g.fillStyle = '#ff86b6'; g.fillText('DONUT DASH', c.width / 2, TOP / 2);
+  g.textAlign = 'right'; g.fillStyle = '#ffd6ea'; g.fillText('♥'.repeat(Math.max(0, DD.lives)) + '  L' + DD.level, c.width - 10, TOP / 2);
+  const banner = (t1, t2) => {
+    g.fillStyle = 'rgba(20,10,28,.82)'; g.fillRect(0, c.height / 2 - 70, c.width, 140);
+    g.textAlign = 'center'; g.fillStyle = '#ff86b6'; g.font = '900 40px system-ui, Arial, sans-serif'; g.fillText(t1, c.width / 2, c.height / 2 - 20);
+    g.fillStyle = '#ffd6ea'; g.font = '700 20px system-ui, Arial, sans-serif'; g.fillText(t2, c.width / 2, c.height / 2 + 28);
+  };
+  if (DD.state === 'title') banner('DONUT DASH', 'Eat the sprinkles, dodge the Burnt Bunch. Move to start!');
+  else if (DD.state === 'ready') banner('READY!', 'Coffee cups let you chomp the Burnt Bunch');
+  else if (DD.state === 'clear') banner('LEVEL CLEAR!', 'Faster ghosts ahead...');
+  else if (DD.state === 'over') banner('GAME OVER', DD.score >= 150 ? `Score ${DD.score}: +${Math.floor(DD.score / 150)} donuts! Move to play again` : `Score ${DD.score}. Move to play again`);
+  DD.tex.needsUpdate = true;
+}
+// the Play button on the arcade's first cabinet (the cabinet faces +x in the store)
+const arcadePlayBtn = makeButton(arcade.ui, 0.5, 0.2, -2.52, 1.2, 0.4, { ry: Math.PI / 2, rx: -0.35, label: 'DONUT DASH', sub: 'Play!', color: '#ff5fa8', onPress: () => startArcade() });
+
+// ===== punching Rimshot (only while he has stopped to stare / puke / recover) =====
+const RIM_HIT = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.95, 0.45), new THREE.MeshBasicMaterial({ visible: false }));
+RIM_HIT.position.y = 0.98; RIM.root.add(RIM_HIT); RIM_HIT.userData.punchable = true;
+const punchable = () => MODE === 'town' && (RS.mode === 'stare' || RS.mode === 'puke' || RS.mode === 'recover') && !FADE.phase;
+function punchRimshot() {
+  if (!punchable()) return;
+  RS.mode = 'punched'; RS.t = 0;
+  sBonk(); rumble(1, 160);
+  RIM.head.getWorldPosition(tmpV);
+  for (let i = 0; i < 40; i++) emit(tmpV.x, tmpV.y + 0.1, tmpV.z, rr(-1.2, 1.2), rr(0.5, 2), rr(-1.2, 1.2), pick([0xffd23f, 0xffffff, 0xffe680]), rr(0.6, 1.2), -2, 0);
+  say('OOF! ...Okay. You want smoke? 1v1, first to 3!', 3.2, RIM);
+}
+function updatePunch(vr) {
+  if (!vr || !punchable()) return;
+  RIM.head.getWorldPosition(tmpV); RIM.chest.getWorldPosition(tmpV2);
+  for (const C of ctrls) {
+    if (!C.src || !C.vel || C.vel.length() < 1.6) continue;
+    const gp = C.grip.getWorldPosition(new V3());
+    if (gp.distanceTo(tmpV) < 0.3 || gp.distanceTo(tmpV2) < 0.38) { punchRimshot(); return; }
+  }
+}
+
+// ===== 1v1 basketball against Rimshot, first to 3 =====
+const CT = { x0: 18, x1: 33, z0: -6.4, z1: 7.6, hoop: new V3(25.5, 3.05, -4.8), boardZ: -5.2 };
+{ // court: hardwood floor with painted lines, hoop, backboard, net
+  const cw = CT.x1 - CT.x0, cd = CT.z1 - CT.z0, PX = 64;
+  const floorTex = canvasTex(cw * PX, cd * PX, (g, w, h) => {
+    for (let i = 0; i < w / 10; i++) { g.fillStyle = pick(['#d9a066', '#cf955a', '#e2ab72', '#c98e55']); g.fillRect(i * 10, 0, 10, h); }
+    for (let i = 0; i < 400; i++) { g.fillStyle = 'rgba(80,40,10,.12)'; g.fillRect(Math.floor(rr(0, w / 10)) * 10, rr(0, h), 10, 1); }
+    const m = v => v * PX, hx = m(CT.hoop.x - CT.x0), hz = m(CT.hoop.z - CT.z0);
+    g.fillStyle = 'rgba(20,163,154,.85)'; g.fillRect(hx - m(2.45), 0, m(4.9), m(5.8));
+    g.strokeStyle = '#fff'; g.lineWidth = 6;
+    g.strokeRect(3, 3, w - 6, h - 6); g.strokeRect(hx - m(2.45), 0, m(4.9), m(5.8));
+    g.beginPath(); g.arc(hx, m(5.8), m(1.8), 0, Math.PI); g.stroke();
+    g.beginPath(); g.moveTo(hx - m(6.6), 0); g.lineTo(hx - m(6.6), hz); g.arc(hx, hz, m(6.75), Math.PI - 0.21, 0.21, true); g.lineTo(hx + m(6.6), 0); g.stroke();
+    g.beginPath(); g.arc(hx, h, m(1.8), Math.PI, 0); g.stroke();
+    g.font = `900 ${m(1.1)}px Arial Black, Arial, sans-serif`; g.textAlign = 'center'; g.fillStyle = 'rgba(255,111,174,.85)'; g.fillText('RIMSHOT COURT', hx, h - m(0.6));
+  });
+  flat(cw, cd, L(0xffffff, { map: floorTex }), (CT.x0 + CT.x1) / 2, 0.02, (CT.z0 + CT.z1) / 2);
+  const hx = CT.hoop.x, metal = L(0x40464d);
+  cyl(0.1, 0.12, 3.6, metal, hx, 1.8, CT.boardZ - 1.0, staticRoot, 10);
+  colliders.push(new THREE.Box3(new V3(hx - 0.25, 0, CT.boardZ - 1.25), new V3(hx + 0.25, 3, CT.boardZ - 0.75)));
+  box(0.12, 0.12, 1.0, metal, hx, 3.5, CT.boardZ - 0.5);
+  const boardTex = canvasTex(360, 210, (g, w, h) => { g.fillStyle = '#f7f9fa'; g.fillRect(0, 0, w, h); g.strokeStyle = '#e8572a'; g.lineWidth = 10; g.strokeRect(5, 5, w - 10, h - 10); g.strokeRect(w / 2 - 59, h - 118, 118, 90); });
+  box(1.8, 1.05, 0.05, L(0xffffff, { map: boardTex }), hx, 3.43, CT.boardZ);
+  box(0.06, 0.06, 0.4, L(0xe8572a), hx, CT.hoop.y - 0.02, CT.boardZ + 0.2);
+  const rim = mesh(new THREE.TorusGeometry(0.23, 0.012, 8, 32), L(0xe8572a), hx, CT.hoop.y, CT.hoop.z); rim.rotation.x = Math.PI / 2;
+  const netTex = canvasTex(128, 64, (g, w, h) => { g.strokeStyle = '#fff'; g.lineWidth = 2; for (let i = -8; i < 16; i++) { g.beginPath(); g.moveTo(i * 16, 0); g.lineTo(i * 16 + h, h); g.stroke(); g.beginPath(); g.moveTo(i * 16, 0); g.lineTo(i * 16 - h, h); g.stroke(); } });
+  netTex.wrapS = THREE.RepeatWrapping; netTex.repeat.x = 3;
+  mesh(new THREE.CylinderGeometry(0.23, 0.15, 0.42, 16, 1, true), L(0xffffff, { map: netTex, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide }), hx, CT.hoop.y - 0.21, CT.hoop.z);
+  woodSign(staticRoot, "Rimshot's Court", 2.2, 0.5, CT.x0 - 0.6, 1.4, 0.6, Math.PI / 2, { posts: true });
+}
+const BB = { you: 0, rim: 0, poss: 'none', shooter: null, last: null, scored: false, phase: 'off', t: 0, rimState: 'defend', rimT: 0, spot: new V3(), vel: new V3(), hold: null, charging: false, charge: 0, chargeDir: 1, stealCD: 0, ret: null, jump: 0, blocked: false };
+const scoreboard = (() => {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 160;
+  const tex = new THREE.CanvasTexture(c), m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.69), new THREE.MeshBasicMaterial({ map: tex }));
+  m.position.set(CT.hoop.x, 4.45, CT.boardZ - 0.02); scene.add(m);
+  return { c, g: c.getContext('2d'), tex, m };
+})();
+function drawScoreboard(msg) {
+  const { g, c } = scoreboard;
+  g.fillStyle = '#1a1220'; g.fillRect(0, 0, c.width, c.height); g.strokeStyle = '#14a39a'; g.lineWidth = 8; g.strokeRect(4, 4, c.width - 8, c.height - 8);
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#ffd23f'; g.font = '900 64px Arial Black, Arial, sans-serif';
+  g.fillText(`${BB.you}  -  ${BB.rim}`, c.width / 2, 70);
+  g.font = '700 26px Arial, sans-serif'; g.fillStyle = '#fff'; g.fillText(msg || 'YOU          FIRST TO 3          RIMSHOT', c.width / 2, 128);
+  scoreboard.tex.needsUpdate = true;
+}
+drawScoreboard('FIRST TO 3');
+const leaveBtn = makeButton(scene, 0.7, 0.22, CT.x0 + 0.4, 1.2, 4.5, { ry: Math.PI / 2, label: 'Leave game', color: '#7a4cff', onPress: () => endBball(true) });
+leaveBtn.mesh.visible = false;
+function startBball() {
+  fadeThrough(() => {
+    MODE = 'bball'; G.active = false;
+    BB.ret = { x: rig.position.x, z: rig.position.z, ry: rig.rotation.y };
+    BB.you = 0; BB.rim = 0; BB.phase = 'play'; BB.t = 0; drawScoreboard();
+    placePlayer(CT.hoop.x, CT.hoop.z + 6.5, 0);
+    RIM.root.position.set(CT.hoop.x + 0.4, 0, CT.hoop.z + 4.6);
+    leaveBtn.mesh.visible = true; giveBall('player');
+    toast(renderer.xr.isPresenting ? 'Hold the trigger, swing and release to shoot!' : 'Hold the mouse to charge, release to shoot!', 5);
+    hudDirty = true;
+  });
+}
+function endBball(early) {
+  BB.phase = 'off'; leaveBtn.mesh.visible = false; BB.charging = false; BB.hold = null;
+  fadeThrough(() => {
+    MODE = 'town';
+    rig.position.x = BB.ret.x; rig.position.z = BB.ret.z; rig.rotation.y = BB.ret.ry;
+    const h = headPos(new V3());
+    RS.mode = 'run'; RS.t = 0; RS.acc = 0; RS.rad = 2.8; RS.a = rr(0, TAU);
+    RIM.root.position.set(h.x + Math.cos(RS.a) * 2.8, 0, h.z + Math.sin(RS.a) * 2.8);
+    if (!early && BB.you > BB.rim) { S.donuts += 10; toast('You beat Rimshot! +10 donuts', 5); sWin(); }
+    else if (!early) toast('Rimshot wins this time. Punch him again for a rematch!', 5);
+    hudDirty = true;
+  });
+}
+function giveBall(who) {
+  BB.poss = who; BB.shooter = null; BB.scored = false; BB.blocked = false; BB.vel.set(0, 0, 0);
+  BB.rimState = who === 'rim' ? 'toTop' : 'defend'; BB.rimT = 0; hudDirty = true;
+}
+function shotVelocity(from, T) { // ballistic velocity that lands in the hoop after T seconds
+  const tgt = CT.hoop.clone().add(new V3(0, 0.06, 0));
+  return tgt.sub(from).divideScalar(T).add(new V3(0, 4.9 * T, 0));
+}
+function releaseShot(from, v, who) {
+  ball.position.copy(from); BB.vel.copy(v); BB.poss = 'shot'; BB.shooter = who; BB.last = who; BB.scored = false; BB.t = 0; BB.blocked = false;
+  if (who === 'player' && BB.rimState === 'defend' && RIM.root.position.distanceTo(headPos(tmpV2).setY(0)) < 1.8) BB.jump = 0.001; // Rimshot contests
+}
+function playerShoot(vel) {
+  const from = ball.position.clone(), dist = Math.hypot(CT.hoop.x - from.x, CT.hoop.z - from.z), ideal = shotVelocity(from, 0.7 + 0.06 * dist);
+  const hv = new V3(vel.x, 0, vel.z), iv = new V3(ideal.x, 0, ideal.z), ang = hv.angleTo(iv), ratio = vel.length() / ideal.length();
+  if (ang < 0.5 && ratio > 0.45 && ratio < 1.9) vel = vel.clone().lerp(ideal.clone().multiplyScalar(1 + (ratio - 1) * 0.12), 0.75); // aim assist
+  releaseShot(from, vel, 'player'); BB.hold = null;
+}
+function desktopShoot(power) {
+  const from = ball.position.clone(), dist = Math.hypot(CT.hoop.x - from.x, CT.hoop.z - from.z), ideal = shotVelocity(from, 0.7 + 0.06 * dist);
+  const dir = camera.getWorldDirection(new V3()), yawErr = wrap(Math.atan2(dir.x, dir.z) - Math.atan2(ideal.x, ideal.z));
+  const v = ideal.clone().multiplyScalar(1 + (power - 0.55) * 0.3);
+  const ang = Math.abs(yawErr) < 0.6 ? yawErr * 0.35 : yawErr; // forgiving if you are roughly facing the hoop
+  const c = Math.cos(ang), s = Math.sin(ang), vx = v.x * c + v.z * s, vz = -v.x * s + v.z * c; v.x = vx; v.z = vz;
+  releaseShot(from, v, 'player');
+}
+function scoreFor(who) {
+  if (who === 'player') BB.you++; else BB.rim++;
+  sSwish(); rumble(0.5, 120);
+  for (let i = 0; i < 40; i++) emit(CT.hoop.x, CT.hoop.y - 0.3, CT.hoop.z, rr(-1, 1), rr(0.5, 2.5), rr(-1, 1), who === 'player' ? pick([0xffd23f, 0xff9fcc, 0xffffff]) : pick([0x14a39a, 0xffffff]), rr(1, 2), -3, 0);
+  if (BB.you >= 3 || BB.rim >= 3) {
+    BB.phase = 'over'; BB.t = 0; drawScoreboard(BB.you >= 3 ? 'YOU WIN!' : 'RIMSHOT WINS');
+    say(BB.you >= 3 ? 'Good game... you got lucky. Rematch?' : 'Cash me outside! Ha!', 4, RIM);
+    if (BB.you >= 3) sWin();
+  } else {
+    BB.phase = 'reset'; BB.t = 0; drawScoreboard(who === 'player' ? 'BUCKET!' : 'RIMSHOT SCORES');
+    if (who === 'rim' && Math.random() < 0.6) say(pick(['Too easy!', 'Splash!', 'You can\'t guard me!']), 2, RIM);
+  }
+  hudDirty = true;
+}
+function ballPhysics(dt) {
+  const n = 4, h = dt / n, r = 0.12, H = CT.hoop;
+  for (let k = 0; k < n; k++) {
+    const prevY = ball.position.y;
+    BB.vel.y -= 9.8 * h; ball.position.addScaledVector(BB.vel, h);
+    // rim: closest point on the ring circle
+    const dx = ball.position.x - H.x, dz = ball.position.z - H.z, dh = Math.hypot(dx, dz) || 1e-4;
+    const q = tmpV.set(H.x + dx / dh * 0.23, H.y, H.z + dz / dh * 0.23), dv = ball.position.clone().sub(q), dl = dv.length();
+    if (dl < r + 0.012) { dv.divideScalar(dl || 1); ball.position.copy(q).addScaledVector(dv, r + 0.013); const vn = BB.vel.dot(dv); if (vn < 0) { BB.vel.addScaledVector(dv, -1.6 * vn); BB.vel.multiplyScalar(0.85); sClank(); } }
+    // backboard
+    if (ball.position.z - r < CT.boardZ + 0.025 && ball.position.z > CT.boardZ - 0.3 && Math.abs(ball.position.x - H.x) < 0.9 && Math.abs(ball.position.y - 3.43) < 0.53 && BB.vel.z < 0) { ball.position.z = CT.boardZ + 0.025 + r; BB.vel.z *= -0.6; tone(140, 0.12, 'square', 0.06, 90); }
+    // through the hoop, downward
+    if (!BB.scored && prevY >= H.y && ball.position.y < H.y && dh < 0.2 && BB.vel.y < 0) { BB.scored = true; scoreFor(BB.shooter || BB.last || 'player'); }
+    // floor
+    if (ball.position.y < r) { ball.position.y = r; if (BB.vel.y < -0.8) tone(95, 0.08, 'sine', 0.12, 55); BB.vel.y = Math.abs(BB.vel.y) * 0.72; BB.vel.x *= 0.88; BB.vel.z *= 0.88; if (BB.poss === 'shot') BB.poss = 'loose'; }
+  }
+  // stay on the court
+  if (ball.position.x < CT.x0 - 1 || ball.position.x > CT.x1 + 1 || ball.position.z > CT.z1 + 1 || ball.position.z < CT.z0 - 1.5) { ball.position.set(clamp(ball.position.x, CT.x0 + 0.5, CT.x1 - 0.5), 0.5, clamp(ball.position.z, CT.z0 + 0.5, CT.z1 - 0.5)); BB.vel.set(0, 0, 0); }
+}
+function rimFace(P, x, z, dt, rate = 8) { RS.yaw += wrap(Math.atan2(x - P.root.position.x, z - P.root.position.z) - RS.yaw) * Math.min(1, dt * rate); }
+function rimMoveTo(P, x, z, speed, dt) {
+  const dx = x - P.root.position.x, dz = z - P.root.position.z, d = Math.hypot(dx, dz);
+  if (d < 0.05) return 0;
+  const step = Math.min(d, speed * dt); P.root.position.x += dx / d * step; P.root.position.z += dz / d * step;
+  return step / dt;
+}
+function updateBball(dt, head, vr) {
+  const P = RIM, F = P.face;
+  BB.t += dt; BB.rimT += dt; BB.stealCD -= dt;
+  restPose(P); F.wide = 0; F.squint = 0; F.open = 0;
+  let speed = 0, dribbling = false;
+  if (BB.phase === 'over') {
+    const won = BB.rim >= 3;
+    P.sh.forEach((sh, i) => { sh.rotation.z = (i ? 1 : -1) * (won ? 2.6 : 0.3); P.el[i].rotation.x = won ? -0.3 : -0.2; });
+    P.body.position.y = won ? Math.abs(Math.sin(BB.t * 6)) * 0.15 : 0; F.open = won ? 0.4 : 0; F.squint = won ? 0 : 0.5;
+    rimFace(P, head.x, head.z, dt);
+    if (BB.t > 4.5) { P.body.position.y = 0; endBball(false); BB.phase = 'off'; }
+  } else if (BB.phase === 'reset') {
+    if (BB.t > 1.2) { giveBall(BB.shooter === 'player' || (BB.last === 'player' && !BB.shooter) ? 'rim' : 'player'); BB.phase = 'play'; drawScoreboard(); }
+  }
+  // player holding the ball
+  if (BB.poss === 'player') {
+    if (vr) {
+      const C = BB.hold || ctrls.find(c => c.src && c.hand === 'right') || ctrls.find(c => c.src);
+      if (C) ball.position.copy(C.grip.localToWorld(tmpV.set(0, -0.03, -0.12)));
+    } else {
+      ball.position.copy(camera.localToWorld(tmpV.set(0.22, -0.28, -0.55)));
+      if (BB.charging) { BB.charge += BB.chargeDir * dt / 1.0; if (BB.charge > 1) { BB.charge = 1; BB.chargeDir = -1; } if (BB.charge < 0) { BB.charge = 0; BB.chargeDir = 1; } hudDirty = true; }
+    }
+  } else if (BB.poss === 'shot' || BB.poss === 'loose') {
+    ballPhysics(dt);
+    // Rimshot blocks shots that come off the hand right at him
+    if (BB.poss === 'shot' && BB.shooter === 'player' && !BB.blocked && BB.vel.y > 0) for (const hnd of P.hand) {
+      if (hnd.getWorldPosition(tmpV2).distanceTo(ball.position) < 0.24) { BB.blocked = true; BB.vel.set(rr(-2, 2), 1, 3); BB.poss = 'loose'; BB.shooter = null; sClank(); say('BLOCKED!', 1.5, RIM); }
+    }
+    const pickupOk = BB.poss === 'loose' || (BB.t > 0.6 && ball.position.y < 2.5 && BB.vel.y < 0);
+    if (pickupOk && BB.phase === 'play') {
+      let got = false;
+      if (vr) { for (const C of ctrls) if (C.src && C.grip.getWorldPosition(tmpV2).distanceTo(ball.position) < 0.3) { got = true; BB.hold = null; } }
+      else if (Math.hypot(ball.position.x - head.x, ball.position.z - head.z) < 1.0 && ball.position.y < 1.7) got = true;
+      if (got) { giveBall('player'); toast('Rebound!', 1.2); }
+      else if (Math.hypot(ball.position.x - P.root.position.x, ball.position.z - P.root.position.z) < 0.55 && ball.position.y < 1.5) giveBall('rim');
+    }
+  }
+  // Rimshot's brain
+  if (BB.phase !== 'over') {
+    if (BB.poss === 'player') {
+      // defend: stay between you and the hoop, hands up
+      const tx = head.x + (CT.hoop.x - head.x) * 0.0, toH = new V3(CT.hoop.x - head.x, 0, CT.hoop.z - head.z), dist = toH.length(); toH.normalize();
+      const gap = Math.min(1.25, Math.max(0.6, dist - 0.8));
+      speed = rimMoveTo(P, tx + toH.x * gap, head.z + toH.z * gap, 3.4, dt);
+      rimFace(P, head.x, head.z, dt);
+      P.sh.forEach((sh, i) => { sh.rotation.x = -1.9 + Math.sin(BB.t * 3 + i) * 0.2; sh.rotation.z = (i ? 1 : -1) * 0.35; P.el[i].rotation.x = -0.25; });
+      P.th.forEach((th, i) => { th.rotation.x = -0.35; P.kn[i].rotation.x = 0.6; }); P.hips.position.y = P.hipY - 0.1;
+      F.squint = 0.2;
+    } else if (BB.poss === 'loose' || BB.poss === 'shot') {
+      if (BB.poss === 'loose' || ball.position.y < 3) { speed = rimMoveTo(P, ball.position.x, ball.position.z, 3.8, dt); rimFace(P, ball.position.x, ball.position.z, dt); }
+    } else if (BB.poss === 'rim') {
+      dribbling = true;
+      if (BB.rimState === 'toTop') {
+        speed = rimMoveTo(P, CT.hoop.x, CT.hoop.z + 6.2, 3.2, dt); rimFace(P, CT.hoop.x, CT.hoop.z + 6.2, dt);
+        if (speed === 0 || BB.rimT > 3) { BB.rimState = 'drive'; BB.rimT = 0; const a = rr(-1.1, 1.1), d = rr(2.2, 4.6); BB.spot.set(CT.hoop.x + Math.sin(a) * d, 0, CT.hoop.z + Math.cos(a) * d); }
+      } else if (BB.rimState === 'drive') {
+        speed = rimMoveTo(P, BB.spot.x, BB.spot.z, 2.7, dt); rimFace(P, BB.spot.x, BB.spot.z, dt);
+        const pd = Math.hypot(head.x - P.root.position.x, head.z - P.root.position.z);
+        if (pd < 0.7 && BB.rimT > 0.6 && Math.random() < dt * 2) { const a = rr(-1.1, 1.1), d = rr(2.2, 4.6); BB.spot.set(CT.hoop.x + Math.sin(a) * d, 0, CT.hoop.z + Math.cos(a) * d); BB.rimT = 0.3; } // juke
+        if (speed === 0 || BB.rimT > 4.5) { BB.rimState = 'shoot'; BB.rimT = 0; BB.contested = pd < 1.1; }
+      } else if (BB.rimState === 'shoot') {
+        dribbling = false; rimFace(P, CT.hoop.x, CT.hoop.z, dt, 12);
+        const j = Math.sin(Math.PI * Math.min(1, BB.rimT / 0.7));
+        P.body.position.y = j * 0.42;
+        P.sh.forEach((sh, i) => { sh.rotation.x = -2.7; sh.rotation.z = (i ? 1 : -1) * 0.15; P.el[i].rotation.x = -0.9 + BB.rimT; });
+        if (BB.rimT < 0.32) { P.root.updateMatrixWorld(true); ball.position.copy(P.root.localToWorld(tmpV.set(0, 2.25 + j * 0.42, 0.12))); }
+        else if (BB.poss === 'rim') {
+          const make = Math.random() < (BB.contested ? 0.38 : 0.6), from = ball.position.clone(), dist = Math.hypot(CT.hoop.x - from.x, CT.hoop.z - from.z);
+          let v = shotVelocity(from, 0.75 + 0.06 * dist);
+          if (!make) { const a = rr(0, TAU), miss = rr(0.24, 0.34); v = CT.hoop.clone().add(new V3(Math.cos(a) * miss, 0.06, Math.sin(a) * miss)).sub(from).divideScalar(0.75 + 0.06 * dist).add(new V3(0, 4.9 * (0.75 + 0.06 * dist), 0)); }
+          releaseShot(from, v, 'rim');
+        }
+      }
+    }
+  }
+  if (BB.rimState !== 'shoot' || BB.poss !== 'rim') P.body.position.y = BB.jump > 0 ? Math.sin(Math.PI * Math.min(1, BB.jump / 0.6)) * 0.4 : (BB.phase === 'over' ? P.body.position.y : 0);
+  if (BB.jump > 0) { BB.jump += dt; P.sh.forEach((sh, i) => { sh.rotation.x = -2.8; sh.rotation.z = (i ? 1 : -1) * 0.2; }); if (BB.jump > 0.6) BB.jump = 0; }
+  P.root.rotation.y = RS.yaw;
+  if (speed > 0.2 && BB.rimState !== 'shoot') { RS.ph += dt * TAU * (speed > 3 ? 1.6 : 1.25); poseRun(P, RS.ph, Math.min(1, speed / 3.5)); }
+  P.root.updateMatrixWorld(true);
+  if (dribbling && BB.rimState !== 'shoot') {
+    RS.db += dt * 2.2;
+    const b = RS.db % 1, u = Math.abs(Math.cos(Math.PI * b));
+    P.sh[1].rotation.x = -0.4; P.sh[1].rotation.z = 0.28; P.el[1].rotation.x = -0.55 - 0.65 * u; P.hand[1].rotation.x = -0.5 + 0.8 * (1 - u);
+    P.root.updateMatrixWorld(true);
+    const hp = P.palm[1].getWorldPosition(tmpV), fx = Math.sin(RS.yaw), fz = Math.cos(RS.yaw);
+    ball.position.set(hp.x + fx * 0.12, 0.12 + Math.max(0, hp.y - 0.25) * u, hp.z + fz * 0.12);
+    if (RS.lastB < 0.5 && b >= 0.5) sBounce(Math.hypot(ball.position.x - head.x, ball.position.z - head.z));
+    RS.lastB = b;
+    // steals: VR hand on the ball
+    if (vr && BB.stealCD <= 0) for (const C of ctrls) if (C.src && C.grip.getWorldPosition(tmpV2).distanceTo(ball.position) < 0.28) {
+      BB.stealCD = 1;
+      if (Math.random() < 0.55) { giveBall('player'); BB.hold = C; toast('STEAL!', 1.5); say(pick(['Hey!', 'No way!', 'Foul! ...fine.']), 1.5, RIM); } else toast('Almost!', 1);
+      break;
+    }
+  }
+  ball.rotation.x += dt * 5;
+  ballShadow.position.set(ball.position.x, 0.031, ball.position.z);
+  F.update(dt, BB.poss === 'player' ? head : ball.position);
+}
+// desktop steal: click the ball while Rimshot dribbles near you
+function desktopBballClick(hitBall) {
+  if (BB.poss === 'rim' && hitBall && BB.stealCD <= 0) {
+    BB.stealCD = 1;
+    const d = Math.hypot(ball.position.x - headV.x, ball.position.z - headV.z);
+    if (d < 2.2 && Math.random() < 0.5) { giveBall('player'); toast('STEAL!', 1.5); say(pick(['Hey!', 'No way!']), 1.5, RIM); } else toast(d < 2.2 ? 'Almost!' : 'Get closer to steal', 1.2);
+  }
 }
 
 // ---------- 12. Start buttons and the main loop ----------
@@ -2384,11 +2900,15 @@ let elapsed = 0;
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05); elapsed += dt;
   const vr = renderer.xr.isPresenting;
-  if (started) { movePlayer(dt, vr); resolve(); }
+  if (started) { if (MODE !== 'arcade') movePlayer(dt, vr); resolve(); }
+  trackHands(dt);
   headPos(headV);
   updateScenery(dt, elapsed, headV);
   updateGlaze(dt, elapsed, headV);
-  updateRunner(dt, elapsed, headV);
+  if (MODE === 'bball' && BB.phase !== 'off') updateBball(dt, headV, vr); else updateRunner(dt, elapsed, headV);
+  if (MODE === 'arcade') updateArcade(dt, vr);
+  updatePunch(vr);
+  updateFade(dt);
   updateGame(dt, headV);
   updateFlying(dt, vr);
   updateParticles(dt);

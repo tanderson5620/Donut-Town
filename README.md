@@ -54,6 +54,11 @@ Affection per gift:
 
 The content stays wholesome and non-sexual. Keep it that way.
 
+## Minigames
+- **DONUT DASH** (Arcade): press **Play** on the first cabinet. A Pac-Man-style game on a big screen: you're a pink donut eating sprinkles; coffee cups let you chomp the Burnt Bunch ghosts. Move with either thumbstick or WASD/arrows. Every 150 points pays 1 donut. State lives in `DD`.
+- **Punch Rimshot**: while he stares, pukes or recovers, swing a fist into him (VR), point and pull the trigger, or click him (desktop). He staggers comically, then challenges you.
+- **1v1 at Rimshot's Court** (east of town, about x 18-33, z -6 to 8): first to 3, one point per basket. VR: hold the trigger, swing and release to throw (aim assist helps). Desktop: hold the mouse to charge, release at mid power to shoot. Grab rebounds by touching or walking into the ball; steal by touching his dribble (VR) or clicking the ball nearby (desktop). Winning pays 10 donuts. State lives in `BB`; `MODE` is 'town' | 'arcade' | 'bball'.
+
 ## Characters
 Both characters are built with `buildPerson(opts)`: a hierarchical rig of hips, thighs, knees, spine, shoulders, elbows and head. `limbGeo()` makes capsule-like lathe limbs and `torsoGeo()` makes lathe torsos. `buildFace()` adds eyes (sclera, iris, pupil, glint, blinking eyelid), nose, ears, brows, lips and a hidden mouth opening.
 
