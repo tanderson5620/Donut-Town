@@ -79,6 +79,12 @@ The content stays wholesome and non-sexual. Keep it that way.
 - Roads run north from Main Street to **San Francisco** (around z -1300 to -1700: a grid of streets and window-textured instanced buildings, a pyramid tower, a row of painted Victorian houses facing a park, a bay, and a big red suspension bridge you can drive across) and south to **Los Angeles** (around z 1300 to 1850: stucco blocks, a glass downtown, palm-lined streets, a beach and a pier with a turning Ferris wheel, and big white "LOS ANGELES" letters on a hill). Lowland foothills (`HILLS`) and oak trees line the way.
 - `terrainH(x, z)` gives ground height anywhere (rings, hills, the bridge and pier `DECKS`); walking, Beau, treats and the car all use it. `inWater()` blocks the bay and the ocean. City buildings add `colliders`. Each city group is hidden beyond ~1.15 km (`updateWorld`).
 
+## The wasteland (raiders) and city pedestrians
+- Between each mountain pass and its city line (|z| 420 to 1270, `WASTE`, `inWaste`) the highway is Mad Max country, with wrecked cars and tire piles. Raiders on foot (`FOES`, low-poly `buildFigure` with mohawks and goggles) spawn around you, chase, wind up melee swings and throw rocks (`ROCKS`); spiked buggies (`BUGGIES`) hunt you while you drive and ram you.
+- You have health (`PH`, HUD bar "HP" + WASTELAND/SAFE). Damage flashes red; the car absorbs some. At 0 you're "wrecked" (`wasted()`): back to Donut Town at full health. Health regenerates outside the wasteland. High in the helicopter you're out of reach.
+- Fight back: punch raiders (VR fist; desktop click/tap them or press **F**; phone **Punch** button) – two hits knock one out; run them down at speed in the car/motorcycle (one hit) or with a low helicopter; ram a buggy head-on above ~15 m/s to wreck it. Knockouts are cartoony (they fall over with stars and fade away).
+- At exactly the city line (red/white stripe across the road at the welcome signs) nobody can hurt you: raiders and buggies stop at the line and give up. Inside San Francisco and LA, peaceful pedestrians (`PEDS`) walk the sidewalks and step out of the way of vehicles.
+
 ## Characters
 Both characters are built with `buildPerson(opts)`: a hierarchical rig of hips, thighs, knees, spine, shoulders, elbows and head. `limbGeo()` makes capsule-like lathe limbs and `torsoGeo()` makes lathe torsos. `buildFace()` adds eyes (sclera, iris, pupil, glint, blinking eyelid), nose, ears, brows, lips and a hidden mouth opening.
 

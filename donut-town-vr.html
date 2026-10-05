@@ -62,6 +62,7 @@
     <button class="mb" id="mb-space" data-key="Space">Up</button>
     <button class="mb" id="mb-c" data-key="KeyC">Down</button>
     <button class="mb" id="mb-e" data-key="KeyE">Exit</button>
+    <button class="mb" id="mb-f" data-key="KeyF">Punch</button>
   </div>
   <div id="mdev"><button class="mb sm" data-key="KeyX" title="Get Beau">🐶</button><button class="mb sm" data-key="KeyY" title="Restart">↻</button></div>
   <div id="mhint">Drag to look · tap to interact</div>
@@ -2390,6 +2391,11 @@ function drawHUD() {
   g.fillStyle = 'rgba(40,18,40,0.78)'; rrect(g, 4, 4, w - 8, h - 8, 28); g.fill();
   g.strokeStyle = 'rgba(255,159,204,.9)'; g.lineWidth = 4; g.stroke();
   g.fillStyle = '#fff'; g.textAlign = 'left'; g.textBaseline = 'middle'; // (no donut counter)
+  if (PH.zone === 'waste' || PH.hp < 100) { // your health
+    g.font = '800 26px system-ui, Arial, sans-serif'; g.fillStyle = '#ff6b6b'; g.fillText('HP', 26, 50);
+    g.fillStyle = 'rgba(0,0,0,.35)'; rrect(g, 70, 36, 300, 28, 12); g.fill(); g.fillStyle = PH.hp > 40 ? '#4cd964' : '#ff3b30'; rrect(g, 70, 36, 300 * PH.hp / 100, 28, 12); g.fill();
+    g.fillStyle = '#ffd6ea'; g.font = '700 17px system-ui, Arial, sans-serif'; g.fillText(PH.zone === 'waste' ? 'WASTELAND' : 'SAFE', 382, 50); g.fillStyle = '#fff';
+  }
   g.font = '800 38px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
   if (G.active) { g.textAlign = 'right'; g.fillStyle = '#ffd84a'; g.fillText(`${Math.ceil(G.t)}s`, w - 26, 50); g.textAlign = 'left'; }
   let x = 26;
@@ -2552,12 +2558,13 @@ function targets() {
   if (MODE === 'bball') list.push(ball);
   if (BEAU.on) list.push(BEAU.hit);
   if (MODE === 'town') list.push(COURT_SIGN);
+  for (const F of FOES) if (F.state !== 'off' && F.state !== 'ko') list.push(F.hit);
   if (MODE === 'town' && TREAT.state !== 'held') list.push(JAR.hit);
   return list;
 }
 function firstHit(list) {
   const hits = raycaster.intersectObjects(list, true);
-  for (const h of hits) { let o = h.object; while (o && !o.userData.btn && !o.userData.fdObj && !o.userData.punchable && !o.userData.beau && !o.userData.treatJar && !o.userData.courtSign && o !== ball) o = o.parent; if (o) return { obj: o, dist: h.distance }; }
+  for (const h of hits) { let o = h.object; while (o && !o.userData.btn && !o.userData.fdObj && !o.userData.punchable && !o.userData.beau && !o.userData.treatJar && !o.userData.courtSign && !o.userData.foe && o !== ball) o = o.parent; if (o) return { obj: o, dist: h.distance }; }
   return null;
 }
 const rayRot = new THREE.Matrix4();
@@ -2576,6 +2583,7 @@ function activate(hit) {
   else if (o.userData.beau) openBeauMenu();
   else if (o.userData.treatJar) grabTreat(null);
   else if (o.userData.courtSign) courtChallenge();
+  else if (o.userData.foe) punchFoe(o.userData.foe);
   else if (o === ball) desktopBballClick(true);
   else if (o.userData.fdObj) catchDonut(o.userData.fdObj);
 }
@@ -3053,6 +3061,11 @@ function pickDriveSpot(head) { // attack the side your arms don't cover; drive a
   const g = guardShape(head), side = Math.abs(g.R - g.L) < 0.1 ? (Math.random() < 0.5 ? 1 : -1) : (g.R > g.L ? -1 : 1);
   const a = side * rr(0.35, 1.1), d = g.high ? rr(1.2, 2.4) : rr(2.2, 4.6);
   BB.spot.set(CT.hoop.x + Math.sin(a) * d, 0, CT.hoop.z + Math.cos(a) * d);
+}
+function pollPunchKey() { // F (desktop) / Punch button (phone): punch the nearest raider in reach
+  const p = !!keys.KeyF;
+  if (p && !PH.fPrev) { const h = headPos(new V3()); let best = null, bd = 2.6; for (const F of FOES) { if (F.state === 'off' || F.state === 'ko') continue; const d = Math.hypot(F.g.position.x - h.x, F.g.position.z - h.z); if (d < bd) { bd = d; best = F; } } if (best) hitFoe(best, h); else tone(300, 0.08, 'sine', 0.04); }
+  PH.fPrev = p;
 }
 function pollStance(vr, dt) { // defense stance: A (right controller) or Space toggles it
   let p = !!keys.Space;
@@ -4206,6 +4219,239 @@ function updateSkydive(dt, vr) {
   }
 }
 
+// ===== The wasteland: raiders on the highways between the mountain passes and each city line =====
+// Raiders (on foot) chase, swing and throw rocks; spiked buggies hunt you while you drive. Punch them or run
+// them down (cartoon knockouts, no gore). At the city line (the welcome signs) nobody can hurt you, and the
+// cities have peaceful pedestrians instead.
+const WASTE = { z0: 420, z1: 1270 };
+const inWaste = (x, z) => Math.abs(z) > WASTE.z0 && Math.abs(z) < WASTE.z1;
+const inCity = (x, z) => Math.abs(z) >= WASTE.z1 && Math.abs(z) < 1900 && x > -160 && x < 380;
+const FIG_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+function buildFigure(o) { // low-poly person: one merged body mesh + four limb pivots, all sharing one material
+  const g = new THREE.Group(), parts = [];
+  const add = (geo, col, x, y, z) => { geo.translate(x, y, z); parts.push(colorize(geo, col)); };
+  add(new THREE.BoxGeometry(0.4, 0.58, 0.24), o.shirt, 0, 1.24, 0);
+  add(new THREE.BoxGeometry(0.36, 0.2, 0.22), o.pants, 0, 0.9, 0);
+  add(new THREE.SphereGeometry(0.13, 10, 8), o.skin, 0, 1.68, 0);
+  if (o.raider) {
+    for (let i = 0; i < 5; i++) add(new THREE.ConeGeometry(0.025, 0.12, 4), o.hair, 0, 1.82, -0.08 + i * 0.04);       // mohawk
+    add(new THREE.BoxGeometry(0.26, 0.06, 0.06), 0x222222, 0, 1.71, 0.12);                                             // goggles strap
+    for (const s of [-1, 1]) { add(new THREE.SphereGeometry(0.045, 8, 6), 0x9fd3ff, s * 0.06, 1.71, 0.14); add(new THREE.ConeGeometry(0.04, 0.16, 5), 0x8a8f96, s * 0.24, 1.58, 0); } // lenses, shoulder spikes
+    add(new THREE.BoxGeometry(0.42, 0.06, 0.26), 0x5b3a22, 0, 1.0, 0);                                               // belt
+  } else add(new THREE.SphereGeometry(0.135, 10, 6, 0, TAU, 0, Math.PI / 2), o.hair, 0, 1.7, -0.01);                 // hair
+  g.add(new THREE.Mesh(merge(parts), FIG_MAT));
+  const limb = (r0, r1, len, col, x, y) => { const p = new THREE.Group(); p.position.set(x, y, 0); p.add(new THREE.Mesh(colorize(limbGeo(r0, r1, len, 6), col), FIG_MAT)); g.add(p); return p; };
+  const F = { g, arms: [limb(0.055, 0.045, 0.6, o.arm, -0.25, 1.5), limb(0.055, 0.045, 0.6, o.arm, 0.25, 1.5)], legs: [limb(0.075, 0.06, 0.88, o.pants, -0.1, 0.9), limb(0.075, 0.06, 0.88, o.pants, 0.1, 0.9)] };
+  F.shadow = blob(g, 0.6, 0.6, 0.3);
+  F.hit = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.9, 0.6), new THREE.MeshBasicMaterial({ visible: false })); F.hit.position.y = 0.95; F.hit.userData.foe = F; g.add(F.hit);
+  g.visible = false; scene.add(g);
+  return F;
+}
+const RAIDER_COLS = [[0x6b4a2f, 0x3b3b3b], [0x4a4a44, 0x5b3a22], [0x7a3b2a, 0x2f2f33], [0x55603a, 0x3a2f28]];
+const FOES = [], PEDS = [], ROCKS = [], BUGGIES = [];
+for (let i = 0; i < 8; i++) { const [shirt, pants] = RAIDER_COLS[i % 4]; FOES.push(Object.assign(buildFigure({ raider: true, shirt, pants, skin: pick([0xc68a62, 0x8d5a3b, 0xe0b08a, 0x5e3a28]), hair: pick([0xff3d3d, 0x222222, 0xffb020]), arm: 0x7a5a42 }), { kind: 'raider', state: 'off', t: 0, cd: 0, hp: 2, ph: 0, yaw: 0, hitCD: 0 })); }
+for (let i = 0; i < 10; i++) { const sk = pick([0xc68a62, 0x8d5a3b, 0xe0b08a, 0x5e3a28, 0xf1c9a5]); PEDS.push(Object.assign(buildFigure({ shirt: pick([0xff6fae, 0x5aa9e6, 0xffd23f, 0x2f9e6e, 0xffffff, 0xe0559a, 0x7d5fff]), pants: pick([0x3d5a80, 0x2b2b2b, 0xc8b08a, 0x6b6b6b]), skin: sk, hair: pick([0x16100c, 0x3a2414, 0xd9b36a, 0x6b3a1e]), arm: sk }), { kind: 'ped', state: 'off', t: 0, ph: 0, yaw: 0, dir: new V3(), legLen: 0 })); }
+const rockGeo2 = new THREE.IcosahedronGeometry(0.12, 0), rockMat2 = L(0x7d7468);
+for (let i = 0; i < 10; i++) { const m = new THREE.Mesh(rockGeo2, rockMat2); m.visible = false; scene.add(m); ROCKS.push({ m, v: new V3(), on: false, t: 0 }); }
+function buildBuggy() {
+  const parts = [], add = (geo, col, x, y, z) => { geo.translate(x, y, z); parts.push(colorize(geo, col)); };
+  add(new THREE.BoxGeometry(1.7, 0.45, 3.2), 0x7a4a2a, 0, 0.75, 0); add(new THREE.BoxGeometry(1.5, 0.3, 1.0), 0x5b3a22, 0, 1.1, -0.9);
+  for (const x of [-0.7, 0.7]) for (const z of [-0.2, 1.2]) add(new THREE.BoxGeometry(0.07, 1.0, 0.07), 0x333333, x, 1.45, z);
+  add(new THREE.BoxGeometry(1.5, 0.07, 1.5), 0x333333, 0, 1.95, 0.5);
+  for (let i = 0; i < 5; i++) { const c = new THREE.ConeGeometry(0.07, 0.45, 5); c.rotateX(-Math.PI / 2); add(c, 0xaaaaaa, -0.6 + i * 0.3, 0.75, -1.8); }
+  for (const x of [-0.95, 0.95]) for (const z of [-1.1, 1.1]) { const w = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 12); w.rotateZ(Math.PI / 2); add(w, 0x1a1a1a, x, 0.45, z); }
+  for (const x of [-0.35, 0.35]) { add(new THREE.BoxGeometry(0.36, 0.5, 0.24), 0x4a4a44, x, 1.3, 0.5); add(new THREE.SphereGeometry(0.12, 8, 6), 0xc68a62, x, 1.67, 0.5); for (let i = 0; i < 3; i++) add(new THREE.ConeGeometry(0.02, 0.1, 4), 0xff3d3d, x, 1.8, 0.45 + i * 0.04); }
+  const g = new THREE.Group(); g.add(new THREE.Mesh(merge(parts), FIG_MAT)); blob(g, 2.0, 3.4, 0.35); g.visible = false; scene.add(g);
+  return { g, state: 'off', v: 0, yaw: 0, cd: 0, t: 0 };
+}
+for (let i = 0; i < 3; i++) BUGGIES.push(buildBuggy());
+// ----- your health -----
+const PH = { hp: 100, zone: 'safe', hurt: 0, dead: false };
+const hurtFx = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), new THREE.MeshBasicMaterial({ color: 0xc0101a, side: THREE.BackSide, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+hurtFx.renderOrder = 998; hurtFx.visible = false; camera.add(hurtFx);
+const sOuch = () => { tone(180, 0.18, 'sawtooth', 0.12, 90); noise(0.12, 0.2, 900, 'bandpass'); };
+const sKO = () => { tone(420, 0.35, 'triangle', 0.12, 120); tone(1200, 0.1, 'square', 0.04, 1600, 0.2); };
+const sYell = () => tone(rr(260, 360), 0.35, 'sawtooth', 0.05, rr(420, 560));
+function playerSafe() { // modes / places where nobody can hurt you
+  if (PH.dead || FADE.phase || !['town', 'drive', 'heli'].includes(MODE)) return true;
+  const h = headPos(tmpV2); if (!inWaste(h.x, h.z)) return true;
+  if (MODE === 'heli' && HELI.g && HELI.g.position.y - groundH(HELI.g.position.x, HELI.g.position.z) > 5) return true;
+  return false;
+}
+function damage(n) {
+  if (playerSafe()) return;
+  if (MODE === 'drive') n *= 0.6; // the car takes some of it
+  PH.hp = Math.max(0, PH.hp - n); PH.hurt = 0.5; hurtFx.visible = true; sOuch(); rumble(0.9, 160); hudDirty = true;
+  if (PH.hp <= 0) wasted();
+}
+function wasted() {
+  PH.dead = true;
+  fadeThrough(() => {
+    if (MODE === 'drive' && VEH) { VEH.state = 'parked'; VEH.v = 0; VEH = null; }
+    if (MODE === 'heli' && HELI.g) { HELI.state = 'parked'; HELI.vel.set(0, 0, 0); }
+    BEAU.ext = null; standAt(0, 6, 0);
+    if (BEAU.on) { BEAU.B.root.position.set(0, 0, 3.4); BEAU.mode = 'follow'; }
+    for (const F of FOES) { F.state = 'off'; F.g.visible = false; } for (const B of BUGGIES) { B.state = 'off'; B.g.visible = false; }
+    PH.hp = 100; PH.dead = false; hudDirty = true; toast('You got wrecked by raiders! Back in Donut Town.', 4);
+  });
+}
+// ----- knocking raiders out -----
+function koFoe(F, fling) {
+  if (F.state === 'ko' || F.state === 'off') return;
+  F.state = 'ko'; F.t = 0; F.fling = fling ? fling.clone() : new V3(); sKO(); sBonk(); rumble(0.6, 90);
+  const p = F.g.position; for (let i = 0; i < 16; i++) emit(p.x, p.y + 1.5, p.z, rr(-1, 1), rr(0.5, 2), rr(-1, 1), pick([0xffd23f, 0xffffff, 0xc8b08a]), rr(0.5, 1), -3, 0);
+}
+function hitFoe(F, from) {
+  if (F.state === 'ko' || F.state === 'off' || F.hitCD > 0) return;
+  F.hitCD = 0.3; F.hp--; sBonk(); rumble(0.7, 80);
+  const away = new V3(F.g.position.x - from.x, 0, F.g.position.z - from.z).normalize();
+  if (F.hp <= 0) koFoe(F, away.multiplyScalar(4)); else { F.g.position.addScaledVector(away, 0.6); F.state = 'stagger'; F.t = 0; }
+}
+function punchFoe(F) { // desktop / phone: tap a raider to punch him (if you're close)
+  const h = headPos(new V3());
+  if (Math.hypot(F.g.position.x - h.x, F.g.position.z - h.z) > 2.6) { toast('Get closer to punch', 1); return; }
+  hitFoe(F, h);
+}
+// ----- spawning around you -----
+function spawnSpot(h, minD, maxD) {
+  for (let i = 0; i < 20; i++) {
+    const a = rr(0, TAU), d = rr(minD, maxD), x = h.x + Math.cos(a) * d, z = h.z + Math.sin(a) * d;
+    if (inWaste(x, z) && Math.abs(x) < 300 && !inWater(x, z) && groundH(x, z) < 8) return new V3(x, 0, z);
+  }
+  return null;
+}
+let foeSpawnT = 0, lastZone = 'safe';
+function updateFoes(dt, head, vr) {
+  // zone change messages + regen + hurt flash
+  const zone = inWaste(head.x, head.z) ? 'waste' : 'safe';
+  if (zone !== lastZone && MODE !== 'sky' && MODE !== 'turtle') { toast(zone === 'waste' ? 'Entering the wasteland: raiders!' : inCity(head.x, head.z) ? 'City limits: you\'re safe here.' : 'Out of the wasteland.', 3); hudDirty = true; }
+  lastZone = zone; PH.zone = zone;
+  if (zone === 'safe' && PH.hp < 100) { PH.hp = Math.min(100, PH.hp + dt * 12); if (Math.random() < dt * 4) hudDirty = true; }
+  if (PH.hurt > 0) { PH.hurt -= dt; hurtFx.material.opacity = Math.max(0, PH.hurt) * 0.9; if (PH.hurt <= 0) hurtFx.visible = false; }
+  const fighting = zone === 'waste' && !PH.dead && ['town', 'drive', 'heli'].includes(MODE);
+  // raiders: keep a few around you while you're in the wasteland
+  foeSpawnT -= dt;
+  if (fighting && foeSpawnT <= 0) {
+    foeSpawnT = MODE === 'drive' ? 1.2 : 2.5;
+    const F = FOES.find(f => f.state === 'off');
+    if (F) { const s = spawnSpot(head, MODE === 'drive' ? 60 : 30, MODE === 'drive' ? 140 : 70); if (s) { F.g.position.copy(s); F.g.position.y = terrainH(s.x, s.z); F.state = 'chase'; F.hp = 2; F.t = 0; F.cd = rr(0.5, 2); F.g.rotation.set(0, 0, 0); F.g.visible = true; if (Math.random() < 0.5) sYell(); } }
+  }
+  if (fighting && MODE === 'drive' && Math.random() < dt * 0.25) { // buggies hunt drivers
+    const B = BUGGIES.find(b => b.state === 'off'), s = B && spawnSpot(head, 120, 180);
+    if (B && s) { B.g.position.set(s.x, terrainH(s.x, s.z), s.z); B.yaw = Math.atan2(head.x - s.x, head.z - s.z); B.v = 10; B.state = 'hunt'; B.cd = 0; B.g.rotation.set(0, B.yaw, 0); B.g.visible = true; }
+  }
+  const veh = MODE === 'drive' && VEH ? VEH : null, hv = veh ? veh.g.position : null;
+  for (const F of FOES) {
+    if (F.state === 'off') continue;
+    const p = F.g.position, dx = head.x - p.x, dz = head.z - p.z, d = Math.hypot(dx, dz);
+    F.t += dt; F.cd -= dt; F.hitCD -= dt;
+    if (d > 240) { F.state = 'off'; F.g.visible = false; continue; }
+    let speed = 0, swing = 0, throwA = 0;
+    if (F.state === 'ko') { // falls over, then sinks away
+      const u = Math.min(1, F.t / 0.45); F.g.rotation.x = -u * Math.PI / 2; p.addScaledVector(F.fling, dt * (1 - u)); p.y = terrainH(p.x, p.z) - Math.max(0, F.t - 2) * 0.6;
+      if (F.t > 3.5) { F.state = 'off'; F.g.visible = false; } continue;
+    }
+    if (F.state === 'stagger') { F.g.rotation.x = -0.3 * Math.sin(Math.PI * Math.min(1, F.t / 0.5)); if (F.t > 0.5) { F.state = 'chase'; F.g.rotation.x = 0; } }
+    else if (!fighting || !inWaste(head.x, head.z)) { // you crossed the line: they stop at it and give up
+      F.yaw += wrap(Math.atan2(dx, dz) - F.yaw) * Math.min(1, dt * 4); if (F.t > 12) { F.state = 'off'; F.g.visible = false; }
+    } else {
+      F.yaw += wrap(Math.atan2(dx, dz) - F.yaw) * Math.min(1, dt * 6);
+      if (F.state === 'windup') { swing = Math.min(1, F.t / 0.45); if (F.t > 0.45) { if (d < 1.7 && !veh) damage(10); F.state = 'chase'; F.cd = 1.2; } }
+      else if (F.state === 'throw') { throwA = Math.min(1, F.t / 0.4); if (F.t > 0.4) { throwRock(F, head); F.state = 'chase'; F.cd = rr(2.5, 4); } }
+      else if (d < 1.3 && !veh) { if (F.cd <= 0) { F.state = 'windup'; F.t = 0; sYell(); } }
+      else if (d > 7 && d < 28 && F.cd <= 0 && Math.random() < dt * 1.5) { F.state = 'throw'; F.t = 0; }
+      else { speed = veh ? 5.5 : 4.3; }
+    }
+    if (speed) { const st = Math.min(Math.max(0, d - 1.1), speed * dt); p.x += Math.sin(F.yaw) * st; p.z += Math.cos(F.yaw) * st; }
+    // never past the city line
+    if (Math.abs(p.z) > WASTE.z1 - 3) p.z = Math.sign(p.z) * (WASTE.z1 - 3);
+    if (Math.abs(p.z) < WASTE.z0 + 3) p.z = Math.sign(p.z) * (WASTE.z0 + 3);
+    p.y = terrainH(p.x, p.z); F.g.rotation.y = F.yaw;
+    F.ph += dt * speed * 3;
+    const s = Math.sin(F.ph) * Math.min(1, speed / 3);
+    F.legs[0].rotation.x = s * 0.7; F.legs[1].rotation.x = -s * 0.7;
+    F.arms[0].rotation.x = -s * 0.6 - throwA * 2.8; F.arms[1].rotation.x = s * 0.6 - swing * 2.2 + (swing >= 1 ? 1.6 : 0);
+    // you hit them: fists (VR), or run them down
+    if (vr && d < 2) for (const C of ctrls) {
+      if (!C.src || !C.vel || C.vel.length() < 1.6 || SPRINT.on) continue;
+      const gp = C.grip.getWorldPosition(tmpV2);
+      if (Math.hypot(gp.x - p.x, gp.z - p.z) < 0.5 && gp.y > p.y + 0.9 && gp.y < p.y + 1.95) { hitFoe(F, head); break; }
+    }
+    if (veh && Math.abs(veh.v) > 8 && Math.hypot(hv.x - p.x, hv.z - p.z) < 1.9) koFoe(F, new V3(-Math.sin(veh.yaw) * Math.sign(veh.v) * 9, 0, -Math.cos(veh.yaw) * Math.sign(veh.v) * 9));
+    if (MODE === 'heli' && HELI.g && HELI.g.position.y - p.y < 4 && Math.hypot(HELI.g.position.x - p.x, HELI.g.position.z - p.z) < 3) koFoe(F, new V3(p.x - HELI.g.position.x, 0, p.z - HELI.g.position.z).setLength(5));
+  }
+  // rocks
+  for (const R of ROCKS) {
+    if (!R.on) continue;
+    R.t += dt; R.v.y -= 9.8 * dt; R.m.position.addScaledVector(R.v, dt); R.m.rotation.x += dt * 9;
+    if (R.m.position.distanceTo(head) < (veh ? 1.4 : 0.75)) { R.on = false; R.m.visible = false; damage(8); continue; }
+    if (R.m.position.y < terrainH(R.m.position.x, R.m.position.z) || R.t > 4) { R.on = false; R.m.visible = false; }
+  }
+  // buggies
+  for (const B of BUGGIES) {
+    if (B.state === 'off') continue;
+    const p = B.g.position; B.cd -= dt; B.t += dt;
+    if (B.state === 'wreck') { B.g.rotation.z += dt * 5; p.y += Math.max(0, 2 - B.t * 3) * dt * 2; if (Math.random() < dt * 20) emit(p.x, p.y + 1, p.z, rr(-0.5, 0.5), rr(1, 2), rr(-0.5, 0.5), pick([0x444444, 0x666666, 0xff8a2a]), rr(1, 2), 0.5, 0); if (B.t > 3) { B.state = 'off'; B.g.visible = false; } continue; }
+    const tgt = hv || head, dx = tgt.x - p.x, dz = tgt.z - p.z, d = Math.hypot(dx, dz);
+    if (d > 300 || !fighting || MODE !== 'drive') { B.v *= 1 - Math.min(1, dt); if (d > 300 || B.t > 30) { B.state = 'off'; B.g.visible = false; continue; } }
+    else { B.yaw += clamp(wrap(Math.atan2(dx, dz) - B.yaw), -1.8 * dt, 1.8 * dt); B.v = Math.min(34, B.v + 9 * dt); }
+    p.x += Math.sin(B.yaw) * B.v * dt; p.z += Math.cos(B.yaw) * B.v * dt;
+    if (Math.abs(p.z) > WASTE.z1 - 4) { p.z = Math.sign(p.z) * (WASTE.z1 - 4); B.v *= 0.5; }
+    p.y = terrainH(p.x, p.z); B.g.rotation.set(0, B.yaw, 0);
+    if (veh && d < 3) {
+      const fwd = new V3(-Math.sin(veh.yaw) * Math.sign(veh.v), 0, -Math.cos(veh.yaw) * Math.sign(veh.v)), to = new V3(p.x - hv.x, 0, p.z - hv.z).normalize();
+      if (Math.abs(veh.v) > 15 && fwd.dot(to) > 0.4) { B.state = 'wreck'; B.t = 0; sKO(); tone(70, 0.5, 'sawtooth', 0.2, 40); rumble(1, 250); toast('Buggy wrecked!', 1.5); }
+      else if (B.cd <= 0) { B.cd = 1.5; damage(14); veh.v *= 0.7; B.v *= -0.3; tone(90, 0.25, 'square', 0.18, 45); }
+    }
+  }
+  // pedestrians in the cities
+  updatePeds(dt, head);
+}
+function throwRock(F, head) {
+  const R = ROCKS.find(r => !r.on); if (!R) return;
+  const from = F.g.localToWorld(new V3(0.25, 2.0, 0)), T = clamp(from.distanceTo(head) / 16, 0.4, 1.4);
+  R.m.position.copy(from); R.v.set((head.x - from.x) / T + rr(-0.6, 0.6), (head.y - from.y) / T + 4.9 * T, (head.z - from.z) / T + rr(-0.6, 0.6)); R.on = true; R.t = 0; R.m.visible = true;
+  tone(500, 0.15, 'sine', 0.04, 250);
+}
+function updatePeds(dt, head) {
+  const city = inCity(head.x, head.z) && ['town', 'drive', 'heli'].includes(MODE);
+  for (const P of PEDS) {
+    if (P.state === 'off') {
+      if (!city || Math.random() > dt * 3) continue;
+      // put them on a sidewalk near you, walking along it
+      const sf = head.z < 0, xs = [15, 75, 135, 195, 255, 315], zs = sf ? [-1365, -1425, -1485, -1545, -1605, -1665] : [1365, 1425, 1485, 1545, 1605, 1665, 1725];
+      const alongZ = Math.random() < 0.5, side = pick([-7.5, 7.5]);
+      let x, z;
+      if (alongZ) { x = pick(xs) + side; z = head.z + rr(-50, 50); P.dir.set(0, 0, pick([-1, 1])); } else { z = pick(zs) + side; x = head.x + rr(-50, 50); P.dir.set(pick([-1, 1]), 0, 0); }
+      if (Math.hypot(x - head.x, z - head.z) < 12 || !inCity(x, z) || inWater(x, z)) continue;
+      P.g.position.set(x, terrainH(x, z), z); P.state = 'walk'; P.t = 0; P.legLen = rr(25, 60); P.g.visible = true; continue;
+    }
+    const p = P.g.position; P.t += dt;
+    if (!city || Math.hypot(head.x - p.x, head.z - p.z) > 110) { P.state = 'off'; P.g.visible = false; continue; }
+    let sp = 1.3;
+    // step out of the way of anything you're driving or flying low
+    const vp = MODE === 'drive' && VEH ? VEH.g.position : MODE === 'heli' && HELI.g ? HELI.g.position : null;
+    if (vp && vp.y - p.y < 4 && Math.hypot(vp.x - p.x, vp.z - p.z) < 6) { const aw = new V3(p.x - vp.x, 0, p.z - vp.z).normalize(); p.addScaledVector(aw, dt * 6); sp = 0; }
+    if (P.t > P.legLen / sp && sp) { P.dir.negate(); P.t = 0; }
+    p.addScaledVector(P.dir, sp * dt); p.y = terrainH(p.x, p.z);
+    P.yaw = Math.atan2(P.dir.x, P.dir.z); P.g.rotation.y = P.yaw;
+    P.ph += dt * sp * 4; const s = Math.sin(P.ph) * (sp ? 1 : 0);
+    P.legs[0].rotation.x = s * 0.5; P.legs[1].rotation.x = -s * 0.5; P.arms[0].rotation.x = -s * 0.4; P.arms[1].rotation.x = s * 0.4;
+  }
+}
+// wrecked cars and tire piles along the wasteland roads; a line across the road at each city limit
+{
+  const parts = [];
+  const add = (geo, col, x, y, z) => { geo.translate(x, y, z); parts.push(colorize(geo, col)); };
+  for (let i = 0; i < 36; i++) {
+    const z = (i % 2 ? 1 : -1) * rr(WASTE.z0 + 30, WASTE.z1 - 40), x = (Math.random() < 0.5 ? -1 : 1) * rr(8, 40), c = pick([0x6b3a22, 0x7a4a2a, 0x4a4a44, 0x8a5a3a]);
+    if (Math.random() < 0.6) { const car = new THREE.BoxGeometry(1.8, 0.9, 4.2); car.rotateY(rr(0, TAU)); car.rotateZ(rr(-0.3, 0.3)); add(car, c, x, 0.4, z); const cab = new THREE.BoxGeometry(1.5, 0.5, 1.8); cab.rotateY(rr(0, TAU)); add(cab, 0x3a2a22, x, 1.0, z); }
+    else for (let k = 0; k < 4; k++) { const t = new THREE.TorusGeometry(0.4, 0.16, 6, 12); t.rotateX(Math.PI / 2); add(t, 0x1a1a1a, x + rr(-0.2, 0.2), 0.16 + k * 0.3, z + rr(-0.2, 0.2)); }
+  }
+  for (const s of [-1, 1]) for (let i = 0; i < 6; i++) add(new THREE.BoxGeometry(2, 0.03, 0.5), i % 2 ? 0xffffff : 0xd8262e, -5 + i * 2, 0.05, s * WASTE.z1);
+  scene.add(new THREE.Mesh(merge(parts), FIG_MAT));
+}
+
 // ---------- 12. Start buttons and the main loop ----------
 const ui = document.getElementById('ui'), vrBtn = document.getElementById('vrbtn'), deskBtn = document.getElementById('deskbtn'), vrMsg = document.getElementById('vrmsg');
 let xrSession = null;
@@ -4264,7 +4510,7 @@ mobUI.querySelectorAll('[data-key]').forEach(b => { // hold-to-press buttons map
 let mobMode = '';
 function updateMobileUI() { // show only the buttons that do something right now
   if (!MOBILE || !started || renderer.xr.isPresenting) return;
-  const m = MODE + (MODE === 'bball' ? BB.poss : '');
+  const m = MODE + (MODE === 'bball' ? BB.poss : '') + PH.zone;
   if (m === mobMode) return; mobMode = m;
   const show = (id, label) => { const b = document.getElementById(id); b.style.display = label ? '' : 'none'; if (label) b.textContent = label; };
   const town = MODE === 'town', heli = MODE === 'heli', drive = MODE === 'drive', bb = MODE === 'bball', def = bb && BB.poss !== 'player' && BB.poss !== 'dribble';
@@ -4272,6 +4518,7 @@ function updateMobileUI() { // show only the buttons that do something right now
   show('mb-space', heli ? 'Up' : def ? 'Defense' : '');
   show('mb-c', heli ? 'Down' : '');
   show('mb-e', drive ? 'Get out' : heli ? 'Land' : '');
+  show('mb-f', town && PH.zone === 'waste' ? 'Punch' : '');
   document.getElementById('mhint').textContent = bb ? (def ? 'Defense: block by tapping near him' : 'Hold the screen to charge, release to shoot') : heli ? 'Joystick: forward/back · turn' : drive ? 'Joystick: gas/brake · steer' : 'Drag to look · tap to interact';
 }
 vrBtn.addEventListener('click', enterVR);
@@ -4295,10 +4542,10 @@ renderer.setAnimationLoop(() => {
   if (MODE === 'arcade') updateArcade(dt, vr);
   updatePunch(vr);
   updateBeau(dt, headV, vr);
-  updateWorld(dt, headV); updateCar(dt, vr); updateHeli(dt, vr); updateSprint(dt, vr); updateCouch(dt); updateSkydive(dt, vr); updateBeauMenu(dt);
+  updateWorld(dt, headV); updateCar(dt, vr); updateHeli(dt, vr); updateSprint(dt, vr); updateFoes(dt, headV, vr); updateCouch(dt); updateSkydive(dt, vr); updateBeauMenu(dt);
   updatePlayerArms(vr, headV);
   updatePopup(dt);
-  if (started) { pollDev(vr); pollStance(vr, dt); updateMobileUI(); }
+  if (started) { pollDev(vr); pollStance(vr, dt); pollPunchKey(); updateMobileUI(); }
   updateFade(dt);
   updateGame(dt, headV);
   updateFlying(dt, vr);
