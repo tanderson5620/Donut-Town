@@ -2496,6 +2496,7 @@ for (let i = 0; i < 2; i++) {
   });
   c.addEventListener('disconnected', () => { C.src = null; C.hand = ''; if (hudMesh.parent === grip) grip.remove(hudMesh); });
   c.addEventListener('selectstart', () => {
+    if (SPRINT.on) return; // no interacting mid-sprint
     if (MODE === 'bball' && BB.poss === 'player') { BB.hold = C; return; }
     if (TREAT.state === 'held') return; // swing and release to throw it
     if (C.grip.getWorldPosition(tmpV2).distanceTo(JAR.getWorldPosition(tmpV)) < 0.45) { grabTreat(C); return; }
@@ -2510,6 +2511,7 @@ for (let i = 0; i < 2; i++) {
 }
 function targets() {
   const list = [];
+  if (SPRINT.on) return list;
   for (const b of buttons) if (b.mesh.visible && b.enabled) list.push(b.mesh);
   for (const fd of flying) if (fd.state === 'fly' || fd.state === 'fall') list.push(fd.g);
   if (punchable()) list.push(RIM_HIT);
@@ -2600,6 +2602,7 @@ function movePlayer(dt, vr) {
       if (!C.src || !C.src.gamepad) continue;
       const [ax, ay] = axes(C.src.gamepad);
       if (C.hand === 'left') { if (Math.hypot(ax, ay) > 0.15) { mx = ax; mz = ay; } }
+      if (SPRINT.on) speed = 2.3 * 4;
       else if (C.hand === 'right') {
         if (C.snapReady && Math.abs(ax) > 0.65) { snapTurn(-Math.sign(ax) * Math.PI / 6); C.snapReady = false; }
         if (Math.abs(ax) < 0.3) C.snapReady = true;
@@ -2608,7 +2611,7 @@ function movePlayer(dt, vr) {
   } else {
     if (keys.KeyW || keys.ArrowUp) mz -= 1; if (keys.KeyS || keys.ArrowDown) mz += 1;
     if (keys.KeyA || keys.ArrowLeft) mx -= 1; if (keys.KeyD || keys.ArrowRight) mx += 1;
-    speed = keys.ShiftLeft || keys.ShiftRight ? 5.5 : 3.4;
+    speed = SPRINT.on ? 3.4 * 4 : 3.4;
     const l = Math.hypot(mx, mz); if (l > 1) { mx /= l; mz /= l; }
   }
   if (MODE === 'bball' && BB.stance) { mx *= 1.6; mz *= 0.6; }
@@ -2642,11 +2645,26 @@ function resolve() {
   if (inWater(px, pz)) { px = h.x; pz = h.z; if (inWater(px, pz)) { px = h.x + 1; } }
   if (MODE === 'bball') { px = clamp(px, CT.x0 + 0.3, CT.x1 - 0.3); pz = clamp(pz, CT.z0 + 0.3, CT.z1 - 0.3); }
   rig.position.x += px - h.x; rig.position.z += pz - h.z;
-  rig.position.y = MODE === 'town' ? terrainH(px, pz) : rig.position.y;
+  rig.position.y = MODE === 'town' ? terrainH(px, pz) + SPRINT.h : rig.position.y;
+}
+
+// Sprint: 4x speed, you drop to 75% height, and you can't interact with anything while sprinting.
+// VR: click the left stick to toggle (it ends when you stop moving). Desktop: hold Shift.
+const SPRINT = { on: false, h: 0, prev: false, idle: 0 };
+function updateSprint(dt, vr) {
+  let click = false, moving = false;
+  if (vr) for (const C of ctrls) { const gp = C.src && C.src.gamepad; if (C.hand !== 'left' || !gp) continue; click = !!(gp.buttons[3] && gp.buttons[3].pressed); const [ax, ay] = axes(gp); moving = Math.hypot(ax, ay) > 0.2; }
+  if (MODE !== 'town') SPRINT.on = false;
+  else if (vr) {
+    if (click && !SPRINT.prev) SPRINT.on = !SPRINT.on;
+    SPRINT.idle = moving ? 0 : SPRINT.idle + dt; if (SPRINT.idle > 1.2) SPRINT.on = false;
+  } else SPRINT.on = !!(keys.ShiftLeft || keys.ShiftRight);
+  SPRINT.prev = click;
+  SPRINT.h += ((SPRINT.on ? -0.25 * camera.position.y : 0) - SPRINT.h) * Math.min(1, dt * 8);
 }
 
 // ---------- 11b. Game modes: DONUT DASH (arcade), punching Rimshot, 1v1 basketball ----------
-let MODE = 'town'; // 'town' | 'arcade' | 'bball' | 'drive' | 'couch' | 'turtle' | 'sky'
+let MODE = 'town'; // 'town' | 'arcade' | 'bball' | 'drive' | 'couch' | 'turtle' | 'sky' | 'heli'
 // fade to black around the head for scene changes (comfortable in VR)
 const fader = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
 fader.renderOrder = 999; fader.visible = false; camera.add(fader);
@@ -2877,6 +2895,7 @@ function punchRimshot() {
   say('OOF! ...Okay. You want smoke? 1v1, first to 3!', 3.2, RIM);
 }
 function updatePunch(vr) {
+  if (SPRINT.on) return;
   if (!vr || !punchable()) return;
   RIM.head.getWorldPosition(tmpV); RIM.chest.getWorldPosition(tmpV2);
   for (const C of ctrls) {
@@ -3417,7 +3436,7 @@ function updateBeau(dt, head, vr) {
     case 'follow': { // dead ahead, in view without looking down, facing the way you're heading
       const tx = head.x + f.x * 2.6, tz = head.z + f.z * 2.6;
       if (Math.hypot(tx - r.position.x, tz - r.position.z) > 8) r.position.set(tx, 0, tz);
-      const d = beauMove(r, tx, tz, 7, dt);
+      const d = beauMove(r, tx, tz, SPRINT.on ? 14 : 7, dt);
       // every 3 s: turn back and smile at you, wagging hard
       BEAU.glanceT -= dt;
       if (BEAU.glanceT <= 0) { BEAU.glanceT = 3; BEAU.glance = 1; }
@@ -3538,7 +3557,7 @@ function updateBeau(dt, head, vr) {
   B.tongue.scale.z = tongueFlick ? 0.022 * (1.2 + Math.sin(elapsed * 30) * 0.6) : 0.022;
   B.shadow.position.y = 0.03 - hop / r.scale.y;
   // pet him by touching his head (VR)
-  if (vr) for (const C of ctrls) if (C.src && C.grip.getWorldPosition(tmpV2).distanceTo(hp) < 0.22) petBeau();
+  if (vr && !SPRINT.on) for (const C of ctrls) if (C.src && C.grip.getWorldPosition(tmpV2).distanceTo(hp) < 0.22) petBeau();
   BEAU.barkT -= dt; if (BEAU.barkT <= 0) { BEAU.barkT = rr(10, 22); if (Math.hypot(head.x - r.position.x, head.z - r.position.z) < 6) sYip(); }
 }
 
@@ -3662,6 +3681,7 @@ scene.add(BMENU.g); scene.add(BMENU.tg);
  ['Take him for a ride', '#2d3436', () => startRide()],
  ['Play jumps', '#2f9e6e', () => startJumps()],
  ['Take me to a turtle', '#2b7bb9', () => openTurtlePicker()],
+ ['Helicopter ride', '#1f6fb2', () => startHeli()],
  ['Close', '#7d7d8a', () => {}]].forEach(([label, color, fn], i) => {
   const b = makeButton(BMENU.g, 0.46, 0.13, (i % 2 ? 0.25 : -0.25), 0.16 - Math.floor(i / 2) * 0.16, 0, { label, color, onPress: () => { closeBeauMenu(); fn(); } });
   b.mesh.visible = false; BMENU.btns.push(b);
@@ -3860,6 +3880,96 @@ function updateVehicle(V, dt, vr) {
   }
 }
 function updateCar(dt, vr) { updateVehicle(CAR, dt, vr); updateVehicle(MOTO, dt, vr); }
+
+// ===== Take him for a helicopter ride: a little bubble chopper lands, you fly it, Beau rides beside you =====
+const HELI = { g: null, rotor: null, tail: null, state: 'off', t: 0, yaw: 0, vel: new V3(), from: new V3(), to: new V3(), thump: 0 };
+function buildHeli() {
+  const g = new THREE.Group(), body = new THREE.MeshPhongMaterial({ color: 0x1f6fb2, specular: 0x888888, shininess: 80 }), dark = L(0x1b1c20), metal = L(0xb8bcc4);
+  const glass = new THREE.MeshPhongMaterial({ color: 0x9fd0ff, transparent: true, opacity: 0.22, shininess: 120, specular: 0xffffff, side: THREE.DoubleSide, depthWrite: false });
+  const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
+  const belly = add(new THREE.SphereGeometry(1, 20, 10, 0, TAU, Math.PI / 2, Math.PI / 2), body, 0, 0.75, 0); belly.scale.set(0.95, 0.45, 1.25); // lower hull
+  const bub = add(new THREE.SphereGeometry(1, 20, 12, 0, TAU, 0, Math.PI / 2), glass, 0, 0.75, -0.05); bub.scale.set(0.95, 1.05, 1.25);    // glass bubble
+  add(new THREE.BoxGeometry(1.7, 0.08, 1.6), dark, 0, 0.78, 0.15);                                           // cabin floor
+  for (const x of [-0.32, 0.32]) { add(new THREE.BoxGeometry(0.5, 0.12, 0.5), L(0x3a3a40), x, 0.92, 0.2); add(new THREE.BoxGeometry(0.5, 0.55, 0.1), L(0x3a3a40), x, 1.2, 0.48); }
+  add(new THREE.BoxGeometry(0.9, 0.3, 0.25), dark, 0, 1.0, -0.75);                                           // instrument panel
+  const stick = add(new THREE.CylinderGeometry(0.02, 0.02, 0.45, 6), dark, -0.32, 1.1, -0.15); stick.rotation.x = -0.3;
+  const boom = add(new THREE.CylinderGeometry(0.1, 0.18, 3.6, 10), body, 0, 1.1, 2.7); boom.rotation.x = Math.PI / 2;
+  add(new THREE.BoxGeometry(0.06, 0.8, 0.5), body, 0, 1.45, 4.35);                                           // tail fin
+  HELI.tail = new THREE.Group(); HELI.tail.position.set(0.1, 1.3, 4.4); g.add(HELI.tail);
+  for (let i = 0; i < 2; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.75, 0.08), dark); b.rotation.x = i * Math.PI / 2; HELI.tail.add(b); }
+  add(new THREE.CylinderGeometry(0.06, 0.08, 0.5, 8), metal, 0, 1.95, 0.1);                                  // mast
+  HELI.rotor = new THREE.Group(); HELI.rotor.position.set(0, 2.2, 0.1); g.add(HELI.rotor);
+  for (let i = 0; i < 3; i++) { const bl = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.03, 4.4).translate(0, 0, 2.2), dark); bl.rotation.y = i * TAU / 3; HELI.rotor.add(bl); }
+  for (const s of [-1, 1]) { add(new THREE.BoxGeometry(0.07, 0.07, 2.4), metal, s * 0.75, 0.05, 0.1); for (const z of [-0.5, 0.7]) { const st = add(new THREE.BoxGeometry(0.05, 0.5, 0.05), metal, s * 0.65, 0.3, z); st.rotation.z = s * 0.35; } }
+  blob(g, 2.4, 3.6, 0.3);
+  return g;
+}
+function startHeli() {
+  if (MODE !== 'town') return;
+  dropTreat(); if (!HELI.g) { HELI.g = buildHeli(); scene.add(HELI.g); }
+  const h = headPos(new V3()), f = camera.getWorldDirection(new V3()); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
+  const x = h.x + f.x * 7, z = h.z + f.z * 7;
+  HELI.to.set(x, terrainH(x, z), z); HELI.from.set(x, HELI.to.y + 45, z); HELI.yaw = Math.atan2(f.x, f.z);
+  HELI.state = 'arrive'; HELI.t = 0; HELI.vel.set(0, 0, 0); HELI.g.visible = true;
+}
+const sThump = (v = 0.12) => { noise(0.07, v, 160, 'lowpass'); tone(55, 0.08, 'sine', v * 0.8, 40); };
+function heliExit() {
+  fadeThrough(() => {
+    HELI.state = 'parked'; BEAU.ext = null;
+    const c = Math.cos(HELI.yaw), s = Math.sin(HELI.yaw), x = HELI.g.position.x - 2.2 * c, z = HELI.g.position.z + 2.2 * s;
+    standAt(x, z, HELI.yaw); BEAU.B.root.position.set(x - s * 2.6, 0, z - c * 2.6); BEAU.B.root.rotation.set(0, BEAU.yaw = HELI.yaw + Math.PI, 0); BEAU.mode = 'follow';
+  });
+}
+function updateHeli(dt, vr) {
+  if (!HELI.g || HELI.state === 'off') return;
+  const p = HELI.g.position;
+  const spin = HELI.state === 'parked' ? 0 : HELI.state === 'fly' || HELI.state === 'arrive' ? 1 : 0.6;
+  HELI.rotor.rotation.y += dt * 28 * spin; HELI.tail.rotation.x += dt * 40 * spin;
+  if (spin > 0) { HELI.thump -= dt; if (HELI.thump <= 0) { HELI.thump = 0.11; sThump(MODE === 'heli' ? 0.1 : 0.12 / (1 + headV.distanceTo(p) * 0.05)); } }
+  if (HELI.state === 'arrive') {
+    HELI.t += dt; const u = Math.min(1, HELI.t / 4), e = 1 - (1 - u) * (1 - u);
+    p.lerpVectors(HELI.from, HELI.to, e); HELI.g.rotation.set(0, HELI.yaw, 0);
+    if (u >= 1) { HELI.state = 'landed'; HELI.t = 0; }
+  } else if (HELI.state === 'landed') {
+    HELI.t += dt; if (HELI.t > 0.5) { HELI.state = 'boarding'; fadeThrough(() => { MODE = 'heli'; HELI.state = 'fly'; BEAU.ext = 'heli'; pitch = 0; camera.rotation.x = 0;
+      showPopup(vr ? 'R trigger: up · L trigger: down · L stick: fly · R stick: turn · B: land & get out' : 'Space: up · C: down · W/S: fly · A/D: turn · E: land & get out', 6); }); }
+  } else if (HELI.state === 'fly') {
+    let up = 0, fwdIn = 0, side = 0, turn = 0, exit = false;
+    if (vr) for (const C of ctrls) {
+      const gp = C.src && C.src.gamepad; if (!gp) continue;
+      const trig = gp.buttons[0] ? gp.buttons[0].value : 0, [ax, ay] = axes(gp);
+      if (C.hand === 'right') { up += trig; if (Math.abs(ax) > 0.15) turn = ax; if (gp.buttons[5] && gp.buttons[5].pressed) exit = true; }
+      else { up -= trig; if (Math.abs(ay) > 0.12) fwdIn = -ay; if (Math.abs(ax) > 0.12) side = ax; }
+    } else {
+      if (keys.Space) up = 1; if (keys.KeyC) up = -1;
+      if (keys.KeyW || keys.ArrowUp) fwdIn = 1; if (keys.KeyS || keys.ArrowDown) fwdIn = -1;
+      if (keys.KeyA || keys.ArrowLeft) turn = -1; if (keys.KeyD || keys.ArrowRight) turn = 1;
+      if (keys.KeyE) exit = true;
+    }
+    if (exit) { HELI.state = 'landing'; }
+    HELI.yaw -= turn * 1.1 * dt;
+    const fx = -Math.sin(HELI.yaw), fz = -Math.cos(HELI.yaw), rx = Math.cos(HELI.yaw), rz = -Math.sin(HELI.yaw), top = keys.ShiftLeft || keys.ShiftRight ? 55 : 32;
+    const tv = new V3(fx * fwdIn * top + rx * side * 10, up * 8, fz * fwdIn * top + rz * side * 10);
+    HELI.vel.lerp(tv, Math.min(1, dt * 1.5));
+  } else if (HELI.state === 'landing') { // settle straight down, then you hop out
+    HELI.vel.x *= 1 - Math.min(1, dt * 3); HELI.vel.z *= 1 - Math.min(1, dt * 3); HELI.vel.y = -5;
+    if (p.y <= terrainH(p.x, p.z) + 0.01) { HELI.vel.set(0, 0, 0); HELI.state = 'leaving'; heliExit(); }
+  }
+  if (HELI.state === 'fly' || HELI.state === 'landing') {
+    const nx = p.x + HELI.vel.x * dt, nz = p.z + HELI.vel.z * dt;
+    let blocked = inWater(nx, nz) && p.y < 0.6;
+    for (const b of colliders) if (p.y < b.max.y && nx > b.min.x - 1.2 && nx < b.max.x + 1.2 && nz > b.min.z - 1.2 && nz < b.max.z + 1.2) { blocked = true; break; }
+    if (blocked) { HELI.vel.x *= -0.3; HELI.vel.z *= -0.3; } else { p.x = nx; p.z = nz; }
+    p.y = clamp(p.y + HELI.vel.y * dt, terrainH(p.x, p.z), 400);
+    const wd = Math.hypot(p.x, p.z); if (wd > 2250) { p.x *= 2250 / wd; p.z *= 2250 / wd; }
+    // nose dips when flying forward, banks when turning (the cabin view stays level)
+    const fwdV = HELI.vel.x * -Math.sin(HELI.yaw) + HELI.vel.z * -Math.cos(HELI.yaw);
+    HELI.g.rotation.order = 'YXZ'; HELI.g.rotation.set(-clamp(fwdV / 120, -0.15, 0.25), HELI.yaw, 0);
+    HELI.g.updateMatrixWorld(true);
+    const seat = HELI.g.localToWorld(new V3(-0.32, 1.55, 0.2)); lockHead(seat, HELI.yaw);
+    if (BEAU.on) poseBeau(HELI.g.localToWorld(new V3(0.32, 0.98, 0.15)), HELI.yaw + Math.PI, { scale: 0.75, look: 0.1 });
+  }
+}
 
 // ===== Play jumps: a couch appears, you sit, Beau runs Through / Tunnel / Clear it with your legs =====
 const COUCH = { g: null, legs: null, t: 0, step: 0, yaw: 0 };
@@ -4097,7 +4207,7 @@ renderer.setAnimationLoop(() => {
   if (MODE === 'arcade') updateArcade(dt, vr);
   updatePunch(vr);
   updateBeau(dt, headV, vr);
-  updateWorld(dt, headV); updateCar(dt, vr); updateCouch(dt); updateSkydive(dt, vr); updateBeauMenu(dt);
+  updateWorld(dt, headV); updateCar(dt, vr); updateHeli(dt, vr); updateSprint(dt, vr); updateCouch(dt); updateSkydive(dt, vr); updateBeauMenu(dt);
   updatePlayerArms(vr, headV);
   updatePopup(dt);
   if (started) { pollDev(vr); pollStance(vr, dt); }
