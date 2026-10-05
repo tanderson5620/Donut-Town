@@ -2355,9 +2355,8 @@ function drawHUD() {
   g.clearRect(0, 0, w, h);
   g.fillStyle = 'rgba(40,18,40,0.78)'; rrect(g, 4, 4, w - 8, h - 8, 28); g.fill();
   g.strokeStyle = 'rgba(255,159,204,.9)'; g.lineWidth = 4; g.stroke();
-  donutIcon('pink')(g, 46, 48, 24);
-  g.fillStyle = '#fff'; g.textAlign = 'left'; g.textBaseline = 'middle';
-  g.font = '800 38px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif'; g.fillText(`${S.donuts} donuts`, 84, 50);
+  g.fillStyle = '#fff'; g.textAlign = 'left'; g.textBaseline = 'middle'; // (no donut counter)
+  g.font = '800 38px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
   if (G.active) { g.textAlign = 'right'; g.fillStyle = '#ffd84a'; g.fillText(`${Math.ceil(G.t)}s`, w - 26, 50); g.textAlign = 'left'; }
   let x = 26;
   GIFT_ORDER.forEach(k => { GIFT_ICON[k](g, x + 18, 112, 17); g.fillStyle = S.inv[k] ? '#fff' : 'rgba(255,255,255,.4)'; g.font = '700 30px system-ui, Arial, sans-serif'; g.fillText('' + S.inv[k], x + 42, 114); x += 94; });
@@ -2612,6 +2611,7 @@ function movePlayer(dt, vr) {
     speed = keys.ShiftLeft || keys.ShiftRight ? 5.5 : 3.4;
     const l = Math.hypot(mx, mz); if (l > 1) { mx /= l; mz /= l; }
   }
+  if (MODE === 'bball' && BB.stance) { mx *= 1.6; mz *= 0.6; }
   if (!mx && !mz) return;
   camera.getWorldDirection(fwd); fwd.y = 0;
   if (fwd.lengthSq() < 1e-5) fwd.set(0, 0, -1).applyAxisAngle(UP, rig.rotation.y);
@@ -2866,9 +2866,10 @@ const arcadePlayBtn = makeButton(arcade.ui, 0.5, 0.2, -2.52, 1.2, 0.4, { ry: Mat
 // ===== punching Rimshot (only while he has stopped to stare / puke / recover) =====
 const RIM_HIT = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.95, 0.45), new THREE.MeshBasicMaterial({ visible: false }));
 RIM_HIT.position.y = 0.98; RIM.root.add(RIM_HIT); RIM_HIT.userData.punchable = true;
-const punchable = () => MODE === 'town' && !['gone', 'punched', 'bball-wait'].includes(RS.mode) && RIM.root.visible && !FADE.phase; // any time
+const punchable = () => !FADE.phase && RIM.root.visible && ((MODE === 'town' && !['gone', 'punched', 'bball-wait'].includes(RS.mode)) || (MODE === 'bball' && !(BB.punchT > 0))); // any time
 function punchRimshot() {
   if (!punchable()) return;
+  if (MODE === 'bball') { bbPunch(); return; }
   RS.mode = 'punched'; RS.t = 0;
   sBonk(); rumble(1, 160);
   RIM.head.getWorldPosition(tmpV);
@@ -2880,6 +2881,7 @@ function updatePunch(vr) {
   RIM.head.getWorldPosition(tmpV); RIM.chest.getWorldPosition(tmpV2);
   for (const C of ctrls) {
     if (!C.src || !C.vel || C.vel.length() < 1.6) continue;
+    if (MODE === 'bball' && BB.poss === 'player' && (C === BB.ballC || C === BB.hold)) continue; // that hand has the ball
     const gp = C.grip.getWorldPosition(new V3());
     if (gp.distanceTo(tmpV) < 0.3 || gp.distanceTo(tmpV2) < 0.38) { punchRimshot(); return; }
   }
@@ -2948,14 +2950,15 @@ function startBball() {
     placePlayer(CT.hoop.x, CT.hoop.z + 6.5, 0);
     RIM.root.position.set(CT.hoop.x + 0.4, 0, CT.hoop.z + 4.6);
     leaveBtn.mesh.visible = true; giveBall('player');
-    toast(renderer.xr.isPresenting ? 'Hold the trigger, swing and release to shoot!' : 'Hold the mouse to charge, release to shoot!', 5);
+    toast(renderer.xr.isPresenting ? 'Push the ball down to dribble · trigger + swing to shoot · A: defense stance' : 'Move to dribble · hold mouse to shoot · Space: defense stance', 6);
     hudDirty = true;
   });
 }
 function endBball(early) {
   BB.phase = 'off'; leaveBtn.mesh.visible = false; BB.charging = false; BB.hold = null;
+  BB.stance = false;
   fadeThrough(() => {
-    MODE = 'town';
+    MODE = 'town'; rig.position.y = 0;
     rig.position.x = BB.ret.x; rig.position.z = BB.ret.z; rig.rotation.y = BB.ret.ry;
     const h = headPos(new V3());
     RS.mode = 'run'; RS.t = 0; RS.acc = 0; RS.rad = 2.8; RS.a = rr(0, TAU);
@@ -2969,7 +2972,45 @@ function endBball(early) {
     hudDirty = true;
   });
 }
+function bbPunch() { // a punch mid-game (or right after it): he staggers, and drops the ball if he had it
+  BB.punchT = 1.2; sBonk(); rumble(1, 160);
+  RIM.head.getWorldPosition(tmpV);
+  for (let i = 0; i < 30; i++) emit(tmpV.x, tmpV.y + 0.1, tmpV.z, rr(-1.2, 1.2), rr(0.5, 2), rr(-1.2, 1.2), pick([0xffd23f, 0xffffff, 0xffe680]), rr(0.6, 1.2), -2, 0);
+  if (BB.poss === 'rim') { BB.poss = 'loose'; BB.shooter = null; BB.vel.set(rr(-1.5, 1.5), 2, rr(-1.5, 1.5)); }
+  say(BB.phase === 'over' ? 'OW! Sore loser!' : pick(['OW! Foul!', 'Flagrant!', 'Hey!']), 1.6, RIM);
+}
+function startDribble(v) { // you pushed the ball down
+  BB.poss = 'dribble'; BB.hold = null; BB.bounces = 0; BB.dribT = 0; BB.lastDribble = elapsed;
+  BB.vel.set(v.x * 0.4, Math.min(-3.5, v.y * 1.5), v.z * 0.4);
+}
+function traveling() {
+  BB.travel = 0; BB.hold = null; showPopup('Traveling!', 1.8); say('Travel! My ball.', 1.6, RIM); giveBall('rim');
+}
+// how you guard, as Rimshot sees it: how far your arms reach out to his left / right, and whether they're up
+function guardShape(head) {
+  const r = new V3(-Math.cos(RS.yaw), 0, Math.sin(RS.yaw)); let L = 0, R = 0, high = 0, n = 0;
+  if (renderer.xr.isPresenting) for (const C of ctrls) {
+    if (!C.src) continue; const hp = C.grip.getWorldPosition(new V3()), lat = (hp.x - head.x) * r.x + (hp.z - head.z) * r.z;
+    if (lat > 0) R = Math.max(R, lat); else L = Math.max(L, -lat); high += hp.y > head.y - 0.1 ? 1 : 0; n++;
+  } else { L = R = BB.stance ? 0.45 : 0.2; }
+  return { L, R, high: n > 0 && high === n };
+}
+function pickDriveSpot(head) { // attack the side your arms don't cover; drive all the way if your hands are up, pull up if they're low
+  const g = guardShape(head), side = Math.abs(g.R - g.L) < 0.1 ? (Math.random() < 0.5 ? 1 : -1) : (g.R > g.L ? -1 : 1);
+  const a = side * rr(0.35, 1.1), d = g.high ? rr(1.2, 2.4) : rr(2.2, 4.6);
+  BB.spot.set(CT.hoop.x + Math.sin(a) * d, 0, CT.hoop.z + Math.cos(a) * d);
+}
+function pollStance(vr, dt) { // defense stance: A (right controller) or Space toggles it
+  let p = !!keys.Space;
+  if (vr) for (const C of ctrls) { const gp = C.src && C.src.gamepad; if (C.hand === 'right' && gp && gp.buttons[4] && gp.buttons[4].pressed) p = true; }
+  const offense = BB.poss === 'player' || BB.poss === 'dribble';
+  if (p && !BB.stPrev && MODE === 'bball' && !offense) { BB.stance = !BB.stance; toast(BB.stance ? 'Defensive stance' : 'Stance off', 1); }
+  BB.stPrev = p;
+  if (offense || MODE !== 'bball' || BB.phase !== 'play') BB.stance = false;
+  if (MODE === 'bball') rig.position.y += ((BB.stance ? -0.28 : 0) - rig.position.y) * Math.min(1, dt * 8); // crouch
+}
 function giveBall(who) {
+  BB.lastDribble = elapsed; BB.travel = 0;
   BB.poss = who; BB.shooter = null; BB.scored = false; BB.blocked = false; BB.vel.set(0, 0, 0);
   BB.rimState = who === 'rim' ? 'toTop' : 'defend'; BB.rimT = 0; hudDirty = true;
 }
@@ -3054,14 +3095,39 @@ function updateBball(dt, head, vr) {
     }
   }
   // player holding the ball
+  const mv = BB.prevHead ? Math.hypot(head.x - BB.prevHead.x, head.z - BB.prevHead.z) : 0; BB.prevHead = (BB.prevHead || new V3()).copy(head);
   if (BB.poss === 'player') {
     if (vr) {
-      const C = BB.hold || ctrls.find(c => c.src && c.hand === 'right') || ctrls.find(c => c.src);
-      if (C) ball.position.copy(C.grip.localToWorld(tmpV.set(0, -0.03, -0.12)));
+      const C = BB.hold || (BB.ballC && BB.ballC.src ? BB.ballC : null) || ctrls.find(c => c.src && c.hand === 'right') || ctrls.find(c => c.src);
+      BB.ballC = C;
+      if (C) {
+        ball.position.copy(C.grip.localToWorld(tmpV.set(0, -0.03, -0.12)));
+        if (!BB.hold && C.vel && C.vel.y < -1.3 && BB.phase === 'play') startDribble(C.vel); // push it down to dribble
+      }
+      // walking with the ball without dribbling: more than ~2 steps is a travel
+      if (BB.poss === 'player' && BB.phase === 'play' && mv < 0.5) { if (elapsed - BB.lastDribble > 0.9) BB.travel = (BB.travel || 0) + mv; else BB.travel = 0; if (BB.travel > 1.6) traveling(); }
     } else {
-      ball.position.copy(camera.localToWorld(tmpV.set(0.22, -0.28, -0.55)));
+      const moving = keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD || keys.ArrowUp || keys.ArrowDown || keys.ArrowLeft || keys.ArrowRight;
+      if (moving && !BB.charging) { // desktop dribbles for you while you move
+        BB.dph = (BB.dph || 0) + dt * 2.4; const b = BB.dph % 1, u = Math.abs(Math.cos(Math.PI * b)), bp = camera.localToWorld(tmpV.set(0.3, -0.45, -0.5));
+        ball.position.set(bp.x, 0.12 + Math.max(0, bp.y - 0.12) * u, bp.z);
+        if ((BB.lastDB || 0) < 0.5 && b >= 0.5) sBounce(0.3); BB.lastDB = b; BB.lastDribble = elapsed;
+      } else ball.position.copy(camera.localToWorld(tmpV.set(0.22, -0.28, -0.55)));
       if (BB.charging) { BB.charge += BB.chargeDir * dt / 1.0; if (BB.charge > 1) { BB.charge = 1; BB.chargeDir = -1; } if (BB.charge < 0) { BB.charge = 0; BB.chargeDir = 1; } hudDirty = true; }
     }
+  } else if (BB.poss === 'dribble') { // the ball bounces back up to your hand; catch it
+    BB.dribT += dt; BB.lastDribble = elapsed;
+    const C = BB.ballC, hp = C && C.src ? C.grip.getWorldPosition(tmpV2) : tmpV2.set(head.x, 1.0, head.z);
+    BB.vel.y -= 9.8 * dt; ball.position.addScaledVector(BB.vel, dt);
+    if (ball.position.y < 0.12 && BB.vel.y < 0) {
+      ball.position.y = 0.12; BB.bounces++; sBounce(0.4); rumble(0.15, 30);
+      const top = Math.max(0.5, hp.y - 0.02), vy = Math.sqrt(2 * 9.8 * (top - 0.12)) * (BB.bounces > 1 ? 0.7 : 1), t = vy / 9.8;
+      BB.vel.set((hp.x - ball.position.x) / t * 0.9, vy, (hp.z - ball.position.z) / t * 0.9);
+    }
+    let caught = null;
+    if (BB.dribT > 0.12 && BB.vel.y > -2.5) for (const c of ctrls) if (c.src && c.grip.getWorldPosition(tmpV).distanceTo(ball.position) < 0.34) { caught = c; break; }
+    if (caught) { BB.poss = 'player'; BB.ballC = caught; BB.dribT = 0; }
+    else if (BB.bounces > 2 || BB.dribT > 2.2) { BB.poss = 'loose'; toast('Lost the dribble!', 1.2); }
   } else if (BB.poss === 'shot' || BB.poss === 'loose') {
     ballPhysics(dt);
     // Rimshot blocks shots that come off the hand right at him
@@ -3099,8 +3165,9 @@ function updateBball(dt, head, vr) {
     }
   }
   // Rimshot's brain
-  if (BB.phase !== 'over') {
-    if (BB.poss === 'player') {
+  if (BB.phase !== 'over' && !(BB.punchT > 0)) {
+    if (BB.poss === 'dribble' && ball.position.y < 0.9 && BB.stealCD <= 0) for (const hnd of P.hand) if (hnd.getWorldPosition(tmpV2).distanceTo(ball.position) < 0.45 && Math.random() < dt * 2) { BB.stealCD = 1.5; giveBall('rim'); say(pick(['Cookies!', 'Mine!']), 1.4, RIM); break; }
+    if (BB.poss === 'player' || BB.poss === 'dribble') {
       // defend: square up between you and the hoop in a low, wide stance; slide with short shuffle
       // steps (with a little reaction lag), one hand high to contest and one low to poke at the ball,
       // both hands up when you load a shot
@@ -3131,11 +3198,18 @@ function updateBball(dt, head, vr) {
       dribbling = true;
       if (BB.rimState === 'toTop') {
         speed = rimMoveTo(P, CT.hoop.x, CT.hoop.z + 7.2, 3.2, dt); rimFace(P, CT.hoop.x, CT.hoop.z + 7.2, dt);
-        if (speed === 0 || BB.rimT > 3) { BB.rimState = 'drive'; BB.rimT = 0; const a = rr(-1.1, 1.1), d = rr(2.2, 4.6); BB.spot.set(CT.hoop.x + Math.sin(a) * d, 0, CT.hoop.z + Math.cos(a) * d); }
+        if (speed === 0 || BB.rimT > 3) { BB.rimState = 'drive'; BB.rimT = 0; BB.blockT = 0; pickDriveSpot(head); }
       } else if (BB.rimState === 'drive') {
-        speed = rimMoveTo(P, BB.spot.x, BB.spot.z, 2.7, dt); rimFace(P, BB.spot.x, BB.spot.z, dt);
+        let sp = 2.7;
+        if (BB.stance) { // you're in his path in a stance: he slows, then spins away toward the side your arms leave open
+          const dx = BB.spot.x - P.root.position.x, dz = BB.spot.z - P.root.position.z, dl = Math.hypot(dx, dz) || 1;
+          const px = head.x - P.root.position.x, pz = head.z - P.root.position.z, along = (px * dx + pz * dz) / dl, lat = Math.abs(px * dz - pz * dx) / dl;
+          const g = guardShape(head), w = 0.65 + Math.max(g.L, g.R) * 0.8;
+          if (along > 0 && along < 1.5 && lat < w) { sp = 0.7; BB.blockT = (BB.blockT || 0) + dt; if (BB.blockT > 0.9) { BB.blockT = 0; pickDriveSpot(head); BB.rimT = Math.min(BB.rimT, 2); } } else BB.blockT = 0;
+        }
+        speed = rimMoveTo(P, BB.spot.x, BB.spot.z, sp, dt); rimFace(P, BB.spot.x, BB.spot.z, dt);
         const pd = Math.hypot(head.x - P.root.position.x, head.z - P.root.position.z);
-        if (pd < 0.7 && BB.rimT > 0.6 && Math.random() < dt * 2) { const a = rr(-1.1, 1.1), d = rr(2.2, 4.6); BB.spot.set(CT.hoop.x + Math.sin(a) * d, 0, CT.hoop.z + Math.cos(a) * d); BB.rimT = 0.3; } // juke
+        if (!BB.stance && pd < 0.7 && BB.rimT > 0.6 && Math.random() < dt * 2) { pickDriveSpot(head); BB.rimT = 0.3; } // juke
         if (speed === 0 || BB.rimT > 4.5) { BB.rimState = 'shoot'; BB.rimT = 0; BB.contested = pd < 1.1; }
       } else if (BB.rimState === 'shoot') {
         dribbling = false; rimFace(P, CT.hoop.x, CT.hoop.z, dt, 12);
@@ -3154,15 +3228,30 @@ function updateBball(dt, head, vr) {
   }
   if (BB.rimState !== 'shoot' || BB.poss !== 'rim') P.body.position.y = BB.jump > 0 ? Math.sin(Math.PI * Math.min(1, BB.jump / 0.6)) * 0.4 : (BB.phase === 'over' ? P.body.position.y : 0);
   if (BB.jump > 0) { BB.jump += dt; P.sh.forEach((sh, i) => { sh.rotation.x = -2.8; sh.rotation.z = (i ? 1 : -1) * 0.2; }); if (BB.jump > 0.6) BB.jump = 0; }
+  if (BB.punchT > 0) { // staggering from your punch
+    BB.punchT -= dt; const k = Math.sin(Math.PI * Math.min(1, (1.2 - BB.punchT) / 0.6));
+    if (BB.punchT > 0.8) { P.root.position.x -= Math.sin(RS.yaw) * 1.1 * dt; P.root.position.z -= Math.cos(RS.yaw) * 1.1 * dt; }
+    P.spine.rotation.x = -0.35 * k; P.neck.rotation.x = -0.4 * k; P.neck.rotation.z = Math.sin(BB.t * 18) * 0.25 * k;
+    P.sh.forEach((sh, i) => { sh.rotation.x = -0.3; sh.rotation.z = (i ? 1 : -1) * (0.3 + 0.9 * k); }); F.wide = k; F.open = 0.5 * k; speed = 0;
+  }
   P.root.rotation.y = RS.yaw;
   if (speed > 0.2 && BB.rimState !== 'shoot') { RS.ph += dt * TAU * (speed > 3 ? 1.6 : 1.25); poseRun(P, RS.ph, Math.min(1, speed / 3.5)); }
   P.root.updateMatrixWorld(true);
-  if (dribbling && BB.rimState !== 'shoot') {
-    RS.db += dt * 2.2;
-    const b = RS.db % 1, u = Math.abs(Math.cos(Math.PI * b));
-    P.sh[1].rotation.x = -0.4; P.sh[1].rotation.z = 0.28; P.el[1].rotation.x = -0.55 - 0.65 * u; P.hand[1].rotation.x = -0.5 + 0.8 * (1 - u);
+  if (dribbling && BB.rimState !== 'shoot' && !(BB.punchT > 0)) {
+    RS.db += dt * (speed > 1 ? 2.6 : 2.0);
+    if (RS.dh === undefined) RS.dh = 1;
+    RS.xT = (RS.xT || 0) + dt;
+    if (BB.rimState === 'drive' && RS.xT > 2.2 && RS.db % 1 < 0.08) { RS.xT = 0; RS.dh = 1 - RS.dh; } // crossover
+    const b = RS.db % 1, u = Math.abs(Math.cos(Math.PI * b)), h = RS.dh, o = 1 - h;
+    // athletic base: knees bent, hips down, chest over the ball
+    P.hips.position.y -= 0.08; P.spine.rotation.x += 0.2; P.neck.rotation.x -= 0.15;
+    P.th.forEach((th, i) => { th.rotation.x -= 0.3; P.kn[i].rotation.x += 0.45; P.feet[i].rotation.x -= 0.15; });
+    // dribble arm: shoulder pumps, elbow flexes, wrist snaps down on the ball
+    P.sh[h].rotation.x = -0.25 - 0.3 * u; P.sh[h].rotation.z = (h ? 1 : -1) * 0.3; P.el[h].rotation.x = -0.45 - 0.7 * u; P.hand[h].rotation.x = -0.6 + 1.0 * (1 - u);
+    // off arm up and out, guarding the ball
+    P.sh[o].rotation.x = -1.0; P.sh[o].rotation.z = (o ? 1 : -1) * 0.55; P.el[o].rotation.x = -1.1; P.hand[o].rotation.x = 0.2;
     P.root.updateMatrixWorld(true);
-    const hp = P.palm[1].getWorldPosition(tmpV), fx = Math.sin(RS.yaw), fz = Math.cos(RS.yaw);
+    const hp = P.palm[h].getWorldPosition(tmpV), fx = Math.sin(RS.yaw), fz = Math.cos(RS.yaw);
     ball.position.set(hp.x + fx * 0.12, 0.12 + Math.max(0, hp.y - 0.25) * u, hp.z + fz * 0.12);
     if (RS.lastB < 0.5 && b >= 0.5) sBounce(Math.hypot(ball.position.x - head.x, ball.position.z - head.z));
     RS.lastB = b;
@@ -4011,7 +4100,7 @@ renderer.setAnimationLoop(() => {
   updateWorld(dt, headV); updateCar(dt, vr); updateCouch(dt); updateSkydive(dt, vr); updateBeauMenu(dt);
   updatePlayerArms(vr, headV);
   updatePopup(dt);
-  if (started) pollDev(vr);
+  if (started) { pollDev(vr); pollStance(vr, dt); }
   updateFade(dt);
   updateGame(dt, headV);
   updateFlying(dt, vr);
