@@ -2516,12 +2516,13 @@ function targets() {
   if (punchable()) list.push(RIM_HIT);
   if (MODE === 'bball') list.push(ball);
   if (BEAU.on) list.push(BEAU.hit);
+  if (MODE === 'town') list.push(COURT_SIGN);
   if (MODE === 'town' && TREAT.state !== 'held') list.push(JAR.hit);
   return list;
 }
 function firstHit(list) {
   const hits = raycaster.intersectObjects(list, true);
-  for (const h of hits) { let o = h.object; while (o && !o.userData.btn && !o.userData.fdObj && !o.userData.punchable && !o.userData.beau && !o.userData.treatJar && o !== ball) o = o.parent; if (o) return { obj: o, dist: h.distance }; }
+  for (const h of hits) { let o = h.object; while (o && !o.userData.btn && !o.userData.fdObj && !o.userData.punchable && !o.userData.beau && !o.userData.treatJar && !o.userData.courtSign && o !== ball) o = o.parent; if (o) return { obj: o, dist: h.distance }; }
   return null;
 }
 const rayRot = new THREE.Matrix4();
@@ -2539,6 +2540,7 @@ function activate(hit) {
   else if (o.userData.punchable) punchRimshot();
   else if (o.userData.beau) openBeauMenu();
   else if (o.userData.treatJar) grabTreat(null);
+  else if (o.userData.courtSign) courtChallenge();
   else if (o === ball) desktopBballClick(true);
   else if (o.userData.fdObj) catchDonut(o.userData.fdObj);
 }
@@ -2864,7 +2866,7 @@ const arcadePlayBtn = makeButton(arcade.ui, 0.5, 0.2, -2.52, 1.2, 0.4, { ry: Mat
 // ===== punching Rimshot (only while he has stopped to stare / puke / recover) =====
 const RIM_HIT = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.95, 0.45), new THREE.MeshBasicMaterial({ visible: false }));
 RIM_HIT.position.y = 0.98; RIM.root.add(RIM_HIT); RIM_HIT.userData.punchable = true;
-const punchable = () => MODE === 'town' && (RS.mode === 'stare' || RS.mode === 'puke' || RS.mode === 'recover') && !FADE.phase;
+const punchable = () => MODE === 'town' && !['gone', 'punched', 'bball-wait'].includes(RS.mode) && RIM.root.visible && !FADE.phase; // any time
 function punchRimshot() {
   if (!punchable()) return;
   RS.mode = 'punched'; RS.t = 0;
@@ -2884,6 +2886,7 @@ function updatePunch(vr) {
 }
 
 // ===== 1v1 basketball against Rimshot, first to 3 =====
+const COURT_SIGN = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.8, 2.4), new THREE.MeshBasicMaterial({ visible: false })); COURT_SIGN.userData.courtSign = true; // click it to play
 const CT = { x0: 18, x1: 33, z0: -6.4, z1: 7.6, hoop: new V3(25.5, 3.05, -4.8), boardZ: -5.2 };
 { // court: hardwood floor with painted lines, hoop, backboard, net
   const cw = CT.x1 - CT.x0, cd = CT.z1 - CT.z0, PX = 64;
@@ -2912,6 +2915,7 @@ const CT = { x0: 18, x1: 33, z0: -6.4, z1: 7.6, hoop: new V3(25.5, 3.05, -4.8), 
   netTex.wrapS = THREE.RepeatWrapping; netTex.repeat.x = 3;
   mesh(new THREE.CylinderGeometry(0.23, 0.15, 0.42, 16, 1, true), L(0xffffff, { map: netTex, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide }), hx, CT.hoop.y - 0.21, CT.hoop.z);
   woodSign(staticRoot, "Rimshot's Court", 2.2, 0.5, CT.x0 - 0.6, 1.4, 0.6, Math.PI / 2, { posts: true });
+  COURT_SIGN.position.set(CT.x0 - 0.6, 1.4, 0.6); scene.add(COURT_SIGN);
 }
 const BB = { you: 0, rim: 0, poss: 'none', shooter: null, last: null, scored: false, phase: 'off', t: 0, rimState: 'defend', rimT: 0, spot: new V3(), vel: new V3(), hold: null, charging: false, charge: 0, chargeDir: 1, stealCD: 0, ret: null, jump: 0, blocked: false };
 const scoreboard = (() => {
@@ -2931,6 +2935,11 @@ function drawScoreboard(msg) {
 drawScoreboard('FIRST TO 3');
 const leaveBtn = makeButton(scene, 0.7, 0.22, CT.x0 + 0.4, 1.2, 4.5, { ry: Math.PI / 2, label: 'Leave game', color: '#7a4cff', onPress: () => endBball(true) });
 leaveBtn.mesh.visible = false;
+function courtChallenge() { // click the court sign: straight into the 1v1
+  if (MODE !== 'town' || BB.phase !== 'off') return;
+  if (RS.mode === 'gone') { toast('Rimshot left town after you beat him.', 3); return; }
+  say('You want smoke? 1v1, first to 3!', 3, RIM); startBball();
+}
 function startBball() {
   fadeThrough(() => {
     MODE = 'bball'; G.active = false;
@@ -3654,79 +3663,114 @@ function buildCar() {
   return g;
 }
 const sHonk = () => { tone(392, 0.28, 'square', 0.12); tone(494, 0.28, 'square', 0.1); tone(392, 0.3, 'square', 0.12, 0, 0.36); tone(494, 0.3, 'square', 0.1, 0, 0.36); };
+const sBeep = () => { tone(660, 0.12, 'square', 0.1); tone(660, 0.14, 'square', 0.1, 0, 0.18); };
+// both rides share one driving model: the car (driver's seat, Beau shotgun) and the motorcycle (Beau on the tank in front of you)
+Object.assign(CAR, { seat: new V3(-0.37, 1.2, 0.15), beauSeat: new V3(0.37, 0.38, 0.1), beauScale: 0.85, top: 42, half: 1.4, lean: 0, name: 'car' });
+const MOTO = { g: null, yaw: 0, v: 0, steer: 0, state: 'off', t: 0, wheels: [], wheel: null, from: new V3(), to: new V3(), seat: new V3(0, 1.45, 0.3), beauSeat: new V3(0, 0.78, -0.22), beauScale: 0.6, top: 48, half: 0.8, lean: 0.35, name: 'moto' };
+let VEH = null; // the vehicle you're in
+function buildMoto() {
+  const g = new THREE.Group(), red = new THREE.MeshPhongMaterial({ color: 0xb3202a, specular: 0x888888, shininess: 90 }), blk = L(0x111114), chrome = new THREE.MeshPhongMaterial({ color: 0xd0d4da, shininess: 120, specular: 0xffffff });
+  const bx = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); return o; };
+  for (const z of [-0.72, 0.72]) {
+    const w = new THREE.Group(); w.position.set(0, 0.33, z); g.add(w);
+    const tire = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.07, 8, 20), blk); tire.rotation.y = Math.PI / 2; w.add(tire);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.1, 12), chrome); hub.rotation.z = Math.PI / 2; w.add(hub);
+    MOTO.wheels.push(w);
+  }
+  const tank = bx(0.34, 0.24, 0.55, red, 0, 0.82, -0.12); tank.rotation.x = 0.12;
+  bx(0.3, 0.1, 0.6, blk, 0, 0.8, 0.4);                                     // seat
+  bx(0.26, 0.3, 0.5, L(0x44464d), 0, 0.5, 0.05);                            // engine
+  const fork = bx(0.06, 0.75, 0.06, chrome, 0, 0.66, -0.6); fork.rotation.x = -0.35;
+  const sa = bx(0.06, 0.06, 0.6, chrome, 0, 0.4, 0.45);
+  bx(0.32, 0.18, 0.18, red, 0, 0.6, 0.78);                                  // rear fender
+  bx(0.3, 0.1, 0.2, red, 0, 0.62, -0.72);                                   // front fender
+  MOTO.wheel = new THREE.Group(); MOTO.wheel.position.set(0, 1.05, -0.48); g.add(MOTO.wheel);
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.7, 8), chrome); bar.rotation.z = Math.PI / 2; MOTO.wheel.add(bar);
+  for (const s of [-1, 1]) { const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.12, 8), blk); grip.rotation.z = Math.PI / 2; grip.position.x = s * 0.33; MOTO.wheel.add(grip); }
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), new THREE.MeshBasicMaterial({ color: 0xf4f6ff })); lamp.position.set(0, -0.12, -0.08); MOTO.wheel.add(lamp);
+  blob(g, 0.8, 2.0, 0.35);
+  return g;
+}
+function aheadSpot(V, h, f, side) { // park a vehicle beside you, driving in from up ahead
+  V.to.set(h.x + f.x * 5 - f.z * side, terrainH(h.x, h.z), h.z + f.z * 5 + f.x * side); V.from.set(V.to.x + f.x * 35, 0, V.to.z + f.z * 35);
+  V.yaw = Math.atan2(f.x, f.z); V.state = 'arrive'; V.t = 0; V.v = 0; V.g.visible = true;
+}
 function startRide() {
   if (MODE !== 'town') return;
   dropTreat(); if (!CAR.g) { CAR.g = buildCar(); scene.add(CAR.g); }
   const h = headPos(new V3()), f = camera.getWorldDirection(new V3()); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
-  CAR.to.set(h.x + f.x * 5 - f.z * 2.5, 0, h.z + f.z * 5 + f.x * 2.5); CAR.from.set(CAR.to.x + f.x * 35, 0, CAR.to.z + f.z * 35);
-  CAR.yaw = Math.atan2(f.x, f.z); // driving toward you (car forward is local -z)
-  CAR.state = 'arrive'; CAR.t = 0; CAR.v = 0; CAR.g.visible = true;
+  aheadSpot(CAR, h, f, 2.5);
 }
-function enterCar() {
+function startMoto() { // after you land from the turtle: a motorcycle rolls up to finish the trip
+  if (!MOTO.g) { MOTO.g = buildMoto(); scene.add(MOTO.g); }
+  const h = headPos(new V3()), f = camera.getWorldDirection(new V3()); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
+  aheadSpot(MOTO, h, f, 1.5);
+}
+function enterVehicle(V) {
   fadeThrough(() => {
-    MODE = 'drive'; CAR.state = 'drive'; CAR.v = 0; pitch = 0; camera.rotation.x = 0;
-    BEAU.ext = 'car'; GZ.hopT = 0;
+    VEH = V; MODE = 'drive'; V.state = 'drive'; V.v = 0; pitch = 0; camera.rotation.x = 0;
+    BEAU.ext = V.name; GZ.hopT = 0;
     showPopup(renderer.xr.isPresenting ? 'R trigger: gas · L trigger: brake · L stick: steer · B: get out' : 'W/S: drive · A/D: steer · E: get out', 6);
   });
 }
-function exitCar() {
+function exitVehicle(V) {
   fadeThrough(() => {
-    CAR.state = 'parked'; CAR.v = 0; BEAU.ext = null;
-    const c = Math.cos(CAR.yaw), s = Math.sin(CAR.yaw), x = CAR.g.position.x - 1.9 * c, z = CAR.g.position.z + 1.9 * s;
-    standAt(x, z, CAR.yaw); BEAU.B.root.position.set(x - s * 2.6, 0, z - c * 2.6); BEAU.B.root.rotation.set(0, BEAU.yaw = CAR.yaw + Math.PI, 0); BEAU.mode = 'follow';
+    V.state = 'parked'; V.v = 0; BEAU.ext = null; VEH = null;
+    const c = Math.cos(V.yaw), s = Math.sin(V.yaw), x = V.g.position.x - 1.9 * c, z = V.g.position.z + 1.9 * s;
+    standAt(x, z, V.yaw); BEAU.B.root.position.set(x - s * 2.6, 0, z - c * 2.6); BEAU.B.root.rotation.set(0, BEAU.yaw = V.yaw + Math.PI, 0); BEAU.mode = 'follow';
   });
 }
-function carBlocked(x, z) {
+function carBlocked(x, z, r = 1) {
   if (inWater(x, z)) return true;
-  for (const b of colliders) { if (b.max.y < 0.5 || b.min.y > 1.4) continue; if (x > b.min.x - 1 && x < b.max.x + 1 && z > b.min.z - 1 && z < b.max.z + 1) return true; }
+  for (const b of colliders) { if (b.max.y < 0.5 || b.min.y > 1.4) continue; if (x > b.min.x - r && x < b.max.x + r && z > b.min.z - r && z < b.max.z + r) return true; }
   return false;
 }
-function placeCar() {
-  const p = CAR.g.position, s = Math.sin(CAR.yaw), c = Math.cos(CAR.yaw);
-  const hf = terrainH(p.x - s * 1.4, p.z - c * 1.4), hb = terrainH(p.x + s * 1.4, p.z + c * 1.4);
-  p.y = (hf + hb) / 2; CAR.g.rotation.order = 'YXZ'; CAR.g.rotation.set(Math.atan2(hf - hb, 2.8), CAR.yaw, 0);
+function placeVehicle(V) {
+  const p = V.g.position, s = Math.sin(V.yaw), c = Math.cos(V.yaw);
+  const hf = terrainH(p.x - s * V.half, p.z - c * V.half), hb = terrainH(p.x + s * V.half, p.z + c * V.half);
+  p.y = (hf + hb) / 2; V.g.rotation.order = 'YXZ'; V.g.rotation.set(Math.atan2(hf - hb, V.half * 2), V.yaw, -V.steer * V.lean * clamp(V.v / 15, 0, 1));
 }
-function updateCar(dt, vr) {
-  if (!CAR.g || CAR.state === 'off') return;
-  if (CAR.state === 'arrive') {
-    CAR.t += dt; const u = Math.min(1, CAR.t / 3), e = 1 - (1 - u) * (1 - u);
-    CAR.g.position.lerpVectors(CAR.from, CAR.to, e); CAR.v = (1 - u) * 20; placeCar();
-    if (u >= 1) { CAR.state = 'wait'; CAR.t = 0; sHonk(); }
+function updateVehicle(V, dt, vr) {
+  if (!V.g || V.state === 'off') return;
+  if (V.state === 'arrive') {
+    V.t += dt; const u = Math.min(1, V.t / 3), e = 1 - (1 - u) * (1 - u);
+    V.g.position.lerpVectors(V.from, V.to, e); V.v = (1 - u) * 20; placeVehicle(V);
+    if (u >= 1) { V.state = 'wait'; V.t = 0; (V === MOTO ? sBeep : sHonk)(); }
   }
-  if (CAR.state === 'wait') { CAR.t += dt; if (CAR.t > 0.6) { CAR.state = 'entering'; enterCar(); } }
-  if (CAR.state === 'drive') {
+  if (V.state === 'wait') { V.t += dt; if (V.t > 0.6) { V.state = 'entering'; enterVehicle(V); } }
+  if (V.state === 'drive') {
     let gas = 0, brake = 0, steer = 0;
     if (vr) for (const C of ctrls) {
       const gp = C.src && C.src.gamepad; if (!gp) continue;
       const trig = gp.buttons[0] ? gp.buttons[0].value : 0, [ax, ay] = axes(gp);
-      if (C.hand === 'right') { gas = Math.max(gas, trig); if (gp.buttons[5] && gp.buttons[5].pressed) { exitCar(); CAR.state = 'leaving'; } }
+      if (C.hand === 'right') { gas = Math.max(gas, trig); if (gp.buttons[5] && gp.buttons[5].pressed) { exitVehicle(V); V.state = 'leaving'; } }
       else { brake = Math.max(brake, trig); if (Math.abs(ax) > 0.12) steer = ax; if (ay < -0.3) gas = Math.max(gas, -ay); if (ay > 0.3) brake = Math.max(brake, ay); }
     } else {
       if (keys.KeyW || keys.ArrowUp) gas = 1; if (keys.KeyS || keys.ArrowDown) brake = 1;
       if (keys.KeyA || keys.ArrowLeft) steer = -1; if (keys.KeyD || keys.ArrowRight) steer = 1;
       if (keys.ShiftLeft || keys.ShiftRight) gas *= 1.5;
-      if (keys.KeyE) { exitCar(); CAR.state = 'leaving'; }
+      if (keys.KeyE) { exitVehicle(V); V.state = 'leaving'; }
     }
-    const top = 42;
-    if (gas > 0) CAR.v += gas * 11 * dt * (CAR.v < 0 ? 2 : 1);
-    if (brake > 0) CAR.v -= brake * (CAR.v > 0.5 ? 18 : 6) * dt;
-    CAR.v -= CAR.v * 0.12 * dt + Math.sign(CAR.v) * 0.6 * dt * (gas || brake ? 0 : 1);
-    CAR.v = clamp(CAR.v, -10, top * Math.max(1, gas));
-    CAR.steer += (steer - CAR.steer) * Math.min(1, dt * 6);
-    CAR.yaw -= CAR.steer * clamp(CAR.v / 8, -1, 1) * 1.1 * dt / (1 + Math.abs(CAR.v) / 35);
-    const p = CAR.g.position, nx = p.x - Math.sin(CAR.yaw) * CAR.v * dt, nz = p.z - Math.cos(CAR.yaw) * CAR.v * dt;
-    if (carBlocked(nx, nz)) { if (Math.abs(CAR.v) > 4) { tone(90, 0.2, 'square', 0.15, 50); rumble(0.8, 150); } CAR.v *= -0.25; }
+    if (gas > 0) V.v += gas * 11 * dt * (V.v < 0 ? 2 : 1);
+    if (brake > 0) V.v -= brake * (V.v > 0.5 ? 18 : 6) * dt;
+    V.v -= V.v * 0.12 * dt + Math.sign(V.v) * 0.6 * dt * (gas || brake ? 0 : 1);
+    V.v = clamp(V.v, -10, V.top * Math.max(1, gas));
+    V.steer += (steer - V.steer) * Math.min(1, dt * 6);
+    V.yaw -= V.steer * clamp(V.v / 8, -1, 1) * 1.1 * dt / (1 + Math.abs(V.v) / 35);
+    const p = V.g.position, nx = p.x - Math.sin(V.yaw) * V.v * dt, nz = p.z - Math.cos(V.yaw) * V.v * dt;
+    if (carBlocked(nx, nz, V.half > 1 ? 1 : 0.5)) { if (Math.abs(V.v) > 4) { tone(90, 0.2, 'square', 0.15, 50); rumble(0.8, 150); } V.v *= -0.25; }
     else { p.x = nx; p.z = nz; }
-    placeCar();
-    CAR.wheel.rotation.z = -CAR.steer * 1.6;
+    placeVehicle(V);
+    if (V === CAR) V.wheel.rotation.z = -V.steer * 1.6; else V.wheel.rotation.y = -V.steer * 0.5;
   }
-  CAR.wheels.forEach((w, i) => { w.children[0].rotation.x -= CAR.v * dt / 0.33; w.rotation.y = i < 2 ? -CAR.steer * 0.45 : 0; });
-  if (MODE === 'drive' && CAR.state === 'drive') {
-    CAR.g.updateMatrixWorld(true);
-    lockHead(CAR.g.localToWorld(new V3(-0.37, 1.2, 0.15)), CAR.yaw);
-    if (BEAU.on) poseBeau(CAR.g.localToWorld(new V3(0.37, 0.38, 0.1)), CAR.yaw + Math.PI, { scale: 0.85, look: CAR.v > 15 ? 0.2 : -0.2 });
+  V.wheels.forEach((w, i) => { (V === CAR ? w.children[0] : w).rotation.x -= V.v * dt / 0.33; if (V === CAR) w.rotation.y = i < 2 ? -V.steer * 0.45 : 0; });
+  if (MODE === 'drive' && VEH === V && V.state === 'drive') {
+    V.g.updateMatrixWorld(true);
+    lockHead(V.g.localToWorld(V.seat.clone()), V.yaw);
+    if (BEAU.on) poseBeau(V.g.localToWorld(V.beauSeat.clone()), V.yaw + Math.PI, { scale: V.beauScale, look: V.v > 15 ? 0.2 : -0.2 });
   }
 }
+function updateCar(dt, vr) { updateVehicle(CAR, dt, vr); updateVehicle(MOTO, dt, vr); }
 
 // ===== Play jumps: a couch appears, you sit, Beau runs Through / Tunnel / Clear it with your legs =====
 const COUCH = { g: null, legs: null, t: 0, step: 0, yaw: 0 };
@@ -3846,7 +3890,7 @@ function rideTurtle(tt) {
   dropTreat();
   fadeThrough(() => {
     SKY.tt = tt; SKY.city = cityOf(tt); SKY.phase = 'ride'; SKY.t = 0; MODE = 'turtle'; BEAU.ext = 'turtle'; tt.ride = true;
-    tt.speed = 38;
+    tt.speed = 38; SKY.local = new V3(0, 0.5, -0.25); SKY.relYaw = Math.PI; SKY.placed = false; SKY.off = false;
   });
 }
 function updateRiddenTurtle(tt, dt) { // steer to the drop zone and climb
@@ -3856,51 +3900,58 @@ function updateRiddenTurtle(tt, dt) { // steer to the drop zone and climb
   tt.alt += (115 - tt.alt) * Math.min(1, dt * 0.25);
   if (d < 20 && SKY.phase === 'ride') { SKY.phase = 'jump'; SKY.t = 0; }
 }
+const shellY = (x, z) => 0.5 * Math.sqrt(Math.max(0, 1 - x * x - (z / 1.3) ** 2)); // shell height in turtle units
+function leaveTurtle(walkedOff) { // jump (or step) off: free fall, then the parachutes open
+  const tt = SKY.tt, h = headPos(new V3());
+  MODE = 'sky'; SKY.phase = 'fall'; SKY.t = 0; SKY.start.copy(h); SKY.off = walkedOff; SKY.yaw = rig.rotation.y;
+  const f = camera.getWorldDirection(new V3()); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); SKY.f.copy(f.normalize());
+  if (walkedOff) { // land below you (out of the water)
+    const L = new V3(h.x + tt.dir.x * 12, 0, h.z + tt.dir.z * 12);
+    for (let i = 0; i < 200 && inWater(L.x, L.z); i++) L.x += L.x < 0 ? 8 : -8;
+    SKY.land = L;
+  } else SKY.land = DROP[SKY.city].clone();
+  tt.ride = false; tt.speed = rr(5, 8.5);
+  if (!SKY.chute) { SKY.chute = buildChute(1.3); SKY.bchute = buildChute(0.45); }
+  sWin();
+}
 function updateSkydive(dt, vr) {
   if (MODE !== 'turtle' && MODE !== 'sky') return;
   const tt = SKY.tt;
-  if (SKY.phase === 'ride' || SKY.phase === 'jump') {
-    tt.g.updateMatrixWorld(true);
-    const top = tt.g.localToWorld(new V3(0, 0.5, -0.25));
-    rig.rotation.x = 0; rig.rotation.y = tt.g.rotation.y + Math.PI; rig.position.copy(top);
-    if (BEAU.on) poseBeau(tt.g.localToWorld(new V3(0, 0.47, 0.25)), tt.g.rotation.y, { look: 0.3 });
-    if (SKY.phase === 'jump') {
-      SKY.t += dt;
-      if (SKY.t > 0.6) { // jump!
-        MODE = 'sky'; SKY.phase = 'flip'; SKY.t = 0; SKY.start.copy(headPos(new V3()));
-        const f = camera.getWorldDirection(new V3()); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); SKY.f.copy(f.normalize()); SKY.yaw = rig.rotation.y;
-        tt.ride = false; tt.speed = rr(5, 8.5);
-        if (!SKY.chute) { SKY.chute = buildChute(1.3); SKY.bchute = buildChute(0.45); }
-        sWin();
-      }
-    }
+  if (MODE === 'turtle') {
+    const g = tt.g;
+    // read back where you walked / turned (relative to the turtle as it was last frame), then ride along
+    if (SKY.placed) { SKY.local.copy(g.worldToLocal(rig.position.clone())); SKY.relYaw = wrap(rig.rotation.y - g.rotation.y); }
+    g.updateMatrixWorld(true);
+    const hl = g.worldToLocal(headPos(new V3()));
+    if (SKY.placed && SKY.phase === 'ride' && Math.hypot(hl.x, hl.z / 1.3) > 1.0) { leaveTurtle(true); return; } // walked off the edge!
+    SKY.local.y = shellY(SKY.local.x, SKY.local.z) + 0.01;
+    rig.rotation.x = 0; rig.rotation.y = g.rotation.y + SKY.relYaw; rig.position.copy(g.localToWorld(SKY.local.clone())); SKY.placed = true;
+    if (BEAU.on) poseBeau(g.localToWorld(new V3(0, 0.47, 0.25)), g.rotation.y, { look: 0.3 });
+    if (SKY.phase === 'jump') { SKY.t += dt; if (SKY.t > 0.6) leaveTurtle(false); }
     return;
   }
   SKY.t += dt;
-  const D = DROP[SKY.city], eye = 1.6;
-  let H = new V3(), flip = 0;
-  if (SKY.phase === 'flip') { // free fall with two backflips
-    const T = 1.8, u = Math.min(1, SKY.t / T);
+  const D = SKY.land, gy = terrainH(D.x, D.z), eye = 1.6;
+  const H = new V3();
+  if (SKY.phase === 'fall') { // a second of free fall
     H.copy(SKY.start); H.y -= 0.5 * 9.8 * SKY.t * SKY.t;
-    flip = -2 * TAU * smooth(0, 1, u);
-    if (u >= 1) { SKY.phase = 'chute'; SKY.t = 0; SKY.y0 = H.y; SKY.x0 = H.x; SKY.z0 = H.z; SKY.chute.visible = SKY.bchute.visible = true; noise(0.5, 0.25, 700, 'bandpass'); rumble(0.7, 200); }
-  } else { // floating down under the canopy, drifting onto the drop zone
-    const fallT = (SKY.y0 - eye) / 6, u = Math.min(1, SKY.t / fallT);
-    H.set(lerp(SKY.x0, D.x, smooth(0, 1, u)) + Math.sin(SKY.t * 0.9) * 0.6 * (1 - u), lerp(SKY.y0, eye, u), lerp(SKY.z0, D.z, smooth(0, 1, u)));
+    if (SKY.t >= 1.2) { SKY.phase = 'chute'; SKY.t = 0; SKY.y0 = H.y; SKY.x0 = H.x; SKY.z0 = H.z; SKY.chute.visible = SKY.bchute.visible = true; noise(0.5, 0.25, 700, 'bandpass'); rumble(0.7, 200); }
+  } else { // floating down under the canopy, drifting onto the landing spot
+    const fallT = Math.max(2, (SKY.y0 - gy - eye) / 6), u = Math.min(1, SKY.t / fallT);
+    H.set(lerp(SKY.x0, D.x, smooth(0, 1, u)) + Math.sin(SKY.t * 0.9) * 0.6 * (1 - u), lerp(SKY.y0, gy + eye, u), lerp(SKY.z0, D.z, smooth(0, 1, u)));
     if (u >= 1) {
       SKY.chute.visible = SKY.bchute.visible = false; SKY.phase = 'off'; BEAU.ext = null;
       standAt(D.x, D.z, SKY.yaw); BEAU.mode = 'follow'; BEAU.B.root.rotation.set(0, BEAU.yaw, 0);
-      toast(SKY.city === 'SF' ? 'Welcome to San Francisco!' : 'Welcome to Los Angeles!', 4); sWin();
+      if (SKY.off) startMoto(); else { toast(SKY.city === 'SF' ? 'Welcome to San Francisco!' : 'Welcome to Los Angeles!', 4); sWin(); }
       return;
     }
   }
-  // move the rig so the head follows H, pitched by the flip around the head
-  rig.rotation.set(0, SKY.yaw, 0); rig.updateMatrixWorld(true); // your view stays level (no backflips: too dizzy in VR)
+  rig.rotation.set(0, SKY.yaw, 0); rig.updateMatrixWorld(true);
   const hp = headPos(new V3()); rig.position.add(H.clone().sub(hp));
   if (SKY.chute.visible) { SKY.chute.position.set(H.x, H.y - 0.9, H.z); SKY.chute.rotation.z = Math.sin(SKY.t * 0.9) * 0.08; }
-  if (BEAU.on) { // Beau falls just ahead of you, flipping too, under his own little chute
+  if (BEAU.on) { // Beau floats down just ahead of you under his own little chute
     const bpos = new V3(H.x + SKY.f.x * 3, H.y - 1.4, H.z + SKY.f.z * 3);
-    poseBeau(bpos, SKY.yaw + Math.PI, { flip: SKY.phase === 'flip' ? -flip : 0, spread: true, look: 0.4 });
+    poseBeau(bpos, SKY.yaw + Math.PI, { spread: true, look: 0.4 });
     if (SKY.bchute.visible) SKY.bchute.position.set(bpos.x, bpos.y + 0.4, bpos.z);
   }
 }
@@ -3948,7 +3999,7 @@ let elapsed = 0;
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05); elapsed += dt;
   const vr = renderer.xr.isPresenting;
-  if (started) { if (MODE === 'town' || MODE === 'bball') movePlayer(dt, vr); if (MODE === 'town' || MODE === 'bball' || MODE === 'arcade') resolve(); }
+  if (started) { if (MODE === 'town' || MODE === 'bball' || (MODE === 'turtle' && SKY.phase === 'ride')) movePlayer(dt, vr); if (MODE === 'town' || MODE === 'bball' || MODE === 'arcade') resolve(); }
   trackHands(dt);
   headPos(headV);
   updateScenery(dt, elapsed, headV);
