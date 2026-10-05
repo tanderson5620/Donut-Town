@@ -744,6 +744,13 @@ const HILLS = [
   { x: 420, z: 1330, r: 140, h: 55 },                                                                                // the sign hill in LA
   { x: -260, z: -700, r: 120, h: 28 }, { x: 300, z: -900, r: 160, h: 34 }, { x: -320, z: 820, r: 150, h: 30 }, { x: 280, z: 700, r: 120, h: 24 }, // rolling foothills
 ];
+function groundH(x, z) { // terrain without the bridge/pier decks
+  const r = Math.hypot(x, z); let h = 0;
+  if (r > NEAR.rin && r < NEAR.rout) h = rangeH(r, Math.atan2(z, x), NEAR.rin, NEAR.rout, NEAR.maxH, NEAR.seed);
+  else if (r > 240 && r < 400) h = rangeH(r, Math.atan2(z, x), 240, 400, 175, 47.9);
+  for (const k of HILLS) { const d = Math.hypot(x - k.x, z - k.z); if (d < k.r) h = Math.max(h, k.h * Math.sqrt(1 - (d / k.r) ** 2)); }
+  return Math.max(0, h);
+}
 function terrainH(x, z) { // ground height anywhere (valley floor = 0)
   const r = Math.hypot(x, z); let h = 0;
   if (r > NEAR.rin && r < NEAR.rout) h = rangeH(r, Math.atan2(z, x), NEAR.rin, NEAR.rout, NEAR.maxH, NEAR.seed);
@@ -2572,7 +2579,7 @@ addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 let drag = null, pitch = 0;
 const cvs = renderer.domElement;
-cvs.addEventListener('pointerdown', e => { if (!started) return; if (MODE === 'bball' && BB.poss === 'player' && !renderer.xr.isPresenting) { BB.charging = true; BB.charge = 0; BB.chargeDir = 1; } else if (MODE === 'bball' && (BB.poss === 'rim' || BB.poss === 'shot')) BB.deskBlockT = 0.6; drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId }; try { cvs.setPointerCapture(e.pointerId); } catch (_) { /* ok */ } });
+cvs.addEventListener('pointerdown', e => { if (!started) return; if (MODE === 'bball' && BB.poss === 'player' && !renderer.xr.isPresenting) { BB.charging = true; BB.charge = 0; BB.chargeDir = 1; } else if (MODE === 'bball' && (BB.poss === 'rim' || BB.poss === 'shot')) BB.deskBlockT = 1.0; drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId }; try { cvs.setPointerCapture(e.pointerId); } catch (_) { /* ok */ } });
 cvs.addEventListener('pointermove', e => {
   if (!drag || renderer.xr.isPresenting) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
@@ -2615,6 +2622,7 @@ function movePlayer(dt, vr) {
     const l = Math.hypot(mx, mz); if (l > 1) { mx /= l; mz /= l; }
   }
   if (MODE === 'bball' && BB.stance) { mx *= 1.6; mz *= 0.6; }
+  if (MODE === 'bball' && (BB.poss === 'player' || BB.poss === 'dribble')) speed *= 1.6; // quick with the ball
   if (!mx && !mz) return;
   camera.getWorldDirection(fwd); fwd.y = 0;
   if (fwd.lengthSq() < 1e-5) fwd.set(0, 0, -1).applyAxisAngle(UP, rig.rotation.y);
@@ -2995,12 +3003,12 @@ function bbPunch() { // a punch mid-game (or right after it): he staggers, and d
   BB.punchT = 1.2; sBonk(); rumble(1, 160);
   RIM.head.getWorldPosition(tmpV);
   for (let i = 0; i < 30; i++) emit(tmpV.x, tmpV.y + 0.1, tmpV.z, rr(-1.2, 1.2), rr(0.5, 2), rr(-1.2, 1.2), pick([0xffd23f, 0xffffff, 0xffe680]), rr(0.6, 1.2), -2, 0);
-  if (BB.poss === 'rim') { BB.poss = 'loose'; BB.shooter = null; BB.vel.set(rr(-1.5, 1.5), 2, rr(-1.5, 1.5)); }
+  if (BB.poss === 'rim') { BB.poss = 'loose'; BB.shooter = null; const h = headPos(new V3()), d = new V3(h.x - ball.position.x, 0, h.z - ball.position.z).normalize(); BB.vel.set(d.x * 2.5, 2, d.z * 2.5); } // pops loose toward you
   say(BB.phase === 'over' ? 'OW! Sore loser!' : pick(['OW! Foul!', 'Flagrant!', 'Hey!']), 1.6, RIM);
 }
 function startDribble(v) { // you pushed the ball down
   BB.poss = 'dribble'; BB.hold = null; BB.bounces = 0; BB.dribT = 0; BB.lastDribble = elapsed;
-  BB.vel.set(v.x * 0.4, Math.min(-3.5, v.y * 1.5), v.z * 0.4);
+  BB.vel.set(v.x * 0.3, Math.min(-5, v.y * 2.2), v.z * 0.3); rumble(0.2, 30);
 }
 function traveling() {
   BB.travel = 0; BB.hold = null; showPopup('Traveling!', 1.8); say('Travel! My ball.', 1.6, RIM); giveBall('rim');
@@ -3114,17 +3122,18 @@ function updateBball(dt, head, vr) {
     }
   }
   // player holding the ball
-  const mv = BB.prevHead ? Math.hypot(head.x - BB.prevHead.x, head.z - BB.prevHead.z) : 0; BB.prevHead = (BB.prevHead || new V3()).copy(head);
+  const mv = BB.prevHead ? Math.hypot(head.x - BB.prevHead.x, head.z - BB.prevHead.z) : 0;
+  BB.lastHX = BB.prevHead ? BB.prevHead.x : head.x; BB.lastHZ = BB.prevHead ? BB.prevHead.z : head.z; BB.prevHead = (BB.prevHead || new V3()).copy(head);
   if (BB.poss === 'player') {
     if (vr) {
       const C = BB.hold || (BB.ballC && BB.ballC.src ? BB.ballC : null) || ctrls.find(c => c.src && c.hand === 'right') || ctrls.find(c => c.src);
       BB.ballC = C;
       if (C) {
         ball.position.copy(C.grip.localToWorld(tmpV.set(0, -0.03, -0.12)));
-        if (!BB.hold && C.vel && C.vel.y < -1.3 && BB.phase === 'play') startDribble(C.vel); // push it down to dribble
+        if (!BB.hold && C.vel && C.vel.y < -1.0 && BB.phase === 'play') startDribble(C.vel); // push it down to dribble
       }
       // walking with the ball without dribbling: more than ~2 steps is a travel
-      if (BB.poss === 'player' && BB.phase === 'play' && mv < 0.5) { if (elapsed - BB.lastDribble > 0.9) BB.travel = (BB.travel || 0) + mv; else BB.travel = 0; if (BB.travel > 1.6) traveling(); }
+      if (BB.poss === 'player' && BB.phase === 'play' && mv < 0.5) { if (elapsed - BB.lastDribble > 1.2) BB.travel = (BB.travel || 0) + mv; else BB.travel = 0; if (BB.travel > 2.2) traveling(); }
     } else {
       const moving = keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD || keys.ArrowUp || keys.ArrowDown || keys.ArrowLeft || keys.ArrowRight;
       if (moving && !BB.charging) { // desktop dribbles for you while you move
@@ -3138,15 +3147,18 @@ function updateBball(dt, head, vr) {
     BB.dribT += dt; BB.lastDribble = elapsed;
     const C = BB.ballC, hp = C && C.src ? C.grip.getWorldPosition(tmpV2) : tmpV2.set(head.x, 1.0, head.z);
     BB.vel.y -= 9.8 * dt; ball.position.addScaledVector(BB.vel, dt);
+    if (mv < 0.5) { ball.position.x += head.x - (BB.lastHX ?? head.x); ball.position.z += head.z - (BB.lastHZ ?? head.z); } // the dribble moves with you
     if (ball.position.y < 0.12 && BB.vel.y < 0) {
-      ball.position.y = 0.12; BB.bounces++; sBounce(0.4); rumble(0.15, 30);
-      const top = Math.max(0.5, hp.y - 0.02), vy = Math.sqrt(2 * 9.8 * (top - 0.12)) * (BB.bounces > 1 ? 0.7 : 1), t = vy / 9.8;
-      BB.vel.set((hp.x - ball.position.x) / t * 0.9, vy, (hp.z - ball.position.z) / t * 0.9);
+      ball.position.y = 0.12; BB.bounces++; sBounce(0.25); rumble(0.25, 35);
+      const top = Math.max(0.5, hp.y - 0.02), vy = Math.sqrt(2 * 9.8 * (top - 0.12)) * (BB.bounces > 1 ? 0.75 : 1), t = vy / 9.8;
+      BB.vel.set((hp.x - ball.position.x) / t, vy, (hp.z - ball.position.z) / t);
     }
+    // on the way up the ball homes in on your hand, so a dribble feels sure-handed
+    if (BB.vel.y > 0) { const d = hp.distanceTo(ball.position); if (d < 0.7) { ball.position.lerp(hp, Math.min(1, dt * 6)); } }
     let caught = null;
-    if (BB.dribT > 0.12 && BB.vel.y > -2.5) for (const c of ctrls) if (c.src && c.grip.getWorldPosition(tmpV).distanceTo(ball.position) < 0.34) { caught = c; break; }
-    if (caught) { BB.poss = 'player'; BB.ballC = caught; BB.dribT = 0; }
-    else if (BB.bounces > 2 || BB.dribT > 2.2) { BB.poss = 'loose'; toast('Lost the dribble!', 1.2); }
+    if (BB.dribT > 0.1 && BB.vel.y > -3) for (const c of ctrls) if (c.src && c.grip.getWorldPosition(tmpV).distanceTo(ball.position) < 0.45) { caught = c; break; }
+    if (caught) { BB.poss = 'player'; BB.ballC = caught; BB.dribT = 0; rumble(0.3, 40); }
+    else if (BB.bounces > 3 || BB.dribT > 2.5) { BB.poss = 'loose'; toast('Lost the dribble!', 1.2); }
   } else if (BB.poss === 'shot' || BB.poss === 'loose') {
     ballPhysics(dt);
     // Rimshot blocks shots that come off the hand right at him
@@ -3155,14 +3167,16 @@ function updateBball(dt, head, vr) {
     }
     // you block Rimshot's shot: a raised hand in the ball's path early in its flight (VR),
     // or a click while you're close and in front of him (desktop)
-    if (BB.poss === 'shot' && BB.shooter === 'rim' && !BB.blocked && BB.t < 0.45) {
+    if (BB.poss === 'shot' && BB.shooter === 'rim' && !BB.blocked && BB.t < 0.9) {
       let blocked = false;
-      if (vr) for (const C of ctrls) {
+      if (vr) for (const C of ctrls) { // a hand raised to about head height, anywhere near the ball or the next ~0.3 s of its flight
         if (!C.src) continue;
         const hp = C.grip.getWorldPosition(tmpV2);
-        if (hp.y > head.y + 0.1 && Math.hypot(hp.x - ball.position.x, hp.z - ball.position.z) < 0.45 && Math.abs(hp.y - ball.position.y) < 0.6) blocked = true;
+        if (hp.y < head.y - 0.15) continue;
+        for (let k = 0; k <= 3 && !blocked; k++) { const t = k * 0.1, bx = ball.position.x + BB.vel.x * t, by = ball.position.y + BB.vel.y * t - 4.9 * t * t, bz = ball.position.z + BB.vel.z * t;
+          if (Math.hypot(hp.x - bx, hp.z - bz) < 0.95 && Math.abs(hp.y - by) < 1.1) blocked = true; }
       }
-      else if (BB.deskBlockT > 0 && Math.hypot(head.x - P.root.position.x, head.z - P.root.position.z) < 1.4) blocked = true;
+      else if (BB.deskBlockT > 0 && Math.hypot(head.x - P.root.position.x, head.z - P.root.position.z) < 2.2) blocked = true;
       if (blocked) {
         BB.blocked = true; BB.poss = 'loose'; BB.shooter = null;
         const away = new V3(ball.position.x - CT.hoop.x, 0, ball.position.z - CT.hoop.z).normalize();
@@ -3179,13 +3193,14 @@ function updateBball(dt, head, vr) {
       let got = false;
       if (vr) { for (const C of ctrls) if (C.src && C.grip.getWorldPosition(tmpV2).distanceTo(ball.position) < 0.3) { got = true; BB.hold = null; } }
       else if (Math.hypot(ball.position.x - head.x, ball.position.z - head.z) < 1.0 && ball.position.y < 1.7) got = true;
-      if (got) { giveBall('player'); toast('Rebound!', 1.2); }
-      else if (Math.hypot(ball.position.x - P.root.position.x, ball.position.z - P.root.position.z) < 0.55 && ball.position.y < 1.5) giveBall('rim');
+      if (vr && Math.hypot(ball.position.x - head.x, ball.position.z - head.z) < 0.65 && ball.position.y < 1.3 && BB.poss === 'loose') got = true; // standing over it
+      if (got) { giveBall('player'); BB.ballC = null; rumble(0.4, 60); toast('Rebound!', 1.2); }
+      else if (!(BB.punchT > 0) && Math.hypot(ball.position.x - P.root.position.x, ball.position.z - P.root.position.z) < 0.55 && ball.position.y < 1.5) giveBall('rim');
     }
   }
   // Rimshot's brain
   if (BB.phase !== 'over' && !(BB.punchT > 0)) {
-    if (BB.poss === 'dribble' && ball.position.y < 0.9 && BB.stealCD <= 0) for (const hnd of P.hand) if (hnd.getWorldPosition(tmpV2).distanceTo(ball.position) < 0.45 && Math.random() < dt * 2) { BB.stealCD = 1.5; giveBall('rim'); say(pick(['Cookies!', 'Mine!']), 1.4, RIM); break; }
+    if (BB.poss === 'dribble' && ball.position.y < 0.55 && BB.stealCD <= 0) for (const hnd of P.hand) if (hnd.getWorldPosition(tmpV2).distanceTo(ball.position) < 0.28 && Math.random() < dt * 0.5) { BB.stealCD = 1.5; giveBall('rim'); say(pick(['Cookies!', 'Mine!']), 1.4, RIM); break; }
     if (BB.poss === 'player' || BB.poss === 'dribble') {
       // defend: square up between you and the hoop in a low, wide stance; slide with short shuffle
       // steps (with a little reaction lag), one hand high to contest and one low to poke at the ball,
@@ -3235,7 +3250,11 @@ function updateBball(dt, head, vr) {
         const j = Math.sin(Math.PI * Math.min(1, BB.rimT / 0.7));
         P.body.position.y = j * 0.42;
         P.sh.forEach((sh, i) => { sh.rotation.x = -2.7; sh.rotation.z = (i ? 1 : -1) * 0.15; P.el[i].rotation.x = -0.9 + BB.rimT; });
-        if (BB.rimT < 0.32) { P.root.updateMatrixWorld(true); ball.position.copy(P.root.localToWorld(tmpV.set(0, 2.25 + j * 0.42, 0.12))); }
+        if (BB.rimT < 0.32) {
+          P.root.updateMatrixWorld(true); ball.position.copy(P.root.localToWorld(tmpV.set(0, 2.25 + j * 0.42, 0.12)));
+          let swat = vr ? ctrls.some(C => C.src && C.grip.getWorldPosition(tmpV2).distanceTo(ball.position) < 0.85) : (BB.deskBlockT > 0 && Math.hypot(head.x - P.root.position.x, head.z - P.root.position.z) < 2.2);
+          if (swat) { releaseShot(ball.position.clone(), new V3(0, 0, 0), 'rim'); BB.t = 0; } // the block check below swats it right away
+        }
         else if (BB.poss === 'rim') {
           const make = Math.random() < (BB.contested ? 0.38 : 0.6), from = ball.position.clone(), dist = Math.hypot(CT.hoop.x - from.x, CT.hoop.z - from.z);
           let v = shotVelocity(from, 0.75 + 0.06 * dist);
@@ -3920,6 +3939,9 @@ function heliExit() {
     standAt(x, z, HELI.yaw); BEAU.B.root.position.set(x - s * 2.6, 0, z - c * 2.6); BEAU.B.root.rotation.set(0, BEAU.yaw = HELI.yaw + Math.PI, 0); BEAU.mode = 'follow';
   });
 }
+function heliFloor(x, z, y) { // land on the bridge deck if you're above it, else the ground/water below
+  const dk = deckH(x, z); return dk >= 0 && y > dk - 1 ? dk : groundH(x, z);
+}
 function updateHeli(dt, vr) {
   if (!HELI.g || HELI.state === 'off') return;
   const p = HELI.g.position;
@@ -3946,21 +3968,23 @@ function updateHeli(dt, vr) {
       if (keys.KeyA || keys.ArrowLeft) turn = -1; if (keys.KeyD || keys.ArrowRight) turn = 1;
       if (keys.KeyE) exit = true;
     }
-    if (exit) { HELI.state = 'landing'; }
+    if (exit) { if (inWater(p.x, p.z) && !(deckH(p.x, p.z) >= 0 && p.y > deckH(p.x, p.z) - 1)) { if (!HELI.wet) toast('Find land (or the bridge) to set down', 2); HELI.wet = true; } else { HELI.state = 'landing'; HELI.wet = false; } } else HELI.wet = false;
     HELI.yaw -= turn * 1.1 * dt;
     const fx = -Math.sin(HELI.yaw), fz = -Math.cos(HELI.yaw), rx = Math.cos(HELI.yaw), rz = -Math.sin(HELI.yaw), top = keys.ShiftLeft || keys.ShiftRight ? 55 : 32;
     const tv = new V3(fx * fwdIn * top + rx * side * 10, up * 8, fz * fwdIn * top + rz * side * 10);
     HELI.vel.lerp(tv, Math.min(1, dt * 1.5));
   } else if (HELI.state === 'landing') { // settle straight down, then you hop out
     HELI.vel.x *= 1 - Math.min(1, dt * 3); HELI.vel.z *= 1 - Math.min(1, dt * 3); HELI.vel.y = -5;
-    if (p.y <= terrainH(p.x, p.z) + 0.01) { HELI.vel.set(0, 0, 0); HELI.state = 'leaving'; heliExit(); }
+    if (p.y <= heliFloor(p.x, p.z, p.y) + 0.01) { HELI.vel.set(0, 0, 0); HELI.state = 'leaving'; heliExit(); }
   }
   if (HELI.state === 'fly' || HELI.state === 'landing') {
     const nx = p.x + HELI.vel.x * dt, nz = p.z + HELI.vel.z * dt;
     let blocked = inWater(nx, nz) && p.y < 0.6;
     for (const b of colliders) if (p.y < b.max.y && nx > b.min.x - 1.2 && nx < b.max.x + 1.2 && nz > b.min.z - 1.2 && nz < b.max.z + 1.2) { blocked = true; break; }
     if (blocked) { HELI.vel.x *= -0.3; HELI.vel.z *= -0.3; } else { p.x = nx; p.z = nz; }
-    p.y = clamp(p.y + HELI.vel.y * dt, terrainH(p.x, p.z), 400);
+    let ny = p.y + HELI.vel.y * dt; const dk = deckH(p.x, p.z);
+    if (dk > 2 && p.y < dk - 1 && ny > dk - 2.6) { ny = dk - 2.6; HELI.vel.y = Math.min(0, HELI.vel.y); } // under the bridge: the deck is a ceiling
+    p.y = clamp(ny, heliFloor(p.x, p.z, p.y), 400);
     const wd = Math.hypot(p.x, p.z); if (wd > 2250) { p.x *= 2250 / wd; p.z *= 2250 / wd; }
     // nose dips when flying forward, banks when turning (the cabin view stays level)
     const fwdV = HELI.vel.x * -Math.sin(HELI.yaw) + HELI.vel.z * -Math.cos(HELI.yaw);
