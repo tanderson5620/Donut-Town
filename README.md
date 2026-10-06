@@ -92,6 +92,7 @@ The content stays wholesome and non-sexual. Keep it that way.
   - **Torch Glazer**: short-range flamethrower cone.
   - Fire: VR squeeze the right grip (aim with the right controller); desktop hold **F** (aims where you look); phone **Fire** button. Works on foot, driving and flying.
 - **Stunt jump:** a ramp on the road shoulder by each outpost launches your car or motorcycle (vehicles can now go airborne off ramps, `placeVehicle`) through a ring of fire for a STUNT bonus with fireworks.
+- **Hit reactions** (no blood or gore): every hit snaps the raider's upper body away from the impact (`F.chest`), flings the arms and slides him back (`F.react`, `F.kb`). Punches throw dust; Sprinkle Blaster bolts throw sparks and smoke and leave scorch marks on the clothes (`F.char`). Knockdowns are physical (`koFoe`): they fall away from the hit, get launched and tumble from explosions and car hits, bounce and settle with splayed limbs. The Torch Glazer sets them on fire (`igniteFoe`): they panic-run and pat at the flames while their clothes char black and glow, then collapse and smolder. Glaze Cannon blasts leave glaze-pink, charred victims and scorch marks on the ground (`SCORCH`). Wrecked buggies launch, flip onto their roofs and burn with black smoke.
 - At exactly the city line (red/white stripe across the road at the welcome signs) nobody can hurt you: raiders and buggies stop at the line and give up. Inside San Francisco and LA, peaceful pedestrians (`PEDS`) walk the sidewalks and step out of the way of vehicles.
 
 ## Characters

@@ -2448,13 +2448,51 @@ const particles = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: 0.05, 
 particles.frustumCulled = false; scene.add(particles);
 let pNext = 0;
 const pc = new THREE.Color();
+// soft, size-aware fire (additive) and smoke (alpha) particles; emit() routes rising effects (floor = -99, no gravity pull) here
+function makeFx(N, additive, base, grow) {
+  const pos = new Float32Array(N * 3).fill(-9999), col = new Float32Array(N * 3), c0 = new Float32Array(N * 3), vel = new Float32Array(N * 3), life = new Float32Array(N), max = new Float32Array(N), grav = new Float32Array(N), alpha = new Float32Array(N), size = new Float32Array(N);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('fcol', new THREE.BufferAttribute(col, 3)); geo.setAttribute('alpha', new THREE.BufferAttribute(alpha, 1)); geo.setAttribute('size', new THREE.BufferAttribute(size, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { map: { value: T.soft }, vpH: { value: 800 } }, transparent: true, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    vertexShader: 'attribute vec3 fcol; attribute float alpha; attribute float size; uniform float vpH; varying vec3 vC; varying float vA; void main(){ vC = fcol; vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = clamp(size * projectionMatrix[1][1] * vpH * 0.5 / max(0.1, -mv.z), 0.0, 256.0); gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform sampler2D map; varying vec3 vC; varying float vA; void main(){ float a = texture2D(map, gl_PointCoord).a * vA; if (a < 0.01) discard; gl_FragColor = vec4(vC * ' + (additive ? 'a' : '1.0') + ', a); }',
+  });
+  const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = additive ? 3 : 2; scene.add(pts);
+  let next = 0; const tc = new THREE.Color(), dark = new THREE.Color(additive ? 0x3a0800 : 0x000000);
+  return {
+    emit(x, y, z, vx, vy, vz, c, l, g) { const i = next; next = (next + 1) % N; pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z; vel[i * 3] = vx; vel[i * 3 + 1] = vy; vel[i * 3 + 2] = vz; tc.setHex(c); c0[i * 3] = tc.r; c0[i * 3 + 1] = tc.g; c0[i * 3 + 2] = tc.b; life[i] = max[i] = l; grav[i] = g; },
+    update(dt) {
+      mat.uniforms.vpH.value = renderer.getDrawingBufferSize(tmpV2).y || 800;
+      for (let i = 0; i < N; i++) {
+        if (life[i] <= 0) continue; life[i] -= dt; const k = i * 3;
+        if (life[i] <= 0) { pos[k + 1] = -9999; alpha[i] = 0; continue; }
+        const age = 1 - life[i] / max[i];
+        vel[k + 1] += grav[i] * dt; const drag = Math.max(0, 1 - dt * 1.5); vel[k] *= drag; vel[k + 2] *= drag;
+        pos[k] += vel[k] * dt; pos[k + 1] += vel[k + 1] * dt; pos[k + 2] += vel[k + 2] * dt;
+        size[i] = base * (additive ? 0.7 + 0.6 * Math.sin(Math.PI * Math.min(1, age * 1.3)) : 0.5 + grow * age);
+        alpha[i] = additive ? (1 - age) : 0.6 * (1 - age) * Math.min(1, age * 6);
+        const f = additive ? age * age : age * 0.3; col[k] = c0[k] + (dark.r - c0[k]) * f; col[k + 1] = c0[k + 1] + (dark.g - c0[k + 1]) * f; col[k + 2] = c0[k + 2] + (dark.b - c0[k + 2]) * f;
+      }
+      geo.attributes.position.needsUpdate = geo.attributes.fcol.needsUpdate = geo.attributes.alpha.needsUpdate = geo.attributes.size.needsUpdate = true;
+    },
+  };
+}
+let FIREFX = null, SMOKEFX = null;
 function emit(x, y, z, vx, vy, vz, col, life, grav = -9.8, floor = 0.02) {
+  if (floor === -99 && grav >= 0 && FIREFX) { // fire and smoke
+    const r = (col >> 16 & 255) / 255, g = (col >> 8 & 255) / 255, b = (col & 255) / 255, lum = 0.3 * r + 0.59 * g + 0.11 * b;
+    if (lum < 0.42) SMOKEFX.emit(x, y, z, vx, vy, vz, col, life * 1.3, grav * 0.6); else FIREFX.emit(x, y, z, vx, vy, vz, col, life, grav);
+    return;
+  }
   const i = pNext; pNext = (pNext + 1) % PN;
   pPos[i * 3] = x; pPos[i * 3 + 1] = y; pPos[i * 3 + 2] = z; pVel[i * 3] = vx; pVel[i * 3 + 1] = vy; pVel[i * 3 + 2] = vz;
   pc.setHex(col); pCol[i * 3] = pc.r; pCol[i * 3 + 1] = pc.g; pCol[i * 3 + 2] = pc.b;
   pLife[i] = life; pGrav[i] = grav; pFloor[i] = floor;
 }
 function updateParticles(dt) {
+  if (!FIREFX) { FIREFX = makeFx(900, true, 0.42, 0); SMOKEFX = makeFx(600, false, 0.8, 2.2); }
+  FIREFX.update(dt); SMOKEFX.update(dt);
   for (let i = 0; i < PN; i++) {
     if (pLife[i] <= 0) continue;
     pLife[i] -= dt;
@@ -4279,24 +4317,26 @@ const WASTE = { z0: 420, z1: 1270 };
 const inWaste = (x, z) => Math.abs(z) > WASTE.z0 && Math.abs(z) < WASTE.z1 && !OUTPOSTS.some(o => Math.hypot(x - o.x, z - o.z) < 45);
 const inCity = (x, z) => Math.abs(z) >= WASTE.z1 && Math.abs(z) < 1900 && x > -160 && x < (z < 0 ? 660 : 380);
 const FIG_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
-function buildFigure(o) { // low-poly person: one merged body mesh + four limb pivots, all sharing one material
-  const g = new THREE.Group(), parts = [];
-  const add = (geo, col, x, y, z) => { geo.translate(x, y, z); parts.push(colorize(geo, col)); };
-  add(new THREE.BoxGeometry(0.4, 0.58, 0.24), o.shirt, 0, 1.24, 0);
-  add(new THREE.BoxGeometry(0.36, 0.2, 0.22), o.pants, 0, 0.9, 0);
-  add(new THREE.SphereGeometry(0.13, 10, 8), o.skin, 0, 1.68, 0);
+function buildFigure(o) { // low-poly person: hips + a chest that bends (torso, head, arms) + legs; its own material so it can char / glow
+  const g = new THREE.Group(), low = [], up = [], mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const add = (arr, geo, col, x, y, z) => { geo.translate(x, y, z); arr.push(colorize(geo, col)); };
+  const C = 0.92; // chest pivot height (the waist)
+  add(low, new THREE.BoxGeometry(0.36, 0.2, 0.22), o.pants, 0, 0.9, 0);
+  add(up, new THREE.BoxGeometry(0.4, 0.58, 0.24), o.shirt, 0, 1.24 - C, 0);
+  add(up, new THREE.SphereGeometry(0.13, 10, 8), o.skin, 0, 1.68 - C, 0);
   if (o.raider) {
-    for (let i = 0; i < 5; i++) add(new THREE.ConeGeometry(0.025, 0.12, 4), o.hair, 0, 1.82, -0.08 + i * 0.04);       // mohawk
-    add(new THREE.BoxGeometry(0.26, 0.06, 0.06), 0x222222, 0, 1.71, 0.12);                                             // goggles strap
-    for (const s of [-1, 1]) { add(new THREE.SphereGeometry(0.045, 8, 6), 0x9fd3ff, s * 0.06, 1.71, 0.14); add(new THREE.ConeGeometry(0.04, 0.16, 5), 0x8a8f96, s * 0.24, 1.58, 0); } // lenses, shoulder spikes
-    add(new THREE.BoxGeometry(0.42, 0.06, 0.26), 0x5b3a22, 0, 1.0, 0);                                               // belt
-  } else add(new THREE.SphereGeometry(0.135, 10, 6, 0, TAU, 0, Math.PI / 2), o.hair, 0, 1.7, -0.01);                 // hair
-  g.add(new THREE.Mesh(merge(parts), FIG_MAT));
-  const limb = (r0, r1, len, col, x, y) => { const p = new THREE.Group(); p.position.set(x, y, 0); p.add(new THREE.Mesh(colorize(limbGeo(r0, r1, len, 6), col), FIG_MAT)); g.add(p); return p; };
-  const F = { g, arms: [limb(0.055, 0.045, 0.6, o.arm, -0.25, 1.5), limb(0.055, 0.045, 0.6, o.arm, 0.25, 1.5)], legs: [limb(0.075, 0.06, 0.88, o.pants, -0.1, 0.9), limb(0.075, 0.06, 0.88, o.pants, 0.1, 0.9)] };
+    for (let i = 0; i < 5; i++) add(up, new THREE.ConeGeometry(0.025, 0.12, 4), o.hair, 0, 1.82 - C, -0.08 + i * 0.04);       // mohawk
+    add(up, new THREE.BoxGeometry(0.26, 0.06, 0.06), 0x222222, 0, 1.71 - C, 0.12);                                             // goggles strap
+    for (const s of [-1, 1]) { add(up, new THREE.SphereGeometry(0.045, 8, 6), 0x9fd3ff, s * 0.06, 1.71 - C, 0.14); add(up, new THREE.ConeGeometry(0.04, 0.16, 5), 0x8a8f96, s * 0.24, 1.58 - C, 0); } // lenses, shoulder spikes
+    add(low, new THREE.BoxGeometry(0.42, 0.06, 0.26), 0x5b3a22, 0, 1.0, 0);                                                    // belt
+  } else add(up, new THREE.SphereGeometry(0.135, 10, 6, 0, TAU, 0, Math.PI / 2), o.hair, 0, 1.7 - C, -0.01);                  // hair
+  g.add(new THREE.Mesh(merge(low), mat));
+  const chest = new THREE.Group(); chest.position.y = C; g.add(chest); chest.add(new THREE.Mesh(merge(up), mat));
+  const limb = (par, r0, r1, len, col, x, y) => { const p = new THREE.Group(); p.position.set(x, y, 0); p.add(new THREE.Mesh(colorize(limbGeo(r0, r1, len, 6), col), mat)); par.add(p); return p; };
+  const F = { g, chest, mat, char: 0, glaze: 0, arms: [limb(chest, 0.055, 0.045, 0.6, o.arm, -0.25, 1.5 - C), limb(chest, 0.055, 0.045, 0.6, o.arm, 0.25, 1.5 - C)], legs: [limb(g, 0.075, 0.06, 0.88, o.pants, -0.1, 0.9), limb(g, 0.075, 0.06, 0.88, o.pants, 0.1, 0.9)] };
   F.shadow = blob(g, 0.6, 0.6, 0.3);
   F.hit = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.9, 0.6), new THREE.MeshBasicMaterial({ visible: false })); F.hit.position.y = 0.95; F.hit.userData.foe = F; g.add(F.hit);
-  g.visible = false; scene.add(g);
+  g.rotation.order = 'YXZ'; g.visible = false; scene.add(g);
   return F;
 }
 const RAIDER_COLS = [[0x6b4a2f, 0x3b3b3b], [0x4a4a44, 0x5b3a22], [0x7a3b2a, 0x2f2f33], [0x55603a, 0x3a2f28]];
@@ -4313,8 +4353,8 @@ function buildBuggy() {
   for (let i = 0; i < 5; i++) { const c = new THREE.ConeGeometry(0.07, 0.45, 5); c.rotateX(-Math.PI / 2); add(c, 0xaaaaaa, -0.6 + i * 0.3, 0.75, -1.8); }
   for (const x of [-0.95, 0.95]) for (const z of [-1.1, 1.1]) { const w = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 12); w.rotateZ(Math.PI / 2); add(w, 0x1a1a1a, x, 0.45, z); }
   for (const x of [-0.35, 0.35]) { add(new THREE.BoxGeometry(0.36, 0.5, 0.24), 0x4a4a44, x, 1.3, 0.5); add(new THREE.SphereGeometry(0.12, 8, 6), 0xc68a62, x, 1.67, 0.5); for (let i = 0; i < 3; i++) add(new THREE.ConeGeometry(0.02, 0.1, 4), 0xff3d3d, x, 1.8, 0.45 + i * 0.04); }
-  const g = new THREE.Group(); g.add(new THREE.Mesh(merge(parts), FIG_MAT)); blob(g, 2.0, 3.4, 0.35); g.visible = false; scene.add(g);
-  return { g, state: 'off', v: 0, yaw: 0, cd: 0, t: 0 };
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true }), g = new THREE.Group(); g.add(new THREE.Mesh(merge(parts), mat)); blob(g, 2.0, 3.4, 0.35); g.visible = false; g.rotation.order = 'YXZ'; scene.add(g);
+  return { g, mat, state: 'off', v: 0, yaw: 0, cd: 0, t: 0, char: 0, fire: 0, vy: 0 };
 }
 for (let i = 0; i < 3; i++) BUGGIES.push(buildBuggy());
 // ----- your health -----
@@ -4348,17 +4388,47 @@ function wasted() {
   });
 }
 // ----- knocking raiders out -----
-function koFoe(F, fling) {
+// ----- hit reactions, knockdowns, burns (physical, no gore) -----
+const SCORCH = []; for (let i = 0; i < 14; i++) { const m = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ map: T.soft, color: 0x14100c, transparent: true, opacity: 0, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.renderOrder = 1; m.visible = false; scene.add(m); SCORCH.push({ m, t: 0 }); }
+let scorchI = 0;
+function scorch(p, r, col = 0x14100c) { const S = SCORCH[scorchI++ % SCORCH.length]; S.m.position.set(p.x, terrainH(p.x, p.z) + 0.04, p.z); S.m.scale.setScalar(r); S.m.material.color.setHex(col); S.m.material.opacity = 0.75; S.m.visible = true; S.t = 25; }
+const sThud = () => { tone(rr(90, 130), 0.12, 'sine', 0.18, 50); noise(0.08, 0.18, 700, 'lowpass'); };
+const sSizzle = () => noise(0.18, 0.1, 3000, 'highpass');
+const sScream = () => { tone(rr(500, 650), 0.6, 'sawtooth', 0.05, rr(300, 380)); tone(rr(700, 820), 0.4, 'triangle', 0.03, 500, 0.1); };
+function localPush(F, dir) { // push direction in the figure's own frame (x = its right, z = its front)
+  const c = Math.cos(F.yaw), s2 = Math.sin(F.yaw), fx = dir.x * c - dir.z * s2, fz = dir.x * s2 + dir.z * c, l = Math.hypot(fx, fz) || 1;
+  return { fx: fx / l, fz: fz / l };
+}
+function koFoe(F, fling, o = {}) {
   if (F.state === 'ko' || F.state === 'off') return;
-  F.state = 'ko'; F.t = 0; F.fling = fling ? fling.clone() : new V3(); sKO(); sBonk(); rumble(0.6, 90);
-  const p = F.g.position; for (let i = 0; i < 16; i++) emit(p.x, p.y + 1.5, p.z, rr(-1, 1), rr(0.5, 2), rr(-1, 1), pick([0xffd23f, 0xffffff, 0xc8b08a]), rr(0.5, 1), -3, 0);
+  F.state = 'ko'; F.t = 0; F.vel = (fling ? fling.clone() : new V3()).setY(o.up ?? 1.5); F.tumble = o.tumble || 0; F.air = true; F.fallAng = 0;
+  F.push = localPush(F, fling && fling.lengthSq() > 0.01 ? fling : new V3(-Math.sin(F.yaw), 0, -Math.cos(F.yaw)));
+  sKO(); sThud(); rumble(0.6, 90);
+  const p = F.g.position; for (let i = 0; i < 12; i++) emit(p.x, p.y + 1.4, p.z, rr(-1, 1), rr(0.5, 2), rr(-1, 1), pick([0xffd23f, 0xffffff]), rr(0.4, 0.8), -3, 0);
 }
-function hitFoe(F, from) {
+function hitFoe(F, from, kind = 'punch', at) {
   if (F.state === 'ko' || F.state === 'off' || F.hitCD > 0) return;
-  F.hitCD = 0.3; F.hp--; sBonk(); rumble(0.7, 80);
-  const away = new V3(F.g.position.x - from.x, 0, F.g.position.z - from.z).normalize();
-  if (F.hp <= 0) koFoe(F, away.multiplyScalar(4)); else { F.g.position.addScaledVector(away, 0.6); F.state = 'stagger'; F.t = 0; }
+  F.hitCD = kind === 'bolt' ? 0.05 : 0.3; F.hp--; rumble(0.7, 80);
+  const away = new V3(F.g.position.x - from.x, 0, F.g.position.z - from.z); if (away.lengthSq() < 1e-4) away.set(Math.sin(F.yaw), 0, Math.cos(F.yaw)).negate(); away.normalize();
+  const hp = at || F.g.localToWorld(new V3(0, 1.3, 0));
+  if (kind === 'bolt') { // energy bolt: sparks, a puff of smoke, a scorch mark on the clothes
+    sSizzle(); F.char = Math.min(1, F.char + 0.12);
+    for (let i = 0; i < 10; i++) emit(hp.x, hp.y, hp.z, away.x * 3 + rr(-2.5, 2.5), rr(0, 3), away.z * 3 + rr(-2.5, 2.5), pick([0xfff3a0, 0xffd23f, 0xffffff]), rr(0.15, 0.35), -9, -99);
+    for (let i = 0; i < 4; i++) emit(hp.x, hp.y, hp.z, rr(-0.3, 0.3), rr(0.4, 0.9), rr(-0.3, 0.3), 0x6b6b6b, rr(0.8, 1.4), 0.4, -99);
+  } else { sThud(); sBonk(); for (let i = 0; i < 6; i++) emit(hp.x, hp.y, hp.z, away.x * 1.5 + rr(-1, 1), rr(0.3, 1.5), away.z * 1.5 + rr(-1, 1), 0xe8e0d0, rr(0.3, 0.6), -4, -99); }
+  if (F.hp <= 0) koFoe(F, away.clone().multiplyScalar(kind === 'bolt' ? 5 : 4), { up: 2 });
+  else { F.react = { t: 0, ...localPush(F, away), s: kind === 'bolt' ? 0.8 : 1 }; F.kb = away.clone().multiplyScalar(kind === 'bolt' ? 2.2 : 3); if (F.state !== 'burn') { F.state = 'stagger'; F.t = 0; } if (Math.random() < 0.5) sYell(); }
 }
+function igniteFoe(F) {
+  if (F.state === 'off') return;
+  if (F.state === 'ko') { F.smolder = Math.max(F.smolder || 0, 3); F.char = Math.min(1, F.char + 0.02); return; }
+  if (F.state !== 'burn') { F.state = 'burn'; F.t = 0; F.fire = 3.2; F.turnT = 0; sScream(); } else F.fire = Math.max(F.fire, 2.2);
+}
+function foeLook(F, burning) { // charred clothes, glaze, fire glow
+  const k = F.char, c = F.mat.color; c.setRGB(lerp(1, 0.2, k), lerp(1, 0.16, k), lerp(1, 0.13, k)); if (F.glaze) c.lerp(new THREE.Color(0xffb6da), F.glaze * 0.6);
+  const glow = burning ? 0.12 + Math.random() * 0.12 : (F.smolder > 0 ? 0.06 * Math.min(1, F.smolder) : 0); F.mat.emissive.setRGB(glow, glow * 0.38, glow * 0.06);
+}
+function bodyPoint(F) { F.g.updateMatrixWorld(true); return F.g.localToWorld(new V3(rr(-0.25, 0.25), rr(0.2, 1.8), rr(-0.15, 0.15))); }
 function punchFoe(F) { // desktop / phone: tap a raider to punch him (if you're close)
   const h = headPos(new V3());
   if (Math.hypot(F.g.position.x - h.x, F.g.position.z - h.z) > 2.6) { toast('Get closer to punch', 1); return; }
@@ -4386,11 +4456,11 @@ function updateFoes(dt, head, vr) {
   if (fighting && foeSpawnT <= 0) {
     foeSpawnT = MODE === 'drive' ? 1.2 : 2.5;
     const F = FOES.find(f => f.state === 'off');
-    if (F) { const s = spawnSpot(head, MODE === 'drive' ? 60 : 30, MODE === 'drive' ? 140 : 70); if (s) { F.g.position.copy(s); F.g.position.y = terrainH(s.x, s.z); F.state = 'chase'; F.hp = 2; F.t = 0; F.cd = rr(0.5, 2); F.g.rotation.set(0, 0, 0); F.g.visible = true; if (Math.random() < 0.5) sYell(); } }
+    if (F) { const s = spawnSpot(head, MODE === 'drive' ? 60 : 30, MODE === 'drive' ? 140 : 70); if (s) { F.g.position.copy(s); F.g.position.y = terrainH(s.x, s.z); F.state = 'chase'; F.hp = 2; F.t = 0; F.cd = rr(0.5, 2); F.g.rotation.set(0, 0, 0); F.chest.rotation.set(0, 0, 0); F.char = 0; F.glaze = 0; F.smolder = 0; F.react = null; F.kb = null; foeLook(F, false); F.g.visible = true; if (Math.random() < 0.5) sYell(); } }
   }
   if (fighting && MODE === 'drive' && Math.random() < dt * 0.25) { // buggies hunt drivers
     const B = BUGGIES.find(b => b.state === 'off'), s = B && spawnSpot(head, 120, 180);
-    if (B && s) { B.g.position.set(s.x, terrainH(s.x, s.z), s.z); B.yaw = Math.atan2(head.x - s.x, head.z - s.z); B.v = 10; B.hp = 4; B.state = 'hunt'; B.cd = 0; B.g.rotation.set(0, B.yaw, 0); B.g.visible = true; }
+    if (B && s) { B.g.position.set(s.x, terrainH(s.x, s.z), s.z); B.yaw = Math.atan2(head.x - s.x, head.z - s.z); B.v = 10; B.hp = 4; B.char = 0; B.fire = 0; B.state = 'hunt'; B.cd = 0; B.g.rotation.set(0, B.yaw, 0); B.g.visible = true; }
   }
   const veh = MODE === 'drive' && VEH ? VEH : null, hv = veh ? veh.g.position : null;
   for (const F of FOES) {
@@ -4399,11 +4469,43 @@ function updateFoes(dt, head, vr) {
     F.t += dt; F.cd -= dt; F.hitCD -= dt;
     if (d > 240) { F.state = 'off'; F.g.visible = false; continue; }
     let speed = 0, swing = 0, throwA = 0;
-    if (F.state === 'ko') { // falls over, then sinks away
-      const u = Math.min(1, F.t / 0.45); F.g.rotation.x = -u * Math.PI / 2; p.addScaledVector(F.fling, dt * (1 - u)); p.y = terrainH(p.x, p.z) - Math.max(0, F.t - 2) * 0.6;
-      if (F.t > 3.5) { F.state = 'off'; F.g.visible = false; } continue;
+    if (F.state === 'ko') { // falls away from the hit (launched and tumbling if it was big), bounces, settles, then fades
+      const gy = terrainH(p.x, p.z);
+      if (F.air) {
+        F.vel.y -= 9.8 * dt; p.addScaledVector(F.vel, dt); F.fallAng += dt * (3.2 + F.tumble);
+        if (p.y <= gy && F.vel.y < 0) { p.y = gy; sThud(); for (let i = 0; i < 8; i++) emit(p.x, gy + 0.1, p.z, rr(-1.5, 1.5), rr(0.3, 1), rr(-1.5, 1.5), 0xc8a878, rr(0.4, 0.8), -4, -99);
+          if (F.vel.y < -4.5) { F.vel.y *= -0.3; F.vel.x *= 0.5; F.vel.z *= 0.5; } else F.air = false; }
+      } else { const f = Math.max(0, 1 - dt * 5); F.vel.x *= f; F.vel.z *= f; p.x += F.vel.x * dt; p.z += F.vel.z * dt; p.y = gy - Math.max(0, F.t - 3.5) * 0.5; F.fallAng += wrap(Math.PI / 2 - F.fallAng) * Math.min(1, dt * 8); }
+      F.g.rotation.set(F.push.fz * F.fallAng, F.yaw, -F.push.fx * F.fallAng);
+      const sp = Math.min(1, F.t * 3); F.arms[0].rotation.set(-0.4 * sp, 0, -1.1 * sp); F.arms[1].rotation.set(-0.2 * sp, 0, 1.2 * sp); F.legs[0].rotation.set(0.3 * sp, 0, -0.25 * sp); F.legs[1].rotation.set(-0.2 * sp, 0, 0.2 * sp); F.chest.rotation.set(0, 0, 0);
+      if (F.smolder > 0) { F.smolder -= dt; if (Math.random() < dt * 14) { const q = bodyPoint(F); emit(q.x, q.y, q.z, rr(-0.2, 0.2), rr(0.6, 1.2), rr(-0.2, 0.2), pick([0x3a3a3a, 0x555555, 0xff6a00]), rr(1, 2), 0.4, -99); } }
+      foeLook(F, false);
+      if (F.t > 5) { F.state = 'off'; F.g.visible = false; F.g.rotation.set(0, 0, 0); } continue;
     }
-    if (F.state === 'stagger') { F.g.rotation.x = -0.3 * Math.sin(Math.PI * Math.min(1, F.t / 0.5)); if (F.t > 0.5) { F.state = 'chase'; F.g.rotation.x = 0; } }
+    if (F.react) { // upper body snaps away from the hit, arms fling out, a little slide
+      F.react.t += dt; const k = Math.sin(Math.PI * Math.min(1, F.react.t / 0.4)) * F.react.s;
+      F.chest.rotation.set(F.react.fz * 0.75 * k, 0, -F.react.fx * 0.75 * k);
+      if (F.react.t > 0.4) { F.react = null; F.chest.rotation.set(0, 0, 0); }
+    }
+    if (F.kb) { p.addScaledVector(F.kb, dt); F.kb.multiplyScalar(Math.max(0, 1 - dt * 6)); if (F.kb.lengthSq() < 0.01) F.kb = null; }
+    if (F.state === 'burn') { // on fire: panics, runs, pats at the flames, chars, then collapses smoldering
+      F.fire -= dt; F.turnT -= dt; F.char = Math.min(1, F.char + dt * 0.28);
+      if (F.turnT <= 0) { F.turnT = rr(0.4, 0.8); F.yaw += rr(-1.6, 1.6); if (Math.random() < 0.4) sScream(); }
+      const run = 4.6; p.x += Math.sin(F.yaw) * run * dt; p.z += Math.cos(F.yaw) * run * dt;
+      for (let i = 0; i < 3; i++) { const q = bodyPoint(F); emit(q.x, q.y, q.z, rr(-0.3, 0.3), rr(1, 2.2), rr(-0.3, 0.3), pick([0xff6a00, 0xffd23f, 0xff3d00, 0xffa040]), rr(0.25, 0.5), 1.2, -99); }
+      if (Math.random() < 0.5) { const q = bodyPoint(F); emit(q.x, q.y + 0.4, q.z, rr(-0.3, 0.3), rr(1, 1.8), rr(-0.3, 0.3), 0x2e2a28, rr(1, 1.8), 0.6, -99); }
+      if (Math.random() < dt * 6) noise(0.1, 0.06, 2500, 'bandpass');
+      F.ph += dt * 16; const s2 = Math.sin(F.ph);
+      F.legs[0].rotation.x = s2 * 0.8; F.legs[1].rotation.x = -s2 * 0.8;
+      F.arms[0].rotation.set(-2.4 + Math.sin(elapsed * 17) * 0.7, 0, -0.3); F.arms[1].rotation.set(-2.2 + Math.cos(elapsed * 15) * 0.7, 0, 0.3);
+      if (!F.react) F.chest.rotation.set(Math.sin(elapsed * 9) * 0.15, Math.sin(elapsed * 7) * 0.3, 0);
+      if (Math.abs(p.z) > WASTE.z1 - 3) p.z = Math.sign(p.z) * (WASTE.z1 - 3);
+      p.y = terrainH(p.x, p.z); F.g.rotation.set(0, F.yaw, 0); foeLook(F, true);
+      if (F.fire <= 0) { F.smolder = 4; koFoe(F, new V3(Math.sin(F.yaw), 0, Math.cos(F.yaw)).multiplyScalar(1.5), { up: 0.5 }); scorch(p, 0.9); }
+      continue;
+    }
+    foeLook(F, false);
+    if (F.state === 'stagger') { if (F.t > 0.45) F.state = 'chase'; }
     else if (!fighting || !inWaste(head.x, head.z)) { // you crossed the line: they stop at it and give up
       F.yaw += wrap(Math.atan2(dx, dz) - F.yaw) * Math.min(1, dt * 4); if (F.t > 12) { F.state = 'off'; F.g.visible = false; }
     } else {
@@ -4422,15 +4524,16 @@ function updateFoes(dt, head, vr) {
     F.ph += dt * speed * 3;
     const s = Math.sin(F.ph) * Math.min(1, speed / 3);
     F.legs[0].rotation.x = s * 0.7; F.legs[1].rotation.x = -s * 0.7;
-    F.arms[0].rotation.x = -s * 0.6 - throwA * 2.8; F.arms[1].rotation.x = s * 0.6 - swing * 2.2 + (swing >= 1 ? 1.6 : 0);
+    F.arms[0].rotation.set(-s * 0.6 - throwA * 2.8, 0, F.react ? -0.9 * Math.sin(Math.PI * Math.min(1, F.react.t / 0.4)) : 0);
+    F.arms[1].rotation.set(s * 0.6 - swing * 2.2 + (swing >= 1 ? 1.6 : 0), 0, F.react ? 0.9 * Math.sin(Math.PI * Math.min(1, F.react.t / 0.4)) : 0);
     // you hit them: fists (VR), or run them down
     if (vr && d < 2) for (const C of ctrls) {
       if (!C.src || !C.vel || C.vel.length() < 1.6 || SPRINT.on) continue;
       const gp = C.grip.getWorldPosition(tmpV2);
-      if (Math.hypot(gp.x - p.x, gp.z - p.z) < 0.5 && gp.y > p.y + 0.9 && gp.y < p.y + 1.95) { hitFoe(F, head); break; }
+      if (Math.hypot(gp.x - p.x, gp.z - p.z) < 0.5 && gp.y > p.y + 0.9 && gp.y < p.y + 1.95) { hitFoe(F, head, 'punch', gp.clone()); break; }
     }
-    if (veh && Math.abs(veh.v) > 8 && Math.hypot(hv.x - p.x, hv.z - p.z) < 1.9) koFoe(F, new V3(-Math.sin(veh.yaw) * Math.sign(veh.v) * 9, 0, -Math.cos(veh.yaw) * Math.sign(veh.v) * 9));
-    if (MODE === 'heli' && HELI.g && HELI.g.position.y - p.y < 4 && Math.hypot(HELI.g.position.x - p.x, HELI.g.position.z - p.z) < 3) koFoe(F, new V3(p.x - HELI.g.position.x, 0, p.z - HELI.g.position.z).setLength(5));
+    if (veh && Math.abs(veh.v) > 8 && Math.hypot(hv.x - p.x, hv.z - p.z) < 1.9) koFoe(F, new V3(-Math.sin(veh.yaw) * Math.sign(veh.v), 0, -Math.cos(veh.yaw) * Math.sign(veh.v)).multiplyScalar(Math.min(14, Math.abs(veh.v) * 0.5)), { up: 4, tumble: 6 });
+    if (MODE === 'heli' && HELI.g && HELI.g.position.y - p.y < 4 && Math.hypot(HELI.g.position.x - p.x, HELI.g.position.z - p.z) < 3) koFoe(F, new V3(p.x - HELI.g.position.x, 0, p.z - HELI.g.position.z).setLength(6), { up: 3, tumble: 4 });
   }
   // rocks
   for (const R of ROCKS) {
@@ -4443,7 +4546,18 @@ function updateFoes(dt, head, vr) {
   for (const B of BUGGIES) {
     if (B.state === 'off') continue;
     const p = B.g.position; B.cd -= dt; B.t += dt;
-    if (B.state === 'wreck') { B.g.rotation.z += dt * 5; p.y += Math.max(0, 2 - B.t * 3) * dt * 2; if (Math.random() < dt * 20) emit(p.x, p.y + 1, p.z, rr(-0.5, 0.5), rr(1, 2), rr(-0.5, 0.5), pick([0x444444, 0x666666, 0xff8a2a]), rr(1, 2), 0.5, 0); if (B.t > 3) { B.state = 'off'; B.g.visible = false; } continue; }
+    if (B.state === 'wreck') { // launched, flips, lands on its roof and burns
+      const gy = terrainH(p.x, p.z); B.char = Math.min(1, B.char + dt * 0.4);
+      if (B.air) { B.vy -= 9.8 * dt; p.y += B.vy * dt; p.x += Math.sin(B.yaw) * B.v * dt; p.z += Math.cos(B.yaw) * B.v * dt; B.flip += dt * 4.5; if (p.y <= gy && B.vy < 0) { p.y = gy; B.air = false; sBoom(0.2); rumble(0.5, 120); scorch(p, 3); } }
+      else { B.v *= Math.max(0, 1 - dt * 3); p.x += Math.sin(B.yaw) * B.v * dt; p.z += Math.cos(B.yaw) * B.v * dt; p.y = gy - Math.max(0, B.t - 7) * 0.4; B.flip += wrap(Math.PI - B.flip) * Math.min(1, dt * 5); }
+      B.g.rotation.set(0, B.yaw, B.flip);
+      for (let i = 0; i < 2; i++) emit(p.x + rr(-0.8, 0.8), p.y + rr(0.3, 1.5), p.z + rr(-1.2, 1.2), rr(-0.3, 0.3), rr(1, 2.2), rr(-0.3, 0.3), pick([0xff6a00, 0xffd23f, 0xff3d00]), rr(0.3, 0.6), 1.2, -99);
+      if (Math.random() < 0.7) emit(p.x, p.y + 1.6, p.z, rr(-0.4, 0.4), rr(1.5, 2.5), rr(-0.4, 0.4), 0x262321, rr(1.5, 2.6), 0.5, -99);
+      const k = B.char; B.mat.color.setRGB(lerp(1, 0.18, k), lerp(1, 0.15, k), lerp(1, 0.13, k)); const gl = 0.25 + Math.random() * 0.15; B.mat.emissive.setRGB(gl, gl * 0.35, 0);
+      if (B.t > 9) { B.state = 'off'; B.g.visible = false; } continue;
+    }
+    if (B.fire > 0) { B.fire -= dt; emit(p.x + rr(-0.7, 0.7), p.y + rr(0.6, 1.4), p.z + rr(-1, 1), rr(-0.3, 0.3), rr(1, 2), rr(-0.3, 0.3), pick([0xff6a00, 0xffd23f]), rr(0.3, 0.5), 1.2, -99); }
+    { const k = B.char; B.mat.color.setRGB(lerp(1, 0.18, k), lerp(1, 0.15, k), lerp(1, 0.13, k)); const gl = B.fire > 0 ? 0.3 : 0; B.mat.emissive.setRGB(gl, gl * 0.35, 0); }
     const tgt = hv || head, dx = tgt.x - p.x, dz = tgt.z - p.z, d = Math.hypot(dx, dz);
     if (d > 300 || !fighting || MODE !== 'drive') { B.v *= 1 - Math.min(1, dt); if (d > 300 || B.t > 30) { B.state = 'off'; B.g.visible = false; continue; } }
     else { B.yaw += clamp(wrap(Math.atan2(dx, dz) - B.yaw), -1.8 * dt, 1.8 * dt); B.v = Math.min(34, B.v + 9 * dt); }
@@ -4456,10 +4570,15 @@ function updateFoes(dt, head, vr) {
       else if (B.cd <= 0) { B.cd = 1.5; damage(14); veh.v *= 0.7; B.v *= -0.3; tone(90, 0.25, 'square', 0.18, 45); }
     }
   }
+  for (const S of SCORCH) if (S.t > 0) { S.t -= dt; S.m.material.opacity = Math.min(0.75, S.t / 6); if (S.t <= 0) S.m.visible = false; }
   // pedestrians in the cities
   updatePeds(dt, head);
 }
-function wreckBuggy(B) { if (B.state !== 'hunt') return; B.state = 'wreck'; B.t = 0; sKO(); tone(70, 0.5, 'sawtooth', 0.2, 40); rumble(1, 250); toast('Buggy wrecked!', 1.5); }
+function wreckBuggy(B) {
+  if (B.state !== 'hunt') return; B.state = 'wreck'; B.t = 0; B.air = true; B.vy = 7; B.flip = 0; B.v *= 0.5;
+  sBoom(0.4); tone(70, 0.5, 'sawtooth', 0.2, 40); rumble(1, 250); toast('Buggy wrecked!', 1.5);
+  const p = B.g.position; scorch(p, 3.5); for (let i = 0; i < 40; i++) emit(p.x, p.y + 1, p.z, rr(-5, 5), rr(2, 8), rr(-5, 5), pick([0xff6a00, 0xffd23f, 0x444444, 0x2b2724]), rr(0.6, 1.4), -8, 0);
+}
 function throwRock(F, head) {
   const R = ROCKS.find(r => !r.on); if (!R) return;
   const from = F.g.localToWorld(new V3(0.25, 2.0, 0)), T = clamp(from.distanceTo(head) / 16, 0.4, 1.4);
@@ -4748,8 +4867,8 @@ function fireWeapon(dt) {
     for (let i = 0; i < 3; i++) emit(o.x, o.y, o.z, d.x * 14 + rr(-1.5, 1.5), d.y * 14 + rr(-1, 1.5), d.z * 14 + rr(-1.5, 1.5), pick([0xff8a2a, 0xffd23f, 0xff3d00]), rr(0.4, 0.6), 1.5, -99);
     if (Math.random() < 0.4) sFlame();
     const inCone = (p, r) => { const v = p.clone().sub(o), l = v.length(); return l < 11 + r && v.dot(d) / Math.max(l, 0.01) > 0.93; };
-    for (const F of FOES) if (F.state !== 'off' && F.state !== 'ko' && inCone(F.g.position.clone().setY(F.g.position.y + 1.2), 0.5)) hitFoe(F, o);
-    for (const B of BUGGIES) if (B.state === 'hunt' && inCone(B.g.position.clone().setY(B.g.position.y + 1), 1.5)) { B.hp -= dt * 2.5; if (B.hp <= 0) wreckBuggy(B); }
+    for (const F of FOES) if (F.state !== 'off' && inCone(F.g.position.clone().setY(F.g.position.y + 1.2), 0.5)) igniteFoe(F);
+    for (const B of BUGGIES) if (B.state === 'hunt' && inCone(B.g.position.clone().setY(B.g.position.y + 1), 1.5)) { B.hp -= dt * 2.5; B.fire = Math.max(B.fire || 0, 1.5); B.char = Math.min(1, (B.char || 0) + dt * 0.3); if (B.hp <= 0) wreckBuggy(B); }
     for (const K of CANNONS) if (!K.dead && inCone(K.g.position.clone().setY(K.g.position.y + 2), 1.5)) { K.hp -= dt * 3; if (K.hp <= 0) killCannon(K); }
     return;
   }
@@ -4761,7 +4880,8 @@ function fireWeapon(dt) {
 function glazeBoom(p) {
   sBoom(0.35); rumble(0.6, 150);
   for (let i = 0; i < 50; i++) emit(p.x, p.y + 0.5, p.z, rr(-6, 6), rr(2, 9), rr(-6, 6), pick([0xff9fcc, 0xffffff, 0xff5fa8, 0xffd23f]), rr(0.8, 1.6), -9, 0);
-  for (const F of FOES) if (F.state !== 'off' && F.state !== 'ko' && F.g.position.distanceTo(p) < 7) koFoe(F, F.g.position.clone().sub(p).setY(0).setLength(8));
+  scorch(p, 4.5); scorch(p, 2.5, 0xff9fcc);
+  for (const F of FOES) { const d = F.g.position.distanceTo(p); if (F.state !== 'off' && F.state !== 'ko' && d < 7) { F.glaze = 1; F.char = Math.min(1, F.char + 0.35); koFoe(F, F.g.position.clone().sub(p).setY(0).setLength(4 + 10 * (1 - d / 7)), { up: 4 + 6 * (1 - d / 7), tumble: 7 }); } }
   for (const B of BUGGIES) if (B.state === 'hunt' && B.g.position.distanceTo(p) < 7) wreckBuggy(B);
   for (const K of CANNONS) if (!K.dead && K.g.position.distanceTo(p) < 7) killCannon(K);
 }
@@ -4771,8 +4891,8 @@ function updateShots(dt) {
     S.t += dt; if (S.kind === 'glaze') S.v.y -= 6 * dt; S.m.position.addScaledVector(S.v, dt);
     const p = S.m.position; let hit = false;
     if (S.kind === 'blaster') {
-      for (const F of FOES) if (F.state !== 'off' && F.state !== 'ko' && Math.hypot(F.g.position.x - p.x, F.g.position.z - p.z) < 0.6 && p.y > F.g.position.y && p.y < F.g.position.y + 2) { hitFoe(F, p.clone().sub(S.v)); F.hitCD = 0; hit = true; break; }
-      if (!hit) for (const B of BUGGIES) if (B.state === 'hunt' && B.g.position.distanceTo(p) < 2) { B.hp -= 1; if (B.hp <= 0) wreckBuggy(B); hit = true; break; }
+      for (const F of FOES) if (F.state !== 'off' && F.state !== 'ko' && Math.hypot(F.g.position.x - p.x, F.g.position.z - p.z) < 0.6 && p.y > F.g.position.y && p.y < F.g.position.y + 2) { F.hitCD = 0; hitFoe(F, p.clone().addScaledVector(S.v, -0.05), 'bolt', p.clone()); hit = true; break; }
+      if (!hit) for (const B of BUGGIES) if (B.state === 'hunt' && B.g.position.distanceTo(p) < 2) { B.hp -= 1; B.char = Math.min(1, (B.char || 0) + 0.15); sSizzle(); for (let i = 0; i < 8; i++) emit(p.x, p.y, p.z, rr(-3, 3), rr(0, 3), rr(-3, 3), pick([0xfff3a0, 0xffd23f]), 0.25, -9, -99); if (B.hp <= 0) wreckBuggy(B); hit = true; break; }
       if (!hit) for (const K of CANNONS) if (!K.dead && K.g.position.clone().setY(K.g.position.y + 1.8).distanceTo(p) < 2) { K.hp -= 1; if (K.hp <= 0) killCannon(K); hit = true; break; }
       if (hit) for (let i = 0; i < 6; i++) emit(p.x, p.y, p.z, rr(-2, 2), rr(0, 2), rr(-2, 2), S.m.material.color.getHex(), 0.4, -6, 0);
     } else {
