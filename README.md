@@ -83,6 +83,14 @@ The content stays wholesome and non-sexual. Keep it that way.
 - Between each mountain pass and its city line (|z| 420 to 1270, `WASTE`, `inWaste`) the highway is Mad Max country, with wrecked cars and tire piles. Raiders on foot (`FOES`, low-poly `buildFigure` with mohawks and goggles) spawn around you, chase, wind up melee swings and throw rocks (`ROCKS`); spiked buggies (`BUGGIES`) hunt you while you drive and ram you.
 - You have health (`PH`, HUD bar "HP" + WASTELAND/SAFE). Damage flashes red; the car absorbs some. At 0 you're "wrecked" (`wasted()`): back to Donut Town at full health. Health regenerates outside the wasteland. High in the helicopter you're out of reach.
 - Fight back: punch raiders (VR fist; desktop click/tap them or press **F**; phone **Punch** button) – two hits knock one out; run them down at speed in the car/motorcycle (one hit) or with a low helicopter; ram a buggy head-on above ~15 m/s to wreck it. Knockouts are cartoony (they fall over with stars and fade away).
+- **Looks like Mad Max:** sand over the whole stretch, dead trees, red rock spires and mesas, desert-colored foothills, burning barrels by the road, and an orange dust haze (fog + sky tint, `updateHaze`) while you're out there.
+- **Fire cannons** (`CANNONS`, 12 spiked turrets): when you fly the helicopter over the wasteland they track you and lob flaming cannonballs (`FIREBALLS`, leading your speed) that hit at any altitude (15 damage). Destroy them with weapons.
+- **"Glazed & Confused" outposts** (`OUTPOSTS`, one on each highway at |z| 850, x 20-70, gate facing the road): a scrap-walled fort with spikes, shacks, a giant tire-donut sign and a trader. Inside is safe (raiders and cannons ignore you). The workbench holds three **exclusive weapons** you can't get anywhere else (touch / point+trigger / click to take one; one at a time, `WPN`):
+  - **Sprinkle Blaster**: rapid rainbow bolts (raiders 2 hits, buggies 4, cannons 6).
+  - **Glaze Cannon**: lobbed glaze bomb that explodes (radius ~7 m): knocks out raiders, wrecks buggies, destroys cannons.
+  - **Torch Glazer**: short-range flamethrower cone.
+  - Fire: VR squeeze the right grip (aim with the right controller); desktop hold **F** (aims where you look); phone **Fire** button. Works on foot, driving and flying.
+- **Stunt jump:** a ramp on the road shoulder by each outpost launches your car or motorcycle (vehicles can now go airborne off ramps, `placeVehicle`) through a ring of fire for a STUNT bonus with fireworks.
 - At exactly the city line (red/white stripe across the road at the welcome signs) nobody can hurt you: raiders and buggies stop at the line and give up. Inside San Francisco and LA, peaceful pedestrians (`PEDS`) walk the sidewalks and step out of the way of vehicles.
 
 ## Characters
