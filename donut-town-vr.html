@@ -1165,7 +1165,7 @@ const somaP = (u, v) => new V3(SOMA_G.o.x + SOMA_G.mk.x * u + SOMA_G.mn.x * v, 0
     oracle: sfp(-122.3893, 37.7786), palace: sfp(-122.4484, 37.8029), ghirardelli: sfp(-122.4229, 37.8059), alamo: sfp(-122.4339, 37.7765), castro: sfp(-122.4350, 37.7625), sutro: sfp(-122.4527, 37.7552),
     chinatown: sfp(-122.4058, 37.7906), wharf: sfp(-122.4170, 37.8080), bayAnchor: sfp(-122.3895, 37.7875),
   };
-  reserve(LM.ferry, 34); reserve(LM.transamerica, 16); reserve(LM.lombard, 32); reserve(LM.cityHall, 40); reserve(LM.oracle, 50); reserve(LM.ghirardelli, 18); reserve(LM.castro, 8); reserve(LM.bayAnchor, 22); reserve(LM.wharf, 12);
+  reserve(LM.ferry, 60); reserve(LM.transamerica, 16); reserve(LM.lombard, 32); reserve(LM.cityHall, 40); reserve(LM.oracle, 50); reserve(LM.ghirardelli, 18); reserve(LM.castro, 8); reserve(LM.bayAnchor, 22); reserve(LM.wharf, 12);
   reserve(new V3(sfx(-122.4318), 0, sfz(37.7765)), 34); // the Painted Ladies on Steiner St
   for (const [lon, lat, r] of [[-122.4133, 37.7919, 34], [-122.4048, 37.7963, 12], [-122.4269, 37.7642, 24], [-122.4300, 37.7853, 16], [-122.4124, 37.7523, 22]]) reserve(sfp(lon, lat), r); // Grace Cathedral, Columbus Tower, Mission Dolores, Peace Pagoda, Balmy Alley
   for (let i = 0; i < 12; i += 3) reserve(new V3(sfx(-122.4500) + i * 9.2 + 13, 0, sfz(37.7699) - 7.5), 24); // Haight St Victorians
@@ -1253,44 +1253,82 @@ function sfLandmarks(LM) {
   suspensionBridge(sfp(-122.4776, 37.8058), sfp(-122.4795, 37.8335), { color: 0xc0462c, h: 24, w: 14, ramp: 40, towers: [0.17, 0.82], towerH: 62, style: 'deco' });   // Golden Gate (south → Marin)
   suspensionBridge(LM.bayAnchor, sfp(-122.3700, 37.8100), { color: 0x9aa3ab, h: 22, w: 16, ramp: 36, towers: [0.17, 0.36, 0.64, 0.83], towerH: 40 }); // Bay Bridge (Rincon Hill → Yerba Buena)
   { const c = new THREE.Mesh(new THREE.BoxGeometry(16, 30, 16), L(0x9aa3ab)); add(c, sfp(-122.3797, 37.7988)).position.y = 15; } // the center anchorage
-  // Ferry Building on the Embarcadero: an open arcade, an upper floor of paired windows, a long hipped roof with a skylight,
-  // end pavilions, and the clock tower (shaft, clock stage, open belfry, lantern and dome) looking up Market St
+  // Ferry Building (after the photo from Justin Herman Plaza): a long, low two-storey hall lined with arched windows, a projecting
+  // centre entrance with three big arches, a low dark roof with a clerestory, "PORT OF SAN FRANCISCO" letters on the roof,
+  // and the tall clock tower (shaft, clock stage, three-arch loggia, upper stage with pinnacles, lantern, dome, flag).
+  // It sits on its pier just across the Embarcadero, square to the waterfront, with palms along the road.
   {
-    const g = G(LM.ferry), stone = L(0xebe3d2), stoneDk = L(0xd9d0bd), roofM = L(0x6f7f86), inner = L(0x8a8478);
-    const arcTex = canvasTex(512, 128, (c, w, h) => { c.fillStyle = '#ebe3d2'; c.fillRect(0, 0, w, h); c.fillStyle = '#d9d0bd'; for (let y = 6; y < h; y += 14) c.fillRect(0, y, w, 2);
-      c.globalCompositeOperation = 'destination-out'; for (let i = 0; i < 8; i++) { const x = 8 + i * 64; c.beginPath(); c.moveTo(x + 6, h); c.lineTo(x + 6, 52); c.arc(x + 32, 52, 26, Math.PI, 0); c.lineTo(x + 58, h); c.fill(); } c.globalCompositeOperation = 'source-over';
-      c.fillStyle = '#cfc5b0'; for (let i = 0; i < 8; i++) { const x = 8 + i * 64; c.fillRect(x + 28, 18, 8, 10); } }, [1, 1]);
-    const upTex = canvasTex(256, 128, (c, w, h) => { c.fillStyle = '#ebe3d2'; c.fillRect(0, 0, w, h); c.fillStyle = '#ddd4c1'; for (let i = 0; i < 4; i++) c.fillRect(i * 64, 0, 8, h);
-      for (let i = 0; i < 4; i++) for (const dx of [16, 38]) { const gr = c.createLinearGradient(0, 30, 0, 100); gr.addColorStop(0, '#6f8fab'); gr.addColorStop(1, '#2f4256'); c.fillStyle = gr; c.fillRect(i * 64 + dx, 30, 16, 66); c.fillStyle = '#f4efe2'; c.fillRect(i * 64 + dx, 60, 16, 3); c.fillStyle = '#cfc5b0'; c.fillRect(i * 64 + dx - 3, 96, 22, 5); } c.fillStyle = '#d2c8b4'; c.fillRect(0, 0, w, 10); }, [1, 1]);
-    const arcM = new THREE.MeshLambertMaterial({ map: arcTex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide }); arcTex.repeat.set(56 / 32, 1);
-    const upM = L(0xffffff, { map: upTex }); upTex.repeat.set(56 / 12, 1);
-    box(12.6, 7, 54, inner, 0, 3.5, 0, g, true);                                                    // the hall behind the arcade
-    for (const sx of [-1, 1]) { const a = new THREE.Mesh(new THREE.PlaneGeometry(56, 7), arcM); a.rotation.y = sx * Math.PI / 2; a.position.set(sx * 8, 3.5, 0); g.add(a); }
-    box(16.4, 0.5, 56.4, stoneDk, 0, 7.15, 0, g);                                                 // the arcade's roof / belt
-    const up = new THREE.Mesh(new THREE.BoxGeometry(16, 6, 56), [upM, upM, stone, stone, stone, stone]); up.position.y = 10.4; g.add(up);
-    box(17.2, 0.9, 57.2, stoneDk, 0, 13.85, 0, g); box(16.6, 0.5, 56.6, stone, 0, 13.2, 0, g);     // cornice
-    { const sh = new THREE.Shape(); sh.moveTo(-8.2, 0); sh.lineTo(8.2, 0); sh.lineTo(1.6, 4.2); sh.lineTo(-1.6, 4.2); sh.closePath(); const rg = new THREE.ExtrudeGeometry(sh, { depth: 50, bevelEnabled: false }); rg.translate(0, 14.3, -25); g.add(new THREE.Mesh(rg, roofM));
-      const sky = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.2, 46), new THREE.MeshPhongMaterial({ color: 0xbfd6e6, shininess: 90, specular: 0xffffff })); sky.position.y = 19; g.add(sky); }
-    for (const sz of [-1, 1]) { box(18, 16.5, 6, stone, 0, 8.25, sz * 28, g); box(18.6, 1, 6.6, stoneDk, 0, 16.6, sz * 28, g); // end pavilions with tall arched windows
-      for (const sx of [-1, 1]) { const w = textPlane('', 3, 6, '#3b4a5a'); w.position.set(sx * 9.03, 9, sz * 28); w.rotation.y = sx * Math.PI / 2; g.add(w); } }
+    const e0 = sfp(-122.3960, 37.8015), e1 = sfp(-122.3930, 37.7960), yaw = Math.atan2(e1.x - e0.x, e1.z - e0.z);
+    const ax = new V3(Math.sin(yaw), 0, Math.cos(yaw)), out = new V3(Math.cos(yaw), 0, -Math.sin(yaw)); // along the waterfront / toward the bay
+    let best = 1e9, foot = LM.ferry.clone(); for (let i = 1; i < EMBARCADERO.length; i++) { const A = EMBARCADERO[i - 1], B = EMBARCADERO[i], d = B.clone().sub(A), t = clamp(LM.ferry.clone().sub(A).dot(d) / d.lengthSq(), 0, 1), q = A.clone().addScaledVector(d, t), dd = q.distanceTo(LM.ferry); if (dd < best) { best = dd; foot = q; } }
+    const Ln = 118, Dp = 22, Hf = 10.5, c = foot.clone().addScaledVector(out, 7.5 + Dp / 2), y0 = 0.35;
+    const g = group(SFG, c.x, y0, c.z, yaw); // local +z along the Embarcadero (to the south), local -x faces the city
+    const stone = L(0xeee2cf), stoneDk = L(0xdccfb9), roofM = L(0x5b6064), glassM = new THREE.MeshPhongMaterial({ color: 0x9fb6c4, shininess: 90, specular: 0xffffff });
+    // the pier it stands on, and the plaza in front, walkable
+    addDeck(c.x - ax.x * (Ln / 2 + 8), c.z - ax.z * (Ln / 2 + 8), c.x + ax.x * (Ln / 2 + 8), c.z + ax.z * (Ln / 2 + 8), Dp + 10, y0, 0, 0);
+    const pave = canvasTex(128, 128, (cx, w, h) => { cx.fillStyle = '#cfc8bb'; cx.fillRect(0, 0, w, h); cx.fillStyle = '#b9b2a5'; for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if ((i + j) % 2) cx.fillRect(i * 32, j * 32, 32, 32); cx.fillStyle = '#a8a196'; for (let i = 0; i <= 4; i++) { cx.fillRect(i * 32 - 1, 0, 2, h); cx.fillRect(0, i * 32 - 1, w, 2); } }, [1, 1]);
+    pave.repeat.set((Dp + 10) / 6, (Ln + 16) / 6); const deck = new THREE.Mesh(new THREE.BoxGeometry(Dp + 10, 1.6, Ln + 16), [L(0x8a8478), L(0x8a8478), L(0xffffff, { map: pave }), L(0x8a8478), L(0x8a8478), L(0x8a8478)]); deck.position.set(-2, -0.8, 0); g.add(deck);
+    // facade: one bay per 4.2 m - an arched window upstairs, an arched opening below
+    const bay = canvasTex(128, 320, (cx, w, h) => { cx.fillStyle = '#f2e6d2'; cx.fillRect(0, 0, w, h); cx.fillStyle = 'rgba(0,0,0,0.05)'; for (let y = 0; y < h; y += 14) cx.fillRect(0, y, w, 1);
+      cx.fillStyle = '#cdc6b8'; cx.fillRect(0, 0, 10, h); cx.fillRect(w - 10, 0, 10, h);
+      const arch = (x0, x1, yt, yb, fill) => { const r = (x1 - x0) / 2; cx.fillStyle = fill; cx.beginPath(); cx.moveTo(x0, yb); cx.lineTo(x0, yt + r); cx.arc(x0 + r, yt + r, r, Math.PI, 0); cx.lineTo(x1, yb); cx.closePath(); cx.fill(); };
+      arch(24, 104, 26, 142, '#cbc3b3'); const gr = cx.createLinearGradient(0, 30, 0, 140); gr.addColorStop(0, '#7f97ab'); gr.addColorStop(1, '#33424f'); arch(30, 98, 32, 138, gr);
+      cx.fillStyle = '#e8e3d8'; cx.fillRect(62, 34, 4, 104); cx.fillRect(30, 70, 68, 4); cx.fillRect(30, 104, 68, 3); cx.fillStyle = '#c8c0af'; cx.fillRect(58, 22, 12, 12);
+      cx.fillStyle = '#c6beac'; cx.fillRect(0, 150, w, 10);
+      arch(20, 108, 176, 312, '#c8c0b0'); const g2 = cx.createLinearGradient(0, 180, 0, 312); g2.addColorStop(0, '#5f7385'); g2.addColorStop(1, '#2a3038'); arch(27, 101, 183, 312, g2);
+      cx.fillStyle = '#dcd5c8'; cx.fillRect(62, 220, 4, 92); cx.fillRect(27, 224, 74, 4); cx.fillStyle = '#bdb5a5'; cx.fillRect(0, 312, w, 8); }, [1, 1]);
+    const bayM = L(0xfff6ea, { map: bay }); bay.repeat.set(Ln / 4.2, 1); const bayEnd = L(0xffffff, { map: retile(bay, Dp / 4.2, 1) });
+    const hall = new THREE.Mesh(new THREE.BoxGeometry(Dp, Hf, Ln), [bayM, bayM, stone, stone, bayEnd, bayEnd]); hall.position.y = Hf / 2; g.add(hall);
+    box(Dp + 1, 0.8, Ln + 1, stoneDk, 0, Hf + 0.4, 0, g); box(Dp + 0.4, 0.5, Ln + 0.4, stone, 0, Hf + 1.05, 0, g); // cornice + parapet
+    { const sh = new THREE.Shape(); sh.moveTo(-Dp / 2, 0); sh.lineTo(Dp / 2, 0); sh.lineTo(4.5, 2.4); sh.lineTo(-4.5, 2.4); sh.closePath(); const rg = new THREE.ExtrudeGeometry(sh, { depth: Ln - 2, bevelEnabled: false }); rg.translate(0, Hf + 1.3, -(Ln - 2) / 2); g.add(new THREE.Mesh(rg, roofM)); }
+    const clere = canvasTex(256, 32, (cx, w, h) => { cx.fillStyle = '#6b7075'; cx.fillRect(0, 0, w, h); for (let x = 4; x < w; x += 16) { cx.fillStyle = '#a9bccb'; cx.fillRect(x, 6, 11, 20); } }, [1, 1]); clere.repeat.set(Ln / 12, 1);
+    const cl = new THREE.Mesh(new THREE.BoxGeometry(9, 1.6, Ln - 10), [L(0xffffff, { map: clere }), L(0xffffff, { map: clere }), roofM, roofM, roofM, roofM]); cl.position.y = Hf + 4.5; g.add(cl);
+    const sky = new THREE.Mesh(new THREE.BoxGeometry(5, 0.5, Ln - 14), glassM); sky.position.y = Hf + 5.5; g.add(sky);
+    // rooftop letters facing the bay (read backwards from the city, like in the photo)
+    for (const [txt, z] of [['SAN FRANCISCO', -22], ['PORT OF', 22]]) { const t = textPlane(txt, 22, 2.6, null, '#2b2b2e'); t.material.side = THREE.DoubleSide; t.position.set(2, Hf + 8.4, z); t.rotation.y = Math.PI / 2; g.add(t); box(0.2, 1.4, 22, M.metal, 2.2, Hf + 6.6, z, g); }
+    for (let i = 0; i < 9; i++) { const z = -Ln / 2 + 8 + i * (Ln - 16) / 8; if (Math.abs(z) < 16) continue; cyl(0.06, 0.06, 4, M.metal, -Dp / 2 + 0.4, Hf + 3.2, z, g, 5); const f = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.8), new THREE.MeshLambertMaterial({ color: i % 2 ? 0xc0392b : 0xf2f2f2, side: THREE.DoubleSide })); f.position.set(-Dp / 2 + 0.4, Hf + 4.7, z + 0.75); f.rotation.y = Math.PI / 2; g.add(f); }
+    // the projecting centre: three big entrance arches, three arched windows above, pilasters, a raised attic
+    const pav = canvasTex(384, 192, (cx, w, h) => { cx.fillStyle = '#f2e6d2'; cx.fillRect(0, 0, w, h); cx.fillStyle = 'rgba(0,0,0,0.05)'; for (let y = 0; y < h; y += 8) cx.fillRect(0, y, w, 1);
+      for (const x of [0, 124, 252, 372]) { cx.fillStyle = '#cbc4b6'; cx.fillRect(x, 0, 12, h); }
+      for (let i = 0; i < 3; i++) { const x0 = 22 + i * 126, r = 46; cx.fillStyle = '#c8c0b0'; cx.beginPath(); cx.moveTo(x0, h); cx.lineTo(x0, 100 + 6); cx.arc(x0 + r, 100 + 6, r, Math.PI, 0); cx.lineTo(x0 + 2 * r, h); cx.fill();
+        const gr = cx.createLinearGradient(0, 70, 0, h); gr.addColorStop(0, '#556677'); gr.addColorStop(1, '#22282e'); cx.fillStyle = gr; cx.beginPath(); cx.moveTo(x0 + 6, h); cx.lineTo(x0 + 6, 106); cx.arc(x0 + r, 106, r - 6, Math.PI, 0); cx.lineTo(x0 + 2 * r - 6, h); cx.fill();
+        const g3 = cx.createLinearGradient(0, 18, 0, 50); g3.addColorStop(0, '#7f97ab'); g3.addColorStop(1, '#33424f'); cx.fillStyle = g3; cx.beginPath(); cx.moveTo(x0 + 20, 52); cx.lineTo(x0 + 20, 32); cx.arc(x0 + r, 32, r - 20, Math.PI, 0); cx.lineTo(x0 + 2 * r - 20, 52); cx.fill(); }
+      cx.fillStyle = '#c6beac'; cx.fillRect(0, 56, w, 8); });
+    const pavM = L(0xfff6ea, { map: pav }), pv = new THREE.Mesh(new THREE.BoxGeometry(3, Hf + 2.6, 26), [stone, pavM, stone, stone, stone, stone]); pv.position.set(-Dp / 2 - 0.3, (Hf + 2.6) / 2, 0); g.add(pv);
+    box(3.8, 0.9, 27, stoneDk, -Dp / 2 - 0.3, Hf + 3, 0, g);
     // the tower
-    const tw = new THREE.Group(); tw.position.set(-5, 0, 0); g.add(tw);
-    const shaftTex = canvasTex(128, 512, (c, w, h) => { c.fillStyle = '#ebe3d2'; c.fillRect(0, 0, w, h); c.fillStyle = '#d6ccb8'; c.fillRect(0, 0, 14, h); c.fillRect(w - 14, 0, 14, h); for (let y = 0; y < h; y += 24) c.fillRect(0, y, w, 2);
-      for (const y of [60, 200, 340]) { const gr = c.createLinearGradient(0, y, 0, y + 90); gr.addColorStop(0, '#5a6f86'); gr.addColorStop(1, '#2b3846'); c.fillStyle = gr; c.fillRect(46, y, 36, 90); c.beginPath(); c.arc(64, y, 18, Math.PI, 0); c.fill(); c.fillStyle = '#d6ccb8'; c.fillRect(40, y + 90, 48, 8); } });
-    const shM = L(0xffffff, { map: shaftTex });
-    const shaft = new THREE.Mesh(new THREE.BoxGeometry(7.4, 34, 7.4), [shM, shM, stone, stone, shM, shM]); shaft.position.y = 17; tw.add(shaft);
-    box(8.4, 1, 8.4, stoneDk, 0, 34.5, 0, tw); box(8, 8, 8, stone, 0, 39, 0, tw); box(8.8, 0.9, 8.8, stoneDk, 0, 43.4, 0, tw);   // clock stage
-    const clock = canvasTex(256, 256, (c, w) => { c.fillStyle = '#f8f4ea'; c.beginPath(); c.arc(w / 2, w / 2, w / 2 - 6, 0, TAU); c.fill(); c.strokeStyle = '#1b1416'; c.lineWidth = 8; c.stroke(); c.font = 'bold 26px serif'; c.fillStyle = '#1b1416'; c.textAlign = 'center'; c.textBaseline = 'middle'; ['XII', 'III', 'VI', 'IX'].forEach((t, i) => { const a = i / 4 * TAU - Math.PI / 2; c.fillText(t, w / 2 + Math.cos(a) * 92, w / 2 + Math.sin(a) * 92); }); c.lineWidth = 9; c.beginPath(); c.moveTo(w / 2, w / 2); c.lineTo(w / 2 + 40, w / 2 - 50); c.moveTo(w / 2, w / 2); c.lineTo(w / 2 - 70, w / 2 + 10); c.stroke(); });
-    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2, f = new THREE.Mesh(new THREE.CircleGeometry(3, 28), new THREE.MeshBasicMaterial({ map: clock })); f.position.set(Math.sin(a) * 4.03, 39.2, Math.cos(a) * 4.03); f.rotation.y = a; tw.add(f);
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(3.05, 0.18, 6, 28), stoneDk); rim.position.copy(f.position); rim.rotation.y = a; tw.add(rim); }
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { box(1.5, 6, 1.5, stone, sx * 3.1, 46.9, sz * 3.1, tw); cyl(0.25, 0.6, 2.2, stoneDk, sx * 4.2, 45, sz * 4.2, tw, 6); } // open belfry piers + urns
-    box(7.8, 1, 7.8, stoneDk, 0, 50.4, 0, tw); box(4, 4, 4, inner, 0, 47, 0, tw);
-    cyl(2.6, 2.8, 4.6, stone, 0, 53.2, 0, tw, 8); cyl(3, 3, 0.6, stoneDk, 0, 55.8, 0, tw, 8);                                        // octagonal lantern
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(2.6, 16, 8, 0, TAU, 0, Math.PI / 2), roofM); dome.position.y = 56; dome.scale.y = 1.35; tw.add(dome);
-    cyl(0.5, 0.7, 1.4, stoneDk, 0, 60, 0, tw, 8); cyl(0.07, 0.09, 6, M.metal, 0, 63.5, 0, tw, 6);
-    const flag = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.4), new THREE.MeshLambertMaterial({ side: THREE.DoubleSide, map: canvasTex(64, 40, (c, w, h) => { for (let i = 0; i < 13; i++) { c.fillStyle = i % 2 ? '#fff' : '#b22234'; c.fillRect(0, i * h / 13, w, h / 13 + 1); } c.fillStyle = '#3c3b6e'; c.fillRect(0, 0, w * 0.42, h * 0.54); }) })); flag.position.set(1.25, 65.6, 0); tw.add(flag);
-    const nm = textPlane('PORT OF SAN FRANCISCO', 7, 0.8, '#ebe3d2', '#3b4148'); nm.position.set(-3.73, 31.5, 0); nm.rotation.y = -Math.PI / 2; tw.add(nm);
-    const fb = textPlane('FERRY BUILDING', 12, 1.2, '#ebe3d2', '#3b4148'); fb.position.set(-8.1, 12.4, 14); fb.rotation.y = -Math.PI / 2; g.add(fb);
+    const tw = group(g, -Dp / 2 + 2.4, 0, 0), T = 6.6;
+    const shaftTex = canvasTex(128, 512, (cx, w, h) => { cx.fillStyle = '#f2e6d2'; cx.fillRect(0, 0, w, h); cx.fillStyle = 'rgba(0,0,0,0.05)'; for (let y = 0; y < h; y += 16) cx.fillRect(0, y, w, 1); cx.fillStyle = '#cbc4b6'; cx.fillRect(0, 0, 14, h); cx.fillRect(w - 14, 0, 14, h);
+      cx.fillStyle = '#c3bba9'; cx.fillRect(48, 20, 32, h - 40); for (let y = 40; y < h - 40; y += 70) { const gr = cx.createLinearGradient(0, y, 0, y + 46); gr.addColorStop(0, '#6a8094'); gr.addColorStop(1, '#2b3846'); cx.fillStyle = gr; cx.fillRect(54, y, 20, 46); cx.beginPath(); cx.arc(64, y, 10, Math.PI, 0); cx.fill(); } });
+    const shM = L(0xfff6ea, { map: shaftTex }), sh = new THREE.Mesh(new THREE.BoxGeometry(T, 22, T), [shM, shM, stone, stone, shM, shM]); sh.position.y = 11; tw.add(sh);
+    box(T + 1, 0.8, T + 1, stoneDk, 0, 22.2, 0, tw); box(T + 0.6, 7, T + 0.6, stone, 0, 26, 0, tw); box(T + 1.4, 0.7, T + 1.4, stoneDk, 0, 29.7, 0, tw); // clock stage
+    const clock = canvasTex(256, 256, (cx, w) => { cx.fillStyle = '#f6f2e8'; cx.beginPath(); cx.arc(w / 2, w / 2, w / 2 - 6, 0, TAU); cx.fill(); cx.strokeStyle = '#2b2b2e'; cx.lineWidth = 7; cx.stroke(); cx.lineWidth = 3; cx.beginPath(); cx.arc(w / 2, w / 2, w / 2 - 30, 0, TAU); cx.stroke();
+      for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; cx.save(); cx.translate(w / 2 + Math.cos(a) * 104, w / 2 + Math.sin(a) * 104); cx.rotate(a + Math.PI / 2); cx.fillStyle = '#2b2b2e'; cx.fillRect(-3, -9, 6, 18); cx.restore(); }
+      cx.lineWidth = 9; cx.lineCap = 'round'; cx.beginPath(); cx.moveTo(w / 2, w / 2); cx.lineTo(w / 2 + 34, w / 2 - 52); cx.moveTo(w / 2, w / 2); cx.lineTo(w / 2 - 72, w / 2 + 8); cx.stroke(); });
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2, f = new THREE.Mesh(new THREE.CircleGeometry(2.7, 32), new THREE.MeshBasicMaterial({ map: clock })), r = (T + 0.6) / 2 + 0.03; f.position.set(Math.sin(a) * r, 26, Math.cos(a) * r); f.rotation.y = a; tw.add(f);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(2.75, 0.18, 6, 32), stoneDk); rim.position.copy(f.position); rim.rotation.y = a; tw.add(rim); }
+    const log = canvasTex(192, 160, (cx, w, h) => { cx.fillStyle = '#f2e6d2'; cx.fillRect(0, 0, w, h); for (let i = 0; i < 3; i++) { const x0 = 18 + i * 54, r = 21; cx.fillStyle = '#2b3138'; cx.beginPath(); cx.moveTo(x0, h - 14); cx.lineTo(x0, 46); cx.arc(x0 + r, 46, r, Math.PI, 0); cx.lineTo(x0 + 2 * r, h - 14); cx.fill(); } cx.fillStyle = '#cbc4b6'; cx.fillRect(0, h - 14, w, 14); cx.fillRect(0, 0, w, 10); });
+    const logM = L(0xfff6ea, { map: log }); const lg = new THREE.Mesh(new THREE.BoxGeometry(T, 7, T), logM); lg.position.y = 33.5; tw.add(lg); // three-arch loggia
+    box(T + 1.2, 0.8, T + 1.2, stoneDk, 0, 37.4, 0, tw); for (const sx of [-1, 1]) for (const sz of [-1, 1]) { cyl(0.22, 0.4, 1.4, stoneDk, sx * (T / 2 + 0.3), 38.4, sz * (T / 2 + 0.3), tw, 6); } // balustrade urns
+    const up = new THREE.Mesh(new THREE.BoxGeometry(4.6, 6, 4.6), L(0xffffff, { map: retile(log, 0.67, 1) })); up.position.y = 40.8; tw.add(up); // upper stage
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { cyl(0.3, 0.3, 4.6, stone, sx * 2.6, 40.6, sz * 2.6, tw, 6); cyl(0.01, 0.42, 1.4, stoneDk, sx * 2.6, 43.6, sz * 2.6, tw, 6); } // pinnacles
+    box(5.4, 0.6, 5.4, stoneDk, 0, 44.1, 0, tw);
+    cyl(1.9, 2.1, 3.2, stone, 0, 46, 0, tw, 8); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + Math.PI / 8; box(0.45, 1.8, 0.1, M.black, Math.sin(a) * 1.98, 46.1, Math.cos(a) * 1.98, tw).rotation.y = a; } // lantern
+    cyl(2.3, 2.3, 0.4, stoneDk, 0, 47.8, 0, tw, 8); const dome = new THREE.Mesh(new THREE.SphereGeometry(1.9, 16, 8, 0, TAU, 0, Math.PI / 2), stone); dome.position.y = 48; dome.scale.y = 1.15; tw.add(dome);
+    cyl(0.35, 0.5, 1.6, stoneDk, 0, 50.6, 0, tw, 8); cyl(0.06, 0.08, 5.5, M.metal, 0, 54, 0, tw, 6);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.3), new THREE.MeshLambertMaterial({ side: THREE.DoubleSide, map: canvasTex(64, 40, (cx, w, h) => { for (let i = 0; i < 13; i++) { cx.fillStyle = i % 2 ? '#fff' : '#b22234'; cx.fillRect(0, i * h / 13, w, h / 13 + 1); } cx.fillStyle = '#3c3b6e'; cx.fillRect(0, 0, w * 0.42, h * 0.54); }) })); flag.position.set(0, 55.8, 1.15); flag.rotation.y = Math.PI / 2; tw.add(flag);
+    SF_CABLE.ferryTop = tw.localToWorld(new V3(0, 62, 0));
+    // Pier 1's long shed to the north, along the water
+    { const sg = group(g, 4, 0, -Ln / 2 - 42); const shed = new THREE.Mesh(new THREE.BoxGeometry(18, 8, 70), [L(0xffffff, { map: retile(bay, 70 / 4.2, 0.8) }), L(0xffffff, { map: retile(bay, 70 / 4.2, 0.8) }), roofM, stone, stone, stone]); shed.position.y = 4; sg.add(shed); box(19, 0.6, 71, stoneDk, 0, 8.3, 0, sg);
+      const pd = new THREE.Mesh(new THREE.BoxGeometry(22, 1.6, 72), L(0x8a8478)); pd.position.y = -0.8; sg.add(pd); }
+    // the Embarcadero's palms, out in front
+    { const parts = [], trunkG = new THREE.CylinderGeometry(0.28, 0.42, 9, 6, 1, true).translate(0, 4.5, 0);
+      const fr = []; for (let k = 0; k < 14; k++) { const up = k % 2 ? 0.15 : 0.6, f = new THREE.PlaneGeometry(1.1, 3.6, 1, 3).rotateX(-Math.PI / 2).translate(0, 0, 1.8); const fp = f.attributes.position; for (let i = 0; i < fp.count; i++) { const z = fp.getZ(i); fp.setY(i, -0.12 * z * z); fp.setX(i, fp.getX(i) * (1 - z / 4.2)); } f.rotateX(-up * 0.4); f.rotateY(k / 14 * TAU); f.translate(0, 9.1, 0); fr.push(colorize(f, k % 3 ? 0x3f7a35 : 0x4f8a3a)); }
+      const head = colorize(new THREE.SphereGeometry(0.75, 7, 5).translate(0, 9.1, 0), 0x6a7a3a), palm = merge([colorize(trunkG, 0x8a7458), head, ...fr]);
+      for (let i = -4; i <= 4; i++) for (const side of [-Dp / 2 - 3.5, -Dp / 2 - 16, -Dp / 2 - 22]) { const q = g.localToWorld(new V3(side, 0, i * 13 + (side < -20 ? 6 : 0))); if (side < -20 && Math.abs(i) > 3) continue; const pg = palm.clone(); pg.rotateY(rr(0, TAU)); pg.scale(1, rr(0.9, 1.2), 1); pg.translate(q.x, terrainH(q.x, q.z), q.z); parts.push(pg); }
+      SFG.add(new THREE.Mesh(merge(parts), new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }))); }
+    for (let k = -2; k <= 2; k++) { const q = g.localToWorld(new V3(0, 0, k * Ln / 5)); cityCollider(q.x, q.z, Dp * 0.85, Dp * 0.85, Hf + 4); }
+    { const q = tw.localToWorld(new V3(0, 0, 0)); cityCollider(q.x, q.z, T, T, 56); }
   }
   // Salesforce Tower (rounded, the tallest) and the Transamerica Pyramid
   { const p = sfp(-122.3972, 37.7897), g = G(p), glass = new THREE.MeshPhongMaterial({ color: 0x9fb6c8, map: T.windows, shininess: 80, specular: 0x88aacc });
@@ -1432,7 +1470,7 @@ function sfLandmarks(LM) {
     ['CHINATOWN', -122.4058, 37.7930, 30], ['UNION SQUARE', -122.4075, 37.7880, 40], ['HAIGHT-ASHBURY', -122.4469, 37.7699, 24], ['TWIN PEAKS', -122.4477, 37.7544, 24], ['PALACE OF FINE ARTS', -122.4484, 37.8029, 30],
     ['FERRY BUILDING', -122.3934, 37.7955, 66], ['COIT TOWER', -122.4058, 37.8024, 40], ['GOLDEN GATE PARK', -122.4800, 37.7690, 30], ['SALESFORCE TOWER', -122.3972, 37.7897, 105], ['TRANSAMERICA', -122.4028, 37.7952, 92], ['PAINTED LADIES', -122.4339, 37.7765, 24], ['GRACE CATHEDRAL', -122.4133, 37.7919, 44], ['CLIFF HOUSE', -122.5134, 37.7785, 22], ['FORT POINT', -122.4772, 37.8102, 30], ['MISSION MURALS', -122.4124, 37.7523, 20], ['CRISSY FIELD', -122.4570, 37.8040, 22], ['MISSION DOLORES', -122.4269, 37.7642, 30]]) {
     const tex = canvasTex(512, 160, (c, w, h) => { c.fillStyle = '#ffffff'; rrect(c, 70, 16, w - 80, 92, 40); c.fill(); c.strokeStyle = '#2b2724'; c.lineWidth = 6; c.stroke(); c.fillStyle = '#e0443e'; c.beginPath(); c.arc(42, 62, 30, 0, TAU); c.fill(); c.beginPath(); c.moveTo(18, 76); c.lineTo(42, 150); c.lineTo(66, 76); c.fill(); c.fillStyle = '#fff'; c.beginPath(); c.arc(42, 60, 11, 0, TAU); c.fill(); c.fillStyle = '#2b2724'; c.textAlign = 'center'; c.textBaseline = 'middle'; fitFont(c, name, w - 120, 46, 900); c.fillText(name, w / 2 + 34, 64); });
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false })); const p = sfp(lon, lat); sp.position.set(p.x, groundH(p.x, p.z) + up, p.z); sp.scale.set(22, 6.9, 1); sp.renderOrder = 4; SFG.add(sp); }
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false })); const p = sfp(lon, lat); sp.position.set(p.x, groundH(p.x, p.z) + up, p.z); if (name === 'FERRY BUILDING' && SF_CABLE.ferryTop) sp.position.copy(SF_CABLE.ferryTop); sp.scale.set(22, 6.9, 1); sp.renderOrder = 4; SFG.add(sp); }
   // boats on the bay: a ferry to Alcatraz and Sausalito, and sailboats
   SF_CABLE.boats = [];
   { const fg = new THREE.Group(); const hull = new THREE.Mesh(new THREE.BoxGeometry(5, 1.6, 16), L(0xf4f4f4)); hull.position.y = 0.8; fg.add(hull); const stripe = new THREE.Mesh(new THREE.BoxGeometry(5.1, 0.4, 16.1), L(0x1e5aa8)); stripe.position.y = 0.6; fg.add(stripe); const cab = new THREE.Mesh(new THREE.BoxGeometry(4, 2.4, 9), L(0xf4f4f4)); cab.position.set(0, 2.8, -1); fg.add(cab); const win = new THREE.Mesh(new THREE.BoxGeometry(4.1, 0.7, 8), L(0x2b3a4a)); win.position.set(0, 3.2, -1); fg.add(win);
