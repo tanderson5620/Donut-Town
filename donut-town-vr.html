@@ -1029,6 +1029,10 @@ function archLot(x, z, yaw, lw, ld, dist) {
   const w = rr(lw - 4, lw - 0.5), d = rr(ld - 4, ld - 0.5), F = archFrame(x, z, yaw, w, d);
   if (dist === 'fidi' || dist === 'transbay') { const h = dist === 'fidi' ? rr(28, 60) : rr(25, 52), stone = dist === 'fidi' ? Math.random() < 0.45 : Math.random() < 0.2;
     archTower(F, w, d, h, stone ? pick(['#e6dccb', '#d9cdb8', '#cfc6b8', '#ece6da']) : pick(['#cfe0ee', '#bcd4e6', '#d6e2d8', '#e2d6c4', '#c4ccd6']), stone); return [w, d, h + 4]; }
+  if (dist === 'mb') { // Mission Bay: new glass mid-rises with bold orange fins
+    const h = rr(16, 30); archTower(F, w, d, h, pick(['#cfe0ee', '#bcd4e6', '#d6e2d8', '#c4ccd6']), false);
+    if (Math.random() < 0.6) for (const fx of [-w / 4, w / 6]) archBox(F, fx - 0.7, 2, d / 2, fx + 0.7, h * 0.92, d / 2 + 0.5, pick(['#d9822b', '#e0a040', '#c9692a']), { front: ['trim'], left: ['trim'], right: ['trim'], top: ['trim'] });
+    return [w, d, h + 4]; }
   if (dist === 'downtown') { const h = 4.4 + (2 + Math.floor(rr(0, 6))) * 3.6 + 1; archMason(F, w, d, h, pick(['#efe6d6', '#e3d6bf', '#d9cbb3', '#f3eee4', '#d8c7ad', '#c9b9a0']), pick(['#d8ccb4', '#cbbfa8', '#e8e0d0'])); return [w, d, h + 3]; }
   const h = rr(8, 18); if (Math.random() < 0.7) archBrick(F, w, d, h, pick(['#b8634a', '#a85a44', '#c4795c', '#9c5340', '#c98a6b', '#d9c3a5']));
   else archMason(F, w, d, h, pick(['#e0d6c8', '#d8c3a5', '#c9c2b6']), '#bdb3a2');
@@ -1106,7 +1110,7 @@ function sfZone(x, z) {
   if (x < sfx(-122.5070) && z > sfz(37.7800)) return 'beach'; // Ocean Beach
   return 'urban';
 }
-const SF_DIST = [[llr(-122.4060, 37.7880, -122.3915, 37.7975), 'fidi'], [llr(-122.4005, 37.7840, -122.3880, 37.7920), 'transbay'], [llr(-122.4250, 37.7760, -122.4005, 37.7935), 'downtown'], [llr(-122.4180, 37.7680, -122.3870, 37.7850), 'soma']];
+const SF_DIST = [[llr(-122.3995, 37.7635, -122.3850, 37.7748), 'mb'], [llr(-122.4060, 37.7880, -122.3915, 37.7975), 'fidi'], [llr(-122.4005, 37.7840, -122.3880, 37.7920), 'transbay'], [llr(-122.4250, 37.7760, -122.4005, 37.7935), 'downtown'], [llr(-122.4180, 37.7680, -122.3870, 37.7850), 'soma']];
 const sfDistrict = (x, z) => { for (const [r, k] of SF_DIST) if (inR(r, x, z)) return k; return 'res'; };
 // South of Market the streets run parallel and square to Market St (the north grid stops at Market)
 const SOMA = [[-122.3936, 37.7957], [-122.4192, 37.7752], [-122.4128, 37.7688], [-122.3990, 37.7712], [-122.3868, 37.7785], [-122.3868, 37.7905]].map(p => [sfx(p[0]), sfz(p[1])]);
@@ -1182,6 +1186,7 @@ const somaP = (u, v) => new V3(SOMA_G.o.x + SOMA_G.mk.x * u + SOMA_G.mn.x * v, 0
   };
   reserve(LM.ferry, 60); reserve(LM.transamerica, 16); reserve(LM.lombard, 32); reserve(LM.cityHall, 40); reserve(LM.oracle, 50); reserve(LM.ghirardelli, 18); reserve(LM.castro, 8); reserve(LM.bayAnchor, 22); reserve(LM.wharf, 12);
   reserve(new V3(sfx(-122.4318), 0, sfz(37.7765)), 34); // the Painted Ladies on Steiner St
+  reserve(sfp(-122.3878, 37.7680), 34); reserve(sfp(-122.3885, 37.7763), 26); // Chase Center, Lot A
   for (const [lon, lat, r] of [[-122.4133, 37.7919, 34], [-122.4048, 37.7963, 12], [-122.4269, 37.7642, 24], [-122.4300, 37.7853, 16], [-122.4124, 37.7523, 22]]) reserve(sfp(lon, lat), r); // Grace Cathedral, Columbus Tower, Mission Dolores, Peace Pagoda, Balmy Alley
   for (let i = 0; i < 12; i += 3) reserve(new V3(sfx(-122.4500) + i * 9.2 + 13, 0, sfz(37.7699) - 7.5), 24); // Haight St Victorians
   // landmarks and named towers go up first; any grid street that would run through one stops at it
@@ -1501,10 +1506,34 @@ function sfLandmarks(LM) {
   { const m = sfp(-122.4476, 37.7532), pts = []; for (let i = 0; i <= 160; i++) { const t = i / 160 * TAU; pts.push([m.x + 44 * Math.sin(t) * Math.cos(t), m.z + 38 * Math.cos(t)]); }
     conformStrip(pts, 6, L(0xffffff, { map: retile(T.road, 1, 1) }), 0.18, SFG);
     const lk = sfp(-122.4478, 37.7550); box(8, 0.5, 5, conc, lk.x, groundH(lk.x, lk.z) + 0.25, lk.z, SFG); for (let i = 0; i < 4; i++) cyl(0.08, 0.08, 1.1, M.metal, lk.x - 3 + i * 2, groundH(lk.x, lk.z) + 0.8, lk.z - 2.4, SFG, 5); }
+  // Chase Center in Mission Bay (after the aerial photo): a white drum with banded aluminium panels on a podium, a flat white
+  // roof with its name on it, a curved glass atrium on the bay side, a plaza with shiny spheres
+  { const p = sfp(-122.3878, 37.7680), g = G(p), R = 18; g.scale.z = 0.93;
+    const skin = canvasTex(512, 128, (c, w, h) => { c.fillStyle = '#eceae4'; c.fillRect(0, 0, w, h); c.fillStyle = '#d6d3cc'; for (let y = 0; y < h; y += 14) c.fillRect(0, y, w, 2); for (let x = 0; x < w; x += 32) c.fillRect(x, 0, 1, h);
+      const gr = c.createLinearGradient(0, 8, 0, 24); gr.addColorStop(0, '#6f8796'); gr.addColorStop(1, '#3a4a56'); c.fillStyle = gr; c.fillRect(0, 8, w, 16); c.fillStyle = '#c9c5bd'; c.fillRect(0, h - 10, w, 10); }, [8, 1]);
+    cyl(R + 3, R + 3.4, 3, L(0xc4c0b8), 0, 1.5, 0, g, 40);                                           // podium
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(R, R + 0.6, 10, 48, 1, true), L(0xffffff, { map: skin })); drum.position.y = 8; g.add(drum);
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.5, R + 0.3, 1.2, 48, 1, true), L(0xbdb9b1, { side: THREE.DoubleSide })); rim.position.y = 13.4; g.add(rim);
+    const roof = new THREE.Mesh(new THREE.SphereGeometry(R * 4, 48, 6, 0, TAU, 0, Math.asin(R / (R * 4))), L(0xf4f3ef)); roof.position.y = 13 - Math.cos(Math.asin(1 / 4)) * R * 4; g.add(roof);
+    for (const [txt, z] of [['CHASE', -2.6], ['CENTER', 2.6]]) { const t = textPlane(txt, 24, 5, null, '#3f444a'); t.rotation.x = -Math.PI / 2; t.position.set(0, 15.5, z * 1.2); g.add(t); }
+    const atrium = new THREE.Mesh(new THREE.CylinderGeometry(R + 1.8, R + 1.8, 12.5, 18, 1, true, Math.PI / 4 - 0.65, 1.3), new THREE.MeshPhongMaterial({ color: 0x7f9fb8, map: retile(ARCH.glass.mat.map, 6, 1), shininess: 110, specular: 0xdfefff, side: THREE.DoubleSide }));
+    atrium.position.y = 6.25; g.add(atrium);
+    const can = new THREE.Mesh(new THREE.CylinderGeometry(R + 3.2, R + 3.2, 0.6, 18, 1, false, Math.PI / 4 - 0.7, 1.4), L(0xdedbd4)); can.position.y = 12.8; g.add(can);
+    const chrome = new THREE.MeshPhongMaterial({ color: 0xd8dde2, shininess: 140, specular: 0xffffff });
+    for (const [a, r, s2] of [[0.62, 25.5, 1.2], [0.78, 27, 0.9], [0.95, 25, 1.0], [0.7, 29, 0.7]]) { const sp = new THREE.Mesh(new THREE.SphereGeometry(s2, 18, 12), chrome); sp.position.set(Math.sin(a) * r, s2, Math.cos(a) * r); g.add(sp); }
+    disc(31, L(0xd2ccc0), 0, 0.12, 0, g, 40);
+    cityCollider(p.x, p.z, 2 * R + 4, 2 * R + 2, 16); }
+  // Lot A: the big parking lot between the ballpark and the arena
+  { const p = sfp(-122.3885, 37.7763), y = groundH(p.x, p.z) + 0.1, lot = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), L(0x5a5c60)); lot.rotation.x = -Math.PI / 2; lot.position.set(p.x, y, p.z); SFG.add(lot);
+    const cars = []; for (let i = 0; i < 8; i++) for (let j = 0; j < 6; j++) if (Math.random() < 0.75) cars.push([p.x - 17 + i * 4.8, p.z - 12 + j * 4.8 + (j % 2 ? 0.6 : -0.6)]);
+    SFG.add(instanced(new THREE.BoxGeometry(1.8, 1.3, 4.2).translate(0, 0.65, 0), L(0xffffff), cars, (d, q, col) => { d.position.set(q[0], y, q[1]); d.rotation.set(0, 0, 0); d.scale.set(1, 1, 1); col.set(pick([0xeeeeee, 0x222222, 0xb23a2e, 0x9aa3ab, 0x1e3f73, 0xdddddd])); })); }
+  // Piers 48 and 50: long grey sheds reaching out into the bay south of the ballpark
+  for (const [lo, la] of [[-122.3870, 37.7757], [-122.3862, 37.7728]]) { const p = sfp(lo, la); let x0 = p.x - 30; while (x0 < p.x + 40 && !inWater(x0, p.z)) x0 += 1; const L2 = 34, g = group(SFG, x0 + L2 / 2 - 2, 0, p.z);
+    box(L2 + 2, 1.6, 12, L(0x8a8478), 0, -0.4, 0, g); box(L2, 7, 9, L(0xffffff, { map: retile(ARCH.wall.mat.map, 4, 1) }), 0, 3.9, 0, g); box(L2 + 0.6, 0.6, 9.6, L(0x6b7075), 0, 7.7, 0, g); cityCollider(x0 + L2 / 2 - 2, p.z, L2, 10, 8); }
   // map-style pins over the top attractions (like the tourist map)
   for (const [name, lon, lat, up] of [['GOLDEN GATE BRIDGE', -122.4785, 37.8200, 95], ['ALCATRAZ ISLAND', -122.4230, 37.8267, 30], ["FISHERMAN'S WHARF", -122.4170, 37.8080, 22], ['PIER 39', -122.4100, 37.8105, 22], ['LOMBARD STREET', -122.4187, 37.8021, 22],
     ['CHINATOWN', -122.4058, 37.7930, 30], ['UNION SQUARE', -122.4075, 37.7880, 40], ['HAIGHT-ASHBURY', -122.4469, 37.7699, 24], ['TWIN PEAKS', -122.4477, 37.7544, 24], ['PALACE OF FINE ARTS', -122.4484, 37.8029, 30],
-    ['FERRY BUILDING', -122.3934, 37.7955, 66], ['COIT TOWER', -122.4058, 37.8024, 40], ['GOLDEN GATE PARK', -122.4800, 37.7690, 30], ['SALESFORCE TOWER', -122.3972, 37.7897, 105], ['TRANSAMERICA', -122.4028, 37.7952, 92], ['PAINTED LADIES', -122.4339, 37.7765, 24], ['GRACE CATHEDRAL', -122.4133, 37.7919, 44], ['CLIFF HOUSE', -122.5134, 37.7785, 22], ['FORT POINT', -122.4772, 37.8102, 30], ['MISSION MURALS', -122.4124, 37.7523, 20], ['CRISSY FIELD', -122.4570, 37.8040, 22], ['MISSION DOLORES', -122.4269, 37.7642, 30]]) {
+    ['FERRY BUILDING', -122.3934, 37.7955, 66], ['COIT TOWER', -122.4058, 37.8024, 40], ['GOLDEN GATE PARK', -122.4800, 37.7690, 30], ['SALESFORCE TOWER', -122.3972, 37.7897, 105], ['TRANSAMERICA', -122.4028, 37.7952, 92], ['PAINTED LADIES', -122.4339, 37.7765, 24], ['GRACE CATHEDRAL', -122.4133, 37.7919, 44], ['CLIFF HOUSE', -122.5134, 37.7785, 22], ['FORT POINT', -122.4772, 37.8102, 30], ['MISSION MURALS', -122.4124, 37.7523, 20], ['CRISSY FIELD', -122.4570, 37.8040, 22], ['MISSION DOLORES', -122.4269, 37.7642, 30], ['CHASE CENTER', -122.3878, 37.7680, 30]]) {
     const tex = canvasTex(512, 160, (c, w, h) => { c.fillStyle = '#ffffff'; rrect(c, 70, 16, w - 80, 92, 40); c.fill(); c.strokeStyle = '#2b2724'; c.lineWidth = 6; c.stroke(); c.fillStyle = '#e0443e'; c.beginPath(); c.arc(42, 62, 30, 0, TAU); c.fill(); c.beginPath(); c.moveTo(18, 76); c.lineTo(42, 150); c.lineTo(66, 76); c.fill(); c.fillStyle = '#fff'; c.beginPath(); c.arc(42, 60, 11, 0, TAU); c.fill(); c.fillStyle = '#2b2724'; c.textAlign = 'center'; c.textBaseline = 'middle'; fitFont(c, name, w - 120, 46, 900); c.fillText(name, w / 2 + 34, 64); });
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false })); const p = sfp(lon, lat); sp.position.set(p.x, groundH(p.x, p.z) + up, p.z); if (name === 'FERRY BUILDING' && SF_CABLE.ferryTop) sp.position.copy(SF_CABLE.ferryTop); sp.scale.set(22, 6.9, 1); sp.renderOrder = 4; SFG.add(sp); }
   // boats on the bay: a ferry to Alcatraz and Sausalito, and sailboats
