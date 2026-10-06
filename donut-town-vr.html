@@ -1224,7 +1224,7 @@ const somaP = (u, v) => new V3(SOMA_G.o.x + SOMA_G.mk.x * u + SOMA_G.mn.x * v, 0
     }
   }
   { // street trees along the residential sidewalks
-    const spots = [], ok = (x, z) => sfZone(x, z) === 'urban' && sfDistrict(x, z) === 'res' && !inSoma(x, z) && groundH(x, z) < 38 && !nearRoads(x, z, 7) && !SF_RESERVED.some(q => Math.hypot(x - q.x, z - q.z) < q.r + 4) && !inLM(x, z, 2) && !sfRoadNear(x, z, 0.4);
+    const spots = [], ok = (x, z) => sfZone(x, z) === 'urban' && sfDistrict(x, z) === 'res' && !inSoma(x, z) && groundH(x, z) < 38 && !nearRoads(x, z, 7) && !SF_RESERVED.some(q => Math.hypot(x - q.x, z - q.z) < q.r + 4) && !inLM(x, z, 2) && !sfRoadNear(x, z, 0.4) && deckH(x, z) < 0;
     const off = t => { const m = ((t - SF_GZ) % SF_G + SF_G) % SF_G; return m > 9 && m < SF_G - 9; };
     for (let x = SF_GX - SF_G * 16; x < X1; x += SF_G) for (let z = Z0; z < Z1; z += 21) { const sd = (Math.round(z / 21) % 2 ? 1 : -1) * 5.3; if (off(z) && roadOK(x, z) && ok(x + sd, z)) spots.push([x + sd, z]); }
     for (let z = SF_GZ - SF_G * 16; z < Z1; z += SF_G) for (let x = X0; x < X1; x += 21) { const m = ((x - SF_GX) % SF_G + SF_G) % SF_G, sd = (Math.round(x / 21) % 2 ? 1 : -1) * 5.3; if (m > 9 && m < SF_G - 9 && roadOK(x, z) && ok(x, z + sd)) spots.push([x, z + sd]); }
@@ -1413,11 +1413,92 @@ function sfLandmarks(LM) {
     for (const y of [30, 58, 84]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(9 * (1 - y / 98) + 1, 0.4, 4, 3), rw[0]); ring.rotation.x = Math.PI / 2; ring.position.y = y; g.add(ring); } }
   // Fisherman's Wharf, Pier 39 (and its sea lions), Alcatraz
   { const s = textPlane("FISHERMAN'S WHARF", 9, 1.6, '#1e5aa8', '#fff'); s.position.set(LM.wharf.x, groundH(LM.wharf.x, LM.wharf.z) + 7, LM.wharf.z); SFG.add(s); const ring = new THREE.Mesh(new THREE.TorusGeometry(4.2, 0.35, 8, 28), L(0x1e5aa8)); ring.position.copy(s.position); SFG.add(ring); for (const sx of [-4, 4]) cyl(0.25, 0.25, 7, M.metal, LM.wharf.x + sx, groundH(LM.wharf.x, LM.wharf.z) + 3.5, LM.wharf.z - 0.2, SFG, 6); }
-  { const a = sfp(-122.4100, 37.8083), b = sfp(-122.4100, 37.8125), w = 26; addDeck(a.x, a.z + 2, b.x, b.z, w, 0.4, 0, 0);
-    const g = group(SFG, a.x, 0, (a.z + b.z) / 2), len = a.z - b.z; box(w, 0.6, len, M.plainWood, 0, 0.1, 0, g);
-    for (let i = 0; i < 6; i++) box(7, 5, 7, L(pick([0xf3c64a, 0x5aa9e6, 0xe0559a, 0xf4f0e6, 0x2f9e6e])), (i % 2 ? 7 : -7), 2.9, len / 2 - 8 - Math.floor(i / 2) * 12, g, true);
-    const sg = textPlane('PIER 39', 6, 1.4, '#1e5aa8', '#fff'); sg.position.set(0, 6.5, len / 2 - 1); sg.rotation.y = 0; g.add(sg);
-    SF_CABLE.lions = []; for (let k = 0; k < 3; k++) { const d = box(8, 0.4, 5, L(0x6b6b60), -w / 2 - 6, 0.1, -len / 2 + 8 + k * 9, g); for (let j = 0; j < 4; j++) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), L(0x5a4a3a)); l.scale.set(1, 0.6, 2); l.position.set(-w / 2 - 6 + rr(-3, 3), 0.55, -len / 2 + 8 + k * 9 + rr(-1.5, 1.5)); l.rotation.y = rr(0, TAU); g.add(l); SF_CABLE.lions.push(l); } } }
+  // Pier 39 (after the photos): a plank boardwalk out into the bay, lined both sides with two-storey board-sided shops - gabled
+  // shingle roofs, white trim, upper galleries with railings, colourful awnings and hanging signs - string lights zigzagging
+  // over the walkway, old-fashioned lamp posts, palms at the entrance, the PIER 39 building with its white cupola and flag,
+  // the blue covered stairway up to the aquarium, and the sea lions on their floating docks
+  { const a = sfp(-122.4100, 37.8083), b = sfp(-122.4100, 37.8125), w = 26, len = a.z - b.z, cz = (a.z + b.z) / 2, DY = 0.4; addDeck(a.x, a.z + 2, b.x, b.z, w, DY, 0, 0);
+    const g = group(SFG, a.x, 0, cz);
+    const plank = canvasTex(256, 256, (c, W, H) => { for (let y = 0; y < H; y += 16) { const v = rr(0.85, 1.05); c.fillStyle = `rgb(${150 * v | 0},${112 * v | 0},${78 * v | 0})`; c.fillRect(0, y, W, 16); c.fillStyle = 'rgba(40,25,15,0.55)'; c.fillRect(0, y + 14, W, 2); const j = rr(0, W); c.fillRect(j, y, 2, 14); } }, [w / 4, len / 4]);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(w, 1.6, len), [M.plainWood, M.plainWood, L(0xffffff, { map: plank }), M.plainWood, M.plainWood, M.plainWood]); deck.position.y = DY - 0.8; g.add(deck);
+    for (let z = -len / 2; z <= len / 2; z += 6) for (const sx of [-1, 1]) cyl(0.35, 0.35, 3, M.darkWood, sx * (w / 2 - 0.6), -1.2, z, g, 6); // pilings
+    // the kit's extra materials: board siding, shingles, gallery railings, hanging signs
+    const lamV = (map, o) => new THREE.MeshLambertMaterial(Object.assign({ color: 0xffffff, vertexColors: true, map }, o || {}));
+    const siding = canvasTex(256, 300, (c, W, H) => { c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); for (let y = 0; y < H; y += 9) { c.fillStyle = 'rgba(0,0,0,0.13)'; c.fillRect(0, y, W, 2); }
+      const glass = (x, y, w2, h2) => { const gr = c.createLinearGradient(x, y, x + w2, y + h2); gr.addColorStop(0, '#9fb6c6'); gr.addColorStop(1, '#3b4a56'); c.fillStyle = gr; c.fillRect(x, y, w2, h2); };
+      for (const x of [34, 150]) { c.fillStyle = '#f4f1ea'; c.fillRect(x - 8, 28, 84, 92); glass(x, 36, 68, 76); c.fillStyle = '#f4f1ea'; c.fillRect(x + 32, 36, 5, 76); c.fillRect(x, 72, 68, 5); } // upstairs windows, white trim
+      c.fillStyle = '#f4f1ea'; c.fillRect(14, 168, 160, 124); glass(22, 176, 144, 108); c.fillStyle = '#f4f1ea'; c.fillRect(92, 176, 4, 108);           // shop window
+      c.fillRect(186, 176, 58, 124); c.fillStyle = '#5a3a26'; c.fillRect(194, 184, 42, 116); glass(200, 190, 30, 44); c.fillStyle = '#c9a24a'; c.fillRect(228, 246, 5, 5); // door
+      c.fillStyle = '#f4f1ea'; c.fillRect(0, 148, W, 10); }, [1, 1]);
+    const shing = canvasTex(128, 128, (c, W, H) => { c.fillStyle = '#6f7378'; c.fillRect(0, 0, W, H); for (let y = 0; y < H; y += 12) for (let x = (y / 12 % 2) * 8; x < W; x += 16) { const v = rr(0.8, 1.1); c.fillStyle = `rgb(${105 * v | 0},${110 * v | 0},${116 * v | 0})`; c.fillRect(x, y, 15, 11); } }, [1, 1]);
+    const rail = canvasTex(128, 64, (c, W, H) => { c.fillStyle = '#f4f1ea'; c.fillRect(0, 0, W, 8); c.fillRect(0, H - 8, W, 8); for (let x = 2; x < W; x += 16) c.fillRect(x, 0, 6, H); }, [1, 1]);
+    const NAMES = [['SALT WATER TAFFY', '#b23a2e'], ['CHOWDER HOUSE', '#1e3f73'], ['CABLE CAR GIFTS', '#7a1f1f'], ['CRAB SHACK', '#d9822b'], ['SOURDOUGH', '#5a3a26'], ['KITE SHOP', '#2bb3c0'], ['FUDGE FACTORY', '#6a2a5a'], ['CREPES & COFFEE', '#1e5aa8'], ['SHELL SHOP', '#2f7a4a'], ['MAGIC SHOP', '#1b1416']];
+    const signs = canvasTex(512, 640, (c, W, H) => { NAMES.forEach(([t, col], i) => { const y = i * 64; c.fillStyle = col; c.fillRect(0, y, W, 64); c.strokeStyle = '#f2e6c8'; c.lineWidth = 6; c.strokeRect(6, y + 6, W - 12, 52); c.fillStyle = '#f2e6c8'; c.textAlign = 'center'; c.textBaseline = 'middle'; fitFont(c, t, W - 50, 34, '900'); c.fillText(t, W / 2, y + 33); }); });
+    const mk = (k, mat) => { ARCH[k] = { mat, p: [], n: [], uv: [], c: [] }; };
+    mk('p39side', lamV(siding)); mk('p39roof', lamV(shing)); mk('p39rail', lamV(rail, { alphaTest: 0.5, side: THREE.DoubleSide })); mk('p39sign', lamV(signs));
+    { const id = rail.image.getContext('2d'); const im = id.getImageData(0, 0, 128, 64); for (let i = 0; i < im.data.length; i += 4) im.data[i + 3] = im.data[i] > 200 ? 255 : 0; id.putImageData(im, 0, 0); rail.needsUpdate = true; }
+    const T = { front: ['trim'], back: ['trim'], left: ['trim'], right: ['trim'], top: ['trim'], bottom: ['trim'] };
+    const SIDE_COL = ['#8a6446', '#9a7656', '#7a5a40', '#a8845e', '#c9b48e', '#8f6a4a', '#b89a70'], AWN = ['#b23a2e', '#1e5aa8', '#2f7a4a', '#d9822b', '#7a1f1f', '#2bb3c0'];
+    let signI = 0;
+    const shop = (lx, lz, Lx, D, H, face, opt = {}) => { // a shop building in pier-local coords, front toward the walkway
+      const F = { x: a.x + lx, y: DY, z: cz + lz, c: Math.cos(face), s: Math.sin(face), yb: -0.3 }, col = pick(SIDE_COL), x0 = -Lx / 2, x1 = Lx / 2, z0 = -D / 2, z1 = D / 2, tile = archTile(6, 7.2);
+      archBox(F, x0, -0.3, z0, x1, H, z1, col, { front: ['p39side', tile], back: ['p39side', tile], left: ['p39side', tile], right: ['p39side', tile] });
+      const R = 2.8, o = 0.5, sl = Math.hypot(D / 2 + o, R);
+      if (!opt.gableFront) { // ridge along the walkway
+        archQuad('p39roof', F, [x0 - o, H - 0.2, z1 + o], [x1 + o, H - 0.2, z1 + o], [x1 + o, H + R, 0], [x0 - o, H + R, 0], [0, 1, 1], [0, 0, Lx / 3, sl / 3], '#ffffff');
+        archQuad('p39roof', F, [x1 + o, H - 0.2, z0 - o], [x0 - o, H - 0.2, z0 - o], [x0 - o, H + R, 0], [x1 + o, H + R, 0], [0, 1, -1], [0, 0, Lx / 3, sl / 3], '#ffffff');
+        for (const [x, sg] of [[x0, -1], [x1, 1]]) archQuad('p39side', F, [x, H, z1], [x, H, z0], [x, H + R, 0], [x, H + R, 0], [sg, 0, 0], [0.4, 0.95, 0.6, 1], col);
+      } else { // gable end facing the walkway
+        const sx = Math.hypot(Lx / 2 + o, R);
+        archQuad('p39roof', F, [x1 + o, H - 0.2, z1 + o], [x1 + o, H - 0.2, z0 - o], [0, H + R, z0 - o], [0, H + R, z1 + o], [1, 1, 0], [0, 0, D / 3, sx / 3], '#ffffff');
+        archQuad('p39roof', F, [x0 - o, H - 0.2, z0 - o], [x0 - o, H - 0.2, z1 + o], [0, H + R, z1 + o], [0, H + R, z0 - o], [-1, 1, 0], [0, 0, D / 3, sx / 3], '#ffffff');
+        for (const [z, sg] of [[z1, 1], [z0, -1]]) archQuad('p39side', F, [x0, H, z], [x1, H, z], [0, H + R, z], [0, H + R, z], [0, 0, sg], [0.4, 0.95, 0.6, 1], col);
+        archBox(F, -1.2, H + 0.5, z1, 1.2, H + 1.7, z1 + 0.1, '#f4f1ea', { front: ['trim'] });
+      }
+      for (const x of [x0, x1]) for (const z of [z0, z1]) archBox(F, x - 0.12, -0.3, z - 0.12, x + 0.12, H, z + 0.12, '#f4f1ea', { front: ['trim'], back: ['trim'], left: ['trim'], right: ['trim'] }); // corner boards
+      archBox(F, x0 - 0.1, H - 0.35, z1, x1 + 0.1, H, z1 + 0.15, '#f4f1ea', { front: ['trim'], bottom: ['trim'] }); // fascia
+      if (opt.gallery) { // upstairs gallery on posts, with a white railing
+        archBox(F, x0, 3.5, z1, x1, 3.75, z1 + 1.6, '#6b4a33', T);
+        for (let x = x0 + 0.2; x <= x1; x += Lx / 3) archBox(F, x - 0.12, -0.3, z1 + 1.4, x + 0.12, 3.5, z1 + 1.64, '#f4f1ea', { front: ['trim'], back: ['trim'], left: ['trim'], right: ['trim'] });
+        archQuad('p39rail', F, [x0, 3.75, z1 + 1.55], [x1, 3.75, z1 + 1.55], [x1, 4.75, z1 + 1.55], [x0, 4.75, z1 + 1.55], [0, 0, 1], [0, 0, Lx / 2, 1], '#ffffff');
+      } else { // a sloped awning over the shop windows
+        const ac = pick(AWN); archQuad('trim', F, [x0 + 0.3, 2.55, z1 + 1.5], [x1 - 0.3, 2.55, z1 + 1.5], [x1 - 0.3, 3.3, z1], [x0 + 0.3, 3.3, z1], [0, 1, 1], null, ac);
+        archQuad('trim', F, [x0 + 0.3, 2.2, z1 + 1.5], [x1 - 0.3, 2.2, z1 + 1.5], [x1 - 0.3, 2.55, z1 + 1.5], [x0 + 0.3, 2.55, z1 + 1.5], [0, 0, 1], null, ac);
+      }
+      { const i = signI++ % NAMES.length, v0 = 1 - (i + 1) / NAMES.length, v1 = 1 - i / NAMES.length, sx = x1 - 0.6; // a hanging sign on a bracket
+        archBox(F, sx - 0.05, 3.25, z1, sx + 0.05, 3.35, z1 + 1.5, '#2b2b2e', { front: ['trim'], left: ['trim'], right: ['trim'], top: ['trim'] });
+        archQuad('p39sign', F, [sx + 0.02, 2.45, z1 + 0.2], [sx + 0.02, 2.45, z1 + 1.45], [sx + 0.02, 3.2, z1 + 1.45], [sx + 0.02, 3.2, z1 + 0.2], [1, 0, 0], [1, v0, 0, v1], '#ffffff');
+        archQuad('p39sign', F, [sx - 0.02, 2.45, z1 + 0.2], [sx - 0.02, 2.45, z1 + 1.45], [sx - 0.02, 3.2, z1 + 1.45], [sx - 0.02, 3.2, z1 + 0.2], [-1, 0, 0], [0, v0, 1, v1], '#ffffff'); }
+      const cx2 = a.x + lx, cz2 = cz + lz, ww = Math.abs(F.s) > 0.5 ? D : Lx, dd = Math.abs(F.s) > 0.5 ? Lx : D; cityCollider(cx2, cz2, ww, dd, H + 3);
+      return F;
+    };
+    // two rows down the pier, an entrance plaza at the shore end, a walkway down the middle
+    const Z0 = len / 2 - 11, Z1 = -len / 2 + 3; let k = 0;
+    for (const side of [-1, 1]) { let z = Z0; while (z - 7 > Z1) { const Lx = rr(7.5, 10), H = rr(6.6, 7.6), zc = z - Lx / 2; shop(side * 8.6, zc, Lx, 8, H, side < 0 ? Math.PI / 2 : -Math.PI / 2, { gallery: k % 3 === 1, gableFront: k % 2 === 0 }); k++; z -= Lx + 1.6; } }
+    // the PIER 39 building at the entrance: a white cupola and the flag, the big blue sign
+    { const F = shop(8.6, len / 2 - 5.5, 8, 8, 7.4, -Math.PI / 2, {});
+      const cu = group(g, 8.6, DY + 7.4 + 2.8, len / 2 - 5.5); cyl(1.5, 1.6, 1.8, M.white, 0, 0.9, 0, cu, 8); for (let i = 0; i < 8; i++) { const an = i / 8 * TAU + Math.PI / 8; box(0.6, 0.9, 0.06, L(0x3b4a56), Math.sin(an) * 1.56, 1, Math.cos(an) * 1.56, cu).rotation.y = an; }
+      const dm = new THREE.Mesh(new THREE.SphereGeometry(1.6, 12, 6, 0, TAU, 0, Math.PI / 2), M.white); dm.position.y = 1.8; dm.scale.y = 0.6; cu.add(dm); cyl(0.05, 0.06, 6, M.metal, 0, 5.4, 0, cu, 5);
+      const fl = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.05), new THREE.MeshLambertMaterial({ side: THREE.DoubleSide, map: canvasTex(64, 40, (c, W, H) => { for (let i = 0; i < 13; i++) { c.fillStyle = i % 2 ? '#fff' : '#b22234'; c.fillRect(0, i * H / 13, W, H / 13 + 1); } c.fillStyle = '#3c3b6e'; c.fillRect(0, 0, W * 0.42, H * 0.54); }) })); fl.position.set(0.95, 7.8, 0); cu.add(fl);
+      const sg = textPlane('PIER 39', 6.4, 1.5, '#1e5aa8', '#ffffff'); sg.position.set(4.5 - 0.02, DY + 5.3, len / 2 - 5.5); sg.rotation.y = -Math.PI / 2; g.add(sg); const sg2 = textPlane('PIER 39', 6.4, 1.5, '#1e5aa8', '#ffffff'); sg2.position.set(8.6, DY + 5.3, len / 2 - 1.45); g.add(sg2); }
+    // the blue covered stairway up to the aquarium, on the west side of the entrance
+    { const blue = L(0x1e78c8, { side: THREE.DoubleSide }), st = group(g, -6.2, DY, len / 2 - 6, 0), run = 7, rise = 3.6, ang = Math.atan2(rise, run);
+      const tg = new THREE.CylinderGeometry(1.5, 1.5, Math.hypot(run, rise), 14, 1, true, Math.PI / 2, Math.PI); tg.rotateX(Math.PI / 2); tg.rotateX(ang); const tun = new THREE.Mesh(tg, blue); tun.position.set(0, rise / 2 + 2.2, 0); st.add(tun);
+      for (let i = 0; i < 10; i++) box(2.6, 0.18, 0.75, L(0x8a6446), 0, i * rise / 10 + 0.1, run / 2 - i * run / 10, st);
+      const ag = new THREE.CylinderGeometry(2.1, 2.1, 3.2, 16, 1, true, Math.PI / 2, Math.PI); ag.rotateX(Math.PI / 2); const aw = new THREE.Mesh(ag, blue); aw.position.set(0, 2.1, run / 2 + 1.4); st.add(aw);
+      const t2 = textPlane('AQUARIUM OF THE BAY', 4.4, 0.6, '#1e78c8', '#ffffff'); t2.position.set(0, 2.5, run / 2 + 3.05); st.add(t2); cityCollider(a.x - 6.2, cz + len / 2 - 6, 3, run, 4); }
+    // lamp posts, string lights over the walkway, palms at the entrance
+    { const parts = []; for (let z = Z0 + 4; z > Z1; z -= 9) for (const sx of [-3.4, 3.4]) { parts.push(colorize(new THREE.CylinderGeometry(0.07, 0.11, 3.8, 6).translate(sx, DY + 1.9, z), 0x2f4a3a)); parts.push(colorize(new THREE.SphereGeometry(0.28, 8, 6).translate(sx, DY + 4, z), 0xfff1c8)); }
+      g.add(new THREE.Mesh(merge(parts), new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0x332a10 })));
+      const bulbs = [], wire = []; for (let z = Z0; z > Z1 + 2; z -= 4) { const back = Math.round(z) % 8 < 4; for (let i = 0; i <= 10; i++) { const u = i / 10, x = lerp(-4.3, 4.3, back ? 1 - u : u), zz = z - u * 4, y = DY + 4.9 - Math.sin(u * Math.PI) * 0.6; bulbs.push([a.x + x, y, cz + zz]); if (i) wire.push(...bulbs[bulbs.length - 2].map((q, j) => j === 1 ? q + 0.08 : q), a.x + x, y + 0.08, cz + zz); } }
+      { const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wire, 3)); SFG.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x222222 }))); }
+      const bm = instanced(new THREE.SphereGeometry(0.07, 5, 4), new THREE.MeshBasicMaterial({ color: 0xfff3c0 }), bulbs, (d, q, col) => { d.position.set(q[0], q[1], q[2]); d.rotation.set(0, 0, 0); d.scale.setScalar(1); col.set(0xfff3c0); }); scene.remove(bm); SFG.add(bm);
+      const palmParts = [], fr = []; for (let i = 0; i < 12; i++) { const f = new THREE.PlaneGeometry(0.9, 3.2, 1, 3).rotateX(-Math.PI / 2).translate(0, 0, 1.6); const fp = f.attributes.position; for (let j = 0; j < fp.count; j++) { const zz = fp.getZ(j); fp.setY(j, -0.12 * zz * zz); fp.setX(j, fp.getX(j) * (1 - zz / 3.8)); } f.rotateY(i / 12 * TAU); f.translate(0, 7, 0); fr.push(colorize(f, i % 3 ? 0x3f7a35 : 0x4f8a3a)); }
+      const palm = merge([colorize(new THREE.CylinderGeometry(0.22, 0.34, 7, 6, 1, true).translate(0, 3.5, 0), 0x8a7458), ...fr]);
+      for (const [x, z] of [[-11, len / 2 - 1.5], [-2.5, len / 2 - 1], [12, len / 2 - 1]]) { const pg = palm.clone(); pg.translate(x, DY, z); palmParts.push(pg); }
+      g.add(new THREE.Mesh(merge(palmParts), new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }))); }
+    // the sea lions' floating docks off the west side
+    SF_CABLE.lions = []; for (let k2 = 0; k2 < 3; k2++) { box(8, 0.4, 5, L(0x6b6b60), -w / 2 - 6, 0.1, -len / 2 + 8 + k2 * 9, g); for (let j = 0; j < 4; j++) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), L(0x5a4a3a)); l.scale.set(1, 0.6, 2); l.position.set(-w / 2 - 6 + rr(-3, 3), 0.55, -len / 2 + 8 + k2 * 9 + rr(-1.5, 1.5)); l.rotation.y = rr(0, TAU); g.add(l); SF_CABLE.lions.push(l); } } }
   { const g = G(sfp(-122.4230, 37.8267)); box(30, 8, 9, L(0xd8cfbf), 0, 4, 0, g); cyl(1.2, 1.4, 12, L(0xf4f4f4), 12, 6, -4, g, 10); cyl(2.2, 2.2, 3, L(0x8a8f96), -10, 10, 6, g, 10); const s = textPlane('ALCATRAZ', 6, 1, null, '#f4f0e6'); s.position.set(0, 9.5, 4.6); g.add(s); }
   // Golden Gate Park: trees, Conservatory of Flowers, de Young, Japanese Tea Garden pagoda, Stow Lake + Strawberry Hill, Spreckels Lake, the Dutch windmill
   {
