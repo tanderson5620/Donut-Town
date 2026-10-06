@@ -757,6 +757,7 @@ for (let i = 0; i < 22; i++) {
 const DECKS = [
   { x0: -720, x1: 0, z0: -1567, z1: -1553, h: 22, rw: 60, re: 60 }, // the big red bridge (SF)
   { x0: -300, x1: -100, z0: 1544, z1: 1556, h: 3, rw: 0, re: 14 },   // the pier (LA)
+  { x0: -78, x1: -19.5, z0: -1505, z1: -1435, h: 0.15, rw: 0, re: 0 }, // the Ferry Building pier (SF)
 ];
 function deckH(x, z) {
   for (const d of DECKS) if (x > d.x0 && x < d.x1 && z > d.z0 && z < d.z1) {
@@ -778,11 +779,18 @@ function rampH(x, z) {
   for (const o of OUTPOSTS) { const R = o.ramp; if (x > R.x0 && x < R.x1 && (z - R.zs) * (z - R.zl) <= 0) return R.h * (z - R.zs) / (R.zl - R.zs); }
   return 0;
 }
+const CITY_HILLS = [ // San Francisco hills
+  { x: 75, z: -1700, r: 78, h: 30 },   // Russian Hill (Lombard St)
+  { x: 210, z: -1605, r: 85, h: 32 },  // Nob Hill
+  { x: 285, z: -1700, r: 55, h: 26 },  // Telegraph Hill (Coit Tower)
+  { x: 150, z: -1760, r: 60, h: 18 },
+];
 function groundH(x, z) { // terrain without the bridge/pier decks
   const r = Math.hypot(x, z); let h = 0;
   if (r > NEAR.rin && r < NEAR.rout) h = rangeH(r, Math.atan2(z, x), NEAR.rin, NEAR.rout, NEAR.maxH, NEAR.seed);
   else if (r > 240 && r < 400) h = rangeH(r, Math.atan2(z, x), 240, 400, 175, 47.9);
   for (const k of HILLS) { const d = Math.hypot(x - k.x, z - k.z); if (d < k.r) h = Math.max(h, k.h * Math.sqrt(1 - (d / k.r) ** 2)); }
+  if (z < -1300) for (const k of CITY_HILLS) { const d = Math.hypot(x - k.x, z - k.z); if (d < k.r) h = Math.max(h, k.h * 0.5 * (1 + Math.cos(Math.PI * d / k.r))); }
   return Math.max(0, h);
 }
 function terrainH(x, z) { // ground height anywhere (valley floor = 0)
@@ -790,6 +798,7 @@ function terrainH(x, z) { // ground height anywhere (valley floor = 0)
   if (r > NEAR.rin && r < NEAR.rout) h = rangeH(r, Math.atan2(z, x), NEAR.rin, NEAR.rout, NEAR.maxH, NEAR.seed);
   else if (r > 240 && r < 400) h = rangeH(r, Math.atan2(z, x), 240, 400, 175, 47.9);
   for (const k of HILLS) { const d = Math.hypot(x - k.x, z - k.z); if (d < k.r) h = Math.max(h, k.h * Math.sqrt(1 - (d / k.r) ** 2)); }
+  if (z < -1300) for (const k of CITY_HILLS) { const d = Math.hypot(x - k.x, z - k.z); if (d < k.r) h = Math.max(h, k.h * 0.5 * (1 + Math.cos(Math.PI * d / k.r))); }
   const dk = deckH(x, z); if (dk >= 0) h = Math.max(h, dk);
   h = Math.max(h, rampH(x, z));
   return Math.max(0, h);
@@ -803,10 +812,13 @@ T.road = canvasTex(128, 256, (g, w, h) => {
   g.fillStyle = '#ecebe6'; g.fillRect(5, 0, 5, h); g.fillRect(w - 10, 0, 5, h);
   g.fillStyle = '#f2c31f'; g.fillRect(w / 2 - 6, 0, 4, h * 0.55); g.fillRect(w / 2 + 2, 0, 4, h * 0.55);
 });
-function roadStrip(x0, z0, x1, z1, w = 9, y = 0.03, parent = scene) {
-  const len = Math.hypot(x1 - x0, z1 - z0), g = group(parent, (x0 + x1) / 2, y, (z0 + z1) / 2, Math.atan2(x1 - x0, z1 - z0));
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, len, 1, Math.ceil(len / 40)), L(0xffffff, { map: retile(T.road, 1, len / 12) })); m.rotation.x = -Math.PI / 2; g.add(m);
-  return g;
+function roadStrip(x0, z0, x1, z1, w = 9, y = 0.03, parent = scene) { // follows the ground (hills, ramps)
+  const len = Math.hypot(x1 - x0, z1 - z0), geo = new THREE.PlaneGeometry(w, len, 1, Math.ceil(len / 4));
+  geo.rotateX(-Math.PI / 2); geo.rotateY(Math.atan2(x1 - x0, z1 - z0)); geo.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
+  const pa = geo.attributes.position; for (let i = 0; i < pa.count; i++) { const x = pa.getX(i), z = pa.getZ(i); pa.setY(i, Math.max(0, groundH(x, z)) + y + (deckH(x, z) > 0 && deckH(x, z) < 0.5 ? deckH(x, z) : 0)); }
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, L(0xffffff, { map: retile(T.road, 1, len / 12) })); parent.add(m);
+  return m;
 }
 function bigSign(parent, lines, w, h, x, y, z, ry, bg = '#1f6f43') { // highway / welcome sign on two posts
   const g = group(parent, x, 0, z, ry);
@@ -851,7 +863,7 @@ T.windows = canvasTex(128, 256, (g, w, h) => {
 function cityBuildings(list, parent) { // list: [x, z, w, d, h, color]
   const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), L(0xffffff, { map: T.windows }), list.length); im.frustumCulled = false;
   const col = new THREE.Color();
-  list.forEach((b, i) => { dummy.position.set(b[0], 0, b[1]); dummy.rotation.set(0, 0, 0); dummy.scale.set(b[2], b[4], b[3]); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); im.setColorAt(i, col.set(b[5])); cityCollider(b[0], b[1], b[2], b[3], b[4]); });
+  list.forEach((b, i) => { const gy = groundH(b[0], b[1]); dummy.position.set(b[0], gy - 1, b[1]); dummy.rotation.set(0, 0, 0); dummy.scale.set(b[2], b[4] + 1, b[3]); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); im.setColorAt(i, col.set(b[5])); cityCollider(b[0], b[1], b[2], b[3], b[4] + gy); });
   parent.add(im); return im;
 }
 const CITIES = [];
@@ -865,6 +877,7 @@ const SFG = new THREE.Group(); scene.add(SFG); CITIES.push({ g: SFG, x: 150, z: 
   for (let bx = 45; bx <= 285; bx += 60) for (let bz = -1395; bz >= -1695; bz -= 60) {
     if (bx < 130 && bz > -1360) continue; // the park and the row houses
     for (const [ox, oz] of [[-11, -11], [11, -11], [-11, 11], [11, 11]]) {
+      if ([[154, -1444], [94, -1504], [214, -1384], [34, -1444]].some(q => Math.hypot(q[0] - bx - ox, q[1] - bz - oz) < 3)) continue; // restaurants go here
       const down = bx > 150 && bz < -1450, h = down ? rr(30, 95) : rr(9, 22);
       blds.push([bx + ox, bz + oz, rr(16, 20), rr(16, 20), h, pick(down ? tall : pal)]);
     }
@@ -1008,7 +1021,7 @@ function respawnTurtle(tt, first) {
   const aim = new V3(rr(-45, 45), 0, rr(-45, 45) - 10);
   tt.dir.copy(aim).sub(start).normalize();
   tt.pos.copy(start); if (first) tt.pos.addScaledVector(tt.dir, rr(60, 300));
-  tt.alt = rr(26, 50); tt.speed = rr(5, 8.5); tt.called = false;
+  tt.alt = rr(26, 50); tt.curAlt = Math.max(tt.alt, terrainH(tt.pos.x, tt.pos.z) + tt.s * 1.2 + 6); tt.speed = rr(5, 8.5); tt.called = false;
   tt.g.rotation.y = Math.atan2(tt.dir.x, tt.dir.z);
 }
 for (let i = 0; i < 4; i++) {
@@ -1034,7 +1047,10 @@ function updateScenery(dt, t, head) {
     tt.ph += dt * TAU / 3.4;
     tt.pos.addScaledVector(tt.dir, tt.speed * dt);
     const f = Math.sin(tt.ph);
-    tt.g.position.set(tt.pos.x, tt.alt + Math.sin(tt.ph - 0.6) * 0.6 * tt.s * 0.25, tt.pos.z);
+    // turtles are solid: they climb over mountains (and anything else) instead of flying through them
+    let gmax = 0; for (const a of [0, 30, 70]) gmax = Math.max(gmax, terrainH(tt.pos.x + tt.dir.x * a, tt.pos.z + tt.dir.z * a));
+    const want = Math.max(tt.alt, gmax + tt.s * 1.2 + 6); tt.curAlt = tt.curAlt === undefined ? want : tt.curAlt + (want - tt.curAlt) * Math.min(1, dt * (want > tt.curAlt ? 1.2 : 0.3));
+    tt.g.position.set(tt.pos.x, tt.curAlt + Math.sin(tt.ph - 0.6) * 0.6 * tt.s * 0.25, tt.pos.z);
     tt.body.rotation.x = -f * 0.05;
     tt.fronts.forEach((p, i) => { const s = i ? 1 : -1; p.rotation.z = s * f * 0.7; p.rotation.x = Math.cos(tt.ph) * 0.4; });
     tt.backs.forEach((p, i) => { p.rotation.z = (i ? 1 : -1) * Math.sin(tt.ph + 1) * 0.2; });
@@ -2569,12 +2585,13 @@ function targets() {
   if (MODE === 'town') list.push(COURT_SIGN);
   for (const F of FOES) if (F.state !== 'off' && F.state !== 'ko') list.push(F.hit);
   if (MODE === 'town') for (const o of OUTPOSTS) for (const pk of o.picks) list.push(pk.hit);
+  if (MODE === 'town' && SFG.visible) for (const P of TL_PEOPLE) list.push(P.hit);
   if (MODE === 'town' && TREAT.state !== 'held') list.push(JAR.hit);
   return list;
 }
 function firstHit(list) {
   const hits = raycaster.intersectObjects(list, true);
-  for (const h of hits) { let o = h.object; while (o && !o.userData.btn && !o.userData.fdObj && !o.userData.punchable && !o.userData.beau && !o.userData.treatJar && !o.userData.courtSign && !o.userData.foe && !o.userData.weaponPick && o !== ball) o = o.parent; if (o) return { obj: o, dist: h.distance }; }
+  for (const h of hits) { let o = h.object; while (o && !o.userData.btn && !o.userData.fdObj && !o.userData.punchable && !o.userData.beau && !o.userData.treatJar && !o.userData.courtSign && !o.userData.foe && !o.userData.weaponPick && !o.userData.tlPerson && o !== ball) o = o.parent; if (o) return { obj: o, dist: h.distance }; }
   return null;
 }
 const rayRot = new THREE.Matrix4();
@@ -2595,6 +2612,7 @@ function activate(hit) {
   else if (o.userData.courtSign) courtChallenge();
   else if (o.userData.foe) punchFoe(o.userData.foe);
   else if (o.userData.weaponPick) equipWeapon(o.userData.weaponPick);
+  else if (o.userData.tlPerson) shareMeal(o.userData.tlPerson);
   else if (o === ball) desktopBballClick(true);
   else if (o.userData.fdObj) catchDonut(o.userData.fdObj);
 }
@@ -3999,10 +4017,14 @@ function heliExit() {
 function heliFloor(x, z, y) { // land on the bridge deck if you're above it, else the ground/water below
   const dk = deckH(x, z); return dk >= 0 && y > dk - 1 ? dk : groundH(x, z);
 }
+function heliCrash(tt) {
+  HELI.state = 'crash'; HELI.t = 0; HELI.boomed = false; HELI.vel.multiplyScalar(-0.3); HELI.vel.y = 2;
+  sBonk(); sTurtle(0.4); tone(300, 0.6, 'sawtooth', 0.15, 80); rumble(1, 500);
+}
 function updateHeli(dt, vr) {
   if (!HELI.g || HELI.state === 'off') return;
   const p = HELI.g.position;
-  const spin = HELI.state === 'parked' ? 0 : HELI.state === 'fly' || HELI.state === 'arrive' ? 1 : 0.6;
+  const spin = HELI.state === 'parked' ? 0 : HELI.state === 'fly' || HELI.state === 'arrive' || HELI.state === 'crash' ? 1 : 0.6;
   HELI.rotor.rotation.y += dt * 28 * spin; HELI.tail.rotation.x += dt * 40 * spin;
   if (spin > 0) { HELI.thump -= dt; if (HELI.thump <= 0) { HELI.thump = 0.11; sThump(MODE === 'heli' ? 0.1 : 0.12 / (1 + headV.distanceTo(p) * 0.05)); } }
   if (HELI.state === 'arrive') {
@@ -4033,6 +4055,19 @@ function updateHeli(dt, vr) {
   } else if (HELI.state === 'landing') { // settle straight down, then you hop out
     HELI.vel.x *= 1 - Math.min(1, dt * 3); HELI.vel.z *= 1 - Math.min(1, dt * 3); HELI.vel.y = -5;
     if (p.y <= heliFloor(p.x, p.z, p.y) + 0.01) { HELI.vel.set(0, 0, 0); HELI.state = 'leaving'; heliExit(); }
+  }
+  if (HELI.state === 'fly' || HELI.state === 'landing') { // fly into a sea turtle and you go down
+    for (const tt of turtles) { const l = tt.g.worldToLocal(p.clone().setY(p.y + 1)), r = 2.6 / tt.s; if ((l.x / (1.9 + r)) ** 2 + (l.y / (0.7 + r)) ** 2 + (l.z / (1.9 + r)) ** 2 < 1) { heliCrash(tt); return; } }
+  }
+  if (HELI.state === 'crash') {
+    HELI.t += dt; HELI.vel.y -= 9.8 * dt; p.addScaledVector(HELI.vel, dt); HELI.rotor.rotation.y += dt * 10;
+    HELI.g.rotation.z += dt * 1.5; if (Math.random() < 0.8) emit(p.x, p.y + 2, p.z, rr(-1, 1), rr(0.5, 2), rr(-1, 1), pick([0x333333, 0x555555, 0xff6a00]), rr(1, 2), 0.4, -99);
+    if (HELI.t < 1.2) { HELI.g.updateMatrixWorld(true); lockHead(HELI.g.localToWorld(new V3(-0.32, 1.55, 0.2)), HELI.yaw); }
+    if (p.y <= groundH(p.x, p.z) || HELI.t > 1.2) {
+      if (!HELI.boomed) { HELI.boomed = true; sBoom(0.4); rumble(1, 400); for (let i = 0; i < 50; i++) emit(p.x, Math.max(p.y, groundH(p.x, p.z)) + 1, p.z, rr(-6, 6), rr(1, 8), rr(-6, 6), pick([0xff6a00, 0xffd23f, 0x444444]), rr(0.8, 1.6), -8, 0);
+        fadeThrough(() => { HELI.state = 'off'; HELI.g.visible = false; HELI.g.rotation.set(0, 0, 0); BEAU.ext = null; standAt(0, 6, 0); if (BEAU.on) { BEAU.B.root.position.set(0, 0, 3.4); BEAU.mode = 'follow'; } toast('You flew into a giant sea turtle and crashed! You and Beau are OK, back in Donut Town.', 5); }); }
+    }
+    return;
   }
   if (HELI.state === 'fly' || HELI.state === 'landing') {
     const nx = p.x + HELI.vel.x * dt, nz = p.z + HELI.vel.z * dt;
@@ -4242,7 +4277,7 @@ function updateSkydive(dt, vr) {
 // cities have peaceful pedestrians instead.
 const WASTE = { z0: 420, z1: 1270 };
 const inWaste = (x, z) => Math.abs(z) > WASTE.z0 && Math.abs(z) < WASTE.z1 && !OUTPOSTS.some(o => Math.hypot(x - o.x, z - o.z) < 45);
-const inCity = (x, z) => Math.abs(z) >= WASTE.z1 && Math.abs(z) < 1900 && x > -160 && x < 380;
+const inCity = (x, z) => Math.abs(z) >= WASTE.z1 && Math.abs(z) < 1900 && x > -160 && x < (z < 0 ? 660 : 380);
 const FIG_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
 function buildFigure(o) { // low-poly person: one merged body mesh + four limb pivots, all sharing one material
   const g = new THREE.Group(), parts = [];
@@ -4469,6 +4504,145 @@ function updatePeds(dt, head) {
   for (const s of [-1, 1]) for (let i = 0; i < 6; i++) add(new THREE.BoxGeometry(2, 0.03, 0.5), i % 2 ? 0xffffff : 0xd8262e, -5 + i * 2, 0.05, s * WASTE.z1);
   scene.add(new THREE.Mesh(merge(parts), FIG_MAT));
 }
+
+// ===== San Francisco, more like the real thing: Ferry Building, hills, Lombard St, Coit Tower, Golden Gate Park,
+// restaurants you can walk into, and the Tenderloin =====
+function conformStrip(pts, w, mat, lift, parent) { // a ribbon along a polyline that hugs the terrain
+  const pos = [], idx = [], uv = []; let acc = 0;
+  pts.forEach((p, i) => {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l * w / 2, nz = dx / l * w / 2;
+    if (i) acc += Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]);
+    for (const s of [-1, 1]) { const x = p[0] + nx * s, z = p[1] + nz * s; pos.push(x, terrainH(x, z) + lift, z); uv.push(s < 0 ? 0 : 1, acc / 6); }
+    if (i) { const k = i * 2; idx.push(k - 2, k, k - 1, k - 1, k, k + 1); }
+  });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, mat); m.material.side = THREE.DoubleSide; parent.add(m); return m;
+}
+function textPlane(text, w, h, bg, fg) {
+  const tex = canvasTex(1024, Math.round(1024 * h / w), (c, cw, ch) => { if (bg) { c.fillStyle = bg; c.fillRect(0, 0, cw, ch); } c.fillStyle = fg; c.textAlign = 'center'; c.textBaseline = 'middle'; fitFont(c, text, cw - 60, Math.round(ch * 0.62), 900); c.fillText(text, cw / 2, ch / 2 + 4); });
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: !bg }));
+}
+const SF_RESTAURANTS = [
+  { name: 'Tadich Grill', sub: 'since 1849', x: 154, z: -1444, wall: 0xf0e6d2, trim: 0x2a4a3a, food: 'cioppino', dish: 'Cioppino', line: 'A steaming bowl of Tadich cioppino. Pure San Francisco!' },
+  { name: 'Swan Oyster Depot', sub: 'oysters · crab · chowder', x: 94, z: -1504, wall: 0xf6f1e6, trim: 0x1e5aa8, food: 'oysters', dish: 'Oysters on ice', line: 'Six briny oysters on ice. Slurp!' },
+  { name: 'La Taqueria', sub: 'Mission District', x: 214, z: -1384, wall: 0xf3c64a, trim: 0xb8322a, food: 'burrito', dish: 'Carne asada burrito', line: 'A giant Mission burrito. Beau is very interested.' },
+  { name: 'Boudin Bakery', sub: 'sourdough since 1849', x: 34, z: -1444, wall: 0xf4ead8, trim: 0x7a4a2a, food: 'bread', dish: 'Clam chowder bread bowl', line: 'Clam chowder in a sourdough bread bowl. Perfect.' },
+];
+function foodModel(kind) {
+  const parts = [], add = (geo, col, x, y, z) => { geo.translate(x, y, z); parts.push(colorize(geo, col)); };
+  if (kind === 'cioppino') { add(new THREE.CylinderGeometry(0.16, 0.1, 0.1, 14), 0xffffff, 0, 0.05, 0); add(new THREE.CylinderGeometry(0.14, 0.14, 0.02, 14), 0xc0392b, 0, 0.1, 0); for (let i = 0; i < 4; i++) add(new THREE.SphereGeometry(0.035, 6, 5), pick([0xff8a65, 0xffffff, 0x3a2a22]), rr(-0.08, 0.08), 0.11, rr(-0.08, 0.08)); }
+  if (kind === 'oysters') { add(new THREE.CylinderGeometry(0.22, 0.22, 0.04, 16), 0xdfe8ee, 0, 0.02, 0); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; const s = new THREE.SphereGeometry(0.05, 8, 4); s.scale(1, 0.35, 1.3); add(s, 0xbfb7a8, Math.cos(a) * 0.13, 0.06, Math.sin(a) * 0.13); } add(new THREE.SphereGeometry(0.03, 6, 5), 0xfff176, 0, 0.06, 0); }
+  if (kind === 'burrito') { const b = new THREE.CylinderGeometry(0.07, 0.07, 0.32, 12); b.rotateZ(Math.PI / 2); add(b, 0xd8dde3, 0, 0.07, 0); add(new THREE.SphereGeometry(0.068, 10, 8), 0xe8c48a, 0.16, 0.07, 0); }
+  if (kind === 'bread') { const b = new THREE.SphereGeometry(0.13, 14, 10); b.scale(1, 0.75, 1); add(b, 0xc89a5a, 0, 0.09, 0); add(new THREE.CylinderGeometry(0.09, 0.09, 0.02, 12), 0xf3ead6, 0, 0.17, 0); }
+  return new THREE.Mesh(merge(parts), FIG_MAT);
+}
+function buildRestaurant(R) {
+  const y0 = terrainH(R.x, R.z), g = group(SFG, R.x, y0, R.z), wall = L(R.wall), trim = L(R.trim), floor = L(0x8a5a3a, { map: retile(T.wood, 4, 4) }), W = 16, D = 15, H = 5.5;
+  box(W, 0.1, D, floor, 0, 0.05, 0, g);
+  box(W, H, 0.3, wall, 0, H / 2, -D / 2, g, true);
+  for (const s of [-1, 1]) box(0.3, H, D, wall, s * W / 2, H / 2, 0, g, true);
+  for (const s of [-1, 1]) box((W - 2.4) / 2, H, 0.3, wall, s * (W + 2.4) / 4, H / 2, D / 2, g, true); // front with a door gap
+  box(2.4, H - 2.6, 0.3, wall, 0, 2.6 + (H - 2.6) / 2, D / 2, g);
+  box(W + 0.4, 0.3, D + 0.4, trim, 0, H + 0.15, 0, g);
+  for (const s of [-1, 1]) box(3, 1.6, 0.05, M.glassIn, s * 4.5, 2.2, D / 2 + 0.17, g);
+  const aw = box(W, 0.12, 1.6, trim, 0, 3.1, D / 2 + 0.8, g); aw.rotation.x = 0.25;
+  const sign = textPlane(R.name, 9, 1.4, '#' + R.trim.toString(16).padStart(6, '0'), '#fff'); sign.position.set(0, 4.3, D / 2 + 0.2); g.add(sign);
+  const sub = textPlane(R.sub, 5, 0.5, null, '#' + R.trim.toString(16).padStart(6, '0')); sub.position.set(0, 3.55, D / 2 + 0.2); g.add(sub);
+  // inside: counter, menu board, tables, the cook, a ceiling light
+  box(10, 1.05, 1.0, trim, 0, 0.53, -4.5, g, true); box(10.2, 0.08, 1.2, L(0xeeeeee), 0, 1.09, -4.5, g);
+  const menu = textPlane(`${R.dish}`, 6, 1.1, '#1b1416', '#ffd23f'); menu.position.set(0, 3.4, -D / 2 + 0.17); g.add(menu);
+  for (const [x, z] of [[-4.5, 1.5], [0, 2.5], [4.5, 1.5]]) { cyl(0.6, 0.6, 0.06, L(0xffffff), x, 0.78, z, g, 16); cyl(0.06, 0.06, 0.75, M.metal, x, 0.38, z, g, 6); for (const s of [-1, 1]) cyl(0.22, 0.22, 0.45, trim, x + s * 0.95, 0.23, z, g, 10); }
+  box(1.2, 0.06, 1.2, M.lampGlow, 0, H - 0.05, 0, g);
+  const cook = buildFigure({ shirt: 0xffffff, pants: 0x2b2b2b, skin: pick([0xc68a62, 0x8d5a3b, 0xe0b08a]), hair: 0x16100c, arm: 0xffffff }); cook.g.visible = true; SFG.add(cook.g); cook.g.position.set(R.x, y0, R.z - 6); R.cook = cook;
+  const plate = new THREE.Group(); plate.position.set(1.5, 1.14, -4.3); g.add(plate); R.plate = plate;
+  R.btn = makeButton(g, 1.3, 0.42, -2.2, 1.45, -4.05, { label: 'Order', sub: R.dish, color: '#' + R.trim.toString(16).padStart(6, '0'), rx: -0.4, onPress: () => orderFood(R) });
+}
+function orderFood(R) {
+  if (R.busy) return; R.busy = true;
+  sClick(); tone(880, 0.12, 'sine', 0.08); tone(1320, 0.18, 'sine', 0.06, 0, 0.12);
+  R.cook.arms[1].rotation.x = -1.4; R.cook.arms[0].rotation.x = -1.0;
+  setTimeout(() => {
+    R.cook.arms[1].rotation.x = 0; R.cook.arms[0].rotation.x = 0;
+    const f = foodModel(R.food); R.plate.add(f); toast(R.line, 4); PH.hp = 100; hudDirty = true;
+    if (BEAU.on) { BEAU.happy = 3; sYip(); }
+    let n = 0; const bite = () => { sChomp(0); f.scale.multiplyScalar(0.75); if (++n < 4) setTimeout(bite, 650); else { R.plate.remove(f); R.busy = false; } };
+    setTimeout(bite, 1600);
+  }, 1300);
+}
+const TL_PEOPLE = [];
+function buildSFExtras() {
+  // Ferry Building on its pier, with the clock tower
+  {
+    const g = group(SFG, -48, 0.3, -1470), stone = L(0xe9e1d0), roof = L(0x6b7f86);
+    box(16, 9, 56, stone, 0, 4.5, 0, g, true); box(17, 0.6, 57, roof, 0, 9.3, 0, g);
+    const arches = canvasTex(512, 128, (c, w, h) => { c.fillStyle = '#e9e1d0'; c.fillRect(0, 0, w, h); c.fillStyle = '#3b4148'; for (let i = 0; i < 12; i++) { const x = 12 + i * 41.5; c.beginPath(); c.moveTo(x, h); c.lineTo(x, 50); c.arc(x + 15, 50, 15, Math.PI, 0); c.lineTo(x + 30, h); c.fill(); } });
+    for (const s of [-1, 1]) { const a = new THREE.Mesh(new THREE.PlaneGeometry(56, 7), L(0xffffff, { map: arches })); a.rotation.y = s * Math.PI / 2; a.position.set(s * 8.02, 3.6, 0); g.add(a); }
+    box(7, 46, 7, stone, 0, 23, 0, g); box(8, 1.2, 8, roof, 0, 46.6, 0, g); box(5, 8, 5, stone, 0, 51, 0, g); const cap = cyl(0.01, 3.4, 6, roof, 0, 58, 0, g, 4); cap.rotation.y = Math.PI / 4;
+    const clock = canvasTex(256, 256, (c, w) => { c.fillStyle = '#f8f4ea'; c.beginPath(); c.arc(w / 2, w / 2, w / 2 - 6, 0, TAU); c.fill(); c.strokeStyle = '#1b1416'; c.lineWidth = 8; c.stroke(); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; c.fillRect(w / 2 + Math.cos(a) * 100 - 4, w / 2 + Math.sin(a) * 100 - 4, 8, 8); } c.lineWidth = 10; c.beginPath(); c.moveTo(w / 2, w / 2); c.lineTo(w / 2, 50); c.moveTo(w / 2, w / 2); c.lineTo(w / 2 + 60, w / 2); c.stroke(); });
+    for (let i = 0; i < 4; i++) { const f = new THREE.Mesh(new THREE.CircleGeometry(2.6, 24), new THREE.MeshBasicMaterial({ map: clock })); const a = i * Math.PI / 2; f.position.set(Math.sin(a) * 3.53, 40, Math.cos(a) * 3.53); f.rotation.y = a; g.add(f); }
+    const nm = textPlane('FERRY BUILDING', 12, 1.3, '#e9e1d0', '#3b4148'); nm.position.set(8.05, 7.6, 0); nm.rotation.y = Math.PI / 2; g.add(nm);
+    box(60, 0.3, 70, L(0x9a9a92), 0, -0.15, 0, g); // the pier deck
+  }
+  // Lombard Street: eight hairpins down Russian Hill, brick red with flower hedges
+  {
+    const pts = []; for (let i = 0; i <= 120; i++) { const u = i / 120; pts.push([75 + 4.4 * Math.sin(u * Math.PI * 8), lerp(-1622, -1684, u)]); }
+    conformStrip(pts, 3.4, L(0xa4473a), 0.12, SFG);
+    for (let k = 0; k < 8; k++) { const u = (k + 0.5) / 8, z = lerp(-1622, -1684, u), x = 75 - 4.4 * Math.sin((k + 0.5) / 8 * Math.PI * 8) * 0.0 + (k % 2 ? 4 : -4); const y = terrainH(x, z); box(3.2, 0.7, 3.5, L(0x3f7a35), x, y + 0.35, z, SFG); for (let f = 0; f < 6; f++) { const fl = new THREE.Mesh(new THREE.SphereGeometry(0.22, 6, 5), L(pick([0xff5fa8, 0xff3d7f, 0xffd23f]))); fl.position.set(x + rr(-1.4, 1.4), y + 0.8, z + rr(-1.5, 1.5)); SFG.add(fl); } }
+    const s = textPlane('LOMBARD ST', 3.2, 0.6, '#1f6f43', '#fff', '900 80px Arial'); s.position.set(70, terrainH(70, -1620) + 3, -1619); SFG.add(s); box(0.12, 3, 0.12, M.metal, 70, terrainH(70, -1620) + 1.5, -1619.2, SFG);
+  }
+  // Coit Tower on top of Telegraph Hill
+  { const x = 285, z = -1700, y = terrainH(x, z); cyl(3.6, 3.9, 38, L(0xf1ece2), x, y + 19, z, SFG, 16); cyl(4.4, 4.4, 1.6, L(0xe2dccf), x, y + 38.5, z, SFG, 16); cyl(5.5, 5.8, 3, L(0xd8d1c2), x, y + 1.5, z, SFG, 16); }
+  // Golden Gate Park: lawns, cypress and eucalyptus, Stow Lake, the Conservatory of Flowers, the Dutch windmill
+  {
+    const g = group(SFG, 0, 0, 0);
+    flat(280, 120, L(0x5f9a3e), 500, 0.025, -1440, g);
+    const lake = disc(22, new THREE.MeshPhongMaterial({ color: 0x4f8fb8, shininess: 80 }), 470, 0.05, -1440, g, 32); lake.material.side = THREE.DoubleSide;
+    const island = disc(8, L(0x4f8a34), 470, 0.07, -1440, g, 20);
+    const trees = []; for (let i = 0, t = 0; i < 170 && t < 2000; t++) { const x = rr(365, 635), z = rr(-1497, -1383); if (Math.hypot(x - 470, z + 1440) < 26 || Math.hypot(x - 400, z + 1400) < 22 || Math.hypot(x - 620, z + 1470) < 12) continue; trees.push([x, z]); i++; }
+    instanced(pineGeo, pineMat, trees, (d, p, col) => { d.position.set(p[0], 0, p[1]); d.rotation.set(0, rr(0, TAU), 0); const s = rr(9, 16); d.scale.set(s * rr(0.9, 1.3), s, s * rr(0.9, 1.3)); col.setRGB(rr(0.65, 0.85), rr(0.85, 1), rr(0.7, 0.9)); });
+    // Conservatory of Flowers: white glass house with a central dome
+    const white = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 60, transparent: true, opacity: 0.85 });
+    box(34, 5, 8, white, 400, 2.5, -1400, g); const dome = new THREE.Mesh(new THREE.SphereGeometry(7, 20, 10, 0, TAU, 0, Math.PI / 2), white); dome.position.set(400, 5, -1400); g.add(dome); box(10, 7, 10, white, 400, 3.5, -1400, g);
+    // Dutch windmill
+    cyl(2.2, 4.5, 16, L(0x8a7a6a), 620, 8, -1470, g, 8); const cap = cyl(0.01, 3.2, 4, L(0x4a3a2a), 620, 18, -1470, g, 8);
+    const blades = new THREE.Group(); blades.position.set(620, 15, -1465.6); g.add(blades); for (let i = 0; i < 4; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(1.4, 11, 0.15).translate(0, 5.5, 0), L(0xeeeeee)); b.rotation.z = i * Math.PI / 2; blades.add(b); } CITIES.mill = blades;
+    const sg = textPlane('GOLDEN GATE PARK', 10, 1.4, '#2f5a2a', '#fff', '900 80px Georgia'); sg.position.set(362, 3.2, -1440); sg.rotation.y = -Math.PI / 2; g.add(sg); box(0.3, 3, 0.3, M.darkWood, 362, 1.5, -1444, g); box(0.3, 3, 0.3, M.darkWood, 362, 1.5, -1436, g);
+  }
+  // restaurants
+  SF_RESTAURANTS.forEach(buildRestaurant);
+  // the Tenderloin: neighbors living on the street (tents, carts, sleeping bags); you can share a meal
+  {
+    const y = z => terrainH(150, z); const g = group(SFG, 0, 0, 0);
+    const sign = textPlane('TENDERLOIN', 3.4, 0.6, '#1f6f43', '#fff', '900 80px Arial'); sign.position.set(140, terrainH(140, -1478) + 3, -1478); g.add(sign); box(0.12, 3, 0.12, M.metal, 140, terrainH(140, -1478) + 1.5, -1478.2, g);
+    const tarps = [0x2f6fb2, 0x3f8a4a, 0x8a8f96, 0xc0862e, 0x6b4f8a];
+    const spots = [[142, -1478], [152, -1478.5], [163, -1477.5], [176, -1478], [188, -1477.5], [202.5, -1492], [202, -1506], [203, -1521], [202.5, -1534]];
+    spots.forEach(([x, z], i) => {
+      const yy = terrainH(x, z);
+      if (i % 3 !== 2) { const t = new THREE.Mesh(new THREE.ConeGeometry(1.3, 1.5, 4), L(tarps[i % tarps.length])); t.position.set(x + (i % 2 ? 1.8 : -1.8), yy + 0.75, z); t.rotation.y = Math.PI / 4; g.add(t); }
+      if (i % 4 === 1) { box(0.8, 0.6, 0.5, L(0x9aa0a8), x - 2.8, yy + 0.7, z, g); for (const s of [-1, 1]) cyl(0.08, 0.08, 0.05, M.black, x - 2.8 + s * 0.3, yy + 0.1, z, g, 8); } // shopping cart
+      const P = buildFigure({ shirt: pick([0x5d5850, 0x3d4a5a, 0x6b4a3a, 0x4a5a3a, 0x7a6a5a]), pants: pick([0x3d4a5a, 0x2b2b2b, 0x5a4a3a]), skin: pick([0xc68a62, 0x8d5a3b, 0xe0b08a, 0x5e3a28, 0xf1c9a5]), hair: pick([0x16100c, 0x3a2414, 0x8a8a8a]), arm: pick([0x5d5850, 0x3d4a5a]) });
+      P.g.visible = true; SFG.add(P.g);
+      const sitting = i % 2 === 0; P.sit = sitting;
+      P.g.position.set(x, yy - (sitting ? 0.45 : 0), z); P.g.rotation.y = z > -1480 ? Math.PI : -Math.PI / 2;
+      if (sitting) { P.legs.forEach(l => { l.rotation.x = -1.45; }); }
+      if (!sitting && i % 3 === 0) { const bag = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 1.9, 10), L(0x2f5a8a)); bag.rotation.z = Math.PI / 2; bag.position.set(x, yy + 0.35, z + (z > -1480 ? -1.2 : 0)); g.add(bag); }
+      P.hit.userData.tlPerson = P; P.waveT = 0; TL_PEOPLE.push(P);
+    });
+  }
+}
+function shareMeal(P) {
+  if (P.waveT > 0) return;
+  P.waveT = 2.5; tone(660, 0.15, 'sine', 0.06); tone(990, 0.25, 'sine', 0.05, 0, 0.15);
+  toast(pick(['You shared a meal. "Thank you, friend. That means a lot."', 'You shared a meal. "Bless you. Have a good one."', 'You shared a meal. "Appreciate you. Cute dog, too."']), 4);
+}
+function updateSFLife(dt) {
+  if (!SFG.visible) return;
+  if (CITIES.mill) CITIES.mill.rotation.z += dt * 0.4;
+  for (const P of TL_PEOPLE) { if (P.waveT > 0) { P.waveT -= dt; P.arms[1].rotation.x = -2.6 + Math.sin(elapsed * 10) * 0.3; if (P.waveT <= 0) P.arms[1].rotation.x = 0; } }
+  for (const R of SF_RESTAURANTS) if (R.cook && !R.busy) R.cook.g.rotation.y = Math.sin(elapsed * 0.5 + R.x) * 0.4;
+}
+
+buildSFExtras();
 
 // ===== Mad Max dressing, fire cannons vs. helicopters, and the "Glazed & Confused" outposts with exclusive weapons =====
 T.sand = canvasTex(256, 256, (g, w, h) => {
@@ -4791,7 +4965,7 @@ renderer.setAnimationLoop(() => {
   if (MODE === 'arcade') updateArcade(dt, vr);
   updatePunch(vr);
   updateBeau(dt, headV, vr);
-  updateWorld(dt, headV); updateCar(dt, vr); updateHeli(dt, vr); updateSprint(dt, vr); updateFoes(dt, headV, vr); updateWasteland(dt, headV, vr); updateCouch(dt); updateSkydive(dt, vr); updateBeauMenu(dt);
+  updateWorld(dt, headV); updateCar(dt, vr); updateHeli(dt, vr); updateSprint(dt, vr); updateFoes(dt, headV, vr); updateWasteland(dt, headV, vr); updateSFLife(dt); updateCouch(dt); updateSkydive(dt, vr); updateBeauMenu(dt);
   updatePlayerArms(vr, headV);
   updatePopup(dt);
   if (started) { pollDev(vr); pollStance(vr, dt); pollPunchKey(); updateMobileUI(); }

@@ -77,6 +77,7 @@ The content stays wholesome and non-sexual. Keep it that way.
 ## The open road (section 6b)
 - `rangeH()` carves passes through both mountain rings along x ≈ 0 and tapers the rings' outer edges to the lowlands. The ground plane is 4.6 km across; the sky follows the rig.
 - Roads run north from Main Street to **San Francisco** (around z -1300 to -1700: a grid of streets and window-textured instanced buildings, a pyramid tower, a row of painted Victorian houses facing a park, a bay, and a big red suspension bridge you can drive across) and south to **Los Angeles** (around z 1300 to 1850: stucco blocks, a glass downtown, palm-lined streets, a beach and a pier with a turning Ferris wheel, and big white "LOS ANGELES" letters on a hill). Lowland foothills (`HILLS`) and oak trees line the way.
+- **San Francisco details** (`buildSFExtras`, built after the figure helpers): hills (`CITY_HILLS`: Russian, Nob and Telegraph Hills; roads from `roadStrip` and buildings follow the ground), the **Ferry Building** with its clock tower on a pier deck in the bay, crooked **Lombard Street** (brick switchbacks with flower hedges, `conformStrip`) down Russian Hill, **Coit Tower** on Telegraph Hill, **Golden Gate Park** east of the grid (lawns, trees, Stow Lake, the Conservatory of Flowers, a turning Dutch windmill), four **restaurants you can walk into** (`SF_RESTAURANTS`: Tadich Grill, Swan Oyster Depot, La Taqueria, Boudin Bakery; press **Order** on the counter, the cook serves the dish, you eat it bite by bite and get full health), and the **Tenderloin** (`TL_PEOPLE`): neighbors experiencing homelessness with tents, carts and sleeping bags along the sidewalk, portrayed with dignity; tap/point at someone to share a meal and they wave thanks.
 - `terrainH(x, z)` gives ground height anywhere (rings, hills, the bridge and pier `DECKS`); walking, Beau, treats and the car all use it. `inWater()` blocks the bay and the ocean. City buildings add `colliders`. Each city group is hidden beyond ~1.15 km (`updateWorld`).
 
 ## The wasteland (raiders) and city pedestrians
@@ -117,6 +118,7 @@ Both characters are built with `buildPerson(opts)`: a hierarchical rig of hips, 
   - Each turtle gives a deep call when it passes overhead.
   - Each one casts a blob shadow on the ground.
   - They respawn on a new heading after leaving a 200 m radius.
+  - They're solid: they climb over mountains and hills in their path (look-ahead on `terrainH`, `tt.curAlt`), and flying the helicopter into one makes it crash (`heliCrash`): it falls and blows up, and you and Beau wake up safe in Donut Town.
 
 ## Code map (top to bottom in the script)
 1. Helpers: `rr`, `wrap`, noise (`hash2`, `vnoise`, `ridged`)
