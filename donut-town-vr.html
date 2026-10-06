@@ -774,12 +774,23 @@ function deckH(x, z) {
 }
 addDeck(-100, 1550, -300, 1550, 12, 3, 14, 0); // the pier (LA)
 // water: the Pacific off LA; around San Francisco the ocean, the Golden Gate and the bay, minus the islands / Marin
-const WATERS = [{ x0: -1150, x1: -150, z0: 1100, z1: 1950 }, ...[
-  llr(-122.75, 37.708, -122.5105, 37.87), llr(-122.75, 37.8085, -122.25, 37.87), llr(-122.3915, 37.787, -122.25, 37.8085),
-  llr(-122.386, 37.765, -122.25, 37.787), llr(-122.378, 37.745, -122.25, 37.765), llr(-122.365, 37.708, -122.25, 37.745)].map(r => Object.assign(r, { sf: true }))];
+const WATERS = [{ x0: -1150, x1: -150, z0: 1100, z1: 1950 }]; // the Pacific off LA
+// San Francisco's real shoreline (lon, lat), clockwise from the Daly City line on the Pacific side; everything north of the
+// city line that's outside it (and not an island or Marin) is ocean / Golden Gate / bay
+const SF_SHORE = [[-122.5020, 37.7080], [-122.5065, 37.7200], [-122.5100, 37.7350], [-122.5105, 37.7550], [-122.5110, 37.7700], [-122.5135, 37.7790], [-122.5122, 37.7842],
+  [-122.5050, 37.7880], [-122.4930, 37.7892], [-122.4860, 37.7882], [-122.4800, 37.7915], [-122.4825, 37.7980], [-122.4795, 37.8060], [-122.4772, 37.8107], [-122.4650, 37.8062],
+  [-122.4500, 37.8056], [-122.4400, 37.8070], [-122.4320, 37.8078], [-122.4250, 37.8086], [-122.4150, 37.8090], [-122.4100, 37.8102], [-122.4040, 37.8078], [-122.3990, 37.8052],
+  [-122.3950, 37.8012], [-122.3918, 37.7965], [-122.3890, 37.7910], [-122.3870, 37.7840], [-122.3868, 37.7780], [-122.3860, 37.7700], [-122.3830, 37.7640], [-122.3800, 37.7560],
+  [-122.3750, 37.7480], [-122.3700, 37.7420], [-122.3580, 37.7330], [-122.3600, 37.7270], [-122.3700, 37.7220], [-122.3800, 37.7170], [-122.3850, 37.7100], [-122.3880, 37.7080]].map(([lon, lat]) => [sfx(lon), sfz(lat)]);
+function inSFLand(x, z) { // point in polygon
+  let inside = false; const P = SF_SHORE;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, zi] = P[i], [xj, zj] = P[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inside = !inside; }
+  return inside || z > -1300;
+}
+const SF_SEA = llr(-122.75, 37.70, -122.25, 37.87);
 const SF_LANDS = [{ r: llr(-122.75, 37.8255, -122.462, 37.87) }, { c: sfp(-122.4230, 37.8267), rad: 30 }, { c: sfp(-122.3640, 37.8105), rad: 42 }, { r: llr(-122.3770, 37.8170, -122.3650, 37.8310) }]; // Marin, Alcatraz, Yerba Buena, Treasure Island
 const inLandArea = (l, x, z) => l.r ? inR(l.r, x, z) : Math.hypot(x - l.c.x, z - l.c.z) < l.rad;
-const inWater = (x, z) => deckH(x, z) < 0 && WATERS.some(w => x > w.x0 && x < w.x1 && z > w.z0 && z < w.z1) && !SF_LANDS.some(l => inLandArea(l, x, z));
+const inWater = (x, z) => deckH(x, z) < 0 && (WATERS.some(w => x > w.x0 && x < w.x1 && z > w.z0 && z < w.z1) || (z < -1300 && inR(SF_SEA, x, z) && !inSFLand(x, z) && !SF_LANDS.some(l => inLandArea(l, x, z))));
 const HILLS = [
   { x: 420, z: 1330, r: 140, h: 55 },                                                                                // the sign hill in LA
   { x: -260, z: -700, r: 120, h: 28 }, { x: 300, z: -900, r: 160, h: 34 }, { x: -320, z: 820, r: 150, h: 30 }, { x: 280, z: 700, r: 120, h: 24 }, // rolling foothills
@@ -863,7 +874,7 @@ bigSign(scene, ['Los Angeles', 'Beach & Pier →'], 6, 2, -6.5, 3.4, 480, Math.P
   instanced(oakGeo, new THREE.MeshLambertMaterial({ vertexColors: true }), oaks, (d, p, col) => { d.position.set(p[0], 0, p[1]); d.rotation.set(0, rr(0, TAU), 0); d.scale.setScalar(rr(9, 16)); const v = rr(0.8, 1.05); col.setRGB(v, v, v * 0.9); });
 }
 const waterMat = new THREE.MeshPhongMaterial({ color: 0x2f6f9f, map: retile(T.water, 80, 80), shininess: 90, specular: 0x88aacc });
-for (const w of WATERS) if (!w.sf) { const m = flat(w.x1 - w.x0, w.z1 - w.z0, waterMat, (w.x0 + w.x1) / 2, 0.05, (w.z0 + w.z1) / 2, scene); m.geometry = new THREE.PlaneGeometry(w.x1 - w.x0, w.z1 - w.z0, 20, 20); }
+for (const w of WATERS) { const m = flat(w.x1 - w.x0, w.z1 - w.z0, waterMat, (w.x0 + w.x1) / 2, 0.05, (w.z0 + w.z1) / 2, scene); m.geometry = new THREE.PlaneGeometry(w.x1 - w.x0, w.z1 - w.z0, 20, 20); }
 
 // buildings: one instanced box per city, windows drawn on a shared canvas
 T.windows = canvasTex(128, 256, (g, w, h) => {
@@ -924,7 +935,7 @@ function sfZone(x, z) {
   if (inWater(x, z)) return 'water';
   for (const [r, k] of SF_PARKS) if (inR(r, x, z)) return k;
   if (SF_LANDS.some(l => inLandArea(l, x, z))) return 'island';
-  if (x < sfx(-122.5080)) return 'beach';
+  if (x < sfx(-122.5070) && z > sfz(37.7800)) return 'beach'; // Ocean Beach
   return 'urban';
 }
 const SF_DIST = [[llr(-122.4060, 37.7880, -122.3915, 37.7975), 'fidi'], [llr(-122.4005, 37.7840, -122.3880, 37.7920), 'transbay'], [llr(-122.4250, 37.7760, -122.4005, 37.7935), 'downtown'], [llr(-122.4180, 37.7680, -122.3870, 37.7850), 'soma']];
@@ -949,7 +960,10 @@ const sfDistrict = (x, z) => { for (const [r, k] of SF_DIST) if (inR(r, x, z)) r
   const seaG = tg.clone(); seaG.setIndex(sea); seaG.deleteAttribute('color'); const uvs = seaG.attributes.uv; for (let i = 0; i < uvs.count; i++) uvs.setXY(i, uvs.getX(i) * 60, uvs.getY(i) * 60);
   SFG.add(new THREE.Mesh(seaG, new THREE.MeshPhongMaterial({ color: 0x2f6f9f, map: retile(T.water, 1, 1), shininess: 90, specular: 0x88aacc })));
   // the world's grass plane dips out of sight under the city so nothing fights the terrain
-  { const gp = ground.geometry.attributes.position; for (let i = 0; i < gp.count; i++) { const x = gp.getX(i), z = -gp.getY(i); if (x > X0 + 110 && x < X1 - 110 && z > Z0 + 110 && z < Z1 - 110) gp.setZ(i, -6); } gp.needsUpdate = true; ground.geometry.computeBoundingSphere(); }
+  { const gp = ground.geometry.attributes.position; for (let i = 0; i < gp.count; i++) { const x = gp.getX(i), z = -gp.getY(i); if (x < X1 - 110 && z < Z1 - 110) gp.setZ(i, -6); } gp.needsUpdate = true; ground.geometry.computeBoundingSphere(); }
+  // open water beyond the city map: the Pacific to the west and the bay / Golden Gate to the north
+  const seaMat = new THREE.MeshPhongMaterial({ color: 0x2f6f9f, map: retile(T.water, 120, 120), shininess: 90, specular: 0x88aacc });
+  for (const [x0, x1, z0, z1] of [[-3700, X0, -3700, Z1], [X0, X1, -3700, Z0]]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0, 24, 24), seaMat); m.rotation.x = -Math.PI / 2; m.position.set((x0 + x1) / 2, 0.02, (z0 + z1) / 2); scene.add(m); }
   // roads: the grid (where there's city) plus the named arterials, merged into one mesh
   const roadGeos = [];
   const sfRoad = (a, b, w, lift = 0.16) => {
@@ -985,6 +999,7 @@ const sfDistrict = (x, z) => { for (const [r, k] of SF_DIST) if (inR(r, x, z)) r
   };
   reserve(LM.ferry, 34); reserve(LM.transamerica, 16); reserve(LM.lombard, 32); reserve(LM.cityHall, 40); reserve(LM.oracle, 50); reserve(LM.ghirardelli, 18); reserve(LM.castro, 8); reserve(LM.bayAnchor, 22); reserve(LM.wharf, 12);
   reserve(new V3(sfx(-122.4318), 0, sfz(37.7765)), 34); // the Painted Ladies on Steiner St
+  for (let i = 0; i < 12; i += 3) reserve(new V3(sfx(-122.4500) + i * 9.2 + 13, 0, sfz(37.7699) - 7.5), 24); // Haight St Victorians
   // generic buildings, by district
   const PAL = { fidi: ['#b9c6d3', '#9fb2c4', '#d8dde3', '#7f93a6', '#c9ced6'], transbay: ['#aebccb', '#cfd8e0', '#8fa4b6'], downtown: ['#e6dccb', '#d9cdb8', '#c9bfae', '#f0e8da', '#d6c9b0'], soma: ['#b5735a', '#c98a6b', '#d8c3a5', '#a9a39a', '#e0d6c8'], res: ['#f4efe6', '#f5d6c6', '#d6e6f2', '#f7ecc4', '#dfe9d8', '#f2d9e6', '#ffffff', '#e8dccb', '#cfe3e8'] };
   const blds = [];
@@ -1108,6 +1123,27 @@ function sfLandmarks(LM) {
     { const g = G(sfp(-122.5091, 37.7699)); cyl(2.2, 4.2, 15, L(0x8a7a6a), 0, 7.5, 0, g, 8); cyl(0.01, 3, 4, L(0x4a3a2a), 0, 17, 0, g, 8); const bl = new THREE.Group(); bl.position.set(0, 14, -3.6); bl.rotation.y = Math.PI; g.add(bl); for (let i = 0; i < 4; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(1.3, 10, 0.15).translate(0, 5, 0), L(0xeeeeee)); b.rotation.z = i * Math.PI / 2; bl.add(b); } CITIES.mill = bl; }
     const sg = textPlane('GOLDEN GATE PARK', 9, 1.3, '#2f5a2a', '#fff'); const sp = sfp(-122.4540, 37.7700); sg.position.set(sp.x - 1, groundH(sp.x, sp.z) + 3, sp.z); sg.rotation.y = Math.PI / 2; SFG.add(sg);
   }
+  // Haight-Ashbury: rows of colorful Victorians along Haight St, and a peace sign at Haight & Ashbury
+  { const hz = sfz(37.7699) - 7.5, cols = ['#e04f5f', '#f5b041', '#58d68d', '#5dade2', '#af7ac5', '#f7dc6f', '#ff8fbf', '#48c9b0'];
+    for (let i = 0; i < 12; i++) { const x = sfx(-122.4500) + i * 9.2, side = i % 2 ? 1 : -1, z = hz + side * 15, g = group(SFG, x, groundH(x, z), z, side > 0 ? Math.PI : 0), c = pick(cols);
+      box(8.4, 9, 11, L(c), 0, 4.5, 0, g); const roof = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 6.2, 3.8, 4, 1).rotateY(Math.PI / 4), L(0x4a4250)); roof.scale.set(0.95, 1, 1.25); roof.position.y = 10.9; g.add(roof);
+      box(3.2, 5.5, 1.4, L(pick(cols)), -1.8, 4.6, 6.1, g); for (const y of [2.8, 6.6]) box(2.2, 1.5, 0.1, M.glassOut, -1.8, y, 6.85, g); box(1.4, 2.4, 0.1, M.white, 2.2, 1.2, 5.53, g); cityCollider(x, z, 8.4, 11, 11 + groundH(x, z)); }
+    const pc = sfp(-122.4469, 37.7699), y = groundH(pc.x, pc.z), ring = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.28, 8, 28), L(0xf4f4f4)); ring.position.set(pc.x, y + 7, pc.z); SFG.add(ring);
+    for (const [len, rz, ox, oy] of [[4.4, 0, 0, 0], [2.3, 0.8, -0.8, -0.8], [2.3, -0.8, 0.8, -0.8]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.28, len, 0.28), L(0xf4f4f4)); b.position.set(pc.x + ox, y + 7 + oy, pc.z); b.rotation.z = rz; SFG.add(b); }
+    cyl(0.15, 0.15, 5, M.metal, pc.x, y + 2.5, pc.z, SFG, 6); }
+  // map-style pins over the top attractions (like the tourist map)
+  for (const [name, lon, lat, up] of [['GOLDEN GATE BRIDGE', -122.4785, 37.8200, 95], ['ALCATRAZ ISLAND', -122.4230, 37.8267, 30], ["FISHERMAN'S WHARF", -122.4170, 37.8080, 22], ['PIER 39', -122.4100, 37.8105, 22], ['LOMBARD STREET', -122.4187, 37.8021, 22],
+    ['CHINATOWN', -122.4058, 37.7930, 30], ['UNION SQUARE', -122.4075, 37.7880, 40], ['HAIGHT-ASHBURY', -122.4469, 37.7699, 24], ['TWIN PEAKS', -122.4477, 37.7544, 24], ['PALACE OF FINE ARTS', -122.4484, 37.8029, 30],
+    ['FERRY BUILDING', -122.3934, 37.7955, 66], ['COIT TOWER', -122.4058, 37.8024, 40], ['GOLDEN GATE PARK', -122.4800, 37.7690, 30], ['SALESFORCE TOWER', -122.3972, 37.7897, 105], ['TRANSAMERICA', -122.4028, 37.7952, 92], ['PAINTED LADIES', -122.4339, 37.7765, 24]]) {
+    const tex = canvasTex(512, 160, (c, w, h) => { c.fillStyle = '#ffffff'; rrect(c, 70, 16, w - 80, 92, 40); c.fill(); c.strokeStyle = '#2b2724'; c.lineWidth = 6; c.stroke(); c.fillStyle = '#e0443e'; c.beginPath(); c.arc(42, 62, 30, 0, TAU); c.fill(); c.beginPath(); c.moveTo(18, 76); c.lineTo(42, 150); c.lineTo(66, 76); c.fill(); c.fillStyle = '#fff'; c.beginPath(); c.arc(42, 60, 11, 0, TAU); c.fill(); c.fillStyle = '#2b2724'; c.textAlign = 'center'; c.textBaseline = 'middle'; fitFont(c, name, w - 120, 46, 900); c.fillText(name, w / 2 + 34, 64); });
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false })); const p = sfp(lon, lat); sp.position.set(p.x, groundH(p.x, p.z) + up, p.z); sp.scale.set(22, 6.9, 1); sp.renderOrder = 4; SFG.add(sp); }
+  // boats on the bay: a ferry to Alcatraz and Sausalito, and sailboats
+  SF_CABLE.boats = [];
+  { const fg = new THREE.Group(); const hull = new THREE.Mesh(new THREE.BoxGeometry(5, 1.6, 16), L(0xf4f4f4)); hull.position.y = 0.8; fg.add(hull); const stripe = new THREE.Mesh(new THREE.BoxGeometry(5.1, 0.4, 16.1), L(0x1e5aa8)); stripe.position.y = 0.6; fg.add(stripe); const cab = new THREE.Mesh(new THREE.BoxGeometry(4, 2.4, 9), L(0xf4f4f4)); cab.position.set(0, 2.8, -1); fg.add(cab); const win = new THREE.Mesh(new THREE.BoxGeometry(4.1, 0.7, 8), L(0x2b3a4a)); win.position.set(0, 3.2, -1); fg.add(win);
+    SFG.add(fg); SF_CABLE.boats.push({ g: fg, route: [sfp(-122.3905, 37.7962), sfp(-122.4040, 37.8150), sfp(-122.4190, 37.8235), sfp(-122.4500, 37.8300), sfp(-122.4190, 37.8235), sfp(-122.4040, 37.8150)], u: 0, speed: 9 }); }
+  for (let i = 0; i < 7; i++) { const sg = new THREE.Group(); const hull = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.7, 5), L(0xf4f4f4)); hull.position.y = 0.35; sg.add(hull); const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 7, 5), M.metal); mast.position.y = 4; sg.add(mast);
+    const sail = new THREE.Mesh(new THREE.BufferGeometry().setFromPoints([new V3(0, 0.8, 0.2), new V3(0, 7.2, 0.2), new V3(0, 0.8, 2.4)]), new THREE.MeshLambertMaterial({ color: pick([0xffffff, 0xffffff, 0xff8fbf, 0xffd23f]), side: THREE.DoubleSide })); sail.geometry.computeVertexNormals(); sg.add(sail);
+    SFG.add(sg); const c = sfp(-122.44 + rr(-0.02, 0.06), 37.818 + rr(-0.006, 0.01)); SF_CABLE.boats.push({ g: sg, c, r: rr(30, 80), a: rr(0, TAU), speed: rr(0.04, 0.09) }); }
   // Dolores Park palms
   { const r = SF_PARKS[6][0]; for (let i = 0; i < 8; i++) { const x = rr(r.x0, r.x1), z = rr(r.z0, r.z1); cyl(0.2, 0.3, 9, L(0x8b6b4a), x, groundH(x, z) + 4.5, z, SFG, 6); const cr = new THREE.Mesh(new THREE.SphereGeometry(1.6, 6, 4), L(0x3f8a3a)); cr.scale.y = 0.5; add(cr, new V3(x, 0, z), 9); } }
   // a cable car running up and over Nob Hill on Powell St
@@ -1126,6 +1162,10 @@ function updateCableCar(dt) {
   C.g.position.set(C.x, (hf + hb) / 2 + 0.08, z); C.g.rotation.set(Math.atan2(hf - hb, 6), 0, 0);
   if (C.flag) C.flag.rotation.y = Math.sin(elapsed * 2) * 0.15;
   if (C.lions) C.lions.forEach((l, i) => { l.position.y = 0.55 + Math.sin(elapsed * 2 + i) * 0.05; });
+  if (C.boats) for (const B of C.boats) {
+    if (B.route) { const R = B.route, n = R.length, seg = Math.floor(B.u) % n, a = R[seg], b2 = R[(seg + 1) % n], len = a.distanceTo(b2); B.u += dt * B.speed / Math.max(1, len); const f = B.u % 1; B.g.position.set(lerp(a.x, b2.x, f), 0.05 + Math.sin(elapsed * 1.3) * 0.08, lerp(a.z, b2.z, f)); B.g.rotation.y = Math.atan2(b2.x - a.x, b2.z - a.z); }
+    else { B.a += dt * B.speed; B.g.position.set(B.c.x + Math.cos(B.a) * B.r, 0.05 + Math.sin(elapsed * 1.7 + B.r) * 0.1, B.c.z + Math.sin(B.a) * B.r); B.g.rotation.set(Math.sin(elapsed + B.r) * 0.05, -B.a, Math.sin(elapsed * 0.8 + B.r) * 0.12); }
+  }
 }
 
 // ===== Los Angeles =====
