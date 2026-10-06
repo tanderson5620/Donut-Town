@@ -63,6 +63,7 @@
     <button class="mb" id="mb-c" data-key="KeyC">Down</button>
     <button class="mb" id="mb-e" data-key="KeyE">Exit</button>
     <button class="mb" id="mb-f" data-key="KeyF">Punch</button>
+    <button class="mb" id="mb-h" data-key="KeyH">Board</button>
   </div>
   <div id="mdev"><button class="mb sm" data-key="KeyX" title="Get Beau">🐶</button><button class="mb sm" data-key="KeyY" title="Restart">↻</button></div>
   <div id="mhint">Drag to look · tap to interact</div>
@@ -2897,6 +2898,7 @@ function activate(hit) {
   else if (o.userData.treatJar) grabTreat(null);
   else if (o.userData.courtSign) courtChallenge();
   else if (o.userData.foe) punchFoe(o.userData.foe);
+  else if (o.userData.weaponPick === 'hoverboard') getHoverboard();
   else if (o.userData.weaponPick) equipWeapon(o.userData.weaponPick);
   else if (o.userData.tlPerson) shareMeal(o.userData.tlPerson);
   else if (o === ball) desktopBballClick(true);
@@ -4198,6 +4200,7 @@ function enterVehicle(V) {
 }
 function exitVehicle(V) {
   fadeThrough(() => {
+    hideAvatar();
     V.state = 'parked'; V.v = 0; BEAU.ext = null; VEH = null;
     const c = Math.cos(V.yaw), s = Math.sin(V.yaw), x = V.g.position.x - 1.9 * c, z = V.g.position.z + 1.9 * s;
     standAt(x, z, V.yaw); BEAU.B.root.position.set(x - s * 2.6, 0, z - c * 2.6); BEAU.B.root.rotation.set(0, BEAU.yaw = V.yaw + Math.PI, 0); BEAU.mode = 'follow';
@@ -4255,7 +4258,8 @@ function updateVehicle(V, dt, vr) {
   V.wheels.forEach((w, i) => { (V === CAR ? w.children[0] : w).rotation.x -= V.v * dt / 0.33; if (V === CAR) w.rotation.y = i < 2 ? -V.steer * 0.45 : 0; });
   if (MODE === 'drive' && VEH === V && V.state === 'drive') {
     V.g.updateMatrixWorld(true);
-    lockHead(V.g.localToWorld(V.seat.clone()), V.yaw);
+    if (chaseCam(V.g.position, V.yaw, V === CAR ? 8.5 : 6.5, V === CAR ? 3.4 : 2.8, 1 / 60)) showAvatar(V.g.localToWorld(V.seat.clone().add(new V3(0, V === CAR ? -1.6 : -1.45, 0))), V.yaw, V === CAR ? 'sit' : 'ride');
+    else lockHead(V.g.localToWorld(V.seat.clone()), V.yaw);
     if (BEAU.on) poseBeau(V.g.localToWorld(V.beauSeat.clone()), V.yaw + Math.PI, { scale: V.beauScale, look: V.v > 15 ? 0.2 : -0.2 });
   }
 }
@@ -4295,6 +4299,7 @@ function startHeli() {
 const sThump = (v = 0.12) => { noise(0.07, v, 160, 'lowpass'); tone(55, 0.08, 'sine', v * 0.8, 40); };
 function heliExit() {
   fadeThrough(() => {
+    hideAvatar();
     HELI.state = 'parked'; BEAU.ext = null;
     const c = Math.cos(HELI.yaw), s = Math.sin(HELI.yaw), x = HELI.g.position.x - 2.2 * c, z = HELI.g.position.z + 2.2 * s;
     standAt(x, z, HELI.yaw); BEAU.B.root.position.set(x - s * 2.6, 0, z - c * 2.6); BEAU.B.root.rotation.set(0, BEAU.yaw = HELI.yaw + Math.PI, 0); BEAU.mode = 'follow';
@@ -4364,7 +4369,8 @@ function updateHeli(dt, vr) {
     const fwdV = HELI.vel.x * -Math.sin(HELI.yaw) + HELI.vel.z * -Math.cos(HELI.yaw);
     HELI.g.rotation.order = 'YXZ'; HELI.g.rotation.set(-clamp(fwdV / 120, -0.15, 0.25), HELI.yaw, 0);
     HELI.g.updateMatrixWorld(true);
-    const seat = HELI.g.localToWorld(new V3(-0.32, 1.55, 0.2)); lockHead(seat, HELI.yaw);
+    const seat = HELI.g.localToWorld(new V3(-0.32, 1.55, 0.2));
+    if (chaseCam(HELI.g.position, HELI.yaw, 16, 6, 1 / 60)) showAvatar(HELI.g.localToWorld(new V3(-0.32, 0.4, 0.2)), HELI.yaw, 'sit'); else lockHead(seat, HELI.yaw);
     if (BEAU.on) poseBeau(HELI.g.localToWorld(new V3(0.32, 0.98, 0.15)), HELI.yaw + Math.PI, { scale: 0.75, look: 0.1 });
   }
 }
@@ -5048,6 +5054,7 @@ function updateTurtleMood(dt, head) {
 // ----- flying into a turtle: the helicopter explodes, you and Beau fall; Beau doesn't make it -----
 const FALL = { pos: new V3(), v: new V3(), bpos: new V3(), bv: new V3(), t: 0, landed: false, bLanded: false, bAng: 0, yaw: 0 };
 function heliCrash(tt) {
+  hideAvatar();
   const p = HELI.g.position.clone(); HELI.g.updateMatrixWorld(true);
   FALL.pos.copy(HELI.g.localToWorld(new V3(-0.32, 1.55, 0.2))); FALL.bpos.copy(HELI.g.localToWorld(new V3(0.32, 0.98, 0.15)));
   FALL.v.copy(HELI.vel).multiplyScalar(0.25).setY(3); FALL.bv.set(rr(-3, 3), 4, rr(-3, 3)); FALL.t = 0; FALL.landed = FALL.bLanded = false; FALL.bAng = 0; FALL.yaw = HELI.yaw;
@@ -5161,6 +5168,12 @@ function buildOutpost(o) {
     lbl.position.set(-3 + i * 3, 1.25, -4.9); g.add(lbl);
     o.picks.push({ id, m, hit });
   });
+  { // the hoverboard on its own stand
+    const m = buildHoverboard(1.3); m.position.set(6, 1.6, -6); g.add(m); const hit = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.2, 2.4), new THREE.MeshBasicMaterial({ visible: false })); hit.position.copy(m.position); hit.userData.weaponPick = 'hoverboard'; g.add(hit);
+    box(1.6, 1.1, 1.6, L(0x2b2724), 6, 0.55, -6, g);
+    const lbl = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.5), new THREE.MeshBasicMaterial({ transparent: true, map: canvasTex(640, 100, (c, w, h) => { c.fillStyle = 'rgba(27,20,22,.88)'; rrect(c, 0, 0, w, h, 16); c.fill(); c.fillStyle = '#2bf0ff'; c.font = '900 46px system-ui, Arial'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('HOVERBOARD · fastest ride', w / 2, h / 2 + 2); }) }));
+    lbl.position.set(6, 0.9, -4.85); g.add(lbl); o.picks.push({ id: 'hoverboard', m, hit });
+  }
   // the trader
   const tr = buildFigure({ raider: true, shirt: 0x8a2a5a, pants: 0x3b3b3b, skin: 0x8d5a3b, hair: 0xff5fa8, arm: 0x8d5a3b }); tr.g.visible = true; tr.g.position.set(o.x + 0, 0, o.z - 8.5); tr.arms[1].rotation.x = -1.2; o.trader = tr;
   // the stunt ramp on the road shoulder, with a ring of fire past the lip
@@ -5186,6 +5199,10 @@ function buildWeaponModel(id) { // points along -z
   const g = new THREE.Group(); g.add(new THREE.Mesh(merge(parts), FIG_MAT)); return g;
 }
 const WPN = { cur: null, cd: 0, model: null, hint: false };
+function getHoverboard() {
+  if (HOVER.owned) return; HOVER.owned = true; sWin(); rumble(0.6, 150); mobMode = '';
+  toast(renderer.xr.isPresenting ? 'Got the HOVERBOARD! Click the right stick to hop on.' : MOBILE ? 'Got the HOVERBOARD! Tap Board to hop on.' : 'Got the HOVERBOARD! Press H to hop on.', 5);
+}
 function equipWeapon(id) {
   if (WPN.cur === id) return;
   if (WPN.model && WPN.model.parent) WPN.model.parent.remove(WPN.model);
@@ -5325,7 +5342,7 @@ function updateWasteland(dt, head, vr) {
     const r = o.ring.position; for (let i = 0; i < 4; i++) { const a = rr(0, TAU); emit(r.x + Math.cos(a) * 3.6, r.y + Math.sin(a) * 3.6, r.z, rr(-0.3, 0.3), rr(0.5, 1.5), rr(-0.3, 0.3), pick([0xff6a00, 0xffd23f]), rr(0.3, 0.6), 0.5, -99); }
     if (MODE === 'drive' && VEH) { const p = VEH.g.position, side = Math.sign(p.z - r.z); if (o.lastSide !== undefined && side !== o.lastSide && Math.hypot(p.x - r.x, p.y + 0.8 - r.y) < 3.8) { toast('STUNT! Through the ring of fire!', 3); sWin(); rumble(1, 300); for (let i = 0; i < 60; i++) emit(r.x, r.y, r.z, rr(-8, 8), rr(2, 10), rr(-8, 8), pick([0xff3d7f, 0xffd23f, 0x2bb3c0, 0x7dff8a, 0xffffff]), rr(1, 2), -6, 0); } o.lastSide = side; }
     // grab a weapon by touching it (VR)
-    if (vr) for (const C of ctrls) if (C.src) { const gp = C.grip.getWorldPosition(tmpV2); for (const pk of o.picks) if (pk.m.getWorldPosition(tmpV).distanceTo(gp) < 0.5) equipWeapon(pk.id); }
+    if (vr) for (const C of ctrls) if (C.src) { const gp = C.grip.getWorldPosition(tmpV2); for (const pk of o.picks) if (pk.m.getWorldPosition(tmpV).distanceTo(gp) < 0.5) { if (pk.id === 'hoverboard') getHoverboard(); else equipWeapon(pk.id); } }
   }
   // carry and fire your weapon
   if (WPN.cur) {
@@ -5339,6 +5356,105 @@ function updateWasteland(dt, head, vr) {
     WPN.cd -= dt;
     if (trig && WPN.cd <= 0 && WPN.model.visible && !SPRINT.on && !FADE.phase) { WPN.cd = WEAPONS[WPN.cur].rate; fireWeapon(Math.max(dt, WEAPONS[WPN.cur].rate)); }
   }
+}
+
+// ===== Third-person chase camera (desktop / phone; the headset stays first-person) and your avatar =====
+const CAM = { eye: new V3(), on: false, look: new V3() };
+let PLAYER_AV = null;
+function playerAvatar() { if (!PLAYER_AV) { PLAYER_AV = buildFigure({ shirt: 0x2f3a4a, pants: 0x3d5a80, skin: 0xc68a62, hair: 0x2b1d14, arm: 0x2f3a4a }); } return PLAYER_AV; }
+function showAvatar(at, yaw, pose) { // pose: 'sit' | 'stand' | 'ride'
+  const A = playerAvatar(); A.g.visible = true; A.g.position.copy(at); A.g.rotation.set(0, yaw + Math.PI, 0); A.chest.rotation.set(pose === 'stand' ? 0.25 : 0, 0, 0);
+  const legs = pose === 'sit' ? -1.45 : pose === 'ride' ? -0.9 : -0.25; A.legs.forEach((l, i) => l.rotation.set(legs, 0, pose === 'stand' ? (i ? 0.25 : -0.25) : 0));
+  A.arms.forEach((a, i) => a.rotation.set(pose === 'stand' ? -0.3 : -1.1, 0, pose === 'stand' ? (i ? 0.9 : -0.9) : 0));
+}
+function hideAvatar() { if (PLAYER_AV) PLAYER_AV.g.visible = false; CAM.on = false; }
+// place the desktop camera behind and above a vehicle, looking at it (smoothed). Returns false in VR (stay first-person).
+function chaseCam(target, yaw, dist, height, dt) {
+  if (renderer.xr.isPresenting) { hideAvatar(); return false; }
+  // the eye stays rigidly behind the target (no lag at any speed); only the heading eases round
+  if (!CAM.on) { CAM.yaw = yaw; CAM.on = true; } else CAM.yaw += wrap(yaw - CAM.yaw) * Math.min(1, dt * 5);
+  CAM.eye.set(target.x + Math.sin(CAM.yaw) * dist, target.y + height, target.z + Math.cos(CAM.yaw) * dist);
+  CAM.eye.y = Math.max(CAM.eye.y, terrainH(CAM.eye.x, CAM.eye.z) + 1.5);
+  CAM.look.set(target.x, target.y + 1.2, target.z);
+  const dx = CAM.look.x - CAM.eye.x, dz = CAM.look.z - CAM.eye.z;
+  rig.rotation.set(0, Math.atan2(-dx, -dz), 0); rig.position.set(CAM.eye.x, CAM.eye.y - camera.position.y, CAM.eye.z);
+  pitch = Math.atan2(CAM.look.y - CAM.eye.y, Math.hypot(dx, dz)); camera.rotation.set(pitch, 0, 0);
+  return true;
+}
+
+// ===== The hoverboard: an exclusive at the Glazed & Confused outposts. Subway Surfers style, absurdly fast =====
+const HOVER = { owned: false, g: null, on: false, yaw: 0, v: 0, steer: 0, alt: 0, prev: false, whoosh: 0 };
+function buildHoverboard(scale = 1) {
+  const g = new THREE.Group(), deckTex = canvasTex(256, 64, (c, w, h) => { c.fillStyle = '#ff3d7f'; c.fillRect(0, 0, w, h); c.fillStyle = '#ffd23f'; for (let i = 0; i < 6; i++) { c.beginPath(); c.moveTo(20 + i * 40, h); c.lineTo(40 + i * 40, 0); c.lineTo(52 + i * 40, 0); c.lineTo(32 + i * 40, h); c.fill(); } c.fillStyle = '#2bb3c0'; c.font = '900 34px Impact, Arial Black'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('★ GLAZED ★', w / 2, h / 2 + 2); });
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.07, 1.5), [L(0x1b1416), L(0x1b1416), L(0xffffff, { map: deckTex }), L(0x2b2724), L(0x1b1416), L(0x1b1416)]); g.add(deck);
+  for (const s of [-1, 1]) { const end = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.07, 20, 1, false, 0, Math.PI), L(0xff3d7f)); end.rotation.y = s > 0 ? 0 : Math.PI; end.rotation.x = 0; end.position.z = s * 0.75; end.rotation.set(0, s > 0 ? Math.PI / 2 : -Math.PI / 2, 0); g.add(end); }
+  const neon = new THREE.MeshBasicMaterial({ color: 0x2bf0ff });
+  for (const s of [-1, 1]) { const strip = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 1.5), neon); strip.position.set(s * 0.32, -0.02, 0); g.add(strip); }
+  for (const z of [-0.45, 0.45]) { const jet = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.08, 16), neon); jet.position.set(0, -0.07, z); g.add(jet); }
+  g.scale.setScalar(scale); return g;
+}
+function mountHover() {
+  if (!HOVER.owned || HOVER.on || !['town'].includes(MODE) || FADE.phase) return;
+  if (!HOVER.g) { HOVER.g = buildHoverboard(1); scene.add(HOVER.g); }
+  const h = headPos(new V3()), f = camera.getWorldDirection(new V3()); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
+  dropTreat(); closeBeauMenu(); HOVER.on = true; HOVER.v = 0; HOVER.steer = 0; HOVER.yaw = Math.atan2(-f.x, -f.z); HOVER.alt = 0.5;
+  HOVER.g.position.set(h.x, terrainH(h.x, h.z) + 0.5, h.z); HOVER.g.visible = true; MODE = 'drive'; VEH = null; BEAU.ext = BEAU.on ? 'hover' : null;
+  tone(400, 0.5, 'sine', 0.1, 1200); noise(0.4, 0.15, 2000, 'bandpass');
+  showPopup(renderer.xr.isPresenting ? 'R trigger: GO · L trigger: brake · L stick: steer · R stick click: hop off' : MOBILE ? 'Joystick: go / steer · Board: hop off' : 'W: GO · S: brake · A/D: steer · H: hop off', 5);
+}
+function dismountHover() {
+  if (!HOVER.on) return;
+  HOVER.on = false; HOVER.v = 0; HOVER.g.visible = false; hideAvatar(); camera.fov = 70; camera.updateProjectionMatrix();
+  const p = HOVER.g.position; standAt(p.x, p.z, HOVER.yaw); BEAU.ext = null;
+  if (BEAU.on) { BEAU.B.root.position.set(p.x - Math.sin(HOVER.yaw) * 2.6, 0, p.z - Math.cos(HOVER.yaw) * 2.6); BEAU.mode = 'follow'; }
+  tone(900, 0.3, 'sine', 0.08, 300);
+}
+function pollHover(vr) {
+  let p = !!keys.KeyH;
+  if (vr) for (const C of ctrls) { const gp = C.src && C.src.gamepad; if (C.hand === 'right' && gp && gp.buttons[3] && gp.buttons[3].pressed) p = true; }
+  if (p && !HOVER.prev) { if (HOVER.on) dismountHover(); else if (HOVER.owned && MODE === 'town') mountHover(); }
+  HOVER.prev = p;
+}
+function updateHover(dt, vr) {
+  if (!HOVER.on) return;
+  let gas = 0, brake = 0, steer = 0, off = false;
+  if (vr) for (const C of ctrls) {
+    const gp = C.src && C.src.gamepad; if (!gp) continue;
+    const trig = gp.buttons[0] ? gp.buttons[0].value : 0, [ax, ay] = axes(gp);
+    if (C.hand === 'right') { gas = Math.max(gas, trig); if (gp.buttons[5] && gp.buttons[5].pressed) off = true; }
+    else { brake = Math.max(brake, trig); if (Math.abs(ax) > 0.12) steer = ax; if (ay < -0.3) gas = Math.max(gas, -ay); if (ay > 0.3) brake = Math.max(brake, ay); }
+  } else {
+    if (keys.KeyW || keys.ArrowUp) gas = 1; if (keys.KeyS || keys.ArrowDown) brake = 1;
+    if (keys.KeyA || keys.ArrowLeft) steer = -1; if (keys.KeyD || keys.ArrowRight) steer = 1;
+    if (keys.KeyE) off = true;
+  }
+  if (off) { dismountHover(); return; }
+  // speed: grows with itself while you hold it, so you hit ~2,600 m/s in about a second (LA ↔ SF in ~2 s)
+  if (gas > 0) HOVER.v = Math.min(3800, HOVER.v + (14 + HOVER.v * 8) * gas * dt);
+  else HOVER.v *= Math.max(0, 1 - dt * (HOVER.v > 60 ? 1.6 : 0.8));
+  if (brake > 0) HOVER.v = Math.max(0, HOVER.v * Math.max(0, 1 - dt * 4 * brake) - 25 * brake * dt);
+  HOVER.steer += (steer - HOVER.steer) * Math.min(1, dt * 7);
+  HOVER.yaw -= HOVER.steer * 2.0 * dt / (1 + HOVER.v / 120);
+  const p = HOVER.g.position, nx = p.x - Math.sin(HOVER.yaw) * HOVER.v * dt, nz = p.z - Math.cos(HOVER.yaw) * HOVER.v * dt;
+  // at street speed it bumps into things; once it's really moving it climbs over the city
+  if (HOVER.v < 40 && HOVER.alt < 3 && carBlocked(nx, nz, 0.5) && !inWater(nx, nz)) { HOVER.v *= -0.2; tone(120, 0.15, 'square', 0.1, 60); }
+  else { p.x = nx; p.z = nz; }
+  const wd = Math.hypot(p.x, p.z); if (wd > 3400) { p.x *= 3400 / wd; p.z *= 3400 / wd; HOVER.v *= 0.5; }
+  const wantAlt = 0.5 + Math.min(70, Math.max(0, HOVER.v - 35) * 0.12);
+  HOVER.alt += (wantAlt - HOVER.alt) * Math.min(1, dt * 2);
+  p.y = Math.max(terrainH(p.x, p.z), 0.05) + HOVER.alt + Math.sin(elapsed * 4) * 0.04;
+  HOVER.g.rotation.order = 'YXZ'; HOVER.g.rotation.set(-Math.min(0.25, HOVER.v / 400) * (gas > 0 ? 1 : 0.3), HOVER.yaw, -HOVER.steer * 0.35);
+  // jets, speed lines, whoosh
+  HOVER.g.updateMatrixWorld(true);
+  for (const z of [-0.45, 0.45]) { const j = HOVER.g.localToWorld(new V3(0, -0.12, z)); emit(j.x, j.y, j.z, rr(-0.2, 0.2), rr(-1, -0.4), rr(-0.2, 0.2), pick([0x2bf0ff, 0xff3d7f, 0xffffff]), 0.25, 0, -9999); }
+  if (HOVER.v > 50) { const fw = new V3(-Math.sin(HOVER.yaw), 0, -Math.cos(HOVER.yaw)); for (let i = 0; i < Math.min(30, HOVER.v / 20); i++) { const d = rr(20, 40) + HOVER.v / 30, sd = pick([-1, 1]) * rr(5, 14), q = p.clone().addScaledVector(fw, d); emit(q.x - fw.z * sd, q.y + rr(-2, 6), q.z + fw.x * sd, 0, 0, 0, 0xffffff, 0.12, 0, -9999); } }
+  HOVER.whoosh -= dt; if (HOVER.v > 5 && HOVER.whoosh <= 0) { HOVER.whoosh = 0.12; noise(0.16, Math.min(0.25, 0.03 + HOVER.v / 4000), 600 + Math.min(4000, HOVER.v * 2), 'bandpass'); }
+  if (HOVER.v > 300 && Math.random() < dt * 2) rumble(0.3, 60);
+  // you (and Beau on the nose)
+  const feet = HOVER.g.localToWorld(new V3(0, 0.05, 0.1));
+  if (!chaseCam(p, HOVER.yaw, 5.5 + Math.min(10, HOVER.v / 60), 2.4 + Math.min(4, HOVER.v / 150), dt)) { lockHead(new V3(feet.x, feet.y + 1.55, feet.z), HOVER.yaw); }
+  else { showAvatar(feet, HOVER.yaw, 'stand'); camera.fov = 70 + Math.min(28, HOVER.v * 0.03); camera.updateProjectionMatrix(); }
+  if (BEAU.on) poseBeau(HOVER.g.localToWorld(new V3(0, 0.04, -0.55)), HOVER.yaw + Math.PI, { scale: 0.75, look: 0.2 });
 }
 
 // ---------- 12. Start buttons and the main loop ----------
@@ -5399,14 +5515,15 @@ mobUI.querySelectorAll('[data-key]').forEach(b => { // hold-to-press buttons map
 let mobMode = '';
 function updateMobileUI() { // show only the buttons that do something right now
   if (!MOBILE || !started || renderer.xr.isPresenting) return;
-  const m = MODE + (MODE === 'bball' ? BB.poss : '') + PH.zone + WPN.cur;
+  const m = MODE + (MODE === 'bball' ? BB.poss : '') + PH.zone + WPN.cur + HOVER.owned + HOVER.on;
   if (m === mobMode) return; mobMode = m;
   const show = (id, label) => { const b = document.getElementById(id); b.style.display = label ? '' : 'none'; if (label) b.textContent = label; };
   const town = MODE === 'town', heli = MODE === 'heli', drive = MODE === 'drive', bb = MODE === 'bball', def = bb && BB.poss !== 'player' && BB.poss !== 'dribble';
-  show('mb-shift', town ? 'Sprint' : drive ? 'Boost' : heli ? 'Fast' : '');
+  show('mb-shift', town ? 'Sprint' : drive && !HOVER.on ? 'Boost' : heli ? 'Fast' : '');
+  show('mb-h', HOVER.on ? 'Hop off' : HOVER.owned && town ? 'Board' : '');
   show('mb-space', heli ? 'Up' : def ? 'Defense' : '');
   show('mb-c', heli ? 'Down' : '');
-  show('mb-e', drive ? 'Get out' : heli ? 'Land' : '');
+  show('mb-e', drive && !HOVER.on ? 'Get out' : heli ? 'Land' : '');
   show('mb-f', WPN.cur && (town || drive || heli) ? 'Fire' : town && PH.zone === 'waste' ? 'Punch' : '');
   document.getElementById('mhint').textContent = bb ? (def ? 'Defense: block by tapping near him' : 'Hold the screen to charge, release to shoot') : heli ? 'Joystick: forward/back · turn' : drive ? 'Joystick: gas/brake · steer' : 'Drag to look · tap to interact';
 }
@@ -5431,10 +5548,10 @@ renderer.setAnimationLoop(() => {
   if (MODE === 'arcade') updateArcade(dt, vr);
   updatePunch(vr);
   updateBeau(dt, headV, vr);
-  updateWorld(dt, headV); updateCar(dt, vr); updateHeli(dt, vr); updateSprint(dt, vr); updateFoes(dt, headV, vr); updateWasteland(dt, headV, vr); updateSFLife(dt); updateCouch(dt); updateSkydive(dt, vr); updateBeauMenu(dt);
+  updateWorld(dt, headV); updateCar(dt, vr); updateHeli(dt, vr); updateSprint(dt, vr); updateFoes(dt, headV, vr); updateWasteland(dt, headV, vr); updateSFLife(dt); updateHover(dt, vr); updateCouch(dt); updateSkydive(dt, vr); updateBeauMenu(dt);
   updatePlayerArms(vr, headV);
   updatePopup(dt);
-  if (started) { pollDev(vr); pollStance(vr, dt); pollPunchKey(); updateMobileUI(); }
+  if (started) { pollDev(vr); pollStance(vr, dt); pollPunchKey(); pollHover(vr); updateMobileUI(); }
   updateFade(dt);
   updateGame(dt, headV);
   updateFlying(dt, vr);
