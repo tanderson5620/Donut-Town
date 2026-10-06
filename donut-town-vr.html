@@ -3385,6 +3385,7 @@ function snapTurn(a) {
   rig.rotation.y += a;
 }
 const PR = 0.3;
+const RES_PREV = { x: 0, z: 0, ok: false };
 function resolve() {
   const h = headPos(tmpV2); let px = h.x, pz = h.z;
   for (let it = 0; it < 2; it++) for (const b of colliders) {
@@ -3402,6 +3403,8 @@ function resolve() {
   if (ld < LAKE.r + PR) { const k = (LAKE.r + PR) / Math.max(ld, 1e-4); px = LAKE.x + lx * k; pz = LAKE.z + lz * k; }
   if (inWater(px, pz)) { px = h.x; pz = h.z; if (inWater(px, pz)) { px = h.x + 1; } }
   if (MODE === 'bball') { px = clamp(px, CT.x0 + 0.3, CT.x1 - 0.3); pz = clamp(pz, CT.z0 + 0.3, CT.z1 - 0.3); }
+  if (MODE === 'town' && RES_PREV.ok && Math.hypot(px - RES_PREV.x, pz - RES_PREV.z) < 3 && steepRise(RES_PREV.x, RES_PREV.z, px, pz)) { px = RES_PREV.x; pz = RES_PREV.z; } // a mountain face: no further
+  RES_PREV.x = px; RES_PREV.z = pz; RES_PREV.ok = true;
   rig.position.x += px - h.x; rig.position.z += pz - h.z;
   rig.position.y = MODE === 'town' ? terrainH(px, pz) + SPRINT.h : rig.position.y;
 }
@@ -4604,6 +4607,14 @@ function exitVehicle(V) {
     standAt(x, z, V.yaw); BEAU.B.root.position.set(x - s * 2.6, 0, z - c * 2.6); BEAU.B.root.rotation.set(0, BEAU.yaw = V.yaw + Math.PI, 0); BEAU.mode = 'follow';
   });
 }
+// mountains are solid: you can't walk, drive or fly into a face steeper than ~42 degrees (the city's own hills are streets, so they're exempt)
+const MOUNT_SLOPE = 0.9;
+function steepRise(x0, z0, x1, z1) {
+  if (z1 < -1285) return false; const d = Math.hypot(x1 - x0, z1 - z0); if (d < 1e-4) return false;
+  const g1 = groundH(x1, z1); if (g1 < 2) return false;
+  const g0 = groundH(x0, z0), dd = Math.max(d, 0.25), gx = groundH(x0 + (x1 - x0) / d * dd, z0 + (z1 - z0) / d * dd); // slope over at least 25 cm
+  return (gx - g0) / dd > MOUNT_SLOPE;
+}
 function carBlocked(x, z, r = 1) {
   if (inWater(x, z)) return true;
   for (const b of colliders) { if (b.max.y < 0.5 || b.min.y > 1.4) continue; if (x > b.min.x - r && x < b.max.x + r && z > b.min.z - r && z < b.max.z + r) return true; }
@@ -4648,7 +4659,7 @@ function updateVehicle(V, dt, vr) {
     V.steer += (steer - V.steer) * Math.min(1, dt * 6);
     V.yaw -= V.steer * clamp(V.v / 8, -1, 1) * 1.1 * dt / (1 + Math.abs(V.v) / 35);
     const p = V.g.position, nx = p.x - Math.sin(V.yaw) * V.v * dt, nz = p.z - Math.cos(V.yaw) * V.v * dt;
-    if (carBlocked(nx, nz, V.half > 1 ? 1 : 0.5)) { if (Math.abs(V.v) > 4) { tone(90, 0.2, 'square', 0.15, 50); rumble(0.8, 150); } V.v *= -0.25; }
+    if (carBlocked(nx, nz, V.half > 1 ? 1 : 0.5) || steepRise(V.g.position.x, V.g.position.z, nx, nz)) { if (Math.abs(V.v) > 4) { tone(90, 0.2, 'square', 0.15, 50); rumble(0.8, 150); } V.v *= -0.25; }
     else { p.x = nx; p.z = nz; }
     placeVehicle(V, dt);
     if (V === CAR) V.wheel.rotation.z = -V.steer * 1.6; else V.wheel.rotation.y = -V.steer * 0.5;
@@ -4717,7 +4728,7 @@ function updateHeli(dt, vr) {
     p.lerpVectors(HELI.from, HELI.to, e); HELI.g.rotation.set(0, HELI.yaw, 0);
     if (u >= 1) { HELI.state = 'landed'; HELI.t = 0; }
   } else if (HELI.state === 'landed') {
-    HELI.t += dt; if (HELI.t > 0.5) { HELI.state = 'boarding'; fadeThrough(() => { MODE = 'heli'; HELI.state = 'fly'; BEAU.ext = 'heli'; pitch = 0; camera.rotation.x = 0;
+    HELI.t += dt; if (HELI.t > 0.5) { HELI.state = 'boarding'; fadeThrough(() => { MODE = 'heli'; HELI.state = 'fly'; HELI.pitch = HELI.roll = HELI.yawRate = 0; BEAU.ext = 'heli'; pitch = 0; camera.rotation.x = 0;
       showPopup(vr ? 'R trigger: up · L trigger: down · L stick: fly · R stick: turn · B: land & get out' : 'Space: up · C: down · W/S: fly · A/D: turn · E: land & get out', 6); }); }
   } else if (HELI.state === 'fly') {
     let up = 0, fwdIn = 0, side = 0, turn = 0, exit = false;
@@ -4733,11 +4744,20 @@ function updateHeli(dt, vr) {
       if (keys.KeyE) exit = true;
     }
     if (exit) { if (inWater(p.x, p.z) && !(deckH(p.x, p.z) >= 0 && p.y > deckH(p.x, p.z) - 1)) { if (!HELI.wet) toast('Find land (or the bridge) to set down', 2); HELI.wet = true; } else { HELI.state = 'landing'; HELI.wet = false; } } else HELI.wet = false;
-    HELI.yaw -= turn * 1.1 * dt;
-    const fx = -Math.sin(HELI.yaw), fz = -Math.cos(HELI.yaw), rx = Math.cos(HELI.yaw), rz = -Math.sin(HELI.yaw), top = keys.ShiftLeft || keys.ShiftRight ? 55 : 32;
-    const tv = new V3(fx * fwdIn * top + rx * side * 10, up * 8, fz * fwdIn * top + rz * side * 10);
-    HELI.vel.lerp(tv, Math.min(1, dt * 1.5));
+    // like a real helicopter: you tilt the rotor disc and it pulls you that way. Nose down to speed up, nose up (a flare) to
+    // slow down, roll to slide sideways, and it banks into its turns
+    HELI.yawRate = lerp(HELI.yawRate || 0, -turn * 1.1, Math.min(1, dt * 4)); HELI.yaw += HELI.yawRate * dt;
+    const fx = -Math.sin(HELI.yaw), fz = -Math.cos(HELI.yaw), rx = Math.cos(HELI.yaw), rz = -Math.sin(HELI.yaw), fast = keys.ShiftLeft || keys.ShiftRight;
+    const fwdV = HELI.vel.x * fx + HELI.vel.z * fz, sideV = HELI.vel.x * rx + HELI.vel.z * rz;
+    const tPitch = fwdIn ? fwdIn * (fast ? 0.5 : 0.34) : clamp(-fwdV * 0.012, -0.22, 0.22);           // no stick: flare to a hover
+    const tRoll = side ? side * 0.32 : clamp(-sideV * 0.03, -0.2, 0.2) + clamp(-HELI.yawRate * Math.max(0, fwdV) * 0.012, -0.35, 0.35); // bank into turns
+    HELI.pitch = lerp(HELI.pitch || 0, tPitch, Math.min(1, dt * 2.6)); HELI.roll = lerp(HELI.roll || 0, tRoll, Math.min(1, dt * 2.6));
+    const thrust = 9.8 * 2.6, aF = thrust * Math.tan(HELI.pitch), aS = thrust * Math.tan(HELI.roll), drag = 0.24;
+    HELI.vel.x += (fx * aF + rx * aS - HELI.vel.x * drag) * dt; HELI.vel.z += (fz * aF + rz * aS - HELI.vel.z * drag) * dt;
+    if (!fwdIn && !side && Math.hypot(HELI.vel.x, HELI.vel.z) < 1.2) { HELI.vel.x *= 1 - Math.min(1, dt * 2); HELI.vel.z *= 1 - Math.min(1, dt * 2); }
+    HELI.vel.y = lerp(HELI.vel.y, up * 8, Math.min(1, dt * 2));
   } else if (HELI.state === 'landing') { // settle straight down, then you hop out
+    HELI.pitch = (HELI.pitch || 0) * (1 - Math.min(1, dt * 3)); HELI.roll = (HELI.roll || 0) * (1 - Math.min(1, dt * 3));
     HELI.vel.x *= 1 - Math.min(1, dt * 3); HELI.vel.z *= 1 - Math.min(1, dt * 3); HELI.vel.y = -5;
     if (p.y <= heliFloor(p.x, p.z, p.y) + 0.01) { HELI.vel.set(0, 0, 0); HELI.state = 'leaving'; heliExit(); }
   }
@@ -4757,18 +4777,22 @@ function updateHeli(dt, vr) {
   if (HELI.state === 'fly' || HELI.state === 'landing') {
     const nx = p.x + HELI.vel.x * dt, nz = p.z + HELI.vel.z * dt;
     let blocked = inWater(nx, nz) && p.y < 0.6;
+    if (groundH(nx, nz) > p.y - 0.2 && steepRise(p.x, p.z, nx, nz)) { // flew into a mountainside
+      blocked = true; const hs = Math.hypot(HELI.vel.x, HELI.vel.z);
+      if (hs > 12 && !(HELI.bonk > 0)) { HELI.bonk = 0.8; sThud(); tone(80, 0.35, 'square', 0.2, 35); rumble(1, 250); damage(Math.min(30, hs * 0.6), true); toast('You clipped the mountain! Climb over it.', 2.5); for (let i = 0; i < 24; i++) emit(p.x, p.y + 1, p.z, rr(-3, 3), rr(1, 4), rr(-3, 3), pick([0xc8a878, 0x8a7a6a, 0xffd23f]), rr(0.4, 1), -9, 0); }
+    }
+    HELI.bonk = (HELI.bonk || 0) - dt;
     for (const b of colliders) if (p.y < b.max.y && nx > b.min.x - 1.2 && nx < b.max.x + 1.2 && nz > b.min.z - 1.2 && nz < b.max.z + 1.2) { blocked = true; break; }
     if (blocked) { HELI.vel.x *= -0.3; HELI.vel.z *= -0.3; } else { p.x = nx; p.z = nz; }
     let ny = p.y + HELI.vel.y * dt; const dk = deckH(p.x, p.z);
     if (dk > 2 && p.y < dk - 1 && ny > dk - 2.6) { ny = dk - 2.6; HELI.vel.y = Math.min(0, HELI.vel.y); } // under the bridge: the deck is a ceiling
     p.y = clamp(ny, heliFloor(p.x, p.z, p.y), 400);
     const wd = Math.hypot(p.x, p.z); if (wd > 3400) { p.x *= 3400 / wd; p.z *= 3400 / wd; }
-    // nose dips when flying forward, banks when turning (the cabin view stays level)
-    const fwdV = HELI.vel.x * -Math.sin(HELI.yaw) + HELI.vel.z * -Math.cos(HELI.yaw);
-    HELI.g.rotation.order = 'YXZ'; HELI.g.rotation.set(-clamp(fwdV / 120, -0.15, 0.25), HELI.yaw, 0);
+    // the whole helicopter pitches and banks (in VR your view stays level and the cabin tilts round you)
+    HELI.g.rotation.order = 'YXZ'; HELI.g.rotation.set(-(HELI.pitch || 0), HELI.yaw, -(HELI.roll || 0));
     HELI.g.updateMatrixWorld(true);
     const seat = HELI.g.localToWorld(new V3(-0.32, 1.55, 0.2));
-    if (chaseCam(HELI.g.position, HELI.yaw, 16, 6, 1 / 60)) showAvatar(HELI.g.localToWorld(new V3(-0.32, 0.4, 0.2)), HELI.yaw, 'sit'); else lockHead(seat, HELI.yaw);
+    if (chaseCam(HELI.g.position, HELI.yaw, 14, 5, dt)) { camera.rotation.z = -(HELI.roll || 0) * 0.35; showAvatar(HELI.g.localToWorld(new V3(-0.32, 0.4, 0.2)), HELI.yaw, 'sit'); PLAYER_AV.root.rotation.set(HELI.pitch || 0, HELI.yaw + Math.PI, HELI.roll || 0, 'YXZ'); } else lockHead(seat, HELI.yaw);
     if (BEAU.on) poseBeau(HELI.g.localToWorld(new V3(0.32, 0.98, 0.15)), HELI.yaw + Math.PI, { scale: 0.75, look: 0.1 });
   }
 }
@@ -4990,7 +5014,7 @@ function buildFigure(o) { // low-poly person: hips + a chest that bends (torso, 
 const RAIDER_COLS = [[0x6b4a2f, 0x3b3b3b], [0x4a4a44, 0x5b3a22], [0x7a3b2a, 0x2f2f33], [0x55603a, 0x3a2f28]];
 const FOES = [], PEDS = [], ROCKS = [], BUGGIES = [];
 for (let i = 0; i < 8; i++) { const [shirt, pants] = RAIDER_COLS[i % 4]; FOES.push(Object.assign(buildFigure({ raider: true, shirt, pants, skin: pick([0xc68a62, 0x8d5a3b, 0xe0b08a, 0x5e3a28]), hair: pick([0xff3d3d, 0x222222, 0xffb020]), arm: 0x7a5a42 }), { kind: 'raider', state: 'off', t: 0, cd: 0, hp: 2, ph: 0, yaw: 0, hitCD: 0 })); }
-for (let i = 0; i < 10; i++) { const sk = pick([0xc68a62, 0x8d5a3b, 0xe0b08a, 0x5e3a28, 0xf1c9a5]); PEDS.push(Object.assign(buildFigure({ shirt: pick([0xff6fae, 0x5aa9e6, 0xffd23f, 0x2f9e6e, 0xffffff, 0xe0559a, 0x7d5fff]), pants: pick([0x3d5a80, 0x2b2b2b, 0xc8b08a, 0x6b6b6b]), skin: sk, hair: pick([0x16100c, 0x3a2414, 0xd9b36a, 0x6b3a1e]), arm: sk }), { kind: 'ped', state: 'off', t: 0, ph: 0, yaw: 0, dir: new V3(), legLen: 0 })); }
+for (let i = 0; i < 16; i++) { const sk = pick([0xc68a62, 0x8d5a3b, 0xe0b08a, 0x5e3a28, 0xf1c9a5]); PEDS.push(Object.assign(buildFigure({ shirt: pick([0xff6fae, 0x5aa9e6, 0xffd23f, 0x2f9e6e, 0xffffff, 0xe0559a, 0x7d5fff]), pants: pick([0x3d5a80, 0x2b2b2b, 0xc8b08a, 0x6b6b6b]), skin: sk, hair: pick([0x16100c, 0x3a2414, 0xd9b36a, 0x6b3a1e]), arm: sk }), { kind: 'ped', state: 'off', t: 0, ph: 0, yaw: 0, dir: new V3(), legLen: 0 })); }
 const rockGeo2 = new THREE.IcosahedronGeometry(0.12, 0), rockMat2 = L(0x7d7468);
 for (let i = 0; i < 10; i++) { const m = new THREE.Mesh(rockGeo2, rockMat2); m.visible = false; scene.add(m); ROCKS.push({ m, v: new V3(), on: false, t: 0 }); }
 function buildBuggy() {
@@ -5039,13 +5063,29 @@ function wasted() {
 // ----- hit reactions, knockdowns, burns (physical, no gore) -----
 const SCORCH = []; for (let i = 0; i < 36; i++) { const m = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ map: T.soft, color: 0x14100c, transparent: true, opacity: 0, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.renderOrder = 1; m.visible = false; scene.add(m); SCORCH.push({ m, t: 0 }); }
 let scorchI = 0;
-function scorch(p, r, col = 0x14100c) { const S = SCORCH[scorchI++ % SCORCH.length]; S.m.position.set(p.x, terrainH(p.x, p.z) + 0.04 + (scorchI % 7) * 0.002, p.z); S.m.scale.setScalar(r); S.m.material.color.setHex(col); S.m.material.opacity = 0.75; S.m.visible = true; S.t = 25; S.grow = 0; return S; }
+// the top of whatever you're standing on: SF streets sit a little above the ground mesh
+const surfH = (x, z) => terrainH(x, z) + (z < -1285 && sfRoadNear(x, z, 0.3) ? 0.22 : 0);
+function scorch(p, r, col = 0x14100c) { const S = SCORCH[scorchI++ % SCORCH.length]; S.m.position.set(p.x, surfH(p.x, p.z) + 0.04 + (scorchI % 7) * 0.002, p.z); S.m.scale.setScalar(r); S.m.material.color.setHex(col); S.m.material.opacity = 0.75; S.m.visible = true; S.t = 25; S.grow = 0; return S; }
 const sThud = () => { tone(rr(90, 130), 0.12, 'sine', 0.18, 50); noise(0.08, 0.18, 700, 'lowpass'); };
 const sSizzle = () => noise(0.18, 0.1, 3000, 'highpass');
 const sScream = () => { tone(rr(500, 650), 0.6, 'sawtooth', 0.05, rr(300, 380)); tone(rr(700, 820), 0.4, 'triangle', 0.03, 500, 0.1); };
 function localPush(F, dir) { // push direction in the figure's own frame (x = its right, z = its front)
   const c = Math.cos(F.yaw), s2 = Math.sin(F.yaw), fx = dir.x * c - dir.z * s2, fz = dir.x * s2 + dir.z * c, l = Math.hypot(fx, fz) || 1;
   return { fx: fx / l, fz: fz / l };
+}
+// a knocked-down figure (raider or pedestrian): flies, tumbles, bounces, settles splayed in a pool of blood
+function koPhysics(F, dt) {
+  const p = F.g.position;
+      const gy = terrainH(p.x, p.z);
+  if (F.air) {
+    F.vel.y -= 9.8 * dt; p.addScaledVector(F.vel, dt); F.fallAng += dt * (3.2 + F.tumble);
+    if (p.y <= gy && F.vel.y < 0) { p.y = gy; sThud(); for (let i = 0; i < 8; i++) emit(p.x, gy + 0.1, p.z, rr(-1.5, 1.5), rr(0.3, 1), rr(-1.5, 1.5), 0xc8a878, rr(0.4, 0.8), -4, -99);
+      if (F.vel.y < -4.5) { F.vel.y *= -0.3; F.vel.x *= 0.5; F.vel.z *= 0.5; } else F.air = false; }
+  } else { if (F.pool) { F.pool = false; bloodPool(p, rr(1.0, 1.6)); } const f = Math.max(0, 1 - dt * 5); F.vel.x *= f; F.vel.z *= f; p.x += F.vel.x * dt; p.z += F.vel.z * dt; p.y = gy - Math.max(0, F.t - 3.5) * 0.5; F.fallAng += wrap(Math.PI / 2 - F.fallAng) * Math.min(1, dt * 8); }
+  F.g.rotation.set(F.push.fz * F.fallAng, F.yaw, -F.push.fx * F.fallAng);
+  const sp = Math.min(1, F.t * 3); F.arms[0].rotation.set(-0.4 * sp, 0, -1.1 * sp); F.arms[1].rotation.set(-0.2 * sp, 0, 1.2 * sp); F.legs[0].rotation.set(0.3 * sp, 0, -0.25 * sp); F.legs[1].rotation.set(-0.2 * sp, 0, 0.2 * sp); F.chest.rotation.set(0, 0, 0);
+  if (F.smolder > 0) { F.smolder -= dt; if (Math.random() < dt * 14) { const q = bodyPoint(F); emit(q.x, q.y, q.z, rr(-0.2, 0.2), rr(0.6, 1.2), rr(-0.2, 0.2), pick([0x3a3a3a, 0x555555, 0xff6a00]), rr(1, 2), 0.4, -99); } }
+  foeLook(F, false);
 }
 function koFoe(F, fling, o = {}) {
   if (F.state === 'ko' || F.state === 'off') return;
@@ -5124,16 +5164,7 @@ function updateFoes(dt, head, vr) {
     if (d > 240) { F.state = 'off'; F.g.visible = false; continue; }
     let speed = 0, swing = 0, throwA = 0;
     if (F.state === 'ko') { // falls away from the hit (launched and tumbling if it was big), bounces, settles, then fades
-      const gy = terrainH(p.x, p.z);
-      if (F.air) {
-        F.vel.y -= 9.8 * dt; p.addScaledVector(F.vel, dt); F.fallAng += dt * (3.2 + F.tumble);
-        if (p.y <= gy && F.vel.y < 0) { p.y = gy; sThud(); for (let i = 0; i < 8; i++) emit(p.x, gy + 0.1, p.z, rr(-1.5, 1.5), rr(0.3, 1), rr(-1.5, 1.5), 0xc8a878, rr(0.4, 0.8), -4, -99);
-          if (F.vel.y < -4.5) { F.vel.y *= -0.3; F.vel.x *= 0.5; F.vel.z *= 0.5; } else F.air = false; }
-      } else { if (F.pool) { F.pool = false; bloodPool(p, rr(1.0, 1.6)); } const f = Math.max(0, 1 - dt * 5); F.vel.x *= f; F.vel.z *= f; p.x += F.vel.x * dt; p.z += F.vel.z * dt; p.y = gy - Math.max(0, F.t - 3.5) * 0.5; F.fallAng += wrap(Math.PI / 2 - F.fallAng) * Math.min(1, dt * 8); }
-      F.g.rotation.set(F.push.fz * F.fallAng, F.yaw, -F.push.fx * F.fallAng);
-      const sp = Math.min(1, F.t * 3); F.arms[0].rotation.set(-0.4 * sp, 0, -1.1 * sp); F.arms[1].rotation.set(-0.2 * sp, 0, 1.2 * sp); F.legs[0].rotation.set(0.3 * sp, 0, -0.25 * sp); F.legs[1].rotation.set(-0.2 * sp, 0, 0.2 * sp); F.chest.rotation.set(0, 0, 0);
-      if (F.smolder > 0) { F.smolder -= dt; if (Math.random() < dt * 14) { const q = bodyPoint(F); emit(q.x, q.y, q.z, rr(-0.2, 0.2), rr(0.6, 1.2), rr(-0.2, 0.2), pick([0x3a3a3a, 0x555555, 0xff6a00]), rr(1, 2), 0.4, -99); } }
-      foeLook(F, false);
+      koPhysics(F, dt);
       if (F.t > 5) { F.state = 'off'; F.g.visible = false; F.g.rotation.set(0, 0, 0); } continue;
     }
     if (F.react) { // upper body snaps away from the hit, arms fling out, a little slide
@@ -5240,31 +5271,80 @@ function throwRock(F, head) {
   R.m.position.copy(from); R.v.set((head.x - from.x) / T + rr(-0.6, 0.6), (head.y - from.y) / T + 4.9 * T, (head.z - from.z) / T + rr(-0.6, 0.6)); R.on = true; R.t = 0; R.m.visible = true;
   tone(500, 0.15, 'sine', 0.04, 250);
 }
+// Pedestrians: they walk the sidewalks. Run one over and they go flying; a hard enough hit kills outright, otherwise they
+// lie in the road dying, with a last wish over their head, until they go still (or you hit them again).
+const LAST_WISHES = ['Please... I have a family...', 'Tell my mom... I\'m sorry...', 'I just paid off my student loans...', 'Feed my cat... her name is Mittens...', 'I was going to propose tonight...',
+  'Who\'s gonna water my plants?', 'My sourdough starter... take care of it...', 'Was that... a hoverboard?', 'Delete my browser history...', 'I left the stove on...', 'Just... one more burrito...',
+  'Call... my lawyer...', 'I forgive you... no I don\'t.', 'Is it getting foggy... or is it me?', 'I never saw the Golden Gate in the fog...', 'At least it wasn\'t a Muni bus...', 'My fantasy team... start Rimshot...',
+  'I had a coupon for Boudin...', 'Tell my dog... he\'s a good boy...', 'I was only two blocks from home...', 'I paid $4,000 rent for this?', 'Avenge me...', 'Whyyyy...', 'I should\'ve taken BART...'];
+function wishBubble(text) {
+  const tex = canvasTex(512, 160, (c, w, h) => { c.fillStyle = 'rgba(255,255,255,0.96)'; rrect(c, 8, 8, w - 16, h - 46, 30); c.fill(); c.strokeStyle = '#2b2724'; c.lineWidth = 5; c.stroke(); c.beginPath(); c.moveTo(w / 2 - 18, h - 40); c.lineTo(w / 2, h - 6); c.lineTo(w / 2 + 18, h - 40); c.fill(); c.stroke();
+    c.fillStyle = '#7a0b0b'; c.textAlign = 'center'; c.textBaseline = 'middle'; fitFont(c, text, w - 60, 40, 'italic bold'); c.fillText(text, w / 2, (h - 38) / 2 + 4); });
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true })); sp.scale.set(3.4, 1.06, 1); sp.renderOrder = 5; scene.add(sp); return sp;
+}
+const RUN = { prev: null };
+function pedHitter() { // what could run a pedestrian over right now: position (swept from last frame), speed, radius, heading
+  let pos = null, v = 0, r = 1, dir = null;
+  if (MODE === 'drive' && VEH && VEH.state === 'drive') { pos = VEH.g.position; v = Math.abs(VEH.v); r = VEH === CAR ? 1.9 : 1.2; dir = new V3(-Math.sin(VEH.yaw) * Math.sign(VEH.v || 1), 0, -Math.cos(VEH.yaw) * Math.sign(VEH.v || 1)); }
+  else if (HOVER.on && HOVER.alt < 2.5) { pos = HOVER.g.position; v = HOVER.v; r = 1.1; dir = new V3(-Math.sin(HOVER.yaw), 0, -Math.cos(HOVER.yaw)); }
+  else if (MODE === 'heli' && HELI.g && HELI.state === 'fly') { pos = HELI.g.position; v = HELI.vel.length(); r = 3; dir = HELI.vel.clone().setY(0).normalize(); }
+  if (!pos) { RUN.prev = null; return null; }
+  const a = RUN.prev && RUN.prev.distanceTo(pos) < 400 ? RUN.prev.clone() : pos.clone(); RUN.prev = pos.clone();
+  return { a, b: pos.clone(), v, r, dir, y: pos.y };
+}
+function runOver(P, H) {
+  const hard = H.v > 60 ? 1 : clamp((H.v - 5) / 25, 0.12, 0.85);
+  P.fatal = P.state === 'dying' || P.state === 'dead' || Math.random() < hard; if (VEH && MODE === 'drive') VEH.v *= 0.9;
+  if (P.bubble) { scene.remove(P.bubble); P.bubble = null; }
+  P.state = 'walk'; // so koFoe takes it
+  koFoe(P, H.dir.clone().multiplyScalar(Math.min(18, 3 + H.v * 0.55)), { up: Math.min(8, 2 + H.v * 0.15), tumble: H.v > 14 ? 6 : 3 });
+  if (Math.random() < 0.7) sScream(); rumble(0.8, 120); sThud();
+}
 function updatePeds(dt, head) {
   const city = inCity(head.x, head.z) && ['town', 'drive', 'heli'].includes(MODE);
+  const H = pedHitter();
   for (const P of PEDS) {
     if (P.state === 'off') {
       if (!city || Math.random() > dt * 3) continue;
       // put them on a sidewalk near you, walking along it
       const sf = head.z < 0, gx = SF_GX + Math.round((head.x - SF_GX) / SF_G) * SF_G, gz = SF_GZ + Math.round((head.z - SF_GZ) / SF_G) * SF_G;
       const xs = sf ? [gx - SF_G, gx, gx + SF_G] : [15, 75, 135, 195, 255, 315], zs = sf ? [gz - SF_G, gz, gz + SF_G] : [1365, 1425, 1485, 1545, 1605, 1665, 1725];
-      const alongZ = Math.random() < 0.5, side = pick([-7.5, 7.5]);
+      const alongZ = Math.random() < 0.5, side = pick([-5.4, 5.4, -4.2, 4.2]);
       let x, z;
       if (alongZ) { x = pick(xs) + side; z = head.z + rr(-50, 50); P.dir.set(0, 0, pick([-1, 1])); } else { z = pick(zs) + side; x = head.x + rr(-50, 50); P.dir.set(pick([-1, 1]), 0, 0); }
       if (Math.hypot(x - head.x, z - head.z) < 12 || !inCity(x, z) || inWater(x, z) || (sf && sfZone(x, z) !== 'urban' && sfZone(x, z) !== 'plaza') || (sf && inSoma(x, z))) continue;
-      P.g.position.set(x, terrainH(x, z), z); P.state = 'walk'; P.t = 0; P.legLen = rr(25, 60); P.g.visible = true; continue;
+      reattachLimbs(P); P.blood = 0; P.char = 0; P.glaze = 0; P.smolder = 0; foeLook(P, false); P.chest.rotation.set(0, 0, 0); P.g.rotation.set(0, 0, 0);
+      P.g.position.set(x, terrainH(x, z), z); P.state = 'walk'; P.t = 0; P.legLen = rr(25, 60); P.g.visible = true; P.fatal = false; continue;
     }
     const p = P.g.position; P.t += dt;
-    if (!city || Math.hypot(head.x - p.x, head.z - p.z) > 110) { P.state = 'off'; P.g.visible = false; continue; }
+    const far = Math.hypot(head.x - p.x, head.z - p.z);
+    if (!city || far > 110 || (P.state === 'dead' && P.t > 60)) { P.state = 'off'; P.g.visible = false; if (P.bubble) { scene.remove(P.bubble); P.bubble = null; } continue; }
+    // a vehicle sweeping through them this frame?
+    if (H && H.v > 5 && Math.abs(H.y - p.y) < 3 && P.state !== 'ko' && segDist(p.x, p.z, H.a, H.b) < H.r + 0.35) { runOver(P, H); continue; }
+    if (P.state === 'ko') { koPhysics(P, dt); if (!P.air) P.g.position.y = surfH(P.g.position.x, P.g.position.z) + 0.05; foeLook(P, false); if (!P.air && P.t > 1.4) { P.state = P.fatal ? 'dead' : 'dying'; P.t = 0; P.dieT = rr(9, 15); P.groan = 0;
+        if (!P.fatal) P.bubble = wishBubble(pick(LAST_WISHES)); } continue; }
+    if (P.state === 'dying' || P.state === 'dead') {
+      p.y = surfH(p.x, p.z) + 0.05 - (P.state === 'dead' ? Math.max(0, P.t - 50) * 0.05 : 0);
+      if (P.state === 'dying') {
+        const k = Math.sin(P.t * 7) * Math.max(0, 1 - P.t / P.dieT); P.arms[0].rotation.z = -1.1 + k * 0.35; P.legs[1].rotation.x = -0.2 + k * 0.25; P.chest.rotation.x = k * 0.08; // twitching, reaching
+        if (P.bubble) { P.bubble.position.set(p.x, p.y + 1.6, p.z); P.bubble.visible = far < 35; }
+        P.groan -= dt; if (P.groan <= 0 && far < 25) { P.groan = rr(2.5, 4); tone(rr(140, 190), 0.6, 'sine', 0.05, 90); }
+        if (Math.random() < dt * 0.6) bloodPool(p, rr(0.3, 0.6));
+        if (P.t > P.dieT) { P.state = 'dead'; P.t = 0; if (P.bubble) { scene.remove(P.bubble); P.bubble = null; } P.arms[0].rotation.z = -1.1; }
+      }
+      continue;
+    }
     let sp = 1.3;
-    // step out of the way of anything you're driving or flying low
-    const vp = MODE === 'drive' && VEH ? VEH.g.position : MODE === 'heli' && HELI.g ? HELI.g.position : null;
-    if (vp && vp.y - p.y < 4 && Math.hypot(vp.x - p.x, vp.z - p.z) < 6) { const aw = new V3(p.x - vp.x, 0, p.z - vp.z).normalize(); p.addScaledVector(aw, dt * 6); sp = 0; }
+    // only a slow car gets a polite step aside; at speed they freeze and scream
+    if (H && H.y - p.y < 4) { const d = Math.hypot(H.b.x - p.x, H.b.z - p.z);
+      if (d < 6 && H.v < 7) { const aw = new V3(p.x - H.b.x, 0, p.z - H.b.z).normalize(); p.addScaledVector(aw, dt * 4); sp = 0; }
+      else if (d < 14 && H.v >= 7) { sp = 0; if (!P.screamed) { P.screamed = true; if (Math.random() < 0.5) sScream(); } P.arms[0].rotation.set(-2.6, 0, -0.3); P.arms[1].rotation.set(-2.6, 0, 0.3); } }
+    if (sp) P.screamed = false;
     if (P.t > P.legLen / sp && sp) { P.dir.negate(); P.t = 0; }
-    p.addScaledVector(P.dir, sp * dt); p.y = terrainH(p.x, p.z);
+    p.addScaledVector(P.dir, sp * dt); p.y = surfH(p.x, p.z);
     P.yaw = Math.atan2(P.dir.x, P.dir.z); P.g.rotation.y = P.yaw;
-    P.ph += dt * sp * 4; const s = Math.sin(P.ph) * (sp ? 1 : 0);
-    P.legs[0].rotation.x = s * 0.5; P.legs[1].rotation.x = -s * 0.5; P.arms[0].rotation.x = -s * 0.4; P.arms[1].rotation.x = s * 0.4;
+    P.ph += dt * sp * 4; const s2 = Math.sin(P.ph) * (sp ? 1 : 0);
+    P.legs[0].rotation.x = s2 * 0.5; P.legs[1].rotation.x = -s2 * 0.5; if (sp) { P.arms[0].rotation.set(-s2 * 0.4, 0, 0); P.arms[1].rotation.set(s2 * 0.4, 0, 0); }
   }
 }
 // wrecked cars and tire piles along the wasteland roads; a line across the road at each city limit
@@ -5852,7 +5932,12 @@ function updateHover(dt, vr) {
   HOVER.yaw -= HOVER.steer * 2.0 * dt / (1 + HOVER.v / 120);
   const p = HOVER.g.position, nx = p.x - Math.sin(HOVER.yaw) * HOVER.v * dt, nz = p.z - Math.cos(HOVER.yaw) * HOVER.v * dt;
   // at street speed it bumps into things; once it's really moving it climbs over the city
-  if (HOVER.v < 40 && HOVER.alt < 3 && carBlocked(nx, nz, 0.5) && !inWater(nx, nz)) { HOVER.v *= -0.2; tone(120, 0.15, 'square', 0.1, 60); }
+  let wall = null; { const L2 = Math.hypot(nx - p.x, nz - p.z), n = Math.max(1, Math.ceil(L2 / 4)); let qx = p.x, qz = p.z;
+    for (let i = 1; i <= n; i++) { const x = lerp(p.x, nx, i / n), z = lerp(p.z, nz, i / n); if (groundH(x, z) > p.y - 0.3 && steepRise(qx, qz, x, z)) { wall = [qx, qz]; break; } qx = x; qz = z; } }
+  if (wall) { // a mountain face: wipe out
+    const hit = HOVER.v; p.x = wall[0] + Math.sin(HOVER.yaw) * 2; p.z = wall[1] + Math.cos(HOVER.yaw) * 2; HOVER.v = 0; HOVER.alt = Math.min(HOVER.alt, 2);
+    if (hit > 12) { sThud(); tone(70, 0.4, 'square', 0.2, 30); rumble(1, 300); damage(Math.min(40, 8 + hit * 0.01), true); toast('Wiped out on the mountain! Go round, or through a pass.', 3); for (let i = 0; i < 30; i++) emit(p.x, p.y + 0.5, p.z, rr(-4, 4), rr(1, 5), rr(-4, 4), pick([0xc8a878, 0x8a7a6a, 0xffffff]), rr(0.5, 1.2), -9, 0); }
+  } else if (HOVER.v < 40 && HOVER.alt < 3 && carBlocked(nx, nz, 0.5) && !inWater(nx, nz)) { HOVER.v *= -0.2; tone(120, 0.15, 'square', 0.1, 60); }
   else { p.x = nx; p.z = nz; }
   const wd = Math.hypot(p.x, p.z); if (wd > 3400) { p.x *= 3400 / wd; p.z *= 3400 / wd; HOVER.v *= 0.5; }
   const wantAlt = 0.5 + Math.min(70, Math.max(0, HOVER.v - 35) * 0.12);
