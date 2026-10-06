@@ -55,7 +55,7 @@ Affection per gift:
 - Flowers: +18.
 - Date ticket: +34.
 
-The content stays wholesome and non-sexual. Keep it that way.
+The content stays non-sexual. By request, combat in the wasteland is graphic: blood sprays and pools, bloodied clothes and severed arms on big hits (`blood`, `bloodPool`, `severLimb`).
 
 ## Minigames
 - **DONUT DASH** (Arcade): press **Play** on the first cabinet. A Pac-Man-style game on a big screen: you're a pink donut eating sprinkles; coffee cups let you chomp the Burnt Bunch ghosts. Move with either thumbstick or WASD/arrows. Every 150 points pays 1 donut. State lives in `DD`.
@@ -119,7 +119,8 @@ Both characters are built with `buildPerson(opts)`: a hierarchical rig of hips, 
   - Each turtle gives a deep call when it passes overhead.
   - Each one casts a blob shadow on the ground.
   - They respawn on a new heading after leaving a 200 m radius.
-  - They're solid: they climb over mountains and hills in their path (look-ahead on `terrainH`, `tt.curAlt`), and flying the helicopter into one makes it crash (`heliCrash`): it falls and blows up, and you and Beau wake up safe in Donut Town.
+  - Shoot one (any weapon) and it gets angry (`angerTurtle`, `updateTurtleMood`): it stops flying, turns and stares down at you; the third hit and it projectile-vomits on you for 50 damage (half your health) wherever you are.
+  - They're solid: they climb over mountains and hills in their path (look-ahead on `terrainH`, `tt.curAlt`), and flying the helicopter into one blows it up in mid-air (`heliCrash`): you and Beau fall to the ground (`MODE = 'fall'`, `updateFall`). You wake up back at the spawn, but Beau dies for good (`killBeau`): a numbered grave ("BEAU 1", "BEAU 2", … `makeGrave`) appears beside the spawn sign, and Rimshot comes back so you can earn a new Beau in a 1v1.
 
 ## Code map (top to bottom in the script)
 1. Helpers: `rr`, `wrap`, noise (`hash2`, `vnoise`, `ridged`)

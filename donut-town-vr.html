@@ -1045,16 +1045,16 @@ function updateScenery(dt, t, head) {
   for (const tt of turtles) {
     if (tt.ride) updateRiddenTurtle(tt, dt);
     tt.ph += dt * TAU / 3.4;
-    tt.pos.addScaledVector(tt.dir, tt.speed * dt);
+    if (!(tt.mad > 0)) tt.pos.addScaledVector(tt.dir, tt.speed * dt); // an angry turtle stops to stare you down
     const f = Math.sin(tt.ph);
     // turtles are solid: they climb over mountains (and anything else) instead of flying through them
     let gmax = 0; for (const a of [0, 30, 70]) gmax = Math.max(gmax, terrainH(tt.pos.x + tt.dir.x * a, tt.pos.z + tt.dir.z * a));
     const want = Math.max(tt.alt, gmax + tt.s * 1.2 + 6); tt.curAlt = tt.curAlt === undefined ? want : tt.curAlt + (want - tt.curAlt) * Math.min(1, dt * (want > tt.curAlt ? 1.2 : 0.3));
     tt.g.position.set(tt.pos.x, tt.curAlt + Math.sin(tt.ph - 0.6) * 0.6 * tt.s * 0.25, tt.pos.z);
-    tt.body.rotation.x = -f * 0.05;
+    if (!(tt.mad > 0)) tt.body.rotation.x = -f * 0.05;
     tt.fronts.forEach((p, i) => { const s = i ? 1 : -1; p.rotation.z = s * f * 0.7; p.rotation.x = Math.cos(tt.ph) * 0.4; });
     tt.backs.forEach((p, i) => { p.rotation.z = (i ? 1 : -1) * Math.sin(tt.ph + 1) * 0.2; });
-    tt.neck.rotation.y = Math.sin(tt.ph * 0.31) * 0.15; tt.neck.rotation.x = Math.sin(tt.ph * 0.5) * 0.06;
+    if (!(tt.mad > 0)) { tt.neck.rotation.y = Math.sin(tt.ph * 0.31) * 0.15; tt.neck.rotation.x = Math.sin(tt.ph * 0.5) * 0.06; }
     tt.shadow.position.set(tt.pos.x, 0.06, tt.pos.z); tt.shadow.rotation.z = -tt.g.rotation.y;
     tt.shadow.material.opacity = clamp(0.42 - tt.alt / 160, 0.1, 0.3);
     const dh = Math.hypot(tt.pos.x - head.x, tt.pos.z - head.z);
@@ -2774,7 +2774,7 @@ function updateSprint(dt, vr) {
 }
 
 // ---------- 11b. Game modes: DONUT DASH (arcade), punching Rimshot, 1v1 basketball ----------
-let MODE = 'town'; // 'town' | 'arcade' | 'bball' | 'drive' | 'couch' | 'turtle' | 'sky' | 'heli'
+let MODE = 'town'; // 'town' | 'arcade' | 'bball' | 'drive' | 'couch' | 'turtle' | 'sky' | 'heli' | 'fall'
 // fade to black around the head for scene changes (comfortable in VR)
 const fader = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
 fader.renderOrder = 999; fader.visible = false; camera.add(fader);
@@ -4055,10 +4055,6 @@ function heliExit() {
 function heliFloor(x, z, y) { // land on the bridge deck if you're above it, else the ground/water below
   const dk = deckH(x, z); return dk >= 0 && y > dk - 1 ? dk : groundH(x, z);
 }
-function heliCrash(tt) {
-  HELI.state = 'crash'; HELI.t = 0; HELI.boomed = false; HELI.vel.multiplyScalar(-0.3); HELI.vel.y = 2;
-  sBonk(); sTurtle(0.4); tone(300, 0.6, 'sawtooth', 0.15, 80); rumble(1, 500);
-}
 function updateHeli(dt, vr) {
   if (!HELI.g || HELI.state === 'off') return;
   const p = HELI.g.position;
@@ -4373,7 +4369,7 @@ function playerSafe(force) { // modes / places where nobody can hurt you (force:
 function damage(n, force) {
   if (playerSafe(force)) return;
   if (MODE === 'drive') n *= 0.6; // the car takes some of it
-  PH.hp = Math.max(0, PH.hp - n); PH.hurt = 0.5; hurtFx.visible = true; sOuch(); rumble(0.9, 160); hudDirty = true;
+  PH.hp = Math.max(0, PH.hp - n); PH.noRegen = 4; PH.hurt = 0.5; hurtFx.visible = true; sOuch(); rumble(0.9, 160); hudDirty = true;
   if (PH.hp <= 0) wasted();
 }
 function wasted() {
@@ -4389,9 +4385,9 @@ function wasted() {
 }
 // ----- knocking raiders out -----
 // ----- hit reactions, knockdowns, burns (physical, no gore) -----
-const SCORCH = []; for (let i = 0; i < 14; i++) { const m = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ map: T.soft, color: 0x14100c, transparent: true, opacity: 0, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.renderOrder = 1; m.visible = false; scene.add(m); SCORCH.push({ m, t: 0 }); }
+const SCORCH = []; for (let i = 0; i < 36; i++) { const m = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ map: T.soft, color: 0x14100c, transparent: true, opacity: 0, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.renderOrder = 1; m.visible = false; scene.add(m); SCORCH.push({ m, t: 0 }); }
 let scorchI = 0;
-function scorch(p, r, col = 0x14100c) { const S = SCORCH[scorchI++ % SCORCH.length]; S.m.position.set(p.x, terrainH(p.x, p.z) + 0.04, p.z); S.m.scale.setScalar(r); S.m.material.color.setHex(col); S.m.material.opacity = 0.75; S.m.visible = true; S.t = 25; }
+function scorch(p, r, col = 0x14100c) { const S = SCORCH[scorchI++ % SCORCH.length]; S.m.position.set(p.x, terrainH(p.x, p.z) + 0.04 + (scorchI % 7) * 0.002, p.z); S.m.scale.setScalar(r); S.m.material.color.setHex(col); S.m.material.opacity = 0.75; S.m.visible = true; S.t = 25; S.grow = 0; return S; }
 const sThud = () => { tone(rr(90, 130), 0.12, 'sine', 0.18, 50); noise(0.08, 0.18, 700, 'lowpass'); };
 const sSizzle = () => noise(0.18, 0.1, 3000, 'highpass');
 const sScream = () => { tone(rr(500, 650), 0.6, 'sawtooth', 0.05, rr(300, 380)); tone(rr(700, 820), 0.4, 'triangle', 0.03, 500, 0.1); };
@@ -4404,6 +4400,9 @@ function koFoe(F, fling, o = {}) {
   F.state = 'ko'; F.t = 0; F.vel = (fling ? fling.clone() : new V3()).setY(o.up ?? 1.5); F.tumble = o.tumble || 0; F.air = true; F.fallAng = 0;
   F.push = localPush(F, fling && fling.lengthSq() > 0.01 ? fling : new V3(-Math.sin(F.yaw), 0, -Math.cos(F.yaw)));
   sKO(); sThud(); rumble(0.6, 90);
+  if (!o.burnt) { F.blood = Math.min(1, (F.blood || 0) + 0.5); blood(F.g.localToWorld(new V3(0, 1.2, 0)), fling ? fling.clone().normalize().setY(0.4) : new V3(0, 0.5, 0), (o.tumble || 0) >= 6 ? 40 : 18, (o.tumble || 0) >= 6 ? 5 : 2.5); }
+  if ((o.tumble || 0) >= 6 && Math.random() < 0.6) severLimb(F, Math.random() < 0.5 ? 0 : 1); // big hits can take an arm off
+  F.pool = !o.burnt;
   const p = F.g.position; for (let i = 0; i < 12; i++) emit(p.x, p.y + 1.4, p.z, rr(-1, 1), rr(0.5, 2), rr(-1, 1), pick([0xffd23f, 0xffffff]), rr(0.4, 0.8), -3, 0);
 }
 function hitFoe(F, from, kind = 'punch', at) {
@@ -4411,6 +4410,8 @@ function hitFoe(F, from, kind = 'punch', at) {
   F.hitCD = kind === 'bolt' ? 0.05 : 0.3; F.hp--; rumble(0.7, 80);
   const away = new V3(F.g.position.x - from.x, 0, F.g.position.z - from.z); if (away.lengthSq() < 1e-4) away.set(Math.sin(F.yaw), 0, Math.cos(F.yaw)).negate(); away.normalize();
   const hp = at || F.g.localToWorld(new V3(0, 1.3, 0));
+  F.blood = Math.min(1, (F.blood || 0) + (kind === 'bolt' ? 0.3 : 0.2));
+  blood(hp, new V3(away.x, 0.2, away.z), kind === 'bolt' ? 16 : 8, kind === 'bolt' ? 3 : 1.8);
   if (kind === 'bolt') { // energy bolt: sparks, a puff of smoke, a scorch mark on the clothes
     sSizzle(); F.char = Math.min(1, F.char + 0.12);
     for (let i = 0; i < 10; i++) emit(hp.x, hp.y, hp.z, away.x * 3 + rr(-2.5, 2.5), rr(0, 3), away.z * 3 + rr(-2.5, 2.5), pick([0xfff3a0, 0xffd23f, 0xffffff]), rr(0.15, 0.35), -9, -99);
@@ -4425,7 +4426,7 @@ function igniteFoe(F) {
   if (F.state !== 'burn') { F.state = 'burn'; F.t = 0; F.fire = 3.2; F.turnT = 0; sScream(); } else F.fire = Math.max(F.fire, 2.2);
 }
 function foeLook(F, burning) { // charred clothes, glaze, fire glow
-  const k = F.char, c = F.mat.color; c.setRGB(lerp(1, 0.2, k), lerp(1, 0.16, k), lerp(1, 0.13, k)); if (F.glaze) c.lerp(new THREE.Color(0xffb6da), F.glaze * 0.6);
+  const k = F.char, c = F.mat.color; c.setRGB(lerp(1, 0.2, k), lerp(1, 0.16, k), lerp(1, 0.13, k)); if (F.glaze) c.lerp(new THREE.Color(0xffb6da), F.glaze * 0.6); if (F.blood) c.lerp(new THREE.Color(0x8a1010), F.blood * 0.45);
   const glow = burning ? 0.12 + Math.random() * 0.12 : (F.smolder > 0 ? 0.06 * Math.min(1, F.smolder) : 0); F.mat.emissive.setRGB(glow, glow * 0.38, glow * 0.06);
 }
 function bodyPoint(F) { F.g.updateMatrixWorld(true); return F.g.localToWorld(new V3(rr(-0.25, 0.25), rr(0.2, 1.8), rr(-0.15, 0.15))); }
@@ -4448,7 +4449,8 @@ function updateFoes(dt, head, vr) {
   const atOutpost = OUTPOSTS.some(o => Math.hypot(head.x - o.x, head.z - o.z) < 45), zone = inWaste(head.x, head.z) ? 'waste' : atOutpost ? 'outpost' : 'safe';
   if (zone !== lastZone && MODE !== 'sky' && MODE !== 'turtle') { toast(zone === 'waste' ? 'Entering the wasteland: raiders!' : zone === 'outpost' ? 'Glazed & Confused: safe here. Grab an exclusive weapon!' : inCity(head.x, head.z) ? 'City limits: you\'re safe here.' : 'Out of the wasteland.', 3); hudDirty = true; }
   lastZone = zone; PH.zone = zone;
-  if (zone !== 'waste' && PH.hp < 100) { PH.hp = Math.min(100, PH.hp + dt * 12); if (Math.random() < dt * 4) hudDirty = true; }
+  PH.noRegen = (PH.noRegen || 0) - dt;
+  if (zone !== 'waste' && PH.hp < 100 && PH.noRegen <= 0) { PH.hp = Math.min(100, PH.hp + dt * 12); if (Math.random() < dt * 4) hudDirty = true; }
   if (PH.hurt > 0) { PH.hurt -= dt; hurtFx.material.opacity = Math.max(0, PH.hurt) * 0.9; if (PH.hurt <= 0) hurtFx.visible = false; }
   const fighting = zone === 'waste' && !PH.dead && ['town', 'drive', 'heli'].includes(MODE);
   // raiders: keep a few around you while you're in the wasteland
@@ -4456,7 +4458,7 @@ function updateFoes(dt, head, vr) {
   if (fighting && foeSpawnT <= 0) {
     foeSpawnT = MODE === 'drive' ? 1.2 : 2.5;
     const F = FOES.find(f => f.state === 'off');
-    if (F) { const s = spawnSpot(head, MODE === 'drive' ? 60 : 30, MODE === 'drive' ? 140 : 70); if (s) { F.g.position.copy(s); F.g.position.y = terrainH(s.x, s.z); F.state = 'chase'; F.hp = 2; F.t = 0; F.cd = rr(0.5, 2); F.g.rotation.set(0, 0, 0); F.chest.rotation.set(0, 0, 0); F.char = 0; F.glaze = 0; F.smolder = 0; F.react = null; F.kb = null; foeLook(F, false); F.g.visible = true; if (Math.random() < 0.5) sYell(); } }
+    if (F) { const s = spawnSpot(head, MODE === 'drive' ? 60 : 30, MODE === 'drive' ? 140 : 70); if (s) { F.g.position.copy(s); F.g.position.y = terrainH(s.x, s.z); F.state = 'chase'; F.hp = 2; F.t = 0; F.cd = rr(0.5, 2); F.g.rotation.set(0, 0, 0); F.chest.rotation.set(0, 0, 0); F.char = 0; F.glaze = 0; F.blood = 0; F.smolder = 0; F.react = null; F.kb = null; reattachLimbs(F); foeLook(F, false); F.g.visible = true; if (Math.random() < 0.5) sYell(); } }
   }
   if (fighting && MODE === 'drive' && Math.random() < dt * 0.25) { // buggies hunt drivers
     const B = BUGGIES.find(b => b.state === 'off'), s = B && spawnSpot(head, 120, 180);
@@ -4475,7 +4477,7 @@ function updateFoes(dt, head, vr) {
         F.vel.y -= 9.8 * dt; p.addScaledVector(F.vel, dt); F.fallAng += dt * (3.2 + F.tumble);
         if (p.y <= gy && F.vel.y < 0) { p.y = gy; sThud(); for (let i = 0; i < 8; i++) emit(p.x, gy + 0.1, p.z, rr(-1.5, 1.5), rr(0.3, 1), rr(-1.5, 1.5), 0xc8a878, rr(0.4, 0.8), -4, -99);
           if (F.vel.y < -4.5) { F.vel.y *= -0.3; F.vel.x *= 0.5; F.vel.z *= 0.5; } else F.air = false; }
-      } else { const f = Math.max(0, 1 - dt * 5); F.vel.x *= f; F.vel.z *= f; p.x += F.vel.x * dt; p.z += F.vel.z * dt; p.y = gy - Math.max(0, F.t - 3.5) * 0.5; F.fallAng += wrap(Math.PI / 2 - F.fallAng) * Math.min(1, dt * 8); }
+      } else { if (F.pool) { F.pool = false; bloodPool(p, rr(1.0, 1.6)); } const f = Math.max(0, 1 - dt * 5); F.vel.x *= f; F.vel.z *= f; p.x += F.vel.x * dt; p.z += F.vel.z * dt; p.y = gy - Math.max(0, F.t - 3.5) * 0.5; F.fallAng += wrap(Math.PI / 2 - F.fallAng) * Math.min(1, dt * 8); }
       F.g.rotation.set(F.push.fz * F.fallAng, F.yaw, -F.push.fx * F.fallAng);
       const sp = Math.min(1, F.t * 3); F.arms[0].rotation.set(-0.4 * sp, 0, -1.1 * sp); F.arms[1].rotation.set(-0.2 * sp, 0, 1.2 * sp); F.legs[0].rotation.set(0.3 * sp, 0, -0.25 * sp); F.legs[1].rotation.set(-0.2 * sp, 0, 0.2 * sp); F.chest.rotation.set(0, 0, 0);
       if (F.smolder > 0) { F.smolder -= dt; if (Math.random() < dt * 14) { const q = bodyPoint(F); emit(q.x, q.y, q.z, rr(-0.2, 0.2), rr(0.6, 1.2), rr(-0.2, 0.2), pick([0x3a3a3a, 0x555555, 0xff6a00]), rr(1, 2), 0.4, -99); } }
@@ -4501,7 +4503,7 @@ function updateFoes(dt, head, vr) {
       if (!F.react) F.chest.rotation.set(Math.sin(elapsed * 9) * 0.15, Math.sin(elapsed * 7) * 0.3, 0);
       if (Math.abs(p.z) > WASTE.z1 - 3) p.z = Math.sign(p.z) * (WASTE.z1 - 3);
       p.y = terrainH(p.x, p.z); F.g.rotation.set(0, F.yaw, 0); foeLook(F, true);
-      if (F.fire <= 0) { F.smolder = 4; koFoe(F, new V3(Math.sin(F.yaw), 0, Math.cos(F.yaw)).multiplyScalar(1.5), { up: 0.5 }); scorch(p, 0.9); }
+      if (F.fire <= 0) { F.smolder = 4; koFoe(F, new V3(Math.sin(F.yaw), 0, Math.cos(F.yaw)).multiplyScalar(1.5), { up: 0.5, burnt: true }); scorch(p, 0.9); }
       continue;
     }
     foeLook(F, false);
@@ -4570,7 +4572,8 @@ function updateFoes(dt, head, vr) {
       else if (B.cd <= 0) { B.cd = 1.5; damage(14); veh.v *= 0.7; B.v *= -0.3; tone(90, 0.25, 'square', 0.18, 45); }
     }
   }
-  for (const S of SCORCH) if (S.t > 0) { S.t -= dt; S.m.material.opacity = Math.min(0.75, S.t / 6); if (S.t <= 0) S.m.visible = false; }
+  for (const S of SCORCH) if (S.t > 0) { S.t -= dt; S.m.material.opacity = Math.min(0.75, S.t / 6); if (S.grow && S.m.scale.x < S.grow) S.m.scale.setScalar(Math.min(S.grow, S.m.scale.x + dt * S.grow * 0.4)); if (S.t <= 0) S.m.visible = false; }
+  updateLoose(dt);
   // pedestrians in the cities
   updatePeds(dt, head);
 }
@@ -4763,6 +4766,133 @@ function updateSFLife(dt) {
 
 buildSFExtras();
 
+// ===== Blood & gore, angry turtles, and the helicopter-turtle crash (Beau's graves) =====
+const BLOOD_COLS = [0x8a0b0b, 0xa3121b, 0x6b0606, 0xb81d24];
+let BLOODFX = null;
+function blood(p, dir, n, power = 2.5) { // a spray of droplets plus a splat where they land
+  if (!BLOODFX) BLOODFX = makeFx(700, false, 0.07, 0.25);
+  for (let i = 0; i < n; i++) BLOODFX.emit(p.x, p.y, p.z, dir.x * power + rr(-1.2, 1.2), rr(0.3, 2.2) + (dir.y || 0) * power, dir.z * power + rr(-1.2, 1.2), pick(BLOOD_COLS), rr(0.5, 0.9), -9.8);
+  scorch(new V3(p.x + dir.x * 0.9, 0, p.z + dir.z * 0.9), rr(0.35, 0.7) * Math.min(2, n / 10), pick([0x5a0505, 0x6b0707]));
+}
+function bloodPool(p, r) { const S = scorch(p, 0.2, 0x4a0404); if (S) { S.grow = r; S.t = 28; } }
+// limbs that come off in big hits (explosions, cars), flying with a blood trail
+const LOOSE = [];
+function severLimb(F, i) {
+  const arm = F.arms[i]; if (arm.userData.off) return;
+  arm.userData.off = true; arm.userData.home = { pos: arm.position.clone(), par: F.chest };
+  scene.attach(arm);
+  LOOSE.push({ obj: arm, v: new V3(rr(-4, 4), rr(4, 8), rr(-4, 4)), spin: new V3(rr(-12, 12), rr(-12, 12), rr(-12, 12)), t: 0, F });
+  const p = arm.getWorldPosition(new V3()); blood(p, new V3(rr(-1, 1), 0.5, rr(-1, 1)).normalize(), 24, 3.5);
+}
+function reattachLimbs(F) {
+  for (const arm of F.arms) if (arm.userData.off) { arm.userData.off = false; F.chest.add(arm); arm.position.copy(arm.userData.home.pos); arm.rotation.set(0, 0, 0); arm.visible = true; }
+  for (let i = LOOSE.length - 1; i >= 0; i--) if (LOOSE[i].F === F) LOOSE.splice(i, 1);
+}
+function updateLoose(dt) {
+  for (const L2 of LOOSE) {
+    L2.t += dt; const o = L2.obj, p = o.position, gy = terrainH(p.x, p.z) + 0.06;
+    if (p.y > gy || L2.v.y > 0) { L2.v.y -= 9.8 * dt; p.addScaledVector(L2.v, dt); o.rotation.x += L2.spin.x * dt; o.rotation.y += L2.spin.y * dt; o.rotation.z += L2.spin.z * dt; if (Math.random() < 0.7) { if (!BLOODFX) BLOODFX = makeFx(700, false, 0.07, 0.25); BLOODFX.emit(p.x, p.y, p.z, rr(-0.3, 0.3), rr(-0.5, 0.5), rr(-0.3, 0.3), pick(BLOOD_COLS), 0.6, -9.8); } if (p.y <= gy) { p.y = gy; L2.v.set(0, 0, 0); o.rotation.x = Math.PI / 2; bloodPool(p, 0.5); } }
+    o.visible = L2.F.state !== 'off';
+  }
+}
+// ----- angry turtles: shoot one and it stops, stares you down; the third hit gets you puked on (half your health) -----
+function hurtAnywhere(n, col = 0xc0101a) { // damage that ignores safe zones (turtle puke)
+  if (PH.dead || FADE.phase || !['town', 'drive', 'heli'].includes(MODE)) return;
+  PH.hp = Math.max(0, PH.hp - n); PH.noRegen = 8; PH.hurt = 0.9; hurtFx.material.color.setHex(col); hurtFx.visible = true; rumble(1, 400); hudDirty = true;
+  setTimeout(() => hurtFx.material.color.setHex(0xc0101a), 1200);
+  if (PH.hp <= 0) wasted();
+}
+function angerTurtle(tt) {
+  if (tt.ride || (tt.hitCD || 0) > 0 || tt.puke > 0) return;
+  tt.hitCD = 0.3; tt.hits = (tt.hits || 0) + 1; tt.mad = 10;
+  sTurtle(0.45); tone(70, 0.6, 'sawtooth', 0.12, 45); // an angry groan
+  const p = tt.g.position; for (let i = 0; i < 10; i++) emit(p.x + rr(-2, 2), p.y + rr(0, 2), p.z + rr(-2, 2), rr(-2, 2), rr(0, 2), rr(-2, 2), pick([0xff3d3d, 0xffffff]), 0.6, -6, -99);
+  if (BLOODFX || true) blood(p.clone().setY(p.y + tt.s * 0.3), new V3(rr(-1, 1), -0.5, rr(-1, 1)).normalize(), 10, 2);
+  if (tt.hits >= 3) { tt.puke = 2.6; tt.pukeT = 0; tt.pukeHit = false; tt.hits = 0; sRetch(); toast('The sea turtle rears back…', 1.5); }
+  else toast(tt.hits === 1 ? 'The sea turtle stops and glares at you…' : 'The sea turtle is getting REALLY mad…', 2.5);
+}
+function turtleHitTest(p, r) { for (const tt of turtles) if (!tt.ride && p.distanceTo(tt.g.position) < tt.s * 1.4 + r) return tt; return null; }
+function updateTurtleMood(dt, head) {
+  for (const tt of turtles) {
+    tt.hitCD = (tt.hitCD || 0) - dt;
+    if (tt.mad > 0) {
+      tt.mad -= dt;
+      const dx = head.x - tt.g.position.x, dz = head.z - tt.g.position.z, d = Math.hypot(dx, dz);
+      tt.g.rotation.y += wrap(Math.atan2(dx, dz) - tt.g.rotation.y) * Math.min(1, dt * 2.5);
+      const down = clamp(Math.atan2(tt.g.position.y - head.y, Math.max(d, 1)), 0, 1.1);
+      tt.body.rotation.x = down * 0.8; tt.neck.rotation.x = down * 0.5; tt.neck.rotation.y = 0;
+      if (tt.puke > 0) { // projectile vomit, aimed at you
+        tt.puke -= dt; tt.pukeT += dt; tt.neck.updateMatrixWorld(true);
+        const m = tt.neck.localToWorld(new V3(0, 0, 0.85)), T = clamp(m.distanceTo(head) / 25, 0.5, 2.2);
+        if (!BLOODFX) BLOODFX = makeFx(700, false, 0.07, 0.25);
+        for (let i = 0; i < 14; i++) BLOODFX.emit(m.x, m.y, m.z, (head.x - m.x) / T + rr(-1.5, 1.5), (head.y - m.y) / T + 4.9 * T + rr(-1, 1), (head.z - m.z) / T + rr(-1.5, 1.5), pick([0x9fbf2a, 0xc8c43a, 0x7fa82a, 0xd6cf5a]), T + 0.2, -9.8);
+        if (Math.random() < dt * 8) noise(0.2, 0.15, 500, 'lowpass');
+        if (!tt.pukeHit && tt.pukeT > Math.min(T, 1.6)) { tt.pukeHit = true; hurtAnywhere(50, 0x6a8a10); scorch(head.clone(), 1.6, 0x7fa82a); toast('BLEARGH! The sea turtle puked all over you!', 3); }
+        if (tt.puke <= 0) tt.mad = Math.min(tt.mad, 3);
+      }
+      if (tt.mad <= 0) { tt.hits = 0; tt.body.rotation.x = 0; }
+    } else tt.g.rotation.y += wrap(Math.atan2(tt.dir.x, tt.dir.z) - tt.g.rotation.y) * Math.min(1, dt * 1.5);
+  }
+}
+// ----- flying into a turtle: the helicopter explodes, you and Beau fall; Beau doesn't make it -----
+const FALL = { pos: new V3(), v: new V3(), bpos: new V3(), bv: new V3(), t: 0, landed: false, bLanded: false, bAng: 0, yaw: 0 };
+function heliCrash(tt) {
+  const p = HELI.g.position.clone(); HELI.g.updateMatrixWorld(true);
+  FALL.pos.copy(HELI.g.localToWorld(new V3(-0.32, 1.55, 0.2))); FALL.bpos.copy(HELI.g.localToWorld(new V3(0.32, 0.98, 0.15)));
+  FALL.v.copy(HELI.vel).multiplyScalar(0.25).setY(3); FALL.bv.set(rr(-3, 3), 4, rr(-3, 3)); FALL.t = 0; FALL.landed = FALL.bLanded = false; FALL.bAng = 0; FALL.yaw = HELI.yaw;
+  HELI.state = 'off'; HELI.g.visible = false; HELI.vel.set(0, 0, 0);
+  MODE = 'fall'; BEAU.ext = BEAU.on ? 'fall' : null;
+  sBoom(0.6); sTurtle(0.5); rumble(1, 600);
+  for (let i = 0; i < 80; i++) emit(p.x, p.y + 1, p.z, rr(-8, 8), rr(-3, 8), rr(-8, 8), pick([0xff6a00, 0xffd23f, 0xff3d00, 0x333333, 0x2b2724]), rr(0.8, 1.8), 0.3, -99);
+  for (let i = 0; i < 30; i++) emit(p.x, p.y + 1, p.z, rr(-10, 10), rr(0, 10), rr(-10, 10), pick([0x1f6fb2, 0x1b1c20, 0xb8bcc4]), rr(1.5, 3), -9.8, 0.05); // debris
+  toast('You flew into a giant sea turtle! The helicopter explodes!', 3);
+}
+function updateFall(dt) {
+  if (MODE !== 'fall') return;
+  FALL.t += dt;
+  if (!FALL.landed) {
+    FALL.v.y -= 9.8 * dt; FALL.pos.addScaledVector(FALL.v, dt);
+    const gy = terrainH(FALL.pos.x, FALL.pos.z) + 1.0;
+    if (FALL.pos.y <= gy) { FALL.pos.y = gy; FALL.landed = true; FALL.lt = FALL.t; sThud(); sBoom(0.25); rumble(1, 500); PH.hurt = 1.2; hurtFx.visible = true; blood(FALL.pos.clone().setY(gy - 0.6), new V3(0, 0.3, 0), 30, 2.5); bloodPool(FALL.pos, 1.4); }
+  }
+  lockHead(FALL.pos, FALL.yaw);
+  if (BEAU.on && BEAU.B) {
+    if (!FALL.bLanded) { FALL.bv.y -= 9.8 * dt; FALL.bpos.addScaledVector(FALL.bv, dt); FALL.bAng += dt * 6; const gy = terrainH(FALL.bpos.x, FALL.bpos.z); if (FALL.bpos.y <= gy) { FALL.bpos.y = gy; FALL.bLanded = true; sThud(); blood(FALL.bpos.clone().setY(gy + 0.2), new V3(0, 0.4, 0), 24, 2); bloodPool(FALL.bpos, 0.9); } }
+    poseBeau(FALL.bpos, FALL.yaw + 1.2, { flip: FALL.bLanded ? Math.PI / 2 : FALL.bAng, spread: true, sit: 0, scale: 1.3 });
+    if (FALL.bLanded) { BEAU.B.tongue.visible = true; BEAU.B.tail.rotation.z = 0; }
+  }
+  if (FALL.landed && FALL.t - FALL.lt > 2.2 && !FALL.done) {
+    FALL.done = true;
+    fadeThrough(() => {
+      FALL.done = false; const hadBeau = BEAU.on;
+      MODE = 'town'; BEAU.ext = null; standAt(0, 6, 0); PH.hp = 100; hudDirty = true;
+      if (hadBeau) killBeau(); else toast('You survived the fall… barely.', 3);
+    });
+  }
+}
+const GRAVES = [];
+function killBeau() {
+  if (!BEAU.on) return;
+  closeBeauMenu(); closeTurtlePicker(); dropTreat(); GZ.trip = null; GLAZE.root.position.set(GZ_HOME.x, 0, GZ_HOME.z);
+  scene.remove(BEAU.B.root); BEAU.on = false; BEAU.B = null; BEAU.hit = null; BEAU.ext = null; BEAU.mode = 'follow'; BEAU.jump = null;
+  BEAU.deaths = (BEAU.deaths || 0) + 1; makeGrave(BEAU.deaths);
+  // Rimshot comes back so you can earn a new Beau
+  RS.mode = 'run'; RS.t = 0; RIM.root.visible = true; ball.visible = true; ballShadow.visible = true;
+  tone(392, 0.6, 'sine', 0.1); tone(330, 0.8, 'sine', 0.1, 0, 0.6); tone(262, 1.2, 'sine', 0.1, 0, 1.4);
+  toast(`Beau didn't make it. Rest easy, Beau ${BEAU.deaths}. Beat Rimshot in a 1v1 to earn a new Beau.`, 7);
+}
+function makeGrave(n) {
+  const x = -3.6 - (n - 1) * 1.5, z = 3.3, g = group(scene, x, 0, z, 0);
+  const stone = L(0x8f9196);
+  const tex = canvasTex(256, 320, (c, w, h) => { c.fillStyle = '#8f9196'; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(0,0,0,.08)'; for (let i = 0; i < 300; i++) c.fillRect(rr(0, w), rr(0, h), 2, 2); c.fillStyle = '#3d3f44'; c.textAlign = 'center'; c.font = '900 30px Georgia, serif'; c.fillText('R.I.P.', w / 2, 70); c.font = '900 52px Georgia, serif'; c.fillText('BEAU ' + n, w / 2, 140); c.font = 'italic 700 26px Georgia, serif'; c.fillText('Good boy', w / 2, 190); c.font = '40px serif'; c.fillText('🐾', w / 2, 250); });
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.8, 0.14), [stone, stone, stone, stone, L(0xffffff, { map: tex }), stone]); slab.position.y = 0.4; g.add(slab);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.14, 20), stone); top.rotation.x = Math.PI / 2; top.position.y = 0.8; g.add(top); // rounded top
+  const mound = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8, 0, TAU, 0, Math.PI / 2), L(0x5e4630)); mound.scale.set(0.45, 0.16, 0.8); mound.position.set(0, 0, 0.7); g.add(mound);
+  for (let i = 0; i < 5; i++) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), L(pick([0xff5fa8, 0xffd23f, 0xffffff, 0xb76bff]))); f.position.set(rr(-0.3, 0.3), 0.14, 0.4 + rr(0, 0.7)); g.add(f); }
+  solid(0.7, 0.9, 0.3, 0, 0.45, 0, g);
+  GRAVES.push(g);
+}
+
 // ===== Mad Max dressing, fire cannons vs. helicopters, and the "Glazed & Confused" outposts with exclusive weapons =====
 T.sand = canvasTex(256, 256, (g, w, h) => {
   g.fillStyle = '#d6a96a'; g.fillRect(0, 0, w, h);
@@ -4870,6 +5000,8 @@ function fireWeapon(dt) {
     for (const F of FOES) if (F.state !== 'off' && inCone(F.g.position.clone().setY(F.g.position.y + 1.2), 0.5)) igniteFoe(F);
     for (const B of BUGGIES) if (B.state === 'hunt' && inCone(B.g.position.clone().setY(B.g.position.y + 1), 1.5)) { B.hp -= dt * 2.5; B.fire = Math.max(B.fire || 0, 1.5); B.char = Math.min(1, (B.char || 0) + dt * 0.3); if (B.hp <= 0) wreckBuggy(B); }
     for (const K of CANNONS) if (!K.dead && inCone(K.g.position.clone().setY(K.g.position.y + 2), 1.5)) { K.hp -= dt * 3; if (K.hp <= 0) killCannon(K); }
+    for (const tt of turtles) if (!tt.ride && inCone(tt.g.position, tt.s * 1.3)) { if ((tt.flameCD || 0) <= 0) { tt.flameCD = 0.7; tt.hitCD = 0; angerTurtle(tt); } }
+    for (const tt of turtles) tt.flameCD = (tt.flameCD || 0) - dt;
     return;
   }
   const S = SHOTS.find(s => !s.on); if (!S) return;
@@ -4884,6 +5016,7 @@ function glazeBoom(p) {
   for (const F of FOES) { const d = F.g.position.distanceTo(p); if (F.state !== 'off' && F.state !== 'ko' && d < 7) { F.glaze = 1; F.char = Math.min(1, F.char + 0.35); koFoe(F, F.g.position.clone().sub(p).setY(0).setLength(4 + 10 * (1 - d / 7)), { up: 4 + 6 * (1 - d / 7), tumble: 7 }); } }
   for (const B of BUGGIES) if (B.state === 'hunt' && B.g.position.distanceTo(p) < 7) wreckBuggy(B);
   for (const K of CANNONS) if (!K.dead && K.g.position.distanceTo(p) < 7) killCannon(K);
+  const tt = turtleHitTest(p, 7); if (tt) angerTurtle(tt);
 }
 function updateShots(dt) {
   for (const S of SHOTS) {
@@ -4893,12 +5026,14 @@ function updateShots(dt) {
     if (S.kind === 'blaster') {
       for (const F of FOES) if (F.state !== 'off' && F.state !== 'ko' && Math.hypot(F.g.position.x - p.x, F.g.position.z - p.z) < 0.6 && p.y > F.g.position.y && p.y < F.g.position.y + 2) { F.hitCD = 0; hitFoe(F, p.clone().addScaledVector(S.v, -0.05), 'bolt', p.clone()); hit = true; break; }
       if (!hit) for (const B of BUGGIES) if (B.state === 'hunt' && B.g.position.distanceTo(p) < 2) { B.hp -= 1; B.char = Math.min(1, (B.char || 0) + 0.15); sSizzle(); for (let i = 0; i < 8; i++) emit(p.x, p.y, p.z, rr(-3, 3), rr(0, 3), rr(-3, 3), pick([0xfff3a0, 0xffd23f]), 0.25, -9, -99); if (B.hp <= 0) wreckBuggy(B); hit = true; break; }
+      if (!hit) { const tt = turtleHitTest(p, 0); if (tt) { angerTurtle(tt); hit = true; } }
       if (!hit) for (const K of CANNONS) if (!K.dead && K.g.position.clone().setY(K.g.position.y + 1.8).distanceTo(p) < 2) { K.hp -= 1; if (K.hp <= 0) killCannon(K); hit = true; break; }
       if (hit) for (let i = 0; i < 6; i++) emit(p.x, p.y, p.z, rr(-2, 2), rr(0, 2), rr(-2, 2), S.m.material.color.getHex(), 0.4, -6, 0);
     } else {
       for (const F of FOES) if (F.state !== 'off' && F.state !== 'ko' && F.g.position.clone().setY(F.g.position.y + 1).distanceTo(p) < 1.2) hit = true;
       for (const B of BUGGIES) if (B.state === 'hunt' && B.g.position.distanceTo(p) < 2.2) hit = true;
       for (const K of CANNONS) if (!K.dead && K.g.position.clone().setY(K.g.position.y + 1.5).distanceTo(p) < 2.5) hit = true;
+      if (turtleHitTest(p, 0.5)) hit = true;
       if (hit || p.y < terrainH(p.x, p.z)) { glazeBoom(p.clone()); hit = true; }
     }
     if (hit || S.t > (S.kind === 'blaster' ? 1.8 : 5)) { S.on = false; S.m.visible = false; }
@@ -4969,7 +5104,7 @@ function updateHaze(dt, head) {
 // ----- per-frame for all of the above -----
 OUTPOSTS.forEach(buildOutpost);
 function updateWasteland(dt, head, vr) {
-  updateHaze(dt, head); updateCannons(dt, head); updateShots(dt);
+  updateHaze(dt, head); updateCannons(dt, head); updateShots(dt); updateTurtleMood(dt, head); updateFall(dt);
   // burning barrels near you
   for (const b of BARRELS) if (Math.abs(b.z - head.z) < 70 && Math.abs(b.x - head.x) < 70 && Math.random() < 0.6) emit(b.x + rr(-0.15, 0.15), b.y, b.z + rr(-0.15, 0.15), rr(-0.2, 0.2), rr(1.2, 2.2), rr(-0.2, 0.2), pick([0xff6a00, 0xffd23f, 0xff3d00]), rr(0.4, 0.8), 0.6, -99);
   for (const o of OUTPOSTS) {
