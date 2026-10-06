@@ -1063,7 +1063,7 @@ const SF_CABLE = { g: null, a: 0, b: 0, x: 0, u: 0, dir: 1, pause: 0 };
 const SFG = new THREE.Group(); scene.add(SFG); CITIES.push({ g: SFG, x: sfx(-122.445), z: sfz(37.775), r: 1750 });
 const SF_G = 64, SF_GX = sfx(-122.4078), SF_GZ = sfz(37.7880); // street grid: Powell St and Geary St are grid lines
 const MARKET = [sfp(-122.3936, 37.7955), sfp(-122.4350, 37.7625)];     // Ferry Building → Castro
-const EMBARCADERO = [[-122.4100, 37.8083], [-122.4015, 37.8063], [-122.3960, 37.8015], [-122.3930, 37.7960], [-122.3905, 37.7905], [-122.3885, 37.7840], [-122.3880, 37.7790]].map(p => sfp(p[0], p[1]));
+const EMBARCADERO = [[-122.4100, 37.8079], [-122.4015, 37.8063], [-122.3960, 37.8015], [-122.3930, 37.7960], [-122.3905, 37.7905], [-122.3885, 37.7840], [-122.3880, 37.7790]].map(p => sfp(p[0], p[1]));
 const SF_SPECIAL_ROADS = [
   [sfp(-122.4750, 37.8045), sfp(-122.4600, 37.8015), sfp(-122.4470, 37.8000), sfp(-122.4240, 37.7998)], // Doyle Dr / Lombard St to the Golden Gate Bridge
   [sfp(-122.4722, 37.8040), sfp(-122.4722, 37.7300)],                                                  // Park Presidio / 19th Ave through the park
@@ -1129,21 +1129,21 @@ const somaP = (u, v) => new V3(SOMA_G.o.x + SOMA_G.mk.x * u + SOMA_G.mn.x * v, 0
   const ZC = { urban: new THREE.Color(0xbdb4a6), plaza: new THREE.Color(0xc9c2b6), park: new THREE.Color(0x5f9a3e), forest: new THREE.Color(0x3f6e33), beach: new THREE.Color(0xe2cf9e), water: new THREE.Color(0x6b6a5a), island: new THREE.Color(0x7d8a52) };
   const wet = new Uint8Array(pa.count);
   for (let i = 0; i < pa.count; i++) {
-    const x = pa.getX(i), z = pa.getZ(i), h = groundH(x, z); wet[i] = inWater(x, z) ? 1 : 0; pa.setY(i, wet[i] ? 0.02 : h + 0.02);
+    const x = pa.getX(i), z = pa.getZ(i), h = groundH(x, z); wet[i] = inWater(x, z) ? 1 : 0; pa.setY(i, wet[i] ? -1.6 : h + 0.02);
     const zn = sfZone(x, z); c.copy(ZC[zn]); if (zn === 'urban' && h > 30) c.lerp(ZC.park, clamp((h - 30) / 15, 0, 1)); // hill summits are green
     c.multiplyScalar(0.92 + vnoise(x * 0.05, z * 0.05) * 0.16); cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
   }
   tg.setAttribute('color', new THREE.BufferAttribute(cols, 3)); tg.computeVertexNormals();
   const idx = tg.index.array, land = [], sea = [];
-  for (let t = 0; t < idx.length; t += 3) { const n = wet[idx[t]] + wet[idx[t + 1]] + wet[idx[t + 2]]; (n >= 2 ? sea : land).push(idx[t], idx[t + 1], idx[t + 2]); }
+  for (let t = 0; t < idx.length; t += 3) { const n = wet[idx[t]] + wet[idx[t + 1]] + wet[idx[t + 2]]; if (n < 3) land.push(idx[t], idx[t + 1], idx[t + 2]); if (n >= 1) sea.push(idx[t], idx[t + 1], idx[t + 2]); }
   const landG = tg.clone(); landG.setIndex(land); SFG.add(new THREE.Mesh(landG, new THREE.MeshLambertMaterial({ vertexColors: true })));
-  const seaG = tg.clone(); seaG.setIndex(sea); seaG.deleteAttribute('color'); const uvs = seaG.attributes.uv; for (let i = 0; i < uvs.count; i++) uvs.setXY(i, uvs.getX(i) * 60, uvs.getY(i) * 60);
+  const seaG = tg.clone(); seaG.setIndex(sea); seaG.deleteAttribute('color'); { const sp = seaG.attributes.position; for (let i = 0; i < sp.count; i++) sp.setY(i, -0.08); seaG.computeVertexNormals(); } const uvs = seaG.attributes.uv; for (let i = 0; i < uvs.count; i++) uvs.setXY(i, uvs.getX(i) * 60, uvs.getY(i) * 60);
   SFG.add(new THREE.Mesh(seaG, new THREE.MeshPhongMaterial({ color: 0x2f6f9f, map: retile(T.water, 1, 1), shininess: 90, specular: 0x88aacc })));
   // the world's grass plane dips out of sight under the city so nothing fights the terrain
-  { const gp = ground.geometry.attributes.position; for (let i = 0; i < gp.count; i++) { const x = gp.getX(i), z = -gp.getY(i); if (x < X1 - 110 && z < Z1 - 110) gp.setZ(i, -6); } gp.needsUpdate = true; ground.geometry.computeBoundingSphere(); }
+  { const gp = ground.geometry.attributes.position; for (let i = 0; i < gp.count; i++) { const x = gp.getX(i), z = -gp.getY(i); if ((x < 1700 && z < Z1 - 110) || (z < -1240 && inWater(x, z))) gp.setZ(i, -6); } gp.needsUpdate = true; ground.geometry.computeBoundingSphere(); }
   // open water beyond the city map: the Pacific to the west and the bay / Golden Gate to the north
   const seaMat = new THREE.MeshPhongMaterial({ color: 0x2f6f9f, map: retile(T.water, 120, 120), shininess: 90, specular: 0x88aacc });
-  for (const [x0, x1, z0, z1] of [[-3700, X0, -3700, Z1], [X0, X1, -3700, Z0]]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0, 24, 24), seaMat); m.rotation.x = -Math.PI / 2; m.position.set((x0 + x1) / 2, 0.02, (z0 + z1) / 2); scene.add(m); }
+  for (const [x0, x1, z0, z1] of [[-3700, X0, -3700, Z1], [X0, X1, -3700, Z0], [X1, 1700, -3700, Z1 - 100]]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0, 24, 24), seaMat); m.rotation.x = -Math.PI / 2; m.position.set((x0 + x1) / 2, 0.02, (z0 + z1) / 2); scene.add(m); }
   // roads: the grid (where there's city) plus the named arterials, merged into one mesh
   const roadGeos = [];
   const sfRoad = (a, b, w, lift = 0.16, keep = false) => { if (Math.hypot(b.x - a.x, b.z - a.z) >= 2) SF_ROADSEGS.push({ a: a.clone(), b: b.clone(), w, lift, keep }); };
@@ -1203,6 +1203,35 @@ const somaP = (u, v) => new V3(SOMA_G.o.x + SOMA_G.mk.x * u + SOMA_G.mn.x * v, 0
       let st = null; for (let t = 0; t <= len + 2; t += 2) { const ok = t <= len && !blocked(Math.min(t, len)); if (ok && st === null) st = t; if (!ok && st !== null) { if (t - 2 - st > 8) cut.push({ a: R.a.clone().addScaledVector(d, st / len), b: R.a.clone().addScaledVector(d, (t - 2) / len), w: R.w, lift: R.lift }); st = null; } }
     }
     SF_ROADSEGS.length = 0; SF_ROADSEGS.push(...cut);
+  }
+  { // every street must connect: a dead end is extended (up to 70 m, over city ground only) until it meets another street,
+    // otherwise it's trimmed back to its last intersection (and a street that meets nothing is dropped)
+    const S = SF_ROADSEGS, onRoad = (x, z, skip, m) => S.find((Q, j) => j !== skip && !Q.dead && segDist(x, z, Q.a, Q.b) < Q.w / 2 + m);
+    for (let pass = 0; pass < 5; pass++) {
+      S.forEach((R, i) => { if (R.dead || R.keep) return;
+        for (const end of ['a', 'b']) {
+          const e = R[end], o = end === 'a' ? R.b : R.a; if (onRoad(e.x, e.z, i, 2)) continue;
+          const len = e.distanceTo(o), d = e.clone().sub(o).normalize(); let hit = null;
+          for (let t = 2; t <= 70; t += 2) { const x = e.x + d.x * t, z = e.z + d.z * t, zn = sfZone(x, z); if ((zn !== 'urban' && zn !== 'plaza' && zn !== 'beach') || inLM(x, z, 2.5) || groundH(x, z) > 42) break; if (onRoad(x, z, i, -0.5)) { hit = t + 1; break; } }
+          if (hit) { e.addScaledVector(d, hit); continue; }
+          let cut2 = null; for (let t = 2; t < len - 1; t += 2) { const x = e.x - d.x * t, z = e.z - d.z * t; if (onRoad(x, z, i, 0.5)) { cut2 = t; break; } }
+          if (cut2 === null) { R.dead = true; break; } e.addScaledVector(d, -cut2);
+        }
+        if (!R.dead && R.a.distanceTo(R.b) < 6) R.dead = true;
+      });
+    }
+    const live = S.filter(R => !R.dead); S.length = 0; S.push(...live);
+    // the arterials too: a loose end runs on (up to 90 m over city ground) to meet the grid, unless it's at a bridge or the city line
+    S.forEach((R, i) => { if (!R.keep || R.flat) return; for (const end of ['a', 'b']) { const e = R[end], o = end === 'a' ? R.b : R.a;
+      if (onRoad(e.x, e.z, i, 2) || e.z > -1305) continue; let nearDeck = false; for (let t = 0; t < 30 && !nearDeck; t += 3) for (const [dx, dz] of [[t, 0], [-t, 0], [0, t], [0, -t]]) if (deckH(e.x + dx, e.z + dz) >= 0) nearDeck = true; if (nearDeck) continue;
+      const d = e.clone().sub(o).normalize(); for (let t = 2; t <= 90; t += 2) { const x = e.x + d.x * t, z = e.z + d.z * t, zn = sfZone(x, z); if ((zn !== 'urban' && zn !== 'plaza' && zn !== 'beach' && zn !== 'park') || inLM(x, z, 2.5)) break; if (onRoad(x, z, i, -0.5)) { e.addScaledVector(d, t + 1); break; } } } });
+    // last resort for any end still loose: a short link street (up to 35 m) to the nearest point of another street
+    const links = [];
+    S.forEach((R, i) => { for (const e of [R.a, R.b]) { if (onRoad(e.x, e.z, i, 2) || e.z > -1305) continue; let best = null, bd = 35;
+      S.forEach((Q, j) => { if (j === i) return; const dx = Q.b.x - Q.a.x, dz = Q.b.z - Q.a.z, l2 = dx * dx + dz * dz, t = clamp(((e.x - Q.a.x) * dx + (e.z - Q.a.z) * dz) / l2, 0, 1), q = new V3(Q.a.x + dx * t, 0, Q.a.z + dz * t), d = q.distanceTo(e); if (d < bd) { bd = d; best = q; } });
+      if (!best) continue; let ok = true; for (let t = 0.1; t < 1 && ok; t += 0.1) { const x = lerp(e.x, best.x, t), z = lerp(e.z, best.z, t); if (inLM(x, z, 1.5) || inWater(x, z)) ok = false; }
+      if (ok) links.push({ a: e.clone(), b: best, w: 9, lift: 0.17, keep: true }); } });
+    S.push(...links);
   }
   sfIndexRoads();
   // a lot may only be built if its whole footprint (stoops included) is clear of every road and landmark
@@ -1606,8 +1635,8 @@ function sfLandmarks(LM) {
     cityCollider(p.x, p.z, 2 * R + 4, 2 * R + 2, 16); }
   // Lot A: the big parking lot between the ballpark and the arena
   { const p = sfp(-122.3885, 37.7763), y = groundH(p.x, p.z) + 0.1, lot = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), L(0x5a5c60)); lot.rotation.x = -Math.PI / 2; lot.position.set(p.x, y, p.z); SFG.add(lot);
-    const cars = []; for (let i = 0; i < 8; i++) for (let j = 0; j < 6; j++) if (Math.random() < 0.75) cars.push([p.x - 17 + i * 4.8, p.z - 12 + j * 4.8 + (j % 2 ? 0.6 : -0.6)]);
-    SFG.add(instanced(new THREE.BoxGeometry(1.8, 1.3, 4.2).translate(0, 0.65, 0), L(0xffffff), cars, (d, q, col) => { d.position.set(q[0], y, q[1]); d.rotation.set(0, 0, 0); d.scale.set(1, 1, 1); col.set(pick([0xeeeeee, 0x222222, 0xb23a2e, 0x9aa3ab, 0x1e3f73, 0xdddddd])); })); }
+    const cars = []; for (let i = 0; i < 8; i++) for (let j = 0; j < 6; j++) { const cx = p.x - 17 + i * 4.8, cz2 = p.z - 12 + j * 4.8 + (j % 2 ? 0.6 : -0.6); if (Math.random() < 0.75 && !SF_ROADSEGS.some(R => segDist(cx, cz2, R.a, R.b) < R.w / 2 + 2.5)) cars.push([cx, cz2]); }
+    SFG.add(instanced(merge([colorize(new THREE.BoxGeometry(1.8, 0.75, 4.2).translate(0, 0.55, 0), 0xffffff), colorize(new THREE.BoxGeometry(1.6, 0.55, 2.2).translate(0, 1.2, -0.2), 0x55606c), colorize(new THREE.BoxGeometry(1.84, 0.36, 3.2).translate(0, 0.2, 0), 0x1b1b1b)]), new THREE.MeshLambertMaterial({ vertexColors: true }), cars, (d, q, col) => { d.position.set(q[0], y, q[1]); d.rotation.set(0, 0, 0); d.scale.set(1, 1, 1); col.set(pick([0xeeeeee, 0x222222, 0xb23a2e, 0x9aa3ab, 0x1e3f73, 0xdddddd])); })); }
   // Piers 48 and 50: long grey sheds reaching out into the bay south of the ballpark
   for (const [lo, la] of [[-122.3870, 37.7757], [-122.3862, 37.7728]]) { const p = sfp(lo, la); let x0 = p.x - 30; while (x0 < p.x + 40 && !inWater(x0, p.z)) x0 += 1; const L2 = 34, g = group(SFG, x0 + L2 / 2 - 2, 0, p.z);
     box(L2 + 2, 1.6, 12, L(0x8a8478), 0, -0.4, 0, g); box(L2, 7, 9, L(0xffffff, { map: retile(ARCH.wall.mat.map, 4, 1) }), 0, 3.9, 0, g); box(L2 + 0.6, 0.6, 9.6, L(0x6b7075), 0, 7.7, 0, g); cityCollider(x0 + L2 / 2 - 2, p.z, L2, 10, 8); }
@@ -5391,9 +5420,16 @@ function updatePeds(dt, head) {
       const sf = head.z < 0, gx = SF_GX + Math.round((head.x - SF_GX) / SF_G) * SF_G, gz = SF_GZ + Math.round((head.z - SF_GZ) / SF_G) * SF_G;
       const xs = sf ? [gx - SF_G, gx, gx + SF_G] : [15, 75, 135, 195, 255, 315], zs = sf ? [gz - SF_G, gz, gz + SF_G] : [1365, 1425, 1485, 1545, 1605, 1665, 1725];
       const alongZ = Math.random() < 0.5, side = pick([-5.4, 5.4, -4.2, 4.2]);
-      let x, z;
-      if (alongZ) { x = pick(xs) + side; z = head.z + rr(-50, 50); P.dir.set(0, 0, pick([-1, 1])); } else { z = pick(zs) + side; x = head.x + rr(-50, 50); P.dir.set(pick([-1, 1]), 0, 0); }
-      if (Math.hypot(x - head.x, z - head.z) < 12 || !inCity(x, z) || inWater(x, z) || (sf && sfZone(x, z) !== 'urban' && sfZone(x, z) !== 'plaza') || (sf && inSoma(x, z))) continue;
+      let x, z; P.seg = null;
+      if (sf) { // San Francisco: on the sidewalk of a real street near you, walking along it
+        const cx = Math.floor(head.x / 24), cz = Math.floor(head.z / 24), ids = []; for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) { const c = SF_RCELL.get((cx + i) + ',' + (cz + j)); if (c) ids.push(...c); }
+        if (!ids.length) continue; const R = SF_ROADSEGS[pick(ids)]; if (R.flat) continue;
+        const len = R.a.distanceTo(R.b), t = rr(2, len - 2), d = R.b.clone().sub(R.a).normalize(), sd = pick([-1, 1]) * (R.w / 2 + 0.7), dirS = pick([-1, 1]);
+        P.seg = { a: new V3(R.a.x - d.z * sd, 0, R.a.z + d.x * sd), d, len, t, s: dirS }; x = P.seg.a.x + d.x * t; z = P.seg.a.z + d.z * t; P.dir.set(d.x * dirS, 0, d.z * dirS);
+        { const G2 = P.seg, clear = u => { const qx = G2.a.x + d.x * u, qz = G2.a.z + d.z * u; return !inWater(qx, qz) && !carBlocked(qx, qz, 0.35); }; // the clear stretch of sidewalk around t (no water, no buildings)
+          G2.lo = t; while (G2.lo > 1 && G2.lo > t - 40 && clear(G2.lo - 2)) G2.lo -= 2; G2.hi = t; while (G2.hi < len - 1 && G2.hi < t + 40 && clear(G2.hi + 2)) G2.hi += 2; if (G2.hi - G2.lo < 6) continue; }
+      } else if (alongZ) { x = pick(xs) + side; z = head.z + rr(-50, 50); P.dir.set(0, 0, pick([-1, 1])); } else { z = pick(zs) + side; x = head.x + rr(-50, 50); P.dir.set(pick([-1, 1]), 0, 0); }
+      if (Math.hypot(x - head.x, z - head.z) < 12 || !inCity(x, z) || inWater(x, z) || deckH(x, z) >= 0 || carBlocked(x, z, 0.2)) continue;
       reattachLimbs(P); P.blood = 0; P.char = 0; P.glaze = 0; P.smolder = 0; foeLook(P, false); P.chest.rotation.set(0, 0, 0); P.g.rotation.set(0, 0, 0);
       P.g.position.set(x, terrainH(x, z), z); P.state = 'walk'; P.t = 0; P.legLen = rr(25, 60); P.g.visible = true; P.fatal = false; continue;
     }
@@ -5418,11 +5454,17 @@ function updatePeds(dt, head) {
     let sp = 1.3;
     // only a slow car gets a polite step aside; at speed they freeze and scream
     if (H && H.y - p.y < 4) { const d = Math.hypot(H.b.x - p.x, H.b.z - p.z);
-      if (d < 6 && H.v < 7) { const aw = new V3(p.x - H.b.x, 0, p.z - H.b.z).normalize(); p.addScaledVector(aw, dt * 4); sp = 0; }
+      if (d < 6 && H.v < 7) sp = 0; // let the slow car by
       else if (d < 14 && H.v >= 7) { sp = 0; if (!P.screamed) { P.screamed = true; if (Math.random() < 0.5) sScream(); } P.arms[0].rotation.set(-2.6, 0, -0.3); P.arms[1].rotation.set(-2.6, 0, 0.3); } }
     if (sp) P.screamed = false;
-    if (P.t > P.legLen / sp && sp) { P.dir.negate(); P.t = 0; }
-    p.addScaledVector(P.dir, sp * dt); p.y = surfH(p.x, p.z);
+    if (P.seg) { // stay on your sidewalk: turn round at the end of the block
+      const G2 = P.seg; G2.t += G2.s * sp * dt; if (G2.t < G2.lo || G2.t > G2.hi) { G2.s *= -1; G2.t = clamp(G2.t, G2.lo, G2.hi); P.dir.negate(); }
+      p.set(G2.a.x + G2.d.x * G2.t, 0, G2.a.z + G2.d.z * G2.t);
+    } else { // LA: along the grid, never onto the sand or into the sea
+      if (P.t > P.legLen / sp && sp) { P.dir.negate(); P.t = 0; }
+      const nx = p.x + P.dir.x * sp * dt, nz = p.z + P.dir.z * sp * dt; if (inWater(nx, nz) || nx < -90) { P.dir.negate(); P.t = 0; } else { p.x = nx; p.z = nz; }
+    }
+    p.y = surfH(p.x, p.z);
     P.yaw = Math.atan2(P.dir.x, P.dir.z); P.g.rotation.y = P.yaw;
     P.ph += dt * sp * 4; const s2 = Math.sin(P.ph) * (sp ? 1 : 0);
     P.legs[0].rotation.x = s2 * 0.5; P.legs[1].rotation.x = -s2 * 0.5; if (sp) { P.arms[0].rotation.set(-s2 * 0.4, 0, 0); P.arms[1].rotation.set(s2 * 0.4, 0, 0); }
