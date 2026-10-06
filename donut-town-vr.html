@@ -1040,6 +1040,20 @@ function archFlush(parent) {
     const m = new THREE.Mesh(g, B.mat); m.frustumCulled = false; parent.add(m); B.p = []; B.n = []; B.uv = []; B.c = []; }
 }
 
+// nudge a landmark (footprint radius r) off any arterial it would sit on: real addresses, but the city is squeezed 1:9
+function sfNudge(p, r) {
+  for (let it = 0; it < 6; it++) { let moved = false;
+    for (const pl of SF_SPECIAL_ROADS) for (let i = 1; i < pl.length; i++) { const a = pl[i - 1], b = pl[i], need = (pl === MARKET ? 7 : 5) + r + 2, dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz, t = clamp(((p.x - a.x) * dx + (p.z - a.z) * dz) / l2, 0, 1), qx = a.x + dx * t, qz = a.z + dz * t, d = Math.hypot(p.x - qx, p.z - qz);
+      if (d < need) { const nx = d > 0.01 ? (p.x - qx) / d : -dz / Math.sqrt(l2), nz = d > 0.01 ? (p.z - qz) / d : dx / Math.sqrt(l2); p.x = qx + nx * need; p.z = qz + nz * need; moved = true; } }
+    if (!moved) break; }
+  return p;
+}
+// every SF road segment { a, b, w } (grid, SoMa, arterials, Lombard's flat ends), and a 24 m grid index over them
+const SF_ROADSEGS = [], SF_RCELL = new Map();
+function sfIndexRoads() { SF_RCELL.clear(); SF_ROADSEGS.forEach((R, i) => { const len = R.a.distanceTo(R.b); for (let t = 0; t <= len; t += 6) { const x = lerp(R.a.x, R.b.x, t / len), z = lerp(R.a.z, R.b.z, t / len), k = Math.floor(x / 24) + ',' + Math.floor(z / 24); if (!SF_RCELL.has(k)) SF_RCELL.set(k, new Set()); SF_RCELL.get(k).add(i); } }); }
+function sfRoadNear(x, z, m) { const cx = Math.floor(x / 24), cz = Math.floor(z / 24);
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const c = SF_RCELL.get((cx + i) + ',' + (cz + j)); if (c) for (const k of c) { const R = SF_ROADSEGS[k]; if (segDist(x, z, R.a, R.b) < R.w / 2 + m) return true; } }
+  return false; }
 // ===== San Francisco (see the lat/lon mapping at the top of section 6b) =====
 const SF_CABLE = { g: null, a: 0, b: 0, x: 0, u: 0, dir: 1, pause: 0 };
 const SFG = new THREE.Group(); scene.add(SFG); CITIES.push({ g: SFG, x: sfx(-122.445), z: sfz(37.775), r: 1750 });
@@ -1128,7 +1142,8 @@ const somaP = (u, v) => new V3(SOMA_G.o.x + SOMA_G.mk.x * u + SOMA_G.mn.x * v, 0
   for (const [x0, x1, z0, z1] of [[-3700, X0, -3700, Z1], [X0, X1, -3700, Z0]]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0, 24, 24), seaMat); m.rotation.x = -Math.PI / 2; m.position.set((x0 + x1) / 2, 0.02, (z0 + z1) / 2); scene.add(m); }
   // roads: the grid (where there's city) plus the named arterials, merged into one mesh
   const roadGeos = [];
-  const sfRoad = (a, b, w, lift = 0.16) => {
+  const sfRoad = (a, b, w, lift = 0.16, keep = false) => { if (Math.hypot(b.x - a.x, b.z - a.z) >= 2) SF_ROADSEGS.push({ a: a.clone(), b: b.clone(), w, lift, keep }); };
+  const sfRoadGeo = (a, b, w, lift) => {
     const len = Math.hypot(b.x - a.x, b.z - a.z); if (len < 2) return;
     const geo = new THREE.PlaneGeometry(w, len, 1, Math.ceil(len / 4)); geo.rotateX(-Math.PI / 2); geo.rotateY(Math.atan2(b.x - a.x, b.z - a.z)); geo.translate((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
     const p = geo.attributes.position, uv = geo.attributes.uv; for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), dk = deckH(x, z); p.setY(i, (dk > 0 && dk < 1 ? dk : groundH(x, z)) + lift); uv.setY(i, uv.getY(i) * len / 12); }
@@ -1152,7 +1167,7 @@ const somaP = (u, v) => new V3(SOMA_G.o.x + SOMA_G.mk.x * u + SOMA_G.mn.x * v, 0
     for (let u = U0; u < 1500; u += SU) seg(t => somaP(u, t), 4, 700);
     for (let v = SV; v < 700; v += SV) seg(t => somaP(t, v), 0, 1500);
   }
-  for (const pl of SF_SPECIAL_ROADS) for (let i = 1; i < pl.length; i++) sfRoad(pl[i - 1], pl[i], pl === MARKET ? 14 : 10, 0.2);
+  for (const pl of SF_SPECIAL_ROADS) for (let i = 1; i < pl.length; i++) sfRoad(pl[i - 1], pl[i], pl === MARKET ? 14 : 10, 0.2, true);
   // landmarks (built below) claim their spots before the generic buildings are placed
   const TOWERS = [ // [lon, lat, real height m, w, d, color]
     [-122.3972, 37.7897, 326, 16, 16, '#9fb6c8'], [-122.3953, 37.7899, 245, 11, 11, '#b9c6d3'], [-122.4036, 37.7920, 237, 18, 14, '#3e3838'],
@@ -1161,7 +1176,7 @@ const somaP = (u, v) => new V3(SOMA_G.o.x + SOMA_G.mk.x * u + SOMA_G.mn.x * v, 0
   ];
   for (const t of TOWERS) reserve(sfp(t[0], t[1]), 14);
   const LM = {
-    ferry: sfp(-122.3934, 37.7955), transamerica: sfp(-122.4028, 37.7952), coit: sfp(-122.4058, 37.8024), lombard: sfp(-122.4187, 37.8021), cityHall: sfp(-122.4193, 37.7793),
+    ferry: sfp(-122.3934, 37.7955), transamerica: sfNudge(sfp(-122.4028, 37.7952), 10), coit: sfp(-122.4058, 37.8024), lombard: sfp(-122.4187, 37.8021), cityHall: sfp(-122.4193, 37.7793),
     oracle: sfp(-122.3893, 37.7786), palace: sfp(-122.4484, 37.8029), ghirardelli: sfp(-122.4229, 37.8059), alamo: sfp(-122.4339, 37.7765), castro: sfp(-122.4350, 37.7625), sutro: sfp(-122.4527, 37.7552),
     chinatown: sfp(-122.4058, 37.7906), wharf: sfp(-122.4170, 37.8080), bayAnchor: sfp(-122.3895, 37.7875),
   };
@@ -1169,20 +1184,42 @@ const somaP = (u, v) => new V3(SOMA_G.o.x + SOMA_G.mk.x * u + SOMA_G.mn.x * v, 0
   reserve(new V3(sfx(-122.4318), 0, sfz(37.7765)), 34); // the Painted Ladies on Steiner St
   for (const [lon, lat, r] of [[-122.4133, 37.7919, 34], [-122.4048, 37.7963, 12], [-122.4269, 37.7642, 24], [-122.4300, 37.7853, 16], [-122.4124, 37.7523, 22]]) reserve(sfp(lon, lat), r); // Grace Cathedral, Columbus Tower, Mission Dolores, Peace Pagoda, Balmy Alley
   for (let i = 0; i < 12; i += 3) reserve(new V3(sfx(-122.4500) + i * 9.2 + 13, 0, sfz(37.7699) - 7.5), 24); // Haight St Victorians
+  // landmarks and named towers go up first; any grid street that would run through one stops at it
+  const c0 = colliders.length;
+  for (const t of TOWERS) { const p = sfNudge(sfp(t[0], t[1]), Math.hypot(t[3], t[4]) / 2); if (t[2] === 326) continue; archTower(archFrame(p.x, p.z, 0, t[3], t[4]), t[3], t[4], t[2] / 3.5, t[5], false); cityCollider(p.x, p.z, t[3], t[4], t[2] / 3.5 + groundH(p.x, p.z)); }
+  sfLandmarks(LM);
+  const LMB = colliders.slice(c0).filter(b => b.max.y - b.min.y > 1.5 && b.max.x - b.min.x < 300 && b.max.z - b.min.z < 300); SF_ROADSEGS.lmb = LMB;
+  const inLM = (x, z, m = 0) => LMB.some(b => x > b.min.x - m && x < b.max.x + m && z > b.min.z - m && z < b.max.z + m);
+  { const cut = [];
+    for (const R of SF_ROADSEGS) {
+      const d = R.b.clone().sub(R.a), len = d.length(), n = new V3(-d.z / len, 0, d.x / len), hw = R.w / 2;
+      const blocked = t => { const q = R.a.clone().addScaledVector(d, t / len); return inLM(q.x, q.z, 2.5) || inLM(q.x + n.x * hw, q.z + n.z * hw, 2.5) || inLM(q.x - n.x * hw, q.z - n.z * hw, 2.5); };
+      if (R.keep) { cut.push(R); continue; } // the arterials stay whole
+      let st = null; for (let t = 0; t <= len + 2; t += 2) { const ok = t <= len && !blocked(Math.min(t, len)); if (ok && st === null) st = t; if (!ok && st !== null) { if (t - 2 - st > 8) cut.push({ a: R.a.clone().addScaledVector(d, st / len), b: R.a.clone().addScaledVector(d, (t - 2) / len), w: R.w, lift: R.lift }); st = null; } }
+    }
+    SF_ROADSEGS.length = 0; SF_ROADSEGS.push(...cut);
+  }
+  sfIndexRoads();
+  // a lot may only be built if its whole footprint (stoops included) is clear of every road and landmark
+  const lotClear = (x, z, yaw, lw, ld) => { const c = Math.cos(yaw), sn = Math.sin(yaw);
+    for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++) { const a = (i / 4 - 0.5) * lw, b = (j / 4 - 0.5) * ld, px = x + a * c + b * sn, pz = z - a * sn + b * c; if (sfRoadNear(px, pz, 1.0) || inLM(px, pz, 1)) return false; }
+    return true; };
   // generic buildings, by district: row houses face their street, downtown blocks, towers, SoMa brick
-  const lotOK = (lx, lz, r) => !(sfZone(lx, lz) !== 'urban' || groundH(lx, lz) > 38 || segDist(lx, lz, MARKET[0], MARKET[1]) < 18 || nearRoads(lx, lz, 15) || SF_RESERVED.some(q => Math.hypot(lx - q.x, lz - q.z) < q.r + 12)
+  const lotOK = (lx, lz, r) => !(sfZone(lx, lz) !== 'urban' || groundH(lx, lz) > 38 || segDist(lx, lz, MARKET[0], MARKET[1]) < 18 || SF_RESERVED.some(q => Math.hypot(lx - q.x, lz - q.z) < q.r + 12)
     || sfZone(lx + r, lz) !== 'urban' || sfZone(lx - r, lz) !== 'urban' || sfZone(lx, lz + r) !== 'urban' || sfZone(lx, lz - r) !== 'urban'); // stay off the shoreline
   for (let x = SF_GX - SF_G * 16 + SF_G / 2; x < X1; x += SF_G) for (let z = SF_GZ - SF_G * 16 + SF_G / 2; z < Z1; z += SF_G) {
     if (x < X0 || z < Z0) continue;
     for (const [ox, oz] of [[-14.5, -14.5], [14.5, -14.5], [-14.5, 14.5], [14.5, 14.5]]) {
       const lx = x + ox, lz = z + oz;
       if (inSoma(lx, lz) || !lotOK(lx, lz, 12)) continue;
-      const dist = sfDistrict(lx, lz), face = ox < 0 ? (oz < 0 ? Math.PI : -Math.PI / 2) : (oz < 0 ? Math.PI / 2 : 0), [w, d, h] = archLot(lx, lz, dist === 'res' ? face : 0, dist === 'res' ? 23.2 : 25, dist === 'res' ? 23.2 : 25, dist); // row houses pinwheel round the block so every street has fronts
+      const dist = sfDistrict(lx, lz), face = ox < 0 ? (oz < 0 ? Math.PI : -Math.PI / 2) : (oz < 0 ? Math.PI / 2 : 0);
+      if (!lotClear(lx, lz, dist === 'res' ? face : 0, dist === 'res' ? 23.2 : 25, dist === 'res' ? 23.2 : 25)) continue;
+      const [w, d, h] = archLot(lx, lz, dist === 'res' ? face : 0, dist === 'res' ? 23.2 : 25, dist === 'res' ? 23.2 : 25, dist); // row houses pinwheel round the block so every street has fronts
       cityCollider(lx, lz, w, d, h + groundH(lx, lz));
     }
   }
   { // street trees along the residential sidewalks
-    const spots = [], ok = (x, z) => sfZone(x, z) === 'urban' && sfDistrict(x, z) === 'res' && !inSoma(x, z) && groundH(x, z) < 38 && !nearRoads(x, z, 7) && !SF_RESERVED.some(q => Math.hypot(x - q.x, z - q.z) < q.r + 4);
+    const spots = [], ok = (x, z) => sfZone(x, z) === 'urban' && sfDistrict(x, z) === 'res' && !inSoma(x, z) && groundH(x, z) < 38 && !nearRoads(x, z, 7) && !SF_RESERVED.some(q => Math.hypot(x - q.x, z - q.z) < q.r + 4) && !inLM(x, z, 2) && !sfRoadNear(x, z, 0.4);
     const off = t => { const m = ((t - SF_GZ) % SF_G + SF_G) % SF_G; return m > 9 && m < SF_G - 9; };
     for (let x = SF_GX - SF_G * 16; x < X1; x += SF_G) for (let z = Z0; z < Z1; z += 21) { const sd = (Math.round(z / 21) % 2 ? 1 : -1) * 5.3; if (off(z) && roadOK(x, z) && ok(x + sd, z)) spots.push([x + sd, z]); }
     for (let z = SF_GZ - SF_G * 16; z < Z1; z += SF_G) for (let x = X0; x < X1; x += 21) { const m = ((x - SF_GX) % SF_G + SF_G) % SF_G, sd = (Math.round(x / 21) % 2 ? 1 : -1) * 5.3; if (m > 9 && m < SF_G - 9 && roadOK(x, z) && ok(x, z + sd)) spots.push([x, z + sd]); }
@@ -1191,13 +1228,12 @@ const somaP = (u, v) => new V3(SOMA_G.o.x + SOMA_G.mk.x * u + SOMA_G.mn.x * v, 0
   }
   { const { SU, SV, U0, yaw } = SOMA_G; // SoMa lots, square to Market
     for (let u = U0 + SU / 2; u < 1500; u += SU) for (let v = SV / 2; v < 700; v += SV) for (const [ou, ov] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const lu = (SU - 13) / 2 - 0.5, lv = (SV - 13) / 2 - 0.5, p = somaP(u + ou * (SU / 2 - 6.5 - lu / 2), v + ov * (SV / 2 - 6.5 - lv / 2)); if (!inSoma(p.x, p.z) || !lotOK(p.x, p.z, 10)) continue;
+      const lu = (SU - 13) / 2 - 0.5, lv = (SV - 13) / 2 - 0.5, p = somaP(u + ou * (SU / 2 - 6.5 - lu / 2), v + ov * (SV / 2 - 6.5 - lv / 2)); if (!inSoma(p.x, p.z) || !lotOK(p.x, p.z, 10) || !lotClear(p.x, p.z, yaw, lu, lv)) continue;
       const dist = sfDistrict(p.x, p.z), [w, d, h] = archLot(p.x, p.z, yaw + (ov > 0 ? 0 : Math.PI), lu, lv, dist);
       const sd = Math.min(w, d) * 0.72; cityCollider(p.x, p.z, sd, sd, h + groundH(p.x, p.z)); }
   }
-  for (const t of TOWERS) { const p = sfp(t[0], t[1]); if (t[2] === 326) continue; archTower(archFrame(p.x, p.z, 0, t[3], t[4]), t[3], t[4], t[2] / 3.5, t[5], false); cityCollider(p.x, p.z, t[3], t[4], t[2] / 3.5 + groundH(p.x, p.z)); }
+  for (const R of SF_ROADSEGS) if (!R.flat) sfRoadGeo(R.a, R.b, R.w, R.lift);
   SFG.add(new THREE.Mesh(merge(roadGeos), L(0xffffff, { map: retile(T.road, 1, 1) })));
-  sfLandmarks(LM);
   archFlush(SFG);
 }
 // a suspension bridge from a to b (deck height h), towers at fractions along it
@@ -1439,7 +1475,7 @@ function sfLandmarks(LM) {
     const door = textPlane('', 3.2, 5.4, '#4a3a2a'); door.position.set(0, 2.7, 20.05); g.add(door); box(4.4, 0.6, 1, st2, 0, 5.7, 20.3, g);
     const fl = new THREE.Mesh(new THREE.ConeGeometry(1.4, 14, 6), L(0x7a9a8a)); fl.position.set(0, 28, -2); g.add(fl); cityCollider(p.x, p.z, 42, 18, 30 + groundH(p.x, p.z)); }
   // Columbus Tower: the green copper flatiron at Columbus & Kearny, with its corner cupola
-  { const p = sfp(-122.4048, 37.7963), g = G(p), sh = new THREE.Shape(); sh.moveTo(-9, -7); sh.lineTo(9, -7); sh.lineTo(2, 7); sh.lineTo(-2, 7); sh.closePath();
+  { const p = sfNudge(sfp(-122.4048, 37.7963), 9), g = G(p), sh = new THREE.Shape(); sh.moveTo(-9, -7); sh.lineTo(9, -7); sh.lineTo(2, 7); sh.lineTo(-2, 7); sh.closePath();
     const eg = new THREE.ExtrudeGeometry(sh, { depth: 20, bevelEnabled: false }); eg.rotateX(-Math.PI / 2); g.add(new THREE.Mesh(eg, L(0x6fa58c, { map: retile(ARCH.mason.mat.map, 0.25, 0.28) })));
     g.rotation.y = -0.7; cyl(2.4, 2.4, 3, L(0x6fa58c), 0, 21.5, -7, g, 12); const cup = new THREE.Mesh(new THREE.SphereGeometry(2.4, 12, 6, 0, TAU, 0, Math.PI / 2), L(0x4f8a6f)); cup.position.set(0, 23, -7); g.add(cup); cityCollider(p.x, p.z, 12, 12, 24 + groundH(p.x, p.z)); }
   // Mission Dolores: the little white adobe mission and the basilica beside it
@@ -1488,7 +1524,7 @@ function sfLandmarks(LM) {
     for (const z of [-2.8, 2.8]) for (const s of [-1, 1]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.2, 10), M.black); w.rotation.z = Math.PI / 2; w.position.set(s * 1, 0.4, z); g.add(w); }
     const sg = textPlane('POWELL & HYDE', 2.2, 0.35, '#1b1416', '#ffd23f'); sg.position.set(0, 2.85, 4.05); g.add(sg); }
 }
-function sfRoadFlat(x0, z0, x1, z1) { const a = new V3(x0, 0, z0), b = new V3(x1, 0, z1); const len = Math.hypot(b.x - a.x, b.z - a.z); if (len < 2) return; roadStrip(a.x, a.z, b.x, b.z, 7, 0.07, SFG); }
+function sfRoadFlat(x0, z0, x1, z1) { const a = new V3(x0, 0, z0), b = new V3(x1, 0, z1); const len = Math.hypot(b.x - a.x, b.z - a.z); if (len < 2) return; roadStrip(a.x, a.z, b.x, b.z, 7, 0.07, SFG); SF_ROADSEGS.push({ a, b, w: 7, lift: 0.07, keep: true, flat: true }); }
 function updateCableCar(dt) {
   const C = SF_CABLE; if (!C.g || !SFG.visible) return;
   if (C.kites) C.kites.forEach((k, i) => { k.rotation.z = Math.PI / 4 + Math.sin(elapsed * 1.3 + i) * 0.35; k.position.y += Math.sin(elapsed * 0.9 + i * 2) * dt * 0.8; });
@@ -1510,7 +1546,6 @@ const LAG = new THREE.Group(); scene.add(LAG); CITIES.push({ g: LAG, x: 100, z: 
   const stucco = ['#f3e2c7', '#f7d9c4', '#efe6d8', '#e9c9a8', '#f6f0e1', '#dfe9e2'], glass = ['#7fa7c9', '#9bb7cf', '#6f8fae', '#a9c2d6'];
   const blds = [];
   for (let bx = 45; bx <= 255; bx += 60) for (let bz = 1335; bz <= 1815; bz += 60) {
-    if (Math.abs(bz - 1550) < 20) continue; // the boulevard
     for (const [ox, oz] of [[-11, -11], [11, -11], [-11, 11], [11, 11]]) {
       const down = bz > 1620 && bx > 100, h = down ? rr(45, 190) : rr(6, 16);
       blds.push([bx + ox, bz + oz, rr(16, 20), rr(16, 20), h, pick(down ? glass : stucco)]);
@@ -1519,7 +1554,7 @@ const LAG = new THREE.Group(); scene.add(LAG); CITIES.push({ g: LAG, x: 100, z: 
   cityBuildings(blds, LAG);
   for (let x = 15; x <= 285; x += 60) roadStrip(x, 1305, x, 1845, 12, 0.03, LAG);
   for (let z = 1305; z <= 1845; z += 60) roadStrip(0, z, 285, z, 12, 0.03, LAG);
-  roadStrip(-100, 1550, 285, 1550, 14, 0.035, LAG); // boulevard to the beach
+  roadStrip(-100, 1545, 285, 1545, 14, 0.035, LAG); // boulevard to the beach (on a grid line, clear of every block)
   flat(70, 850, M.sand, -115, 0.04, 1525, LAG); // the beach
   // palm trees
   const palmGeo = (() => {
@@ -1529,7 +1564,7 @@ const LAG = new THREE.Group(); scene.add(LAG); CITIES.push({ g: LAG, x: 100, z: 
   })();
   const palms = [];
   for (let z = 1160; z <= 1840; z += 16) for (const s of [-1, 1]) palms.push([s * 7.5, z]);
-  for (let x = -80; x <= 280; x += 16) for (const s of [-1, 1]) palms.push([x, 1550 + s * 9]);
+  for (let x = -80; x <= 280; x += 16) if (((x - 15) % 60 + 60) % 60 > 8 && ((x - 15) % 60 + 60) % 60 < 52) for (const s of [-1, 1]) palms.push([x, 1545 + s * 8]);
   for (let i = 0; i < 40; i++) palms.push([rr(-140, -95), rr(1150, 1900)]);
   const pim = new THREE.InstancedMesh(palmGeo, new THREE.MeshLambertMaterial({ vertexColors: true }), palms.length); pim.frustumCulled = false;
   palms.forEach((p, i) => { dummy.position.set(p[0], 0, p[1]); dummy.rotation.set(rr(-0.05, 0.05), rr(0, TAU), rr(-0.05, 0.05)); dummy.scale.setScalar(rr(11, 15)); dummy.updateMatrix(); pim.setMatrixAt(i, dummy.matrix); });
