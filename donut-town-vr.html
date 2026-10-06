@@ -803,7 +803,7 @@ function rampH(x, z) {
   return 0;
 }
 const CITY_HILLS = [ // San Francisco's hills at their real spots: [lon, lat, rise m, radius m] → game (heights 1:4.5, radius 1:9)
-  [-122.4477, 37.7544, 250, 900], [-122.4542, 37.7383, 230, 700], [-122.4580, 37.7580, 210, 600], [-122.4161, 37.7930, 100, 650], [-122.4194, 37.8011, 85, 520],
+  [-122.4480, 37.7532, 190, 1000], [-122.4478, 37.7550, 252, 560], [-122.4474, 37.7514, 246, 560], // Twin Peaks: a broad base and the two summits [-122.4542, 37.7383, 230, 700], [-122.4580, 37.7580, 210, 600], [-122.4161, 37.7930, 100, 650], [-122.4194, 37.8011, 85, 520],
   [-122.4058, 37.8024, 80, 380], [-122.4350, 37.7925, 95, 1100], [-122.4150, 37.7430, 120, 600], [-122.4000, 37.7600, 85, 600], [-122.4340, 37.7765, 40, 320],
   [-122.4410, 37.7680, 140, 520], [-122.4520, 37.7790, 60, 320], [-122.4450, 37.7880, 70, 600], [-122.48, 37.840, 250, 1600], [-122.3640, 37.8105, 100, 380], [-122.4230, 37.8267, 40, 230],
 ].map(([lon, lat, h, r]) => ({ x: sfx(lon), z: sfz(lat), h: h / 4.5, r: r / 9 }));
@@ -890,6 +890,156 @@ function cityBuildings(list, parent) { // list: [x, z, w, d, h, color]
 }
 const CITIES = [];
 
+// ===== SF architecture kit: every building is real geometry (bay windows, cornices, stoops, setbacks), merged into one mesh
+// per material; facade textures tile by real floor size, so a 30 m building has the same floors as a 15 m one =====
+const ARCH = (() => {
+  const glassFill = (g, x, y, w, h, lit) => { const gr = g.createLinearGradient(x, y, x + w * 0.6, y + h); gr.addColorStop(0, lit ? '#8fb0c9' : '#6f8fab'); gr.addColorStop(0.5, '#2f4256'); gr.addColorStop(1, '#425a70'); g.fillStyle = gr; g.fillRect(x, y, w, h); };
+  const speckle = (g, w, h, n, a) => { for (let i = 0; i < n; i++) { const v = rr(0, 1) < 0.5 ? 0 : 255; g.fillStyle = `rgba(${v},${v},${v},${rr(0.02, a)})`; g.fillRect(rr(0, w), rr(0, h), rr(1, 3), rr(1, 3)); } };
+  // row-house atlas: [0, 1/3) Edwardian front, [1/3, 2/3) Italianate front, [2/3, 1] the bay window panel
+  const res = canvasTex(768, 256, (g, W, H) => {
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); speckle(g, W, H, 3000, 0.06);
+    for (const [o, it] of [[0, false], [256, true]]) {
+      g.fillStyle = '#e4e4e4'; for (const y of [182, 100]) g.fillRect(o, y, 256, 4); // floor bands
+      if (it) for (let y = 186; y < 256; y += 9) { g.fillStyle = '#e9e9e9'; g.fillRect(o, y, 256, 2); } // rusticated base
+      // garage under the bay
+      g.fillStyle = '#d8d8d8'; g.fillRect(o + 14, 186, 118, 70); g.fillStyle = '#bfbfbf'; for (let y = 192; y < 256; y += 10) g.fillRect(o + 18, y, 110, 3);
+      // the entry: door + transom, framed
+      g.fillStyle = '#f4f4f4'; g.fillRect(o + 166, 160, 64, 96); g.fillStyle = it ? '#5a2e22' : '#3a3f4a'; g.fillRect(o + 176, 176, 44, 80); glassFill(g, o + 180, 164, 36, 10); g.fillStyle = '#c9a24a'; g.fillRect(o + 208, 216, 4, 4);
+      // windows on the entry side, upper floors (arched tops on the Italianate)
+      for (const y of [26, 110]) { g.fillStyle = '#f6f6f6'; g.fillRect(o + 160, y - 8, 76, 72); glassFill(g, o + 170, y, 56, 56); if (it) { g.fillStyle = '#f6f6f6'; g.beginPath(); g.arc(o + 198, y, 30, Math.PI, 0); g.fill(); glassFill(g, o + 172, y - 2, 52, 4); } g.fillStyle = '#f6f6f6'; g.fillRect(o + 170, y + 26, 56, 4); g.fillRect(o + 196, y, 4, 56); g.fillStyle = '#d0d0d0'; g.fillRect(o + 156, y + 60, 84, 6); }
+    }
+    // the bay panel: two floors of windows, panels under each
+    const o = 512; g.fillStyle = '#f6f6f6'; g.fillRect(o, 0, 256, 256);
+    for (const y of [14, 140]) { glassFill(g, o + 26, y, 204, 84, y < 50); g.fillStyle = '#f6f6f6'; g.fillRect(o + 26, y + 40, 204, 5); for (const x of [92, 160]) g.fillRect(o + x, y, 5, 84); g.fillStyle = '#dedede'; g.fillRect(o + 20, y + 90, 216, 8); g.strokeStyle = '#e0e0e0'; g.lineWidth = 3; g.strokeRect(o + 40, y + 102, 176, 18); }
+  });
+  // plain stucco side walls, an occasional small window
+  const wall = canvasTex(256, 192, (g, W, H) => { g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); speckle(g, W, H, 1500, 0.07); for (const [x, y] of [[40, 22], [160, 22], [40, 118], [160, 118]]) { g.fillStyle = '#f4f4f4'; g.fillRect(x - 5, y - 5, 50, 62); glassFill(g, x, y, 40, 50); g.fillStyle = '#f4f4f4'; g.fillRect(x, y + 22, 40, 3); g.fillStyle = '#dcdcdc'; g.fillRect(x - 7, y + 55, 54, 5); } g.fillStyle = '#e6e6e6'; g.fillRect(0, 96, W, 3); }, [1, 1]);
+  // downtown masonry: one window bay per tile (4 m x 3.6 m floor)
+  const mason = canvasTex(128, 128, (g, W, H) => { g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); speckle(g, W, H, 700, 0.08); g.fillStyle = '#e2e2e2'; g.fillRect(0, 0, 6, H); g.fillRect(W - 6, 0, 6, H); for (let y = 0; y < H; y += 16) g.fillRect(0, y, W, 1);
+    glassFill(g, 30, 24, 68, 78, Math.random() < 0.3); g.fillStyle = '#f2f2f2'; g.fillRect(30, 60, 68, 5); g.fillRect(62, 24, 4, 78); g.fillStyle = '#d2d2d2'; g.fillRect(24, 102, 80, 8); g.fillStyle = '#ececec'; g.fillRect(26, 14, 76, 10); }, [1, 1]);
+  // street-level shops: four storefronts per 24 m tile, each with its own awning
+  const store = canvasTex(512, 96, (g, W, H) => { g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); const aw = ['#b23a2e', '#2f6f4a', '#1e3f73', '#d08a2a', '#5a2a5a', '#1b1416'];
+    for (let i = 0; i < 4; i++) { const x = i * 128; g.fillStyle = '#2b2b2e'; g.fillRect(x + 6, 8, 116, 14); g.fillStyle = '#f2e6c8'; for (let k = 0; k < 6; k++) g.fillRect(x + 16 + k * 15, 12, 9, 6);
+      g.fillStyle = pick(aw); g.fillRect(x + 4, 22, 120, 12); g.fillStyle = 'rgba(255,255,255,0.5)'; for (let k = 0; k < 120; k += 12) g.fillRect(x + 4 + k, 22, 6, 12);
+      glassFill(g, x + 10, 36, 80, 58, true); g.fillStyle = '#3a3a3a'; g.fillRect(x + 48, 36, 3, 58); g.fillStyle = '#4a3a2a'; g.fillRect(x + 96, 38, 22, 58); glassFill(g, x + 100, 42, 14, 24); g.fillStyle = '#dcdcdc'; g.fillRect(x, 0, 4, H); } }, [1, 1]);
+  // curtain-wall glass: 4 x 4 panels per 12 m x 14.4 m tile
+  const glass = canvasTex(256, 256, (g, W, H) => { for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) { const v = rr(0.85, 1.15), gr = g.createLinearGradient(c * 64, r * 64, c * 64 + 40, r * 64 + 64);
+      gr.addColorStop(0, `rgb(${210 * v | 0},${226 * v | 0},${240 * v | 0})`); gr.addColorStop(1, `rgb(${120 * v | 0},${140 * v | 0},${160 * v | 0})`); g.fillStyle = gr; g.fillRect(c * 64, r * 64, 64, 64); }
+    g.fillStyle = '#5d6670'; for (let r = 0; r < 4; r++) g.fillRect(0, r * 64 + 52, W, 12); g.fillStyle = '#c9d0d6'; for (let c = 0; c <= 4; c++) g.fillRect(c * 64 - 1, 0, 3, H); }, [1, 1]);
+  // SoMa brick warehouses: big multi-pane windows under brick arches, 10 m x 8 m tile (two bays, two floors)
+  const brick = canvasTex(256, 256, (g, W, H) => { g.fillStyle = '#e8e8e8'; g.fillRect(0, 0, W, H); for (let y = 0; y < H; y += 6) for (let x = (y / 6 % 2) * 7; x < W; x += 14) { const v = rr(0.82, 1); g.fillStyle = `rgb(${255 * v | 0},${255 * v | 0},${255 * v | 0})`; g.fillRect(x, y, 12, 5); }
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++) { const x = c * 128 + 22, y = r * 128 + 26; g.fillStyle = '#c8c8c8'; g.beginPath(); g.arc(x + 42, y + 6, 46, Math.PI, 0); g.fill(); glassFill(g, x, y, 84, 86, false); g.fillStyle = '#d8d8d8'; for (let k = 1; k < 4; k++) { g.fillRect(x + k * 21, y, 3, 86); g.fillRect(x, y + k * 21.5, 84, 3); } g.fillStyle = '#bdbdbd'; g.fillRect(x - 4, y + 86, 92, 6); } }, [1, 1]);
+  const lam = (map, extra) => new THREE.MeshLambertMaterial(Object.assign({ color: 0xffffff, vertexColors: true, map }, extra || {}));
+  const B = {}; const mk = (k, mat) => { B[k] = { mat, p: [], n: [], uv: [], c: [] }; };
+  mk('res', lam(res)); mk('wall', lam(wall)); mk('mason', lam(mason)); mk('store', lam(store)); mk('brick', lam(brick)); mk('trim', lam(null)); mk('roof', lam(null));
+  mk('glass', new THREE.MeshPhongMaterial({ color: 0xffffff, vertexColors: true, map: glass, shininess: 110, specular: 0x9fb4c8 }));
+  return B;
+})();
+const archTile = (tw, th, vb = 0) => (w, y0, y1) => [0, (y0 - vb) / th, w / tw, (y1 - vb) / th];
+const archFit = (u0, u1, H) => (w, y0, y1) => [u0, y0 / H, u1, y1 / H];
+const _ac = new THREE.Color(), _an = new V3(), _ae = new V3(), _af = new V3();
+// a quad in a building frame F = { x, y, z, c, s } (yaw cos/sin); corners as local [x, y, z]; hint = the outward direction
+function archQuad(k, F, P0, P1, P2, P3, hint, uv, col) {
+  const B = ARCH[k], w = q => [F.x + q[0] * F.c + q[2] * F.s, F.y + q[1], F.z - q[0] * F.s + q[2] * F.c];
+  let a = w(P0), b = w(P1), c = w(P2), d = w(P3), u = uv || [0, 0, 1, 1], U = [[u[0], u[1]], [u[2], u[1]], [u[2], u[3]], [u[0], u[3]]];
+  _ae.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); _af.set(c[0] - a[0], c[1] - a[1], c[2] - a[2]); _an.crossVectors(_ae, _af).normalize();
+  const hx = hint[0] * F.c + hint[2] * F.s, hz = -hint[0] * F.s + hint[2] * F.c;
+  if (_an.x * hx + _an.y * hint[1] + _an.z * hz < 0) { [a, b, c, d] = [b, a, d, c]; U = [U[1], U[0], U[3], U[2]]; _an.negate(); }
+  _ac.set(col);
+  for (const [p, t] of [[a, U[0]], [b, U[1]], [c, U[2]], [a, U[0]], [c, U[2]], [d, U[3]]]) { B.p.push(p[0], p[1], p[2]); B.n.push(_an.x, _an.y, _an.z); B.uv.push(t[0], t[1]); B.c.push(_ac.r, _ac.g, _ac.b); }
+}
+// a box in frame F; faces: { front (+z), back, left (-x), right (+x), top, bottom }: [material key, uv fn] (missing = not built)
+function archBox(F, x0, y0, z0, x1, y1, z1, col, faces) {
+  const f = (name, P, hint, w) => { const s = faces[name]; if (!s) return; archQuad(s[0], F, P[0], P[1], P[2], P[3], hint, s[1] ? s[1](w, y0, y1) : null, s[2] || col); };
+  f('front', [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], [0, 0, 1], x1 - x0);
+  f('back', [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]], [0, 0, -1], x1 - x0);
+  f('right', [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]], [1, 0, 0], z1 - z0);
+  f('left', [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], [-1, 0, 0], z1 - z0);
+  if (faces.top) archQuad(faces.top[0], F, [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 1, 0], null, faces.top[2] || col);
+  if (faces.bottom) archQuad(faces.bottom[0], F, [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0], null, faces.bottom[2] || col);
+}
+const archAll = (k, uv, top) => ({ front: [k, uv], back: [k, uv], left: [k, uv], right: [k, uv], top: top || null });
+const archFrame = (x, z, yaw, w, d) => { // frame on the ground at (x, z); yb = how far below the frame the lowest footprint corner is
+  const c = Math.cos(yaw), s = Math.sin(yaw), gy = groundH(x, z); let lo = gy;
+  for (const [a, b] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2]]) lo = Math.min(lo, groundH(x + a * c + b * s, z - a * s + b * c));
+  return { x, y: gy, z, c, s, yb: lo - gy - 0.6 };
+};
+const RES_COL = ['#f4efe6', '#f5d6c6', '#d6e6f2', '#f7ecc4', '#dfe9d8', '#f2d9e6', '#ffffff', '#e8dccb', '#cfe3e8', '#e9e2f2', '#f6e3c9', '#fbfbf4'];
+const LADY_COL = ['#7fb3d5', '#e8a0a0', '#9ac9a5', '#c7a6d8', '#f2c46d', '#88c5c0', '#e6957a'];
+// a row of SF houses across a lot (front = local +z): bay windows over garages, stoops, cornices
+function archRow(F, W, n, frontZ) {
+  const hw = W / n;
+  for (let i = 0; i < n; i++) {
+    const cx = -W / 2 + hw * (i + 0.5), h = rr(8.6, 11.4), d = rr(13, 17), z1 = frontZ, z0 = z1 - d, lady = Math.random() < 0.14;
+    const col = lady ? pick(LADY_COL) : pick(RES_COL), trim = lady ? pick(['#ffffff', '#5a2a3a', '#2c3e66', '#f7f2e6']) : Math.random() < 0.8 ? '#ffffff' : '#f3ecdc', it = Math.random() < 0.45 ? 1 : 0;
+    const x0 = cx - hw / 2, x1 = cx + hw / 2, yb = F.yb;
+    archBox(F, x0, yb, z0, x1, h, z1, col, { front: ['res', archFit(it / 3 + 0.003, it / 3 + 0.33, h)], back: ['wall', archTile(8, 6.4)], left: i === 0 ? ['wall', archTile(8, 6.4)] : null, right: i === n - 1 ? ['wall', archTile(8, 6.4)] : null, top: ['roof', null, '#8a8580'] });
+    // the bay: a three-sided window box over the garage
+    const bx = cx - hw * 0.18, bw = hw * 0.5, fw = bw * 0.6, bd = 0.85, by0 = 2.95, by1 = h - 1.15;
+    const uvB = [0.67, 0, 0.995, 1];
+    archQuad('res', F, [bx - fw / 2, by0, z1 + bd], [bx + fw / 2, by0, z1 + bd], [bx + fw / 2, by1, z1 + bd], [bx - fw / 2, by1, z1 + bd], [0, 0, 1], uvB, col);
+    archQuad('res', F, [bx - bw / 2, by0, z1], [bx - fw / 2, by0, z1 + bd], [bx - fw / 2, by1, z1 + bd], [bx - bw / 2, by1, z1], [-1, 0, 1], [0.72, 0, 0.94, 1], col);
+    archQuad('res', F, [bx + fw / 2, by0, z1 + bd], [bx + bw / 2, by0, z1], [bx + bw / 2, by1, z1], [bx + fw / 2, by1, z1 + bd], [1, 0, 1], [0.72, 0, 0.94, 1], col);
+    const T = { front: ['trim'], left: ['trim'], right: ['trim'], top: ['trim'], bottom: ['trim'] };
+    archBox(F, bx - bw / 2 - 0.12, by1, z1, bx + bw / 2 + 0.12, by1 + 0.4, z1 + bd + 0.18, trim, { front: ['trim'], left: ['trim'], right: ['trim'], top: ['trim'] });   // bay cap
+    archBox(F, bx - bw / 2 - 0.05, by0 - 0.32, z1, bx + bw / 2 + 0.05, by0, z1 + bd + 0.1, trim, { front: ['trim'], left: ['trim'], right: ['trim'], bottom: ['trim'] });   // bay sill
+    archBox(F, x0, h - 0.75, z1 - 0.05, x1, h, z1 + 0.62, trim, T);                                    // cornice
+    archBox(F, x0, h - 1.05, z1, x1, h - 0.88, z1 + 0.25, trim, { front: ['trim'], bottom: ['trim'] }); // dentil band
+    if (it) archBox(F, cx + hw * 0.16, 2.55, z1, cx + hw * 0.44, 2.75, z1 + 0.45, trim, { front: ['trim'], top: ['trim'], bottom: ['trim'] }); // door hood
+    // stoop up to the front door
+    { const P = (x, y, z) => [x, y, z], xa = cx + hw * 0.17, xb = cx + hw * 0.43; // one sloped stoop: a ramp of steps up to the door
+      archQuad('trim', F, P(xa, yb, z1 + 1.7), P(xb, yb, z1 + 1.7), P(xb, 0.35, z1 + 1.7), P(xa, 0.35, z1 + 1.7), [0, 0, 1], null, '#cfcac2');
+      archQuad('trim', F, P(xa, 0.35, z1 + 1.7), P(xb, 0.35, z1 + 1.7), P(xb, 1.15, z1), P(xa, 1.15, z1), [0, 1, 1], null, '#d8d3cb');
+      for (const [x, sg] of [[xa, -1], [xb, 1]]) archQuad('trim', F, P(x, yb, z1), P(x, yb, z1 + 1.7), P(x, 0.35, z1 + 1.7), P(x, 1.15, z1), [sg, 0, 0], null, '#c4bfb7'); }
+  }
+}
+// a downtown masonry block: shops at street level, a belt course, punched windows, a heavy cornice
+function archMason(F, w, d, h, col, cornice) {
+  const yb = F.yb, x0 = -w / 2, x1 = w / 2, z0 = -d / 2, z1 = d / 2, T = { front: ['trim'], back: ['trim'], left: ['trim'], right: ['trim'], top: ['trim'], bottom: ['trim'] };
+  archBox(F, x0, yb, z0, x1, 4.4, z1, col, archAll('store', archTile(24, 4.4)));
+  archBox(F, x0, 4.4, z0, x1, h, z1, col, archAll('mason', archTile(4, 3.6, 4.4), ['roof', null, '#7f7b76']));
+  archBox(F, x0 - 0.25, 4.3, z0 - 0.25, x1 + 0.25, 4.75, z1 + 0.25, cornice, T);
+  archBox(F, x0 - 0.7, h - 1.1, z0 - 0.7, x1 + 0.7, h, z1 + 0.7, cornice, T);
+  archBox(F, x0 - 0.3, h - 1.6, z0 - 0.3, x1 + 0.3, h - 1.1, z1 + 0.3, cornice, { front: ['trim'], back: ['trim'], left: ['trim'], right: ['trim'], bottom: ['trim'] });
+  if (Math.random() < 0.6) { const a = rr(-w / 4, w / 4), b = rr(-d / 4, d / 4); archBox(F, a - 2.5, h, b - 2, a + 2.5, h + 2.6, b + 2, '#9a958e', archAll('trim', null, ['trim'])); }
+}
+// an office tower: glass (or stone) in one to three tiers with setbacks, a parapet at each and a mechanical crown
+function archTower(F, w, d, h, col, stone) {
+  const yb = F.yb, tiers = h > 46 ? 3 : h > 30 ? 2 : 1, fr = tiers === 3 ? [0.62, 0.25, 0.13] : tiers === 2 ? [0.74, 0.26] : [1];
+  const T = { front: ['trim'], back: ['trim'], left: ['trim'], right: ['trim'], top: ['trim'], bottom: ['trim'] };
+  let y = yb, sw = w, sd = d;
+  fr.forEach((f, i) => {
+    const y1 = i === 0 ? h * f : y + h * f, k = stone ? 'mason' : 'glass', uv = stone ? archTile(4, 3.6, 4.4) : archTile(12, 14.4);
+    if (i === 0) archBox(F, -sw / 2, y, -sd / 2, sw / 2, 5.5, sd / 2, stone ? col : '#3d4650', archAll(stone ? 'store' : 'glass', stone ? archTile(24, 4.4) : archTile(6, 7.2)));
+    archBox(F, -sw / 2, i === 0 ? 5.5 : y, -sd / 2, sw / 2, y1, sd / 2, col, archAll(k, uv, ['roof', null, '#8d8a86']));
+    archBox(F, -sw / 2 - 0.25, y1 - 0.2, -sd / 2 - 0.25, sw / 2 + 0.25, y1 + 0.7, sd / 2 + 0.25, stone ? '#d8d2c6' : '#c9d0d6', T);
+    y = y1; sw *= rr(0.68, 0.82); sd *= rr(0.68, 0.82);
+  });
+  archBox(F, -sw * 0.35, y, -sd * 0.35, sw * 0.35, y + 3.2, sd * 0.35, '#8d8a86', archAll('trim', null, ['trim']));
+}
+// a SoMa brick warehouse with a parapet
+function archBrick(F, w, d, h, col) {
+  archBox(F, -w / 2, F.yb, -d / 2, w / 2, h, d / 2, col, archAll('brick', archTile(10, 8), ['roof', null, '#6f6a64']));
+  const dk = new THREE.Color(col).multiplyScalar(0.72).getHex();
+  archBox(F, -w / 2 - 0.3, h - 0.2, -d / 2 - 0.3, w / 2 + 0.3, h + 0.9, d / 2 + 0.3, dk, { front: ['trim'], back: ['trim'], left: ['trim'], right: ['trim'], top: ['trim'], bottom: ['trim'] });
+}
+// one city lot (centre x, z; local front = +z faces the street at frontZ): picks the building by district
+function archLot(x, z, yaw, lw, ld, dist) {
+  if (dist === 'res') { const F = archFrame(x, z, yaw, lw, ld); archRow(F, lw, 3, ld / 2 - 1.6); return [lw, ld - 1, 12]; }
+  const w = rr(lw - 4, lw - 0.5), d = rr(ld - 4, ld - 0.5), F = archFrame(x, z, yaw, w, d);
+  if (dist === 'fidi' || dist === 'transbay') { const h = dist === 'fidi' ? rr(28, 60) : rr(25, 52), stone = dist === 'fidi' ? Math.random() < 0.45 : Math.random() < 0.2;
+    archTower(F, w, d, h, stone ? pick(['#e6dccb', '#d9cdb8', '#cfc6b8', '#ece6da']) : pick(['#cfe0ee', '#bcd4e6', '#d6e2d8', '#e2d6c4', '#c4ccd6']), stone); return [w, d, h + 4]; }
+  if (dist === 'downtown') { const h = 4.4 + (2 + Math.floor(rr(0, 6))) * 3.6 + 1; archMason(F, w, d, h, pick(['#efe6d6', '#e3d6bf', '#d9cbb3', '#f3eee4', '#d8c7ad', '#c9b9a0']), pick(['#d8ccb4', '#cbbfa8', '#e8e0d0'])); return [w, d, h + 3]; }
+  const h = rr(8, 18); if (Math.random() < 0.7) archBrick(F, w, d, h, pick(['#b8634a', '#a85a44', '#c4795c', '#9c5340', '#c98a6b', '#d9c3a5']));
+  else archMason(F, w, d, h, pick(['#e0d6c8', '#d8c3a5', '#c9c2b6']), '#bdb3a2');
+  return [w, d, h + 2];
+}
+function archFlush(parent) {
+  for (const k in ARCH) { const B = ARCH[k]; if (!B.p.length) continue;
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(B.n, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(B.c, 3)); g.computeBoundingSphere();
+    const m = new THREE.Mesh(g, B.mat); m.frustumCulled = false; parent.add(m); B.p = []; B.n = []; B.uv = []; B.c = []; }
+}
+
 // ===== San Francisco (see the lat/lon mapping at the top of section 6b) =====
 const SF_CABLE = { g: null, a: 0, b: 0, x: 0, u: 0, dir: 1, pause: 0 };
 const SFG = new THREE.Group(); scene.add(SFG); CITIES.push({ g: SFG, x: sfx(-122.445), z: sfz(37.775), r: 1750 });
@@ -920,7 +1070,7 @@ const SF_PARKS = [ // [area, kind]
   [llr(-122.4535, 37.7710, -122.4430, 37.7735), 'park'],   // the Panhandle
   [llr(-122.4840, 37.7880, -122.4470, 37.8070), 'forest'], // the Presidio
   [llr(-122.5130, 37.7780, -122.4935, 37.7880), 'forest'], // Lincoln Park / Lands End
-  [llr(-122.4620, 37.7505, -122.4440, 37.7620), 'forest'], // Mt Sutro / Twin Peaks
+  [llr(-122.4620, 37.7505, -122.4525, 37.7620), 'forest'], // Mt Sutro (Twin Peaks itself is open grass, appended below)
   [llr(-122.4600, 37.7340, -122.4490, 37.7420), 'forest'], // Mt Davidson
   [llr(-122.4300, 37.7580, -122.4245, 37.7615), 'park'],   // Mission Dolores Park
   [llr(-122.4356, 37.7752, -122.4322, 37.7778), 'park'],   // Alamo Square
@@ -931,9 +1081,12 @@ const SF_PARKS = [ // [area, kind]
   [llr(-122.4072, 37.8015, -122.4044, 37.8033), 'park'],   // Pioneer Park (Telegraph Hill)
   [llr(-122.4086, 37.7870, -122.4064, 37.7892), 'plaza'],  // Union Square
   [llr(-122.4205, 37.7785, -122.4160, 37.7802), 'plaza'],  // Civic Center Plaza
+  [llr(-122.4525, 37.7490, -122.4425, 37.7585), 'park'],   // Twin Peaks: bare grassy summits
 ];
+const CRISSY = llr(-122.4665, 37.8020, -122.4470, 37.8044), CRISSY_BEACH = llr(-122.4665, 37.8044, -122.4470, 37.8080);
 function sfZone(x, z) {
   if (inWater(x, z)) return 'water';
+  if (inR(CRISSY, x, z)) return 'park'; if (inR(CRISSY_BEACH, x, z)) return 'beach'; // Crissy Field: lawn and beach in front of the Presidio
   for (const [r, k] of SF_PARKS) if (inR(r, x, z)) return k;
   if (SF_LANDS.some(l => inLandArea(l, x, z))) return 'island';
   if (x < sfx(-122.5070) && z > sfz(37.7800)) return 'beach'; // Ocean Beach
@@ -941,6 +1094,14 @@ function sfZone(x, z) {
 }
 const SF_DIST = [[llr(-122.4060, 37.7880, -122.3915, 37.7975), 'fidi'], [llr(-122.4005, 37.7840, -122.3880, 37.7920), 'transbay'], [llr(-122.4250, 37.7760, -122.4005, 37.7935), 'downtown'], [llr(-122.4180, 37.7680, -122.3870, 37.7850), 'soma']];
 const sfDistrict = (x, z) => { for (const [r, k] of SF_DIST) if (inR(r, x, z)) return k; return 'res'; };
+// South of Market the streets run parallel and square to Market St (the north grid stops at Market)
+const SOMA = [[-122.3936, 37.7957], [-122.4192, 37.7752], [-122.4128, 37.7688], [-122.3990, 37.7712], [-122.3868, 37.7785], [-122.3868, 37.7905]].map(p => [sfx(p[0]), sfz(p[1])]);
+const inPoly = (P, x, z) => { let inside = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, zi] = P[i], [xj, zj] = P[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inside = !inside; } return inside; };
+const inSoma = (x, z) => inPoly(SOMA, x, z);
+const SOMA_G = (() => { const mk = MARKET[1].clone().sub(MARKET[0]).normalize(), mn = new V3(mk.z, 0, -mk.x), o = MARKET[0], sf = sfp(-122.3972, 37.7897).sub(o);
+  const SU = 72, us = sf.dot(mk);
+  return { mk, mn, o, SU, SV: 62, U0: us - SU / 2 - Math.ceil((us - SU / 2) / SU) * SU, yaw: Math.atan2(mn.x, mn.z) }; })();
+const somaP = (u, v) => new V3(SOMA_G.o.x + SOMA_G.mk.x * u + SOMA_G.mn.x * v, 0, SOMA_G.o.z + SOMA_G.mk.z * u + SOMA_G.mn.z * v);
 {
   bigSign(SFG, ['Welcome to', 'SAN FRANCISCO'], 9, 3, 7, 3.6, -1270, 0, '#b23a2e');
   // ground: a terrain mesh over the whole city (hills, parks, beach), under the water planes
@@ -973,7 +1134,8 @@ const sfDistrict = (x, z) => { for (const [r, k] of SF_DIST) if (inR(r, x, z)) r
     const p = geo.attributes.position, uv = geo.attributes.uv; for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), dk = deckH(x, z); p.setY(i, (dk > 0 && dk < 1 ? dk : groundH(x, z)) + lift); uv.setY(i, uv.getY(i) * len / 12); }
     geo.computeVertexNormals(); roadGeos.push(geo);
   };
-  const roadOK = (x, z) => { const zn = sfZone(x, z); return (zn === 'urban' || zn === 'plaza' || zn === 'beach') && groundH(x, z) < 42; };
+  const roadOK0 = (x, z) => { const zn = sfZone(x, z); return (zn === 'urban' || zn === 'plaza' || zn === 'beach') && groundH(x, z) < 42; };
+  const roadOK = (x, z) => roadOK0(x, z) && !inSoma(x, z);
   const runs = (fixed, from, to, vertical) => { // grid line, split where it leaves the city
     let start = null; const s = Math.sign(to - from) * 6;
     for (let t = from; (to - t) * s > 0 || start; t += s) {
@@ -985,6 +1147,11 @@ const sfDistrict = (x, z) => { for (const [r, k] of SF_DIST) if (inR(r, x, z)) r
   };
   for (let x = SF_GX - SF_G * 16; x < X1; x += SF_G) if (x > X0) runs(x, Z1 - 10, Z0, true);
   for (let z = SF_GZ - SF_G * 16; z < Z1; z += SF_G) if (z > Z0) runs(z, X0, X1, false);
+  { // SoMa: streets along and across Market
+    const { SU, SV, U0 } = SOMA_G, seg = (pf, t0, t1) => { let st = null; for (let t = t0; t <= t1 + 6; t += 6) { const q = pf(t), ok = t <= t1 && roadOK0(q.x, q.z) && inSoma(q.x, q.z); if (ok && st === null) st = t; if (!ok && st !== null) { if (t - 6 - st > 20) sfRoad(pf(st), pf(t - 6), 9); st = null; } } };
+    for (let u = U0; u < 1500; u += SU) seg(t => somaP(u, t), 4, 700);
+    for (let v = SV; v < 700; v += SV) seg(t => somaP(t, v), 0, 1500);
+  }
   for (const pl of SF_SPECIAL_ROADS) for (let i = 1; i < pl.length; i++) sfRoad(pl[i - 1], pl[i], pl === MARKET ? 14 : 10, 0.2);
   // landmarks (built below) claim their spots before the generic buildings are placed
   const TOWERS = [ // [lon, lat, real height m, w, d, color]
@@ -1000,25 +1167,38 @@ const sfDistrict = (x, z) => { for (const [r, k] of SF_DIST) if (inR(r, x, z)) r
   };
   reserve(LM.ferry, 34); reserve(LM.transamerica, 16); reserve(LM.lombard, 32); reserve(LM.cityHall, 40); reserve(LM.oracle, 50); reserve(LM.ghirardelli, 18); reserve(LM.castro, 8); reserve(LM.bayAnchor, 22); reserve(LM.wharf, 12);
   reserve(new V3(sfx(-122.4318), 0, sfz(37.7765)), 34); // the Painted Ladies on Steiner St
+  for (const [lon, lat, r] of [[-122.4133, 37.7919, 34], [-122.4048, 37.7963, 12], [-122.4269, 37.7642, 24], [-122.4300, 37.7853, 16], [-122.4124, 37.7523, 22]]) reserve(sfp(lon, lat), r); // Grace Cathedral, Columbus Tower, Mission Dolores, Peace Pagoda, Balmy Alley
   for (let i = 0; i < 12; i += 3) reserve(new V3(sfx(-122.4500) + i * 9.2 + 13, 0, sfz(37.7699) - 7.5), 24); // Haight St Victorians
-  // generic buildings, by district
-  const PAL = { fidi: ['#b9c6d3', '#9fb2c4', '#d8dde3', '#7f93a6', '#c9ced6'], transbay: ['#aebccb', '#cfd8e0', '#8fa4b6'], downtown: ['#e6dccb', '#d9cdb8', '#c9bfae', '#f0e8da', '#d6c9b0'], soma: ['#b5735a', '#c98a6b', '#d8c3a5', '#a9a39a', '#e0d6c8'], res: ['#f4efe6', '#f5d6c6', '#d6e6f2', '#f7ecc4', '#dfe9d8', '#f2d9e6', '#ffffff', '#e8dccb', '#cfe3e8'] };
-  const blds = [];
+  // generic buildings, by district: row houses face their street, downtown blocks, towers, SoMa brick
+  const lotOK = (lx, lz, r) => !(sfZone(lx, lz) !== 'urban' || groundH(lx, lz) > 38 || segDist(lx, lz, MARKET[0], MARKET[1]) < 18 || nearRoads(lx, lz, 15) || SF_RESERVED.some(q => Math.hypot(lx - q.x, lz - q.z) < q.r + 12)
+    || sfZone(lx + r, lz) !== 'urban' || sfZone(lx - r, lz) !== 'urban' || sfZone(lx, lz + r) !== 'urban' || sfZone(lx, lz - r) !== 'urban'); // stay off the shoreline
   for (let x = SF_GX - SF_G * 16 + SF_G / 2; x < X1; x += SF_G) for (let z = SF_GZ - SF_G * 16 + SF_G / 2; z < Z1; z += SF_G) {
     if (x < X0 || z < Z0) continue;
     for (const [ox, oz] of [[-14.5, -14.5], [14.5, -14.5], [-14.5, 14.5], [14.5, 14.5]]) {
       const lx = x + ox, lz = z + oz;
-      if (sfZone(lx, lz) !== 'urban' || groundH(lx, lz) > 38 || segDist(lx, lz, MARKET[0], MARKET[1]) < 18 || nearRoads(lx, lz, 15) || SF_RESERVED.some(r => Math.hypot(lx - r.x, lz - r.z) < r.r + 12)) continue;
-      if (sfZone(lx + 12, lz) !== 'urban' || sfZone(lx - 12, lz) !== 'urban' || sfZone(lx, lz + 12) !== 'urban' || sfZone(lx, lz - 12) !== 'urban') continue; // stay off the shoreline
-      const dist = sfDistrict(lx, lz), pal = PAL[dist];
-      if (dist === 'res') { for (const s of [-1, 1]) blds.push([lx + s * 6.2, lz, 11.6, rr(18, 23), rr(5, 9.5), pick(pal)]); } // row houses
-      else { const h = dist === 'fidi' ? rr(28, 60) : dist === 'transbay' ? rr(25, 50) : dist === 'downtown' ? rr(12, 26) : rr(7, 18); blds.push([lx, lz, rr(20, 25), rr(20, 25), h, pick(pal)]); }
+      if (inSoma(lx, lz) || !lotOK(lx, lz, 12)) continue;
+      const dist = sfDistrict(lx, lz), face = ox < 0 ? (oz < 0 ? Math.PI : -Math.PI / 2) : (oz < 0 ? Math.PI / 2 : 0), [w, d, h] = archLot(lx, lz, dist === 'res' ? face : 0, dist === 'res' ? 23.2 : 25, dist === 'res' ? 23.2 : 25, dist); // row houses pinwheel round the block so every street has fronts
+      cityCollider(lx, lz, w, d, h + groundH(lx, lz));
     }
   }
-  for (const t of TOWERS) { const p = sfp(t[0], t[1]); if (t[2] === 326) continue; blds.push([p.x, p.z, t[3], t[4], t[2] / 3.5, t[5]]); }
-  cityBuildings(blds, SFG);
+  { // street trees along the residential sidewalks
+    const spots = [], ok = (x, z) => sfZone(x, z) === 'urban' && sfDistrict(x, z) === 'res' && !inSoma(x, z) && groundH(x, z) < 38 && !nearRoads(x, z, 7) && !SF_RESERVED.some(q => Math.hypot(x - q.x, z - q.z) < q.r + 4);
+    const off = t => { const m = ((t - SF_GZ) % SF_G + SF_G) % SF_G; return m > 9 && m < SF_G - 9; };
+    for (let x = SF_GX - SF_G * 16; x < X1; x += SF_G) for (let z = Z0; z < Z1; z += 21) { const sd = (Math.round(z / 21) % 2 ? 1 : -1) * 5.3; if (off(z) && roadOK(x, z) && ok(x + sd, z)) spots.push([x + sd, z]); }
+    for (let z = SF_GZ - SF_G * 16; z < Z1; z += SF_G) for (let x = X0; x < X1; x += 21) { const m = ((x - SF_GX) % SF_G + SF_G) % SF_G, sd = (Math.round(x / 21) % 2 ? 1 : -1) * 5.3; if (m > 9 && m < SF_G - 9 && roadOK(x, z) && ok(x, z + sd)) spots.push([x, z + sd]); }
+    const tg = merge([colorize(new THREE.CylinderGeometry(0.09, 0.13, 2.6, 5, 1, true).translate(0, 1.3, 0), 0x6b4a2f), colorize(new THREE.IcosahedronGeometry(1.2, 0).scale(1, 1.3, 1).translate(0, 3.6, 0), 0x52903c)]);
+    SFG.add(instanced(tg, new THREE.MeshLambertMaterial({ vertexColors: true }), spots, (d, q, col) => { d.position.set(q[0], groundH(q[0], q[1]), q[1]); d.rotation.set(0, rr(0, TAU), 0); d.scale.setScalar(rr(0.85, 1.2)); col.setRGB(rr(0.75, 1), rr(0.85, 1), rr(0.7, 0.95)); }));
+  }
+  { const { SU, SV, U0, yaw } = SOMA_G; // SoMa lots, square to Market
+    for (let u = U0 + SU / 2; u < 1500; u += SU) for (let v = SV / 2; v < 700; v += SV) for (const [ou, ov] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const lu = (SU - 13) / 2 - 0.5, lv = (SV - 13) / 2 - 0.5, p = somaP(u + ou * (SU / 2 - 6.5 - lu / 2), v + ov * (SV / 2 - 6.5 - lv / 2)); if (!inSoma(p.x, p.z) || !lotOK(p.x, p.z, 10)) continue;
+      const dist = sfDistrict(p.x, p.z), [w, d, h] = archLot(p.x, p.z, yaw + (ov > 0 ? 0 : Math.PI), lu, lv, dist);
+      const sd = Math.min(w, d) * 0.72; cityCollider(p.x, p.z, sd, sd, h + groundH(p.x, p.z)); }
+  }
+  for (const t of TOWERS) { const p = sfp(t[0], t[1]); if (t[2] === 326) continue; archTower(archFrame(p.x, p.z, 0, t[3], t[4]), t[3], t[4], t[2] / 3.5, t[5], false); cityCollider(p.x, p.z, t[3], t[4], t[2] / 3.5 + groundH(p.x, p.z)); }
   SFG.add(new THREE.Mesh(merge(roadGeos), L(0xffffff, { map: retile(T.road, 1, 1) })));
   sfLandmarks(LM);
+  archFlush(SFG);
 }
 // a suspension bridge from a to b (deck height h), towers at fractions along it
 function suspensionBridge(a, b, o) {
@@ -1029,15 +1209,38 @@ function suspensionBridge(a, b, o) {
   for (const s of [-1, 1]) { const a2 = Math.atan2(H, R), r = new THREE.Mesh(new THREE.BoxGeometry(o.w, 1.2, Math.hypot(H, R)), deckMat); r.position.set(0, H / 2 - 0.6, s * (len / 2 - R / 2)); r.rotation.x = s * a2; g.add(r); }
   for (const s of [-1, 1]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1, len - 2 * R), col); rail.position.set(s * o.w / 2, H + 0.4, 0); g.add(rail); }
   const tz = o.towers.map(t => (t - 0.5) * len), top = H + o.towerH;
-  for (const z of tz) { for (const s of [-1, 1]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(2.4, top, 2.4), col); leg.position.set(s * (o.w / 2 + 1), top / 2, z); g.add(leg); } for (const y of [H - 2, H + o.towerH * 0.45, top - 1]) { const beam = new THREE.Mesh(new THREE.BoxGeometry(o.w + 4.4, 2, 2), col); beam.position.set(0, y, z); g.add(beam); } }
+  const lx = o.w / 2 + 1.4, bm = (w, h, d, x, y, z, rz = 0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), col); m.position.set(x, y, z); m.rotation.z = rz; g.add(m); return m; };
+  const grooveTex = canvasTex(64, 256, (c, w, h) => { c.fillStyle = '#fff'; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(0,0,0,0.28)'; for (const x of [10, 26, 42]) c.fillRect(x, 0, 6, h); c.fillStyle = 'rgba(0,0,0,0.12)'; for (let y = 0; y < h; y += 32) c.fillRect(0, y, w, 2); }, [1, 4]);
+  const legM = o.style === 'deco' ? L(o.color, { map: grooveTex }) : col;
+  for (const z of tz) {
+    if (o.style === 'deco') { // Art Deco legs that step in as they rise, with portal struts and recessed panels
+      const steps = [[0, H * 0.9, 3.4], [H * 0.9, H + o.towerH * 0.4, 3.0], [H + o.towerH * 0.4, H + o.towerH * 0.75, 2.6], [H + o.towerH * 0.75, top, 2.2]];
+      for (const s2 of [-1, 1]) for (const [y0, y1, w] of steps) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, y1 - y0, w * 1.5), legM); m.position.set(s2 * lx, (y0 + y1) / 2, z); g.add(m); }
+      for (const [y, hh] of [[H + o.towerH * 0.22, 3.2], [H + o.towerH * 0.5, 2.8], [H + o.towerH * 0.78, 2.4], [top - 1.4, 2.8]]) { bm(2 * lx, hh, 2.2, 0, y, z); for (const sz of [-1, 1]) bm(2 * lx - 3.5, hh * 0.55, 0.3, 0, y, z + sz * 1.15).material = L(new THREE.Color(o.color).multiplyScalar(0.75).getHex()); }
+      for (const sx of [-1, 1]) bm(Math.hypot(2 * lx, H * 0.8) , 0.9, 1.2, 0, H * 0.45, z, sx * Math.atan2(H * 0.8, 2 * lx)); // X under the deck
+    } else { // plain steel legs braced with X's between struts
+      for (const s2 of [-1, 1]) bm(2.4, top, 2.4, s2 * lx, top / 2, z);
+      const ys = [H - 2, H + o.towerH * 0.33, H + o.towerH * 0.66, top - 1];
+      for (const y of ys) bm(2 * lx + 2.4, 1.8, 1.8, 0, y, z);
+      for (let i = 1; i < ys.length; i++) { const dy = ys[i] - ys[i - 1], len = Math.hypot(2 * lx, dy), a = Math.atan2(dy, 2 * lx); for (const sx of [-1, 1]) bm(len, 0.7, 0.7, 0, (ys[i] + ys[i - 1]) / 2, z, sx * a); }
+      for (const sx of [-1, 1]) bm(Math.hypot(2 * lx, H - 3), 0.9, 0.9, 0, (H - 2) / 2, z, sx * Math.atan2(H - 3, 2 * lx));
+    }
+  }
+  { // the stiffening truss under the deck: see-through lattice sides
+    const trTex = canvasTex(256, 64, (c, w, h) => { c.strokeStyle = '#fff'; c.lineWidth = 5; c.strokeRect(2, 3, w - 4, h - 6); c.beginPath(); for (let x = 0; x < w; x += 64) { c.moveTo(x, h - 3); c.lineTo(x + 32, 3); c.lineTo(x + 64, h - 3); } c.stroke(); for (let x = 0; x <= w; x += 32) c.fillRect(x - 2, 0, 4, h); }, [1, 1]);
+    trTex.repeat.set((len - 2 * R) / 8, 1); const trM = new THREE.MeshLambertMaterial({ color: o.color, map: trTex, alphaTest: 0.5, transparent: false, side: THREE.DoubleSide });
+    const cvs = trTex.image, cx = cvs.getContext('2d'), id = cx.getImageData(0, 0, cvs.width, cvs.height); for (let i = 0; i < id.data.length; i += 4) id.data[i + 3] = id.data[i] > 128 ? 255 : 0; cx.putImageData(id, 0, 0); trTex.needsUpdate = true;
+    for (const s2 of [-1, 1]) { const t = new THREE.Mesh(new THREE.PlaneGeometry(len - 2 * R, 3.6), trM); t.rotation.y = Math.PI / 2; t.position.set(s2 * (o.w / 2 - 0.2), H - 3, 0); g.add(t); }
+    const under = new THREE.Mesh(new THREE.BoxGeometry(o.w - 0.6, 0.3, len - 2 * R), col); under.position.y = H - 4.8; g.add(under);
+  }
   const cableY = z => { // over each tower, sagging between them, down to the deck at the ends
     if (z <= tz[0]) return lerp(H + 1, top, ((z + len / 2) / (tz[0] + len / 2)) ** 1.5);
     if (z >= tz[tz.length - 1]) return lerp(top, H + 1, ((z - tz[tz.length - 1]) / (len / 2 - tz[tz.length - 1])) ** 0.66);
     for (let i = 1; i < tz.length; i++) if (z <= tz[i]) { const u = (z - tz[i - 1]) / (tz[i] - tz[i - 1]); return top - (top - H - 3) * 4 * u * (1 - u); }
     return top;
   };
-  for (const s of [-1, 1]) { const pts = []; for (let z = -len / 2 + R * 0.3; z <= len / 2 - R * 0.3; z += 4) pts.push(new V3(s * (o.w / 2 + 1), cableY(z), z)); g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 2, 0.45, 5), col)); }
-  const sus = []; for (let z = -len / 2 + R; z <= len / 2 - R; z += 8) if (!tz.some(t => Math.abs(t - z) < 3)) for (const s of [-1, 1]) sus.push([s * (o.w / 2 + 1), z]);
+  for (const s of [-1, 1]) { const pts = []; for (let z = -len / 2 + R * 0.3; z <= len / 2 - R * 0.3; z += 4) pts.push(new V3(s * lx, cableY(z), z)); g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 2, 0.6, 6), col)); }
+  const sus = []; for (let z = -len / 2 + R; z <= len / 2 - R; z += 8) if (!tz.some(t => Math.abs(t - z) < 3)) for (const s of [-1, 1]) sus.push([s * lx, z]);
   const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.2, 1, 0.2).translate(0, 0.5, 0), col, sus.length);
   sus.forEach((p, i) => { dummy.position.set(p[0], H, p[1]); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, Math.max(0.1, cableY(p[1]) - H), 1); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); });
   g.add(im);
@@ -1047,19 +1250,47 @@ function sfLandmarks(LM) {
   const add = (m, p, y = 0) => { m.position.set(p.x, groundH(p.x, p.z) + y, p.z); SFG.add(m); return m; };
   const G = p => group(SFG, p.x, groundH(p.x, p.z), p.z);
   // the bridges
-  suspensionBridge(sfp(-122.4776, 37.8058), sfp(-122.4795, 37.8335), { color: 0xc0392b, h: 24, w: 14, ramp: 40, towers: [0.17, 0.82], towerH: 62 });   // Golden Gate (south → Marin)
+  suspensionBridge(sfp(-122.4776, 37.8058), sfp(-122.4795, 37.8335), { color: 0xc0462c, h: 24, w: 14, ramp: 40, towers: [0.17, 0.82], towerH: 62, style: 'deco' });   // Golden Gate (south → Marin)
   suspensionBridge(LM.bayAnchor, sfp(-122.3700, 37.8100), { color: 0x9aa3ab, h: 22, w: 16, ramp: 36, towers: [0.17, 0.36, 0.64, 0.83], towerH: 40 }); // Bay Bridge (Rincon Hill → Yerba Buena)
   { const c = new THREE.Mesh(new THREE.BoxGeometry(16, 30, 16), L(0x9aa3ab)); add(c, sfp(-122.3797, 37.7988)).position.y = 15; } // the center anchorage
-  // Ferry Building on the Embarcadero, clock tower looking up Market St
+  // Ferry Building on the Embarcadero: an open arcade, an upper floor of paired windows, a long hipped roof with a skylight,
+  // end pavilions, and the clock tower (shaft, clock stage, open belfry, lantern and dome) looking up Market St
   {
-    const g = G(LM.ferry), stone = L(0xe9e1d0), roof = L(0x6b7f86);
-    box(16, 9, 56, stone, 0, 4.5, 0, g, true); box(17, 0.6, 57, roof, 0, 9.3, 0, g);
-    const arches = canvasTex(512, 128, (c, w, h) => { c.fillStyle = '#e9e1d0'; c.fillRect(0, 0, w, h); c.fillStyle = '#3b4148'; for (let i = 0; i < 12; i++) { const x = 12 + i * 41.5; c.beginPath(); c.moveTo(x, h); c.lineTo(x, 50); c.arc(x + 15, 50, 15, Math.PI, 0); c.lineTo(x + 30, h); c.fill(); } });
-    for (const s of [-1, 1]) { const a = new THREE.Mesh(new THREE.PlaneGeometry(56, 7), L(0xffffff, { map: arches })); a.rotation.y = s * Math.PI / 2; a.position.set(s * 8.02, 3.6, 0); g.add(a); }
-    box(7, 46, 7, stone, 0, 23, 0, g); box(8, 1.2, 8, roof, 0, 46.6, 0, g); box(5, 8, 5, stone, 0, 51, 0, g); const cap = cyl(0.01, 3.4, 6, roof, 0, 58, 0, g, 4); cap.rotation.y = Math.PI / 4;
-    const clock = canvasTex(256, 256, (c, w) => { c.fillStyle = '#f8f4ea'; c.beginPath(); c.arc(w / 2, w / 2, w / 2 - 6, 0, TAU); c.fill(); c.strokeStyle = '#1b1416'; c.lineWidth = 8; c.stroke(); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; c.fillRect(w / 2 + Math.cos(a) * 100 - 4, w / 2 + Math.sin(a) * 100 - 4, 8, 8); } c.lineWidth = 10; c.beginPath(); c.moveTo(w / 2, w / 2); c.lineTo(w / 2, 50); c.moveTo(w / 2, w / 2); c.lineTo(w / 2 + 60, w / 2); c.stroke(); });
-    for (let i = 0; i < 4; i++) { const f = new THREE.Mesh(new THREE.CircleGeometry(2.6, 24), new THREE.MeshBasicMaterial({ map: clock })); const a = i * Math.PI / 2; f.position.set(Math.sin(a) * 3.53, 40, Math.cos(a) * 3.53); f.rotation.y = a; g.add(f); }
-    const nm = textPlane('FERRY BUILDING', 12, 1.3, '#e9e1d0', '#3b4148'); nm.position.set(-8.05, 7.6, 0); nm.rotation.y = -Math.PI / 2; g.add(nm);
+    const g = G(LM.ferry), stone = L(0xebe3d2), stoneDk = L(0xd9d0bd), roofM = L(0x6f7f86), inner = L(0x8a8478);
+    const arcTex = canvasTex(512, 128, (c, w, h) => { c.fillStyle = '#ebe3d2'; c.fillRect(0, 0, w, h); c.fillStyle = '#d9d0bd'; for (let y = 6; y < h; y += 14) c.fillRect(0, y, w, 2);
+      c.globalCompositeOperation = 'destination-out'; for (let i = 0; i < 8; i++) { const x = 8 + i * 64; c.beginPath(); c.moveTo(x + 6, h); c.lineTo(x + 6, 52); c.arc(x + 32, 52, 26, Math.PI, 0); c.lineTo(x + 58, h); c.fill(); } c.globalCompositeOperation = 'source-over';
+      c.fillStyle = '#cfc5b0'; for (let i = 0; i < 8; i++) { const x = 8 + i * 64; c.fillRect(x + 28, 18, 8, 10); } }, [1, 1]);
+    const upTex = canvasTex(256, 128, (c, w, h) => { c.fillStyle = '#ebe3d2'; c.fillRect(0, 0, w, h); c.fillStyle = '#ddd4c1'; for (let i = 0; i < 4; i++) c.fillRect(i * 64, 0, 8, h);
+      for (let i = 0; i < 4; i++) for (const dx of [16, 38]) { const gr = c.createLinearGradient(0, 30, 0, 100); gr.addColorStop(0, '#6f8fab'); gr.addColorStop(1, '#2f4256'); c.fillStyle = gr; c.fillRect(i * 64 + dx, 30, 16, 66); c.fillStyle = '#f4efe2'; c.fillRect(i * 64 + dx, 60, 16, 3); c.fillStyle = '#cfc5b0'; c.fillRect(i * 64 + dx - 3, 96, 22, 5); } c.fillStyle = '#d2c8b4'; c.fillRect(0, 0, w, 10); }, [1, 1]);
+    const arcM = new THREE.MeshLambertMaterial({ map: arcTex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide }); arcTex.repeat.set(56 / 32, 1);
+    const upM = L(0xffffff, { map: upTex }); upTex.repeat.set(56 / 12, 1);
+    box(12.6, 7, 54, inner, 0, 3.5, 0, g, true);                                                    // the hall behind the arcade
+    for (const sx of [-1, 1]) { const a = new THREE.Mesh(new THREE.PlaneGeometry(56, 7), arcM); a.rotation.y = sx * Math.PI / 2; a.position.set(sx * 8, 3.5, 0); g.add(a); }
+    box(16.4, 0.5, 56.4, stoneDk, 0, 7.15, 0, g);                                                 // the arcade's roof / belt
+    const up = new THREE.Mesh(new THREE.BoxGeometry(16, 6, 56), [upM, upM, stone, stone, stone, stone]); up.position.y = 10.4; g.add(up);
+    box(17.2, 0.9, 57.2, stoneDk, 0, 13.85, 0, g); box(16.6, 0.5, 56.6, stone, 0, 13.2, 0, g);     // cornice
+    { const sh = new THREE.Shape(); sh.moveTo(-8.2, 0); sh.lineTo(8.2, 0); sh.lineTo(1.6, 4.2); sh.lineTo(-1.6, 4.2); sh.closePath(); const rg = new THREE.ExtrudeGeometry(sh, { depth: 50, bevelEnabled: false }); rg.translate(0, 14.3, -25); g.add(new THREE.Mesh(rg, roofM));
+      const sky = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.2, 46), new THREE.MeshPhongMaterial({ color: 0xbfd6e6, shininess: 90, specular: 0xffffff })); sky.position.y = 19; g.add(sky); }
+    for (const sz of [-1, 1]) { box(18, 16.5, 6, stone, 0, 8.25, sz * 28, g); box(18.6, 1, 6.6, stoneDk, 0, 16.6, sz * 28, g); // end pavilions with tall arched windows
+      for (const sx of [-1, 1]) { const w = textPlane('', 3, 6, '#3b4a5a'); w.position.set(sx * 9.03, 9, sz * 28); w.rotation.y = sx * Math.PI / 2; g.add(w); } }
+    // the tower
+    const tw = new THREE.Group(); tw.position.set(-5, 0, 0); g.add(tw);
+    const shaftTex = canvasTex(128, 512, (c, w, h) => { c.fillStyle = '#ebe3d2'; c.fillRect(0, 0, w, h); c.fillStyle = '#d6ccb8'; c.fillRect(0, 0, 14, h); c.fillRect(w - 14, 0, 14, h); for (let y = 0; y < h; y += 24) c.fillRect(0, y, w, 2);
+      for (const y of [60, 200, 340]) { const gr = c.createLinearGradient(0, y, 0, y + 90); gr.addColorStop(0, '#5a6f86'); gr.addColorStop(1, '#2b3846'); c.fillStyle = gr; c.fillRect(46, y, 36, 90); c.beginPath(); c.arc(64, y, 18, Math.PI, 0); c.fill(); c.fillStyle = '#d6ccb8'; c.fillRect(40, y + 90, 48, 8); } });
+    const shM = L(0xffffff, { map: shaftTex });
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(7.4, 34, 7.4), [shM, shM, stone, stone, shM, shM]); shaft.position.y = 17; tw.add(shaft);
+    box(8.4, 1, 8.4, stoneDk, 0, 34.5, 0, tw); box(8, 8, 8, stone, 0, 39, 0, tw); box(8.8, 0.9, 8.8, stoneDk, 0, 43.4, 0, tw);   // clock stage
+    const clock = canvasTex(256, 256, (c, w) => { c.fillStyle = '#f8f4ea'; c.beginPath(); c.arc(w / 2, w / 2, w / 2 - 6, 0, TAU); c.fill(); c.strokeStyle = '#1b1416'; c.lineWidth = 8; c.stroke(); c.font = 'bold 26px serif'; c.fillStyle = '#1b1416'; c.textAlign = 'center'; c.textBaseline = 'middle'; ['XII', 'III', 'VI', 'IX'].forEach((t, i) => { const a = i / 4 * TAU - Math.PI / 2; c.fillText(t, w / 2 + Math.cos(a) * 92, w / 2 + Math.sin(a) * 92); }); c.lineWidth = 9; c.beginPath(); c.moveTo(w / 2, w / 2); c.lineTo(w / 2 + 40, w / 2 - 50); c.moveTo(w / 2, w / 2); c.lineTo(w / 2 - 70, w / 2 + 10); c.stroke(); });
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2, f = new THREE.Mesh(new THREE.CircleGeometry(3, 28), new THREE.MeshBasicMaterial({ map: clock })); f.position.set(Math.sin(a) * 4.03, 39.2, Math.cos(a) * 4.03); f.rotation.y = a; tw.add(f);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(3.05, 0.18, 6, 28), stoneDk); rim.position.copy(f.position); rim.rotation.y = a; tw.add(rim); }
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { box(1.5, 6, 1.5, stone, sx * 3.1, 46.9, sz * 3.1, tw); cyl(0.25, 0.6, 2.2, stoneDk, sx * 4.2, 45, sz * 4.2, tw, 6); } // open belfry piers + urns
+    box(7.8, 1, 7.8, stoneDk, 0, 50.4, 0, tw); box(4, 4, 4, inner, 0, 47, 0, tw);
+    cyl(2.6, 2.8, 4.6, stone, 0, 53.2, 0, tw, 8); cyl(3, 3, 0.6, stoneDk, 0, 55.8, 0, tw, 8);                                        // octagonal lantern
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(2.6, 16, 8, 0, TAU, 0, Math.PI / 2), roofM); dome.position.y = 56; dome.scale.y = 1.35; tw.add(dome);
+    cyl(0.5, 0.7, 1.4, stoneDk, 0, 60, 0, tw, 8); cyl(0.07, 0.09, 6, M.metal, 0, 63.5, 0, tw, 6);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.4), new THREE.MeshLambertMaterial({ side: THREE.DoubleSide, map: canvasTex(64, 40, (c, w, h) => { for (let i = 0; i < 13; i++) { c.fillStyle = i % 2 ? '#fff' : '#b22234'; c.fillRect(0, i * h / 13, w, h / 13 + 1); } c.fillStyle = '#3c3b6e'; c.fillRect(0, 0, w * 0.42, h * 0.54); }) })); flag.position.set(1.25, 65.6, 0); tw.add(flag);
+    const nm = textPlane('PORT OF SAN FRANCISCO', 7, 0.8, '#ebe3d2', '#3b4148'); nm.position.set(-3.73, 31.5, 0); nm.rotation.y = -Math.PI / 2; tw.add(nm);
+    const fb = textPlane('FERRY BUILDING', 12, 1.2, '#ebe3d2', '#3b4148'); fb.position.set(-8.1, 12.4, 14); fb.rotation.y = -Math.PI / 2; g.add(fb);
   }
   // Salesforce Tower (rounded, the tallest) and the Transamerica Pyramid
   { const p = sfp(-122.3972, 37.7897), g = G(p), glass = new THREE.MeshPhongMaterial({ color: 0x9fb6c8, map: T.windows, shininess: 80, specular: 0x88aacc });
@@ -1113,7 +1344,7 @@ function sfLandmarks(LM) {
   {
     const park = SF_PARKS[0][0], trees = [];
     for (let i = 0, t = 0; i < 420 && t < 5000; t++) { const x = rr(park.x0, park.x1), z = rr(park.z0, park.z1); const near = (lon, lat, r) => Math.hypot(x - sfx(lon), z - sfz(lat)) < r; if (near(-122.4757, 37.7685, 28) || near(-122.4602, 37.7718, 16) || near(-122.4687, 37.7714, 18) || near(-122.4975, 37.7708, 14) || nearRoads(x, z, 8)) continue; trees.push([x, z]); i++; }
-    for (const [r, k] of SF_PARKS) if (k === 'forest') for (let i = 0; i < 160; i++) { const x = rr(r.x0, r.x1), z = rr(r.z0, r.z1); if (!inWater(x, z) && !nearRoads(x, z, 8)) trees.push([x, z]); }
+    for (const [r, k] of SF_PARKS) if (k === 'forest') for (let i = 0; i < 160; i++) { const x = rr(r.x0, r.x1), z = rr(r.z0, r.z1); if (!inWater(x, z) && !nearRoads(x, z, 8) && !inR(CRISSY, x, z) && !inR(CRISSY_BEACH, x, z) && Math.hypot(x - sfx(-122.5053), z - sfz(37.7876)) > 14 && Math.hypot(x - sfx(-122.5134), z - sfz(37.7792)) > 30) trees.push([x, z]); }
     instanced(pineGeo, pineMat, trees, (d, p, col) => { d.position.set(p[0], groundH(p[0], p[1]), p[1]); d.rotation.set(0, rr(0, TAU), 0); const s = rr(9, 17); d.scale.set(s * rr(0.9, 1.3), s, s * rr(0.9, 1.3)); col.setRGB(rr(0.6, 0.85), rr(0.85, 1), rr(0.7, 0.9)); });
     const white = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 60, transparent: true, opacity: 0.88 });
     { const g = G(sfp(-122.4602, 37.7718)); box(30, 4.5, 7, white, 0, 2.25, 0, g); const dm = new THREE.Mesh(new THREE.SphereGeometry(6, 18, 9, 0, TAU, 0, Math.PI / 2), white); dm.position.y = 4.5; g.add(dm); box(9, 6.5, 9, white, 0, 3.25, 0, g); }
@@ -1132,10 +1363,74 @@ function sfLandmarks(LM) {
     const pc = sfp(-122.4469, 37.7699), y = groundH(pc.x, pc.z), ring = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.28, 8, 28), L(0xf4f4f4)); ring.position.set(pc.x, y + 7, pc.z); SFG.add(ring);
     for (const [len, rz, ox, oy] of [[4.4, 0, 0, 0], [2.3, 0.8, -0.8, -0.8], [2.3, -0.8, 0.8, -0.8]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.28, len, 0.28), L(0xf4f4f4)); b.position.set(pc.x + ox, y + 7 + oy, pc.z); b.rotation.z = rz; SFG.add(b); }
     cyl(0.15, 0.15, 5, M.metal, pc.x, y + 2.5, pc.z, SFG, 6); }
+  // ---- more landmarks ----
+  const brickM = L(0xa95c43, { map: retile(ARCH.brick.mat.map, 4, 1) }), conc = L(0xd6d0c4);
+  // Fort Point: the brick fort under the Golden Gate Bridge's south end, with its little lighthouse
+  { const p = sfp(-122.4772, 37.8102), y0 = Math.max(0.3, groundH(p.x, p.z)), g = group(SFG, p.x, y0, p.z, 0.2);
+    const f = new THREE.Mesh(new THREE.BoxGeometry(26, 14, 18), [brickM, brickM, L(0x8a8478), brickM, brickM, brickM]); f.position.y = 7; g.add(f); box(27, 1, 19, L(0x7a3f30), 0, 14.4, 0, g);
+    cyl(1.2, 1.5, 5, L(0xf2f2ee), 8, 17, -5, g, 6); cyl(1.5, 1.5, 0.4, M.metal, 8, 19.7, -5, g, 6); const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 1.4, 6), M.lampGlow); lamp.position.set(8, 20.6, -5); g.add(lamp); cyl(0.01, 1.1, 1.2, M.black, 8, 21.9, -5, g, 6);
+    const s = textPlane('FORT POINT', 6, 0.9, '#a95c43', '#f4f0e6'); s.position.set(0, 12, 9.05); g.add(s); cityCollider(p.x, p.z, 24, 24, 16 + y0); }
+  // Crissy Field: picnic lawns, a boardwalk, and kites
+  { const a = sfp(-122.4650, 37.8040), b = sfp(-122.4485, 37.8045), pts = []; for (let i = 0; i <= 40; i++) pts.push([lerp(a.x, b.x, i / 40), lerp(a.z, b.z, i / 40) + Math.sin(i * 0.5) * 1.5]);
+    conformStrip(pts, 2.2, L(0xb08a5a), 0.12, SFG);
+    for (let i = 0; i < 4; i++) { const k = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), new THREE.MeshLambertMaterial({ color: pick([0xff3d7f, 0xffd23f, 0x2bb3c0, 0xe04f5f]), side: THREE.DoubleSide })); const x = lerp(a.x, b.x, 0.15 + i * 0.22), z = a.z + 8; k.position.set(x, groundH(x, z) + 18 + i * 3, z); k.rotation.set(0.3, 0, Math.PI / 4); SFG.add(k); (SF_CABLE.kites = SF_CABLE.kites || []).push(k); } }
+  // Cliff House on the cliff at Point Lobos, the ruins of the Sutro Baths below, Seal Rocks offshore
+  { const p = sfp(-122.5134, 37.7785), y0 = Math.max(0.5, groundH(p.x, p.z)), g = group(SFG, p.x, y0, p.z, Math.PI / 2);
+    box(16, 6, 9, L(0xf4f2ec), 0, 3, 0, g); box(16.6, 0.6, 9.6, L(0x6b7f86), 0, 6.3, 0, g); box(8, 3, 7, L(0xf4f2ec), -3, 8, 0, g);
+    for (let i = 0; i < 6; i++) { const w = textPlane('', 1.8, 2.2, '#3b4a5a'); w.position.set(-6.2 + i * 2.5, 3.2, 4.53); g.add(w); }
+    const s = textPlane('CLIFF HOUSE', 6.5, 1.1, '#f4f2ec', '#1e3f73'); s.position.set(0, 5.2, 4.56); g.add(s); cityCollider(p.x, p.z, 10, 17, 10 + y0);
+    const sb = sfp(-122.5136, 37.7803), sy = Math.max(0.15, groundH(sb.x, sb.z) - 1), ruin = group(SFG, sb.x, sy, sb.z, 0.1), pool = new THREE.MeshPhongMaterial({ color: 0x3f7f8a, shininess: 90 });
+    for (let i = 0; i < 3; i++) { const wpool = new THREE.Mesh(new THREE.PlaneGeometry(9, 7), pool); wpool.rotation.x = -Math.PI / 2; wpool.position.set(-10 + i * 10, 0.4, 0); ruin.add(wpool); }
+    for (let i = 0; i <= 3; i++) box(0.9, 1.6, 9, conc, -15 + i * 10, 0.6, 0, ruin); for (const z of [-4.5, 4.5]) box(31, 1.6, 0.9, conc, 0, 0.6, z, ruin); for (let i = 0; i < 6; i++) box(0.7, rr(1.5, 3.5), 0.7, conc, -14 + i * 5.5, 1.2, rr(-4, 4), ruin);
+    const rocks = group(SFG, sfx(-122.5160), 0, sfz(37.7781)); for (const [x, z, r] of [[0, 0, 4], [6, 3, 3], [-4, 5, 2.5]]) { const rk = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), L(0x5a5550)); rk.position.set(x, r * 0.4, z); rk.scale.y = 1.3; rocks.add(rk); } }
+  // the Lands End labyrinth: stones laid in rings on the point, the Golden Gate behind it
+  { const c = sfp(-122.5053, 37.7876), y = groundH(c.x, c.z), stones = [];
+    for (let ring = 1; ring <= 6; ring++) { const r = ring * 0.9, n = Math.round(r * 7); for (let k = 0; k < n; k++) { const a = k / n * TAU; if (ring > 1 && (a % 1.6) < 0.25 + ring * 0.03) continue; const st = new THREE.DodecahedronGeometry(rr(0.13, 0.2), 0); st.translate(c.x + Math.cos(a) * r, y + 0.1, c.z + Math.sin(a) * r); stones.push(colorize(st, pick([0x9a948a, 0xb5afa4, 0x8a847a]))); } }
+    SFG.add(new THREE.Mesh(merge(stones), new THREE.MeshLambertMaterial({ vertexColors: true }))); }
+  // Grace Cathedral on Nob Hill: twin towers, a rose window, and the flèche over the crossing
+  { const p = sfp(-122.4133, 37.7919), g = G(p), roofM = L(0x5f7a72), st2 = L(0xb9b1a2);
+    const goth = canvasTex(128, 256, (c, w, h) => { c.fillStyle = '#d4ccbd'; c.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 12) { c.fillStyle = 'rgba(0,0,0,0.06)'; c.fillRect(0, y, w, 1); } c.fillStyle = '#bdb5a6'; c.fillRect(0, 0, 14, h); c.fillRect(w - 14, 0, 14, h);
+      const gr = c.createLinearGradient(0, 40, 0, 220); gr.addColorStop(0, '#2b4a8a'); gr.addColorStop(0.5, '#6a2a5a'); gr.addColorStop(1, '#1e3f73'); c.fillStyle = gr; c.beginPath(); c.moveTo(40, 220); c.lineTo(40, 80); c.quadraticCurveTo(40, 44, 64, 34); c.quadraticCurveTo(88, 44, 88, 80); c.lineTo(88, 220); c.fill();
+      c.fillStyle = '#d4ccbd'; c.fillRect(62, 34, 4, 186); c.fillRect(40, 130, 48, 4); }, [1, 1]);
+    const st = L(0xffffff, { map: goth }), stT = L(0xffffff, { map: retile(goth, 1.5, 2.2) }); goth.repeat.set(8, 1);
+    g.rotation.y = -Math.PI / 2; // the west front faces Taylor St
+    box(16, 15, 40, st, 0, 7.5, 0, g, false); const nave = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 9.4, 7, 4, 1).rotateY(Math.PI / 4), roofM); nave.scale.set(0.85, 1, 2.9); nave.position.set(0, 18.4, 0); g.add(nave);
+    for (const sx of [-1, 1]) { box(6.4, 30, 6.4, stT, sx * 6.3, 15, 22, g); const sp = new THREE.Mesh(new THREE.ConeGeometry(4.2, 7, 4).rotateY(Math.PI / 4), st2); sp.position.set(sx * 6.3, 33.5, 22); g.add(sp); for (const y of [12, 22]) { const w = textPlane('', 1.6, 5, '#2f3b4f'); w.position.set(sx * 6.3, y, 25.22); g.add(w); } }
+    const rose = canvasTex(256, 256, (c, w) => { c.fillStyle = '#c9c1b2'; c.fillRect(0, 0, w, w); for (let r = 6; r >= 1; r--) { c.fillStyle = ['#1e3f9a', '#b8322a', '#2f7a4a', '#d8a23a', '#6a2a8a', '#1e5aa8'][r - 1]; c.beginPath(); c.arc(w / 2, w / 2, r * 20, 0, TAU); c.fill(); } c.strokeStyle = '#c9c1b2'; c.lineWidth = 6; for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; c.beginPath(); c.moveTo(w / 2, w / 2); c.lineTo(w / 2 + Math.cos(a) * 120, w / 2 + Math.sin(a) * 120); c.stroke(); } });
+    const rw = new THREE.Mesh(new THREE.CircleGeometry(3.6, 28), new THREE.MeshBasicMaterial({ map: rose })); rw.position.set(0, 13, 20.05); g.add(rw);
+    const door = textPlane('', 3.2, 5.4, '#4a3a2a'); door.position.set(0, 2.7, 20.05); g.add(door); box(4.4, 0.6, 1, st2, 0, 5.7, 20.3, g);
+    const fl = new THREE.Mesh(new THREE.ConeGeometry(1.4, 14, 6), L(0x7a9a8a)); fl.position.set(0, 28, -2); g.add(fl); cityCollider(p.x, p.z, 42, 18, 30 + groundH(p.x, p.z)); }
+  // Columbus Tower: the green copper flatiron at Columbus & Kearny, with its corner cupola
+  { const p = sfp(-122.4048, 37.7963), g = G(p), sh = new THREE.Shape(); sh.moveTo(-9, -7); sh.lineTo(9, -7); sh.lineTo(2, 7); sh.lineTo(-2, 7); sh.closePath();
+    const eg = new THREE.ExtrudeGeometry(sh, { depth: 20, bevelEnabled: false }); eg.rotateX(-Math.PI / 2); g.add(new THREE.Mesh(eg, L(0x6fa58c, { map: retile(ARCH.mason.mat.map, 0.25, 0.28) })));
+    g.rotation.y = -0.7; cyl(2.4, 2.4, 3, L(0x6fa58c), 0, 21.5, -7, g, 12); const cup = new THREE.Mesh(new THREE.SphereGeometry(2.4, 12, 6, 0, TAU, 0, Math.PI / 2), L(0x4f8a6f)); cup.position.set(0, 23, -7); g.add(cup); cityCollider(p.x, p.z, 12, 12, 24 + groundH(p.x, p.z)); }
+  // Mission Dolores: the little white adobe mission and the basilica beside it
+  { const p = sfp(-122.4269, 37.7642), g = G(p), white = L(0xf6f1e4), tile = L(0xb5532f);
+    g.rotation.y = -Math.PI / 2; // facing Dolores St
+    box(9, 9, 20, white, -7, 4.5, 0, g); const rf = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 6.6, 3, 4, 1).rotateY(Math.PI / 4), tile); rf.scale.set(1, 1, 2.2); rf.position.set(-7, 10.5, 0); g.add(rf);
+    for (let i = 0; i < 4; i++) cyl(0.35, 0.35, 6, white, -10.2 + i * 2.1, 5, -10.3, g, 8); box(9.6, 1.2, 1, white, -7, 8.4, -10.3, g);
+    box(13, 13, 26, L(0xefe3c8), 7, 6.5, 0, g); for (const sx of [3, 11]) { box(3.6, 22, 3.6, L(0xefe3c8), sx, 11, -12, g); const d = new THREE.Mesh(new THREE.SphereGeometry(1.8, 10, 6, 0, TAU, 0, Math.PI / 2), tile); d.position.set(sx, 22, -12); g.add(d); }
+    const s = textPlane('MISSION DOLORES', 6, 0.8, '#f6f1e4', '#5a2e22'); s.position.set(-7, 7.2, -10.85); s.rotation.y = Math.PI; g.add(s); cityCollider(p.x, p.z, 30, 28, 22 + groundH(p.x, p.z)); }
+  // the Peace Pagoda in Japantown
+  { const p = sfp(-122.4300, 37.7853), g = G(p), cm = L(0xe8e4dc), rm = L(0x6a6a72);
+    for (let k = 0; k < 5; k++) { const s = 6 - k * 0.8; box(s * 0.7, 2.4, s * 0.7, cm, 0, 1.2 + k * 3.4, 0, g); const r = new THREE.Mesh(new THREE.ConeGeometry(s * 0.78, 1.1, 4, 1, true).rotateY(Math.PI / 4), rm); r.material.side = THREE.DoubleSide; r.position.y = 2.9 + k * 3.4; g.add(r); }
+    cyl(0.15, 0.35, 5, L(0xc9a24a), 0, 19.5, 0, g, 6); for (let i = 0; i < 6; i++) { const ring = new THREE.Mesh(new THREE.TorusGeometry(0.45 - i * 0.05, 0.08, 4, 10), L(0xc9a24a)); ring.rotation.x = Math.PI / 2; ring.position.y = 17.6 + i * 0.6; g.add(ring); } cityCollider(p.x, p.z, 6, 6, 20 + groundH(p.x, p.z)); }
+  // Balmy Alley in the Mission: garage doors and fences painted floor to roof with murals
+  { const p = sfp(-122.4124, 37.7523), g = G(p);
+    const mural = seed => canvasTex(256, 160, (c, w, h) => { const pal = ['#e04f5f', '#f5b041', '#58d68d', '#5dade2', '#af7ac5', '#f7dc6f', '#ff8fbf', '#48c9b0', '#1e3f9a', '#b8322a']; const bg = c.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, pal[seed % 10]); bg.addColorStop(1, pal[(seed + 3) % 10]); c.fillStyle = bg; c.fillRect(0, 0, w, h);
+      c.fillStyle = '#ffd23f'; c.beginPath(); c.arc(rr(40, w - 40), rr(30, 60), rr(18, 30), 0, TAU); c.fill(); for (let i = 0; i < 9; i++) { c.fillStyle = pick(pal); c.beginPath(); c.ellipse(rr(0, w), rr(60, h), rr(10, 40), rr(10, 30), rr(0, 3), 0, TAU); c.fill(); }
+      for (let i = 0; i < 3; i++) { const x = 40 + i * 80 + rr(-10, 10); c.fillStyle = pick(['#5a3a2a', '#8a5a3a', '#2b1d14']); c.beginPath(); c.arc(x, 88, 12, 0, TAU); c.fill(); c.fillRect(x - 12, 100, 24, 46); c.fillStyle = pick(pal); c.fillRect(x - 14, 102, 28, 26); }
+      c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 3; c.strokeRect(2, 2, w - 4, h - 4); });
+    for (let i = 0; i < 8; i++) for (const sx of [-1, 1]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5.5, 7.4), [L(0xffffff, { map: mural(i * 2 + (sx > 0 ? 1 : 0)) }), L(0xffffff, { map: mural(i * 2 + (sx > 0 ? 1 : 0)) }), L(0xd8d0c0), L(0xd8d0c0), L(0xd8d0c0), L(0xd8d0c0)]); m.position.set(sx * 3.4, 2.75 + groundH(p.x + sx * 3.4, p.z - 28 + i * 7.5) - groundH(p.x, p.z), -28 + i * 7.5); g.add(m); }
+    const s = textPlane('BALMY ALLEY', 4, 0.7, '#1b1416', '#ffd23f'); s.position.set(-3.1, 6, -31.5); g.add(s); }
+  // Twin Peaks Blvd: the figure-8 round the two summits, and a lookout at the top
+  { const m = sfp(-122.4476, 37.7532), pts = []; for (let i = 0; i <= 160; i++) { const t = i / 160 * TAU; pts.push([m.x + 44 * Math.sin(t) * Math.cos(t), m.z + 38 * Math.cos(t)]); }
+    conformStrip(pts, 6, L(0xffffff, { map: retile(T.road, 1, 1) }), 0.18, SFG);
+    const lk = sfp(-122.4478, 37.7550); box(8, 0.5, 5, conc, lk.x, groundH(lk.x, lk.z) + 0.25, lk.z, SFG); for (let i = 0; i < 4; i++) cyl(0.08, 0.08, 1.1, M.metal, lk.x - 3 + i * 2, groundH(lk.x, lk.z) + 0.8, lk.z - 2.4, SFG, 5); }
   // map-style pins over the top attractions (like the tourist map)
   for (const [name, lon, lat, up] of [['GOLDEN GATE BRIDGE', -122.4785, 37.8200, 95], ['ALCATRAZ ISLAND', -122.4230, 37.8267, 30], ["FISHERMAN'S WHARF", -122.4170, 37.8080, 22], ['PIER 39', -122.4100, 37.8105, 22], ['LOMBARD STREET', -122.4187, 37.8021, 22],
     ['CHINATOWN', -122.4058, 37.7930, 30], ['UNION SQUARE', -122.4075, 37.7880, 40], ['HAIGHT-ASHBURY', -122.4469, 37.7699, 24], ['TWIN PEAKS', -122.4477, 37.7544, 24], ['PALACE OF FINE ARTS', -122.4484, 37.8029, 30],
-    ['FERRY BUILDING', -122.3934, 37.7955, 66], ['COIT TOWER', -122.4058, 37.8024, 40], ['GOLDEN GATE PARK', -122.4800, 37.7690, 30], ['SALESFORCE TOWER', -122.3972, 37.7897, 105], ['TRANSAMERICA', -122.4028, 37.7952, 92], ['PAINTED LADIES', -122.4339, 37.7765, 24]]) {
+    ['FERRY BUILDING', -122.3934, 37.7955, 66], ['COIT TOWER', -122.4058, 37.8024, 40], ['GOLDEN GATE PARK', -122.4800, 37.7690, 30], ['SALESFORCE TOWER', -122.3972, 37.7897, 105], ['TRANSAMERICA', -122.4028, 37.7952, 92], ['PAINTED LADIES', -122.4339, 37.7765, 24], ['GRACE CATHEDRAL', -122.4133, 37.7919, 44], ['CLIFF HOUSE', -122.5134, 37.7785, 22], ['FORT POINT', -122.4772, 37.8102, 30], ['MISSION MURALS', -122.4124, 37.7523, 20], ['CRISSY FIELD', -122.4570, 37.8040, 22], ['MISSION DOLORES', -122.4269, 37.7642, 30]]) {
     const tex = canvasTex(512, 160, (c, w, h) => { c.fillStyle = '#ffffff'; rrect(c, 70, 16, w - 80, 92, 40); c.fill(); c.strokeStyle = '#2b2724'; c.lineWidth = 6; c.stroke(); c.fillStyle = '#e0443e'; c.beginPath(); c.arc(42, 62, 30, 0, TAU); c.fill(); c.beginPath(); c.moveTo(18, 76); c.lineTo(42, 150); c.lineTo(66, 76); c.fill(); c.fillStyle = '#fff'; c.beginPath(); c.arc(42, 60, 11, 0, TAU); c.fill(); c.fillStyle = '#2b2724'; c.textAlign = 'center'; c.textBaseline = 'middle'; fitFont(c, name, w - 120, 46, 900); c.fillText(name, w / 2 + 34, 64); });
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false })); const p = sfp(lon, lat); sp.position.set(p.x, groundH(p.x, p.z) + up, p.z); sp.scale.set(22, 6.9, 1); sp.renderOrder = 4; SFG.add(sp); }
   // boats on the bay: a ferry to Alcatraz and Sausalito, and sailboats
@@ -1158,6 +1453,7 @@ function sfLandmarks(LM) {
 function sfRoadFlat(x0, z0, x1, z1) { const a = new V3(x0, 0, z0), b = new V3(x1, 0, z1); const len = Math.hypot(b.x - a.x, b.z - a.z); if (len < 2) return; roadStrip(a.x, a.z, b.x, b.z, 7, 0.07, SFG); }
 function updateCableCar(dt) {
   const C = SF_CABLE; if (!C.g || !SFG.visible) return;
+  if (C.kites) C.kites.forEach((k, i) => { k.rotation.z = Math.PI / 4 + Math.sin(elapsed * 1.3 + i) * 0.35; k.position.y += Math.sin(elapsed * 0.9 + i * 2) * dt * 0.8; });
   if (C.pause > 0) C.pause -= dt; else { C.u += C.dir * dt * 5 / Math.abs(C.b - C.a); if (C.u > 1 || C.u < 0) { C.u = clamp(C.u, 0, 1); C.dir *= -1; C.pause = 6; tone(1800, 0.08, 'triangle', 0.04); tone(1800, 0.08, 'triangle', 0.04, 0, 0.18); } }
   const z = lerp(C.a, C.b, C.u), hf = groundH(C.x, z - 3), hb = groundH(C.x, z + 3);
   C.g.position.set(C.x, (hf + hb) / 2 + 0.08, z); C.g.rotation.set(Math.atan2(hf - hb, 6), 0, 0);
@@ -4853,7 +5149,7 @@ function updatePeds(dt, head) {
       const alongZ = Math.random() < 0.5, side = pick([-7.5, 7.5]);
       let x, z;
       if (alongZ) { x = pick(xs) + side; z = head.z + rr(-50, 50); P.dir.set(0, 0, pick([-1, 1])); } else { z = pick(zs) + side; x = head.x + rr(-50, 50); P.dir.set(pick([-1, 1]), 0, 0); }
-      if (Math.hypot(x - head.x, z - head.z) < 12 || !inCity(x, z) || inWater(x, z) || (sf && sfZone(x, z) !== 'urban' && sfZone(x, z) !== 'plaza')) continue;
+      if (Math.hypot(x - head.x, z - head.z) < 12 || !inCity(x, z) || inWater(x, z) || (sf && sfZone(x, z) !== 'urban' && sfZone(x, z) !== 'plaza') || (sf && inSoma(x, z))) continue;
       P.g.position.set(x, terrainH(x, z), z); P.state = 'walk'; P.t = 0; P.legLen = rr(25, 60); P.g.visible = true; continue;
     }
     const p = P.g.position; P.t += dt;
@@ -5361,13 +5657,30 @@ function updateWasteland(dt, head, vr) {
 // ===== Third-person chase camera (desktop / phone; the headset stays first-person) and your avatar =====
 const CAM = { eye: new V3(), on: false, look: new V3() };
 let PLAYER_AV = null;
-function playerAvatar() { if (!PLAYER_AV) { PLAYER_AV = buildFigure({ shirt: 0x2f3a4a, pants: 0x3d5a80, skin: 0xc68a62, hair: 0x2b1d14, arm: 0x2f3a4a }); } return PLAYER_AV; }
-function showAvatar(at, yaw, pose) { // pose: 'sit' | 'stand' | 'ride'
-  const A = playerAvatar(); A.g.visible = true; A.g.position.copy(at); A.g.rotation.set(0, yaw + Math.PI, 0); A.chest.rotation.set(pose === 'stand' ? 0.25 : 0, 0, 0);
-  const legs = pose === 'sit' ? -1.45 : pose === 'ride' ? -0.9 : -0.25; A.legs.forEach((l, i) => l.rotation.set(legs, 0, pose === 'stand' ? (i ? 0.25 : -0.25) : 0));
-  A.arms.forEach((a, i) => a.rotation.set(pose === 'stand' ? -0.3 : -1.1, 0, pose === 'stand' ? (i ? 0.9 : -0.9) : 0));
+function playerAvatar() { // you, seen from the chase camera: a full character like Paige (hoodie, jeans, sneakers, cap)
+  if (PLAYER_AV) return PLAYER_AV;
+  const P = buildPerson({ skin: 0xc68a62, top: 0x2b3550, legMat: STD(0x3d5a80, { map: T.denim, roughness: 0.9 }), shoe: 0xf2f2f2, eye: 0x3b2a1a, lip: 0x9a5a4a, brow: 0x2b1d14 });
+  const H = P.head, hair = STD(0x2b1d14, { roughness: 0.85 }), capM = STD(0xff3d7f, { roughness: 0.7 });
+  const back = new THREE.Mesh(new THREE.SphereGeometry(0.112, 18, 10, Math.PI, Math.PI, 0, Math.PI * 0.62), hair); back.scale.set(0.93, 1.06, 1.0); back.position.y = 0.1; H.add(back);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.116, 18, 10, 0, TAU, 0, Math.PI * 0.42), capM); cap.scale.set(0.95, 1.0, 1.02); cap.position.y = 0.11; H.add(cap);
+  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.085, 0.012, 16, 1, false, -Math.PI / 2, Math.PI), capM); brim.scale.z = 1.3; brim.position.set(0, 0.165, 0.085); brim.rotation.x = 0.12; H.add(brim);
+  const hood = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.035, 8, 16, Math.PI * 1.2), STD(0x2b3550, { roughness: 0.85 })); hood.position.set(0, 0.5, -0.03); hood.rotation.set(Math.PI / 2 + 0.3, 0, -Math.PI * 0.1); P.spine.add(hood);
+  const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.09, 0.02), STD(0x252e46, { roughness: 0.9 })); pocket.position.set(0, 0.13, 0.14); P.spine.add(pocket);
+  for (const s of [-1, 1]) { const str = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.12, 4), STD(0xffffff)); str.position.set(s * 0.035, 0.42, 0.16); P.spine.add(str); }
+  P.shadow.visible = false; scene.add(P.root); P.root.visible = false;
+  PLAYER_AV = P; return P;
 }
-function hideAvatar() { if (PLAYER_AV) PLAYER_AV.g.visible = false; CAM.on = false; }
+function showAvatar(at, yaw, pose) { // pose: 'sit' (car, heli) | 'stand' (hoverboard) | 'ride' (motorcycle). at = where the hips' root goes
+  const P = playerAvatar(), t = elapsed; P.root.visible = true; P.root.position.copy(at); P.root.rotation.set(0, yaw + Math.PI, 0);
+  const st = pose === 'stand', rd = pose === 'ride';
+  P.hips.position.y = st ? 0.82 : 0.92; P.hips.rotation.x = 0; P.spine.rotation.set(st ? 0.18 : rd ? 0.35 : 0.05, 0, 0); P.neck.rotation.x = st ? -0.1 : rd ? -0.3 : 0;
+  P.th.forEach((th, i) => { const sd = i ? 1 : -1; th.rotation.set(st ? -0.45 : rd ? -1.15 : -1.5, 0, st ? sd * 0.12 : rd ? sd * 0.22 : sd * 0.06); P.kn[i].rotation.set(st ? 0.75 : rd ? 1.5 : 1.45, 0, 0); });
+  P.sh.forEach((sh, i) => { const sd = i ? 1 : -1;
+    if (st) { sh.rotation.set(-0.2 + Math.sin(t * 2 + i) * 0.08, 0, sd * 0.75); P.el[i].rotation.set(-0.5, 0, 0); } // arms out for balance
+    else { sh.rotation.set(rd ? -1.25 : -0.95, 0, sd * 0.12); P.el[i].rotation.set(rd ? -0.2 : -0.55, 0, 0); } }); // hands on the bars / the wheel
+  P.face && P.face.update && P.face.update(0.016, t);
+}
+function hideAvatar() { if (PLAYER_AV) PLAYER_AV.root.visible = false; CAM.on = false; }
 // place the desktop camera behind and above a vehicle, looking at it (smoothed). Returns false in VR (stay first-person).
 function chaseCam(target, yaw, dist, height, dt) {
   if (renderer.xr.isPresenting) { hideAvatar(); return false; }
