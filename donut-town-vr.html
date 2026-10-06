@@ -1104,7 +1104,7 @@ const SF_PARKS = [ // [area, kind]
 const CRISSY = llr(-122.4665, 37.8020, -122.4470, 37.8044), CRISSY_BEACH = llr(-122.4665, 37.8044, -122.4470, 37.8080);
 function sfZone(x, z) {
   if (inWater(x, z)) return 'water';
-  if (inR(CRISSY, x, z)) return 'park'; if (inR(CRISSY_BEACH, x, z)) return 'beach'; // Crissy Field: lawn and beach in front of the Presidio
+  if (inR(CRISSY, x, z)) return 'park'; if (Math.hypot(x - sfx(-122.4484) - 18, z - sfz(37.8029)) < 52) return 'park'; // Palace of Fine Arts grounds if (inR(CRISSY_BEACH, x, z)) return 'beach'; // Crissy Field: lawn and beach in front of the Presidio
   for (const [r, k] of SF_PARKS) if (inR(r, x, z)) return k;
   if (SF_LANDS.some(l => inLandArea(l, x, z))) return 'island';
   if (x < sfx(-122.5070) && z > sfz(37.7800)) return 'beach'; // Ocean Beach
@@ -1421,9 +1421,50 @@ function sfLandmarks(LM) {
     const dirt = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), L(0xb5835a)); dirt.rotation.set(-Math.PI / 2, 0, Math.PI / 4); dirt.position.set(-8, 0.07, 8); g.add(dirt);
     const stands = new THREE.Mesh(new THREE.CylinderGeometry(48, 42, 14, 32, 1, true, Math.PI * 0.95, Math.PI * 1.1), L(0x2b4a5a, { side: THREE.DoubleSide })); stands.position.set(-10, 7, 10); g.add(stands);
     for (const a of [0.2, 0.6, 1.0, 1.4]) { const lx = -10 + Math.cos(Math.PI + a) * 47, lz = 10 - Math.sin(Math.PI + a) * 47; cyl(0.5, 0.5, 26, M.metal, lx, 13, lz, g, 6); box(5, 2.5, 1, M.lampGlow, lx, 26, lz, g); } }
-  // Palace of Fine Arts by its lagoon
-  { const g = G(LM.palace), oc = L(0xd8a58a); cyl(10, 10, 12, oc, 0, 6, 0, g, 16); const d = new THREE.Mesh(new THREE.SphereGeometry(10, 16, 8, 0, TAU, 0, Math.PI / 2), L(0xc98a6b)); d.position.y = 12; g.add(d); for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI + Math.PI / 2; cyl(0.8, 0.8, 9, oc, Math.cos(a) * 22, 4.5, Math.sin(a) * 22, g, 8); }
-    const lag = disc(16, new THREE.MeshPhongMaterial({ color: 0x4f8fb8, shininess: 80 }), 0, 0.08, -26, g, 24); }
+  // Palace of Fine Arts (after the photos): an open eight-sided rotunda - a great arch in every face, paired rose-pink fluted
+  // columns on tall pedestals at every corner, a deep entablature, an attic of relief panels with figures at the corners, a
+  // smooth cream dome - on the west shore of its lagoon, with curving colonnades of pink columns and tall planter boxes
+  // embracing the water, a rocky rim, and cypresses
+  { const p = LM.palace, g = G(p), stone = L(0xdcae7c), stoneDk = L(0xc89a68), pink = L(0xc87a6c), cream = L(0xeedfc6, { side: THREE.DoubleSide });
+    const fl = canvasTex(64, 256, (c, w, h) => { c.fillStyle = '#d68a7a'; c.fillRect(0, 0, w, h); for (let x = 0; x < w; x += 8) { c.fillStyle = 'rgba(80,20,20,0.25)'; c.fillRect(x, 0, 3, h); c.fillStyle = 'rgba(255,230,220,0.2)'; c.fillRect(x + 4, 0, 2, h); } }, [3, 1]);
+    const fluted = L(0xffffff, { map: fl });
+    const relief = canvasTex(512, 96, (c, w, h) => { c.fillStyle = '#dcae7c'; c.fillRect(0, 0, w, h); for (let i = 0; i < 4; i++) { const x = 14 + i * 126; c.fillStyle = '#c99c6a'; c.fillRect(x, 14, 110, 68); c.strokeStyle = '#a87a4e'; c.lineWidth = 3; c.strokeRect(x, 14, 110, 68);
+        c.fillStyle = '#b8895a'; for (let k = 0; k < 5; k++) { const fx = x + 14 + k * 20; c.beginPath(); c.arc(fx, 34, 5, 0, TAU); c.fill(); c.fillRect(fx - 5, 39, 10, 30); c.fillRect(fx - 9, 44, 18, 4); } } }, [4, 1]);
+    const A = 10.5, CR = A / Math.cos(Math.PI / 8), H0 = 3.2, Hc = 12.8;
+    // the eight arched faces
+    const sh = new THREE.Shape(), hw = A * Math.tan(Math.PI / 8), aw = hw - 1.6, sp = 9.2;
+    sh.moveTo(-hw, 0); sh.lineTo(-aw, 0); sh.lineTo(-aw, sp); sh.absarc(0, sp, aw, Math.PI, 0, true); sh.lineTo(aw, 0); sh.lineTo(hw, 0); sh.lineTo(hw, Hc); sh.lineTo(-hw, Hc); sh.closePath();
+    const fg = new THREE.ExtrudeGeometry(sh, { depth: 1.4, bevelEnabled: false, curveSegments: 14 }); fg.translate(0, 0, -0.7);
+    for (let i = 0; i < 8; i++) { const th = i * Math.PI / 4, f = new THREE.Mesh(fg, stone); f.position.set(Math.sin(th) * A, 0, Math.cos(th) * A); f.rotation.y = th; g.add(f); }
+    // corner piers: tall pedestals carrying paired fluted pink columns with capitals, an urn at the foot
+    for (let i = 0; i < 8; i++) { const th = i * Math.PI / 4 + Math.PI / 8, r = CR + 0.9, cx = Math.sin(th) * r, cz = Math.cos(th) * r, tx = Math.cos(th), tz = -Math.sin(th), pg = group(g, cx, 0, cz, th);
+      box(3.4, H0, 2.4, stone, 0, H0 / 2, 0, pg); box(3.8, 0.4, 2.8, stoneDk, 0, H0 + 0.2, 0, pg);
+      for (const s2 of [-0.85, 0.85]) { cyl(0.5, 0.55, Hc - H0 - 0.4, fluted, s2, H0 + 0.4 + (Hc - H0 - 0.4) / 2, 0, pg, 14); box(1.3, 0.7, 1.3, stoneDk, s2, Hc + 0.05, 0, pg); }
+      box(3.6, 1.8, 2.2, stone, 0, Hc + 1.3, 0, pg); // entablature block over the pair
+      const urn = new THREE.Mesh(new THREE.LatheGeometry([[0, 0], [0.35, 0.05], [0.25, 0.3], [0.5, 0.8], [0.45, 1.1], [0.3, 1.2], [0, 1.25]].map(([x, y]) => new THREE.Vector2(x, y)), 10), stoneDk); urn.position.set(0, 0, 1.7); urn.scale.setScalar(1.2); pg.add(urn); box(0.9, 0.4, 0.9, stone, 0, 0.2, 1.7, pg);
+      cityCollider(p.x + cx, p.z + cz, 3, 3, 14); }
+    // entablature, cornice, the relief attic with figures at its corners, and the dome
+    const ent = new THREE.Mesh(new THREE.CylinderGeometry(CR + 1.9, CR + 1.9, 2.4, 8, 1, false), [stone, stoneDk, stoneDk]); ent.rotation.y = Math.PI / 8; ent.position.y = Hc + 1.2; g.add(ent);
+    const cor = new THREE.Mesh(new THREE.CylinderGeometry(CR + 2.4, CR + 2.2, 0.6, 8), stoneDk); cor.rotation.y = Math.PI / 8; cor.position.y = Hc + 2.7; g.add(cor);
+    const att = new THREE.Mesh(new THREE.CylinderGeometry(CR - 0.2, CR + 0.2, 3.6, 8, 1, false), [L(0xffffff, { map: relief }), stoneDk, stoneDk]); att.rotation.y = Math.PI / 8; att.position.y = Hc + 4.8; g.add(att);
+    for (let i = 0; i < 8; i++) { const th = i * Math.PI / 4 + Math.PI / 8, r = CR + 0.6; box(1.5, 4.2, 1.5, stone, Math.sin(th) * r, Hc + 5, Math.cos(th) * r, g).rotation.y = th; const fig = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 2.2, 6), stoneDk); fig.position.set(Math.sin(th) * (r + 0.85), Hc + 4.6, Math.cos(th) * (r + 0.85)); g.add(fig); }
+    const cor2 = new THREE.Mesh(new THREE.CylinderGeometry(CR + 0.6, CR + 0.6, 0.5, 8), stoneDk); cor2.rotation.y = Math.PI / 8; cor2.position.y = Hc + 6.8; g.add(cor2);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(CR - 1, 28, 12, 0, TAU, 0, Math.PI / 2), cream); dome.scale.y = 0.62; dome.position.y = Hc + 6.9; g.add(dome);
+    disc(A - 0.5, L(0xc9b08a), 0, 0.06, 0, g, 8).rotation.z = Math.PI / 8;
+    // the lagoon to the east, rimmed with rocks; the colonnades curve round its west side either side of the rotunda
+    const LC = new V3(24, 0, 0);
+    const lag = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshPhongMaterial({ color: 0x2f6f9f, map: retile(T.water, 6, 6), shininess: 90, specular: 0x88aacc })); lag.rotation.x = -Math.PI / 2; lag.scale.set(17, 24, 1); lag.position.set(LC.x + 3, 0.1, 0); g.add(lag);
+    { const rocks = []; for (let i = 0; i < 70; i++) { const a2 = i / 70 * TAU, rk = new THREE.DodecahedronGeometry(rr(0.35, 0.6), 0); rk.translate(LC.x + 3 + Math.cos(a2) * 17.2, 0.15, Math.sin(a2) * 24.2); rocks.push(colorize(rk, pick([0x8a8478, 0x9a9488, 0x7a746a]))); } g.add(new THREE.Mesh(merge(rocks), new THREE.MeshLambertMaterial({ vertexColors: true }))); }
+    { const parts = [], C = (geo, col) => parts.push(colorize(geo, col)), R2 = 30, a0 = Math.PI * 0.62, a1 = Math.PI * 1.38; // angles measured round the lagoon centre, west = PI
+      for (let a2 = a0; a2 <= a1 + 1e-3; a2 += 0.13) { if (Math.abs(a2 - Math.PI) < 0.33) continue; // the rotunda sits in the middle
+        const x = LC.x + Math.cos(a2) * R2, z = Math.sin(a2) * R2, tx = -Math.sin(a2), tz = Math.cos(a2), yaw = Math.atan2(tx, tz);
+        const ped = new THREE.BoxGeometry(2.2, 1.6, 1.6); ped.rotateY(yaw); ped.translate(x, 0.8, z); C(ped, 0xdcae7c);
+        for (const o of [-0.6, 0.6]) { const col = new THREE.CylinderGeometry(0.34, 0.38, 7.4, 10); col.translate(x + tx * o, 1.6 + 3.7, z + tz * o); C(col, 0xc87a6c); const cap = new THREE.BoxGeometry(0.9, 0.45, 0.9); cap.translate(x + tx * o, 9.2, z + tz * o); C(cap, 0xc89a68); }
+        const en = new THREE.BoxGeometry(2.4, 1.3, R2 * 0.13 + 0.2); en.rotateY(yaw + Math.PI / 2); en.translate(x, 10, z); C(en, 0xdcae7c);
+        if (Math.round(a2 / 0.13) % 2 === 0) { const bx = new THREE.BoxGeometry(2.2, 2.8, 2.2); bx.rotateY(yaw); bx.translate(x, 12.05, z); C(bx, 0xd6a674); const tr = new THREE.BoxGeometry(2.5, 0.35, 2.5); tr.rotateY(yaw); tr.translate(x, 13.6, z); C(tr, 0xc89a68); } }
+      g.add(new THREE.Mesh(merge(parts), new THREE.MeshLambertMaterial({ vertexColors: true }))); }
+    { const trees = []; for (const [x, z, s2] of [[-6, -15, 1], [-4, 16, 1.1], [12, -26, 0.9], [14, 27, 1], [-14, -4, 1.2], [-13, 8, 1], [42, -18, 0.9], [43, 16, 1]]) { const t = pineGeo.clone(); t.scale(9 * s2, 13 * s2, 9 * s2); t.translate(x, 0, z); trees.push(t); } g.add(new THREE.Mesh(merge(trees), new THREE.MeshLambertMaterial({ vertexColors: true }))); }
+  }
   // Ghirardelli Square
   { const g = G(LM.ghirardelli); box(26, 12, 16, L(0x9b4a33), 0, 6, 0, g, true); box(8, 6, 8, L(0x9b4a33), 8, 15, 0, g); const s = textPlane('GHIRARDELLI', 16, 2.6, '#1b1416', '#f4f0e6'); s.position.set(0, 17, 0); g.add(s); }
   // the Painted Ladies: seven Victorians on Steiner St, facing Alamo Square
@@ -1533,7 +1574,7 @@ function sfLandmarks(LM) {
   {
     const park = SF_PARKS[0][0], trees = [];
     for (let i = 0, t = 0; i < 420 && t < 5000; t++) { const x = rr(park.x0, park.x1), z = rr(park.z0, park.z1); const near = (lon, lat, r) => Math.hypot(x - sfx(lon), z - sfz(lat)) < r; if (near(-122.4757, 37.7685, 28) || near(-122.4602, 37.7718, 16) || near(-122.4687, 37.7714, 18) || near(-122.4975, 37.7708, 14) || nearRoads(x, z, 8)) continue; trees.push([x, z]); i++; }
-    for (const [r, k] of SF_PARKS) if (k === 'forest') for (let i = 0; i < 160; i++) { const x = rr(r.x0, r.x1), z = rr(r.z0, r.z1); if (!inWater(x, z) && !nearRoads(x, z, 8) && !inR(CRISSY, x, z) && !inR(CRISSY_BEACH, x, z) && Math.hypot(x - sfx(-122.5053), z - sfz(37.7876)) > 14 && Math.hypot(x - sfx(-122.5134), z - sfz(37.7792)) > 30) trees.push([x, z]); }
+    for (const [r, k] of SF_PARKS) if (k === 'forest') for (let i = 0; i < 160; i++) { const x = rr(r.x0, r.x1), z = rr(r.z0, r.z1); if (!inWater(x, z) && !nearRoads(x, z, 8) && !inR(CRISSY, x, z) && !inR(CRISSY_BEACH, x, z) && Math.hypot(x - sfx(-122.5053), z - sfz(37.7876)) > 14 && Math.hypot(x - sfx(-122.5134), z - sfz(37.7792)) > 30 && Math.hypot(x - sfx(-122.4484) - 18, z - sfz(37.8029)) > 56) trees.push([x, z]); }
     instanced(pineGeo, pineMat, trees, (d, p, col) => { d.position.set(p[0], groundH(p[0], p[1]), p[1]); d.rotation.set(0, rr(0, TAU), 0); const s = rr(9, 17); d.scale.set(s * rr(0.9, 1.3), s, s * rr(0.9, 1.3)); col.setRGB(rr(0.6, 0.85), rr(0.85, 1), rr(0.7, 0.9)); });
     const white = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 60, transparent: true, opacity: 0.88 });
     { const g = G(sfp(-122.4602, 37.7718)); box(30, 4.5, 7, white, 0, 2.25, 0, g); const dm = new THREE.Mesh(new THREE.SphereGeometry(6, 18, 9, 0, TAU, 0, Math.PI / 2), white); dm.position.y = 4.5; g.add(dm); box(9, 6.5, 9, white, 0, 3.25, 0, g); }
