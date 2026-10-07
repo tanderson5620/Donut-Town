@@ -40,6 +40,7 @@ window.HW = window.HW || {};
     ctx.moveRigTo = moveRigTo; ctx.rotateRig = rotateRig; ctx.fade = doFade; ctx.recenter = recenter; ctx.setSeated = setSeated;
     HW.Game.init(ctx);
     clock = new THREE.Clock(); renderer.setAnimationLoop(loop);
+    document.getElementById('info').innerHTML = '<b>WASD</b> move &middot; <b>Shift</b> turbo &middot; <b>Space</b> jump<br><b>Hold click</b> charge shot, release near green<br><b>Q</b> pass &middot; <b>E</b>/right-click steal &middot; <b>C</b> camera &middot; <b>Esc</b> pause';
     document.body.classList.add('ready');
     if (/[?&]debug/.test(location.search)) { window.__hw = HW; }
   }

@@ -13,3 +13,4 @@ html, body { margin: 0; height: 100%; background: #0b0d1a; overflow: hidden; fon
 #callout.show { animation: pop 1.7s ease-out; }
 @keyframes pop { 0% { opacity: 0; transform: scale(.4); } 10% { opacity: 1; transform: scale(1.25); } 20% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(1.05); } }
 body.invr #info, body.invr #hud, body.invr #callout { display: none; }
+body.inmenu #hud { display: none; }

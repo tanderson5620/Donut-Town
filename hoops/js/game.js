@@ -21,11 +21,14 @@ window.HW = window.HW || {};
     ctx.vrEnd = function () { if (G.human) I.lookYaw = G.human.yaw; G.vrHeld = -1; };
     G.ball.onScore = function (hoopIdx) { G.onScore(hoopIdx); };
     G.ball.onEvent = G.onBallEvent;
+    HW.Menu.init(G.scene); G.phase = 'menu'; document.body.classList.add('inmenu');
     var q = /[?&]quick(=(\w+))?/.exec(location.search);
-    var hid = (q && q[2] && HW.PLAYERS[q[2]]) ? q[2] : 'carl', hteam = HW.PLAYERS[hid].team, teams = [null, null];
-    teams[hteam] = [hid, HW.TEAMS[hteam].roster.filter(function (id) { return id !== hid; })[hteam === 0 ? 0 : 1]];
-    teams[1 - hteam] = HW.TEAMS[1 - hteam].roster.slice(0, 2);
-    G.start({ teams: teams, human: hid, difficulty: HW.settings.difficulty });
+    if (q) {
+      var hid = (q[2] && HW.PLAYERS[q[2]]) ? q[2] : 'carl', hteam = HW.PLAYERS[hid].team, teams = [null, null];
+      teams[hteam] = [hid, HW.TEAMS[hteam].roster.filter(function (id) { return id !== hid; })[hteam === 0 ? 0 : 1]];
+      teams[1 - hteam] = HW.TEAMS[1 - hteam].roster.slice(0, 2);
+      G.start({ teams: teams, human: hid, difficulty: HW.settings.difficulty });
+    } else HW.Menu.show('title');
   };
 
   G.onBallEvent = function (type, v, h) {
@@ -37,7 +40,7 @@ window.HW = window.HW || {};
 
   /* ---------- setup ---------- */
   G.start = function (setup) {
-    G.setup = setup;
+    G.setup = setup; G.paused = false; document.body.classList.remove('inmenu'); HW.Menu.hide(); G.ctx.comfortBoost = 0;
     G.players.forEach(function (p) { G.scene.remove(p.root); G.world.removeBlob(p.blob); });
     G.players = []; G.human = null;
     var hdef = HW.PLAYERS[setup.human], hteam = hdef.team;
@@ -149,19 +152,26 @@ window.HW = window.HW || {};
     // slow-mo target (dunks) eases in and out
     G.timeScale = U.damp(G.timeScale, G.slowTarget || 1, 6, rdt); var dt = rdt * G.timeScale; G.t += dt;
     var vr = I.vr, h = G.human;
-    if (vr && G.pendingPlace && --G.pendingPlace === 0) { ctx.recenter(); G.placeHuman(h); updateViewNow(); }
+    if (vr && G.pendingPlace && --G.pendingPlace === 0) {
+      ctx.recenter();
+      if (h && G.phase !== 'menu') G.placeHuman(h); else { ctx.rotateRig(U.angDiff(0, view.yaw)); ctx.moveRigTo({ x: 0, z: 6 }); }
+      updateViewNow(); view.yaw = 0; if (HW.Menu.open) HW.Menu.place();
+    }
 
     // headset position is the authority for the VR player's body
     if (vr && h && h.state !== 'dunk' && !G.pendingPlace) { h.pos.x = view.pos.x; h.pos.z = view.pos.z; }
 
     if (I.camToggle) G.camMode = G.camMode === 'chase' ? 'first' : 'chase';
-    if (I.pause) { /* stage 5: pause menu */ I.pause = false; }
+
+    HW.Menu.update(rdt);
+    if (I.pause) { I.pause = false; G.onPause(); }
+    if (G.phase === 'menu' || G.paused) { G.menuFrame(rdt); return; }
 
     var live = G.phase === 'play';
     if (G.phase === 'countdown') G.tickCountdown(rdt);
     else if (G.phase === 'dead') { G.phaseT -= dt; if (G.phaseT <= 0) G.afterDead(); }
     else if (G.phase === 'break') { G.phaseT -= rdt; if (G.phaseT <= 0) { G.q++; G.beginQuarter(false); } }
-    else if (G.phase === 'over') { G.phaseT -= rdt; if (G.phaseT <= 0) G.start(G.setup); }
+    else if (G.phase === 'over') { G.phaseT -= rdt; if (G.phaseT <= 0 && !HW.Menu.open) HW.Menu.show('results'); }
 
     if (live) {
       G.clock -= dt;
@@ -199,10 +209,36 @@ window.HW = window.HW || {};
     G.updateHud();
   };
 
+  G.onPause = function () {
+    if (G.phase === 'menu') return;
+    if (G.paused) { if (HW.Menu.screen === 'pause') G.resume(); else HW.Menu.show('pause'); return; }
+    if (G.phase === 'over' || HW.Menu.open) return;
+    G.paused = true; HW.Menu.show('pause');
+  };
+  G.resume = function () { G.paused = false; HW.Menu.hide(); G.ctx.fade && I.vr && G.ctx.fade(0.3); };
+  G.quit = function () {
+    G.players.forEach(function (p) { G.scene.remove(p.root); G.world.removeBlob(p.blob); }); G.players = []; G.human = null; G.paused = false;
+    G.phase = 'menu'; G.score = [0, 0]; G.q = 1; G.clock = C.QUARTER_S; G.shotClock = C.SHOT_CLOCK; G.possTeam = -1; G.slowTarget = 1; G.timeScale = 1; G.ctx.comfortBoost = 0;
+    G.ball.holder = null; G.ball.state = 'free'; G.ball.shot = null; G.ball.setFire(false); G.ball.reset(0, 3, 0);
+    G.ctx.rig.position.y = G.ctx.seatOffset || 0; I.lookYaw = 0; I.lookPitch = -0.05;
+    if (I.vr) { G.ctx.rotateRig(U.angDiff(0, G.ctx.view.yaw)); G.ctx.moveRigTo({ x: 0, z: 6 }); }
+    HW.Menu.show('title');
+  };
+  G.rematch = function () { HW.Menu.hide(); G.start(G.setup); };
+
+  // menu / paused frame: nothing simulates, but the view and displays stay live
+  G.menuFrame = function (rdt) {
+    var view = G.ctx.view; document.body.classList.toggle('inmenu', G.phase === 'menu');
+    if (G.phase === 'menu') { if (!I.vr) { view.pos.set(0, 1.7, 6.0); view.pitch = -0.05; view.yaw = 0; I.lookYaw = 0; } G.ball.sync(); }
+    else G.updateCamera(rdt);
+    G.updateHud();
+  };
+
   G.tickCountdown = function (rdt) {
     G.phaseT -= rdt; var n = Math.ceil(G.phaseT);
     if (n !== G.cdLast && n >= 1 && n <= 3) { UI.callout(String(n), '#ffffff', { life: 0.8, size: 200, silent: true, dist: 3.4 }); Au.beep(false); }
     G.cdLast = n;
+    if (!G.hinted && I.vr && G.phaseT < 2.6) { G.hinted = true; UI.callout('GRIP + SWING + LET GO TO SHOOT', '#ffffff', { life: 3, size: 70, silent: true, up: 0.2 }); }
     if (G.phaseT <= 0) { G.phase = 'play'; UI.callout('GO!', '#5cffa0', { life: 0.8, size: 200, silent: true, dist: 3.4 }); Au.beep(true); Au.whistle(); }
   };
 
@@ -226,7 +262,7 @@ window.HW = window.HW || {};
     G.players.forEach(function (p) { p.state = 'idle'; });
   };
   G.endGame = function () {
-    G.phase = 'over'; G.phaseT = 8; G.slowTarget = 1; Au.buzzer(); Au.cheer(true);
+    G.phase = 'over'; G.phaseT = 3.8; G.slowTarget = 1; Au.buzzer(); Au.cheer(true);
     var w = G.score[0] > G.score[1] ? 0 : 1;
     UI.callout(HW.TEAMS[w].name.toUpperCase() + ' WIN!', HW.TEAMS[w].color, { life: 4, size: 110 });
     G.players.forEach(function (p) { p.state = p.team === w ? 'celebrate' : 'idle'; });
@@ -350,7 +386,7 @@ window.HW = window.HW || {};
   G.updateCamera = function (rdt) {
     if (I.vr) { var h = G.human; if (h) h.setHidden(true); return; }
     var view = G.ctx.view, p = G.human; if (!p) return;
-    I.wantLock = G.phase !== 'menu';
+    I.wantLock = G.phase !== 'menu' && !G.paused && !HW.Menu.open;
     p.setHidden(G.camMode === 'first');
     if (G.camMode === 'first') {
       view.pos.set(p.pos.x, p.y + p.eyeHeight(), p.pos.z);
@@ -362,10 +398,12 @@ window.HW = window.HW || {};
     }
   };
 
+  G.teamOnFire = function (t) { return G.players.some(function (p) { return p.team === t && p.onFire; }); };
+
   G.updateHud = function () {
     var p = G.human, SB = UI.scoreboard, names = [HW.TEAMS[0].short, HW.TEAMS[1].short];
-    var msg = G.phase === 'play' || G.phase === 'dead' ? '' : G.phase === 'countdown' ? 'GET READY' : G.phase === 'break' ? 'BREAK' : 'FINAL';
-    SB.set({ score: G.score.slice(), names: names, colors: [HW.TEAMS[0].color, HW.TEAMS[1].color], quarter: G.q, clock: G.clock, shot: G.shotClock, msg: msg, poss: G.possTeam, fire: [false, false] });
+    var msg = G.phase === 'play' || G.phase === 'dead' ? '' : G.phase === 'countdown' ? 'GET READY' : G.phase === 'break' ? 'BREAK' : G.phase === 'menu' ? 'WELCOME TO THE COURT' : 'FINAL';
+    SB.set({ score: G.score.slice(), names: names, colors: [HW.TEAMS[0].color, HW.TEAMS[1].color], quarter: G.q, clock: G.clock, shot: G.shotClock, msg: msg, poss: G.possTeam, fire: [G.teamOnFire(0), G.teamOnFire(1)] });
     UI.hud.update({ score: G.score.slice(), names: names, colors: [HW.TEAMS[0].color, HW.TEAMS[1].color], clock: G.clock, quarter: G.q, shot: G.shotClock, turbo: p ? p.turbo : 0, fire: p ? p.onFire : false,
       charge: !I.vr && p && p.charging ? G.charge : -1, green: [p ? p.st.greenWin : 1, 0], msg: '' }, I.vr);
   };

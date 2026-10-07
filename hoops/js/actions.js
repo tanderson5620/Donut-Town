@@ -179,6 +179,7 @@ window.HW = window.HW || {};
     var chance = 0.04 + 0.02 * p.def.stats.steal - 0.012 * (holder.def.type === 'handler' ? holder.def.stats.speed : 3) + (bonus || 0);
     if (p.def.type === 'handler') chance += 0.04;
     if (holder.turboOn) chance *= 0.6;
+    chance *= 1 - Math.min(0.45, Math.hypot(holder.vel.x, holder.vel.z) / 11);   // a moving dribbler is harder to rob
     chance = Math.max(0.03, chance);
     chance *= (p.isHuman ? 1 : G.diff.steal);
     if (holder.state === 'down' || holder.state === 'dunk') return false;

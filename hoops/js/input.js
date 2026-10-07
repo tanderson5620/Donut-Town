@@ -29,8 +29,8 @@ window.HW = window.HW || {};
     canvas.addEventListener('mousedown', function (e) {
       HW.Audio.init();
       if (e.button === 2) { I.steal = true; return; }
+      if (I.wantLock && !I.locked && !I.noLock && canvas.requestPointerLock) { try { canvas.requestPointerLock(); } catch (er) { I.noLock = true; } return; }   // the capturing click is not a shot
       I.mouse.down = true; I.shootHeld = true; I.shootEdge = true; I.mouseEdge = true;
-      if (I.wantLock && !I.locked && canvas.requestPointerLock) { try { canvas.requestPointerLock(); } catch (er) { /* denied */ } }
     });
     window.addEventListener('mouseup', function (e) { if (e.button === 2) return; if (I.mouse.down) { I.shootRelease = true; I.mouseUp = true; } I.mouse.down = false; I.shootHeld = false; });
     window.addEventListener('mousemove', function (e) {
@@ -40,12 +40,13 @@ window.HW = window.HW || {};
     });
     document.addEventListener('pointerlockchange', function () {
       var was = I.locked; I.locked = document.pointerLockElement === canvas;
-      if (was && !I.locked) I.pause = true;
+      if (was && !I.locked && !I.ignoreUnlock) I.pause = true; I.ignoreUnlock = false;
     });
+    document.addEventListener('pointerlockerror', function () { I.noLock = true; });
     I.rays.push({ origin: new THREE.Vector3(), dir: new THREE.Vector3(), pressed: false, justPressed: false, hand: null });
   };
 
-  I.exitLock = function () { if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock(); };
+  I.exitLock = function () { if (document.pointerLockElement && document.exitPointerLock) { I.ignoreUnlock = true; document.exitPointerLock(); } };
   I.resetHistory = function () { I.hands.forEach(function (h) { h.hist.length = 0; h.vel.set(0, 0, 0); }); };
   I.onControllerChange = function () { I.resetHistory(); };
 
@@ -102,6 +103,7 @@ window.HW = window.HW || {};
       I.move.x = mx; I.move.y = my; I.turbo = !!(k.ShiftLeft || k.ShiftRight);
       if (k.ArrowLeft) I.lookYaw += 1.9 * dt; if (k.ArrowRight) I.lookYaw -= 1.9 * dt;
       if (camera) {
+        if (!I.rays[0] || I.rays[0].ctrl) I.rays[0] = { origin: new THREE.Vector3(), dir: new THREE.Vector3(), pressed: false, justPressed: false, hand: null };
         var rc = I.rays[0]; camera.updateMatrixWorld();
         _v.set(I.mouse.x, I.mouse.y, 0.5).unproject(camera); rc.origin.setFromMatrixPosition(camera.matrixWorld); rc.dir.copy(_v).sub(rc.origin).normalize();
         rc.justPressed = !!I.mouseEdge; rc.pressed = I.mouse.down; I.rays.length = 1;

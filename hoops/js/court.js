@@ -127,11 +127,11 @@ window.HW = window.HW || {};
     var crowd = crowdTexture(); crowd.wrapS = crowd.wrapT = THREE.RepeatWrapping;
     function tiers(cx, cz, len, rotY) {
       var gr = new THREE.Group(); gr.position.set(cx, 0, cz); gr.rotation.y = rotY;
-      for (var i = 0; i < 7; i++) {
+      for (var i = 0; i < 5; i++) {
         var t = crowd.clone(); t.needsUpdate = true; t.repeat.set(len / 6, 1);
         var top = new THREE.MeshLambertMaterial({ map: t }), side = new THREE.MeshLambertMaterial({ color: 0x23202e });
-        var b = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.55 * (i + 1), len), [side, side, top, side, side, side]);
-        b.position.set(i * 1.0, 0.275 * (i + 1), 0); gr.add(b);
+        var b = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.75 * (i + 1), len), [side, side, top, side, side, side]);
+        b.position.set(i * 1.4, 0.375 * (i + 1), 0); gr.add(b);
       }
       scene.add(gr);
     }
