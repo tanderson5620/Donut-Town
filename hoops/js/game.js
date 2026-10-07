@@ -16,13 +16,13 @@ window.HW = window.HW || {};
 
   G.init = function (ctx) {
     G.ctx = ctx; G.ball = ctx.ball; G.world = ctx.world; G.scene = ctx.scene; G.camera = ctx.camera; G.rig = ctx.rig;
-    Act.init(G);
+    Act.init(G); HW.AI.init(G);
     ctx.vrStart = function () { G.pendingPlace = 3; };
     ctx.vrEnd = function () { if (G.human) I.lookYaw = G.human.yaw; G.vrHeld = -1; };
     G.ball.onScore = function (hoopIdx) { G.onScore(hoopIdx); };
     G.ball.onEvent = G.onBallEvent;
     var q = /[?&]quick(=(\w+))?/.exec(location.search);
-    G.start({ teams: [['carl', 'tyler'], ['katelyn', 'kody']], human: (q && q[2]) || 'carl', difficulty: HW.settings.difficulty, only: true });
+    G.start({ teams: [['carl', 'tyler'], ['katelyn', 'kody']], human: (q && q[2]) || 'carl', difficulty: HW.settings.difficulty });
   };
 
   G.onBallEvent = function (type, v, h) {
@@ -78,6 +78,8 @@ window.HW = window.HW || {};
     off.forEach(function (p, i) { var s = spots.off[i] || spots.off[0]; p.pos.set(s[0], 0, s[1]); p.yaw = yawOff; });
     def.forEach(function (p, i) { var s = spots.def[i] || spots.def[0]; p.pos.set(s[0], 0, s[1]); p.yaw = yawDef; });
     var ball = G.ball, holder = off[0];
+    if (team === G.humanTeam && G.human) holder = G.human; else if (off.length > 1) holder = off.slice().sort(function (a, b) { return (b.def.type === 'handler') - (a.def.type === 'handler') || b.def.stats.speed - a.def.stats.speed; })[0];
+    if (off.indexOf(holder) > 0) { off.splice(off.indexOf(holder), 1); off.unshift(holder); }
     G.players.forEach(function (p) { p.hasBall = false; });
     ball.holder = null; G.possTeam = -1; G.lastShot = null; G.shotInAir = false; ball.shot = null; ball.pass = null; ball.setFire(false);
     if (holder) { Act.grab(holder); G.shotClock = C.SHOT_CLOCK; }
@@ -164,7 +166,7 @@ window.HW = window.HW || {};
     var b = G.ball;
     G.players.forEach(function (p) { p.animate(dt, G.t, G.ctx); p.root.updateMatrixWorld(true); });
     Act.carry(dt);
-    if (live || G.phase === 'dead') { if (live) Act.pickup(); b.step(dt); }
+    if (live || G.phase === 'dead') { if (live) { Act.pickup(); Act.checkBlocks(); } b.step(dt); }
     b.sync();
     if (b.fire) HW.FX.fireAt(b.pos, 0.15);
 
@@ -211,6 +213,7 @@ window.HW = window.HW || {};
   G.tickState = function (p, dt) {
     p.stateT += dt; var st = p.state;
     if (st === 'shoot' && !p.charging && p.stateT > 0.45) p.state = 'idle';
+    else if (st === 'pass' && p.stateT > 0.3) p.state = 'idle';
     else if (st === 'steal' && p.stateT > 0.35) p.state = 'idle';
     else if (st === 'shove' && p.stateT > 0.4) p.state = 'idle';
     else if (st === 'down' && p.stateT > p.downDur) { p.state = 'idle'; p.stateT = 0; }
@@ -242,8 +245,16 @@ window.HW = window.HW || {};
     if (!live) return;
     var jump = I.jump; if (I.vr && G.vrJumpGesture()) jump = true;
     if (jump) Act.jump(p);
+    if (I.steal) Act.stealOrShove(p);
+    if (I.pass && p.hasBall) { G.passTo(p); G.vrHeld = -1; }
     if (p.hasBall) { if (I.vr) G.humanVRBall(dt); else G.humanDesktopBall(dt); }
     else { G.vrHeld = -1; p.charging = false; G.charge = 0; }
+  };
+
+  G.passTo = function (p) {
+    var t = Act.passTarget(p); if (!t) { UI.callout('NO ONE TO PASS TO', '#ffffff', { life: 0.8, size: 80, silent: true }); return; }
+    var from = I.vr ? I.hands[G.vrHeld >= 0 ? G.vrHeld : 1].pos.clone() : null;
+    Act.pass(p, t, from);
   };
 
   // quick raise of the free (left) hand above the head = jump
@@ -278,7 +289,7 @@ window.HW = window.HW || {};
     }
     if (I.shootRelease && p.charging) {
       p.charging = false; var ch = G.charge; G.charge = 0;
-      if (ch < 0.1) { b.state = 'dribble'; p.state = 'idle'; if (G.passTo) G.passTo(p); return; }
+      if (ch < 0.1) { b.state = 'dribble'; p.state = 'idle'; G.passTo(p); return; }
       var hoop = G.world.hoops[p.team];
       p.handWorld('r', _b); p.handWorld('l', _c); _b.lerp(_c, 0.5); if (_b.y < p.y + p.def.height) _b.y = p.y + p.def.height + 0.1;
       var ideal = S.ideal(_b, hoop, new THREE.Vector3()), pitch = Math.atan2(ideal.y, Math.hypot(ideal.x, ideal.z)), sp = ideal.length() * (0.5 + 0.77 * ch);
@@ -287,7 +298,6 @@ window.HW = window.HW || {};
       Act.release(p, _a.clone(), _b.clone());
     }
     if (!I.shootHeld && p.charging && !I.shootRelease) { p.charging = false; G.charge = 0; b.state = 'dribble'; p.state = 'idle'; }
-    if (I.pass && G.passTo) G.passTo(p);
   };
 
   /* ---------- camera ---------- */

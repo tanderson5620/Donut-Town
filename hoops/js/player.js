@@ -137,6 +137,8 @@ window.HW = window.HW || {};
     if (st === 'shoot') {
       var f = U.clamp(this.stateT / 0.3, 0, 1), rel = this.stateT > 0.3;
       T.rs = rel ? 2.75 : 1.2 + f * 1.5; T.ls = rel ? 2.5 : 1.0 + f * 1.5; T.re = rel ? 0.1 : 1.1 - f * 0.6; T.le = rel ? 0.2 : 1.2 - f * 0.7; T.rz = 0.1; T.lz = -0.1; T.crouch = this.y > 0.05 ? 0.02 : 0.28 * (1 - f); T.lean = 0.0; kr = kl = this.y > 0.05 ? 0.5 : 0; lr = ll = 0;
+    } else if (st === 'pass') {
+      T.rs = 1.45; T.ls = 1.45; T.re = 0.25; T.le = 0.25; T.rz = 0.1; T.lz = -0.1; T.crouch = 0.12;
     } else if (st === 'steal') {
       T.rs = 1.5; T.re = 0.2; T.ls = 0.8; T.le = 0.4; T.crouch = 0.22; T.lean = 0.35;
     } else if (st === 'shove') {

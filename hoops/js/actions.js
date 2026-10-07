@@ -49,7 +49,7 @@ window.HW = window.HW || {};
     var b = G.ball;
     if (b.holder && b.holder !== p) b.holder.hasBall = false;
     var prevTeam = G.possTeam;
-    b.holder = p; b.lastTouch = p; p.hasBall = true; b.state = 'dribble'; b.vel.set(0, 0, 0); b.shot = null; b.pass = null; b.noCatch = 0;
+    b.holder = p; b.lastTouch = p; p.hasBall = true; b.state = 'dribble'; b.vel.set(0, 0, 0); b.shot = null; b.pass = null; b.noCatch = 0; G.shotInAir = false;
     p.dribPhase = Math.random() * 0.5;
     if (prevTeam !== p.team) { G.possTeam = p.team; G.shotClock = C.SHOT_CLOCK; G.streakReset(prevTeam); } else if (fromLoose) G.shotClock = Math.max(G.shotClock, 14);
     G.onPossession(p);
@@ -70,7 +70,7 @@ window.HW = window.HW || {};
       var top = H * 0.52 + p.y;
       b.pos.y = C.BALL_R + (top - C.BALL_R) * Math.abs(Math.sin(Math.PI * p.dribPhase)) * (p.y > 0.05 ? 0.4 : 1);
     } else if (b.state === 'held') {
-      if (p.isHuman && G.vrHeld) return;          // VR hand drives the ball itself
+      if (p.isHuman && G.vrHeld >= 0) return;          // VR hand drives the ball itself
       p.handWorld('r', _a); p.handWorld('l', _b); b.pos.copy(_a).lerp(_b, 0.5); b.pos.y += 0.02;
     }
     b.vel.set(0, 0, 0);
@@ -89,6 +89,7 @@ window.HW = window.HW || {};
       var by = b.pos.y - p.y; if (by < 0.08 || by > p.def.reach + 0.25) continue;
       if (spd > 17 && !(b.pass && b.pass.to === p)) continue;
       if (b.shot && b.shot.by === p && b.airT < 0.5) continue;
+      if (b.shot && !b.shot.rim && !b.shot.board && b.pos.y > 1.7) continue;   // a clean shot in the air can only be blocked, not caught
       // don't snatch a ball that's about to drop through the net
       if (Math.hypot(b.pos.x - G.world.hoops[0].x, b.pos.z - G.world.hoops[0].z) < 0.6 && b.pos.y > 2.6 || Math.hypot(b.pos.x - G.world.hoops[1].x, b.pos.z - G.world.hoops[1].z) < 0.6 && b.pos.y > 2.6) continue;
       if (d < bd) { bd = d; best = p; }
@@ -122,13 +123,13 @@ window.HW = window.HW || {};
     var assist = (o.assist !== undefined ? o.assist : p.st.shootAssist) * (p.isHuman ? 1 : 1);
     var res = S.resolve(raw, { from: from, hoop: hoop, mates: mates, me: p, assist: assist, greenWin: p.st.greenWin * (three ? type.greenFromDeep : 1) * (o.greenMul || 1),
       contest: contest, fire: p.onFire, passAssist: 0.5 + 0.05 * (p.def.type === 'handler' ? 3 : 0), noGreen: o.noGreen });
-    if (o.forceVel) { res.vel.copy(o.forceVel); res.kind = o.kind || 'shot'; res.quality = o.quality || 'good'; }
+    if (o.forceVel) { res.vel.copy(o.forceVel); res.kind = o.kind || 'shot'; res.quality = o.quality || 'good'; res.target = o.target || null; }
     var shot = null;
     A.drop(p); b.lastTouch = p; p.cd.catchBlock = 0.3;
     if (res.kind === 'shot') {
-      shot = { by: p, team: p.team, quality: res.quality, three: three, rim: false, board: false, contest: contest, t0: G.t, hoop: p.team, scored: false };
+      shot = { checked: {}, by: p, team: p.team, quality: res.quality, three: three, rim: false, board: false, contest: contest, t0: G.t, hoop: p.team, scored: false };
       p.stats.fga++; if (three) p.stats.tpa++; G.lastShot = shot; G.shotInAir = true;
-      if (res.quality === 'green') { UI.callout(three ? 'GREEN FROM DEEP!' : 'GREEN!', '#5cffa0', { life: 0.9, size: 100, silent: true, up: 0.2 }); }
+      if (res.quality === 'green' && p.isHuman) { UI.callout(three ? 'GREEN FROM DEEP!' : 'GREEN!', '#5cffa0', { life: 0.9, size: 100, silent: true, up: 0.2 }); }
       b.throwWith(res.vel, shot); b.pos.copy(from); b.pass = null;
     } else if (res.kind === 'pass') {
       b.throwWith(res.vel, null); b.pos.copy(from); b.pass = { to: res.target, from: p, t: G.t }; b.noCatch = 0.12; Au.whoosh(res.vel.length());
@@ -142,5 +143,98 @@ window.HW = window.HW || {};
   A.releaseFromHands = function (p, raw, o) {
     p.handWorld('r', _a); p.handWorld('l', _b); _c.copy(_a).lerp(_b, 0.5); if (_c.y < p.y + p.def.height) _c.y = p.y + p.def.height + 0.1;
     return A.release(p, raw, _c.clone(), o);
+  };
+
+  /* ---------- passing ---------- */
+  A.passTarget = function (p) {
+    var mates = G.matesOf(p); if (!mates.length) return null;
+    var best = null, bs = -1e9;
+    for (var i = 0; i < mates.length; i++) {
+      var m = mates[i], d = Math.hypot(m.pos.x - p.pos.x, m.pos.z - p.pos.z); if (d < 1.2 || m.state === 'down') continue;
+      var s = -d * 0.2 + (m.callT > 0 ? 2 : 0); if (s > bs) { bs = s; best = m; }
+    }
+    return best;
+  };
+  A.pass = function (p, target, fromPos) {
+    var b = G.ball; if (!p.hasBall || !target) return false;
+    if (fromPos) _c.copy(fromPos); else { p.handWorld('r', _a); p.handWorld('l', _b); _c.copy(_a).lerp(_b, 0.5); if (_c.y < p.y + 1.0) _c.y = p.y + 1.1; _c.y = Math.max(_c.y, p.y + p.def.height * 0.55); }
+    var tgt = _b.set(target.pos.x + target.vel.x * 0.35, target.y + target.def.height * 0.72, target.pos.z + target.vel.z * 0.35);
+    var d = Math.hypot(tgt.x - _c.x, tgt.z - _c.z), ps = U.clamp(10 + d * 0.9, 11, 18);
+    var v = S.passVel(_c, tgt, ps, new THREE.Vector3());
+    p.state = 'pass'; p.stateT = 0; p.yaw = U.yawOf(tgt.x - p.pos.x, tgt.z - p.pos.z);
+    A.release(p, v.clone(), _c.clone(), { forceVel: v, kind: 'pass', target: target });
+    return true;
+  };
+
+  /* ---------- steal / shove / knock down ---------- */
+  A.facing = function (p, q, cone) {
+    var dx = q.pos.x - p.pos.x, dz = q.pos.z - p.pos.z; return Math.abs(U.angDiff(U.yawOf(dx, dz), p.yaw)) < (cone || 1.0);
+  };
+  A.dist = function (p, q) { return Math.hypot(q.pos.x - p.pos.x, q.pos.z - p.pos.z); };
+
+  A.steal = function (p, holder, bonus) {
+    p.state = 'steal'; p.stateT = 0; p.cd.steal = 0.9;
+    var chance = 0.04 + 0.02 * p.def.stats.steal - 0.012 * (holder.def.type === 'handler' ? holder.def.stats.speed : 3) + (bonus || 0);
+    if (p.def.type === 'handler') chance += 0.04;
+    if (holder.turboOn) chance *= 0.6;
+    chance = Math.max(0.03, chance);
+    chance *= (p.isHuman ? 1 : G.diff.steal);
+    if (holder.state === 'down' || holder.state === 'dunk') return false;
+    if (Math.random() < chance) {
+      Au.steal(); p.stats.steals++; holder.slow = 0.5;
+      A.grab(p); UI.callout(U.pick(['PICKPOCKET!', 'STOLEN GLAZE!', 'SWIPED!', 'SNEAKY SPRINKLES!']), '#7ee0ff', { life: 1.2 });
+      G.shotClock = C.SHOT_CLOCK; return true;
+    }
+    return false;
+  };
+
+  A.knockdown = function (t, dirx, dirz, dur) {
+    if (t.state === 'down' || t.state === 'dunk') return;
+    var b = G.ball; if (t.hasBall) { A.drop(t); b.state = 'free'; b.vel.set(dirx * 3, 2.5, dirz * 3); b.noCatch = 0.35; b.shot = null; }
+    t.state = 'down'; t.stateT = 0; t.downDur = dur; t.vel.set(dirx * 3.5, 0, dirz * 3.5); t.stats.fallen = (t.stats.fallen || 0) + 1; t.vy = 0; t.y = 0;
+    if (t.isHuman && HW.XR.presenting) G.ctx.fade(0.35);
+    Au.thud();
+  };
+
+  A.shove = function (p, t) {
+    p.state = 'shove'; p.stateT = 0; p.cd.shove = 1.1; p.cd.steal = Math.max(p.cd.steal, 0.4);
+    var dx = t.pos.x - p.pos.x, dz = t.pos.z - p.pos.z, d = Math.max(0.01, Math.hypot(dx, dz)); dx /= d; dz /= d;
+    var as = p.def.stats.str, ds = t.def.stats.str;
+    t.vel.x += dx * (3 + as * 0.55); t.vel.z += dz * (3 + as * 0.55);
+    var pK = U.clamp(0.08 + 0.075 * as - 0.04 * ds + (t.hasBall ? 0.06 : 0) + (p.turboOn ? 0.1 : 0) + (p.def.type === 'strength' ? 0.12 : 0) - (t.y > 0.2 ? 0.2 : 0), 0.04, 0.92);
+    Au.shove(); p.stats.shoves++;
+    if (Math.random() < pK) {
+      A.knockdown(t, dx, dz, 0.9 + 0.07 * as); p.stats.knockdowns++;
+      UI.callout(U.pick(['TIMBER!', 'WHAM-A-LAM!', 'FLATTENED!', 'OUT OF THE WAY!']), '#ff8a5a', { life: 1.2 });
+    } else { t.slow = 0.6; if (t.hasBall && Math.random() < 0.18 + 0.02 * as) { A.drop(t); G.ball.state = 'free'; G.ball.vel.set(dx * 3, 2, dz * 3); G.ball.noCatch = 0.3; } }
+  };
+
+  // Human B / E: swipe at the ball handler if close, else shove whoever is in front
+  A.stealOrShove = function (p) {
+    if (p.state === 'down' || p.state === 'dunk' || p.cd.steal > 0) return;
+    var holder = G.ball.holder, i, q, best = null, bd = 99;
+    var reach = 1.55 + 0.05 * p.def.stats.str;
+    if (holder && holder.team !== p.team && A.dist(p, holder) < reach + 0.2 && A.facing(p, holder, 1.1)) { if (A.steal(p, holder, 0.1)) return; if (p.def.type === 'strength' && A.dist(p, holder) < reach) A.shove(p, holder); return; }
+    for (i = 0; i < G.players.length; i++) { q = G.players[i]; if (q.team === p.team) continue; var d = A.dist(p, q); if (d < reach && d < bd && A.facing(p, q, 1.2)) { bd = d; best = q; } }
+    if (best) A.shove(p, best); else { p.state = 'steal'; p.stateT = 0; p.cd.steal = 0.5; }
+  };
+
+  /* ---------- blocks: an airborne defender's hands swat a shot out of the air (no goaltending) ---------- */
+  A.checkBlocks = function () {
+    var b = G.ball; if (b.state !== 'free' || !b.shot || b.airT > 0.9) return;
+    for (var i = 0; i < G.players.length; i++) {
+      var p = G.players[i]; if (p.team === b.shot.team || p.state === 'down') continue;
+      var hx = p.pos.x, hy = p.y + p.def.height + 0.28, hz = p.pos.z;
+      var d = Math.hypot(b.pos.x - hx, (b.pos.y - hy) * 0.8, b.pos.z - hz);
+      if (p.y > 0.2 && d < 0.55 + 0.025 * p.def.stats.block && !b.shot.checked[p.slot + 'x' + p.team]) { b.shot.checked[p.slot + 'x' + p.team] = true; if (Math.random() < (p.isHuman ? 1 : (0.45 + 0.05 * p.def.stats.block) * G.diff.block)) { A.swat(p, b, 1); return; } }
+    }
+  };
+  A.swat = function (p, b, power) {
+    var dx = b.pos.x - p.pos.x, dz = b.pos.z - p.pos.z, d = Math.max(0.05, Math.hypot(dx, dz));
+    var shooter = b.shot ? b.shot.by : null;
+    b.vel.set(dx / d * 6 * power + (shooter ? (shooter.pos.x - p.pos.x) * 0.5 : 0), 3 + 2 * power, dz / d * 6 * power + (shooter ? (shooter.pos.z - p.pos.z) * 0.5 : 0));
+    b.shot = null; b.pass = null; G.shotInAir = false; b.noCatch = 0.2; b.lastTouch = p; p.stats.blocks++;
+    Au.board(); Au.steal(); HW.FX.sparks(b.pos, 16);
+    UI.callout(U.pick(['DENIED!', 'GET OUTTA HERE!', 'NOT IN MY HOUSE!', 'REJECTED!']), '#ff6b6b', { life: 1.3 });
   };
 })(window.HW);
