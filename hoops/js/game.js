@@ -22,12 +22,15 @@ window.HW = window.HW || {};
     G.ball.onScore = function (hoopIdx) { G.onScore(hoopIdx); };
     G.ball.onEvent = G.onBallEvent;
     var q = /[?&]quick(=(\w+))?/.exec(location.search);
-    G.start({ teams: [['carl', 'tyler'], ['katelyn', 'kody']], human: (q && q[2]) || 'carl', difficulty: HW.settings.difficulty });
+    var hid = (q && q[2] && HW.PLAYERS[q[2]]) ? q[2] : 'carl', hteam = HW.PLAYERS[hid].team, teams = [null, null];
+    teams[hteam] = [hid, HW.TEAMS[hteam].roster.filter(function (id) { return id !== hid; })[hteam === 0 ? 0 : 1]];
+    teams[1 - hteam] = HW.TEAMS[1 - hteam].roster.slice(0, 2);
+    G.start({ teams: teams, human: hid, difficulty: HW.settings.difficulty });
   };
 
   G.onBallEvent = function (type, v, h) {
     var shot = G.ball.shot || G.lastShot;
-    if (type === 'bounce') Au.bounce(v);
+    if (type === 'bounce') { Au.bounce(v); var s0 = G.ball.shot; if (s0 && !s0.scored && G.ball.airT > 0.35) G.shotMissed(s0); }
     else if (type === 'rim') { Au.rim(v); if (G.ball.shot) G.ball.shot.rim = true; }
     else if (type === 'board') { Au.board(); if (G.ball.shot) G.ball.shot.board = true; }
   };
@@ -51,7 +54,7 @@ window.HW = window.HW || {};
     G.human.arrowOn = true;
     HW.XR.tint && HW.XR.tint(hdef.skin, hdef.color);
     HW.ctx.eyeY = G.human.eyeHeight(); HW.ctx.recenter && HW.ctx.recenter();
-    G.timeScale = 1; G.ball.setFire(false);
+    G.timeScale = 1; G.slowTarget = 1; G.ctx.comfortBoost = 0; G.runCalled = [false, false]; G.runPts = 0; G.runTeam = -1; G.ball.setFire(false);
     G.beginQuarter(true);
   };
 
@@ -109,7 +112,7 @@ window.HW = window.HW || {};
     var scorer = shot ? shot.by : (ball.dunkBy || ball.lastTouch);
     var three = !!(shot && shot.three), pts = ball.dunkBy ? 2 : (three ? 3 : 2);
     G.score[team] += pts; G.shotInAir = false;
-    if (scorer && scorer.team === team) { scorer.stats.pts += pts; scorer.stats.fgm++; if (three) scorer.stats.tpm++; }
+    if (scorer && scorer.team === team) { scorer.stats.pts += pts; scorer.stats.fgm++; if (three) scorer.stats.tpm++; if (ball.dunkBy) scorer.stats.dunks++; }
     if (shot) shot.scored = true;
     var clean = shot && !shot.rim && !shot.board;
     var txt = ball.dunkBy ? null : three ? U.pick(PH.three) : (clean && shot.quality === 'green') ? U.pick(PH.swish) : U.pick(PH.two);
@@ -119,7 +122,24 @@ window.HW = window.HW || {};
     G.phase = 'dead'; G.phaseT = 2.0; G.deadFor = team;
     G.scoredTeam = team; ball.dunkBy = null;
   };
-  G.afterScore = function (scorer, pts, shot) { /* stage 4: streaks / on fire */ };
+  G.afterScore = function (scorer, pts, shot) {
+    var team = scorer.team;
+    scorer.streak++;
+    if (!scorer.onFire && scorer.streak >= 3) G.ignite(scorer);
+    G.players.forEach(function (q) { if (q.team !== team && q.onFire) { q.setFire(false); q.streak = 0; UI.callout(q.def.first.toUpperCase() + ' COOLS OFF', '#9ad0ff', { life: 1.2, size: 80, silent: true }); } else if (q.team !== team) q.streak = 0; });
+    G.runPts = G.runTeam === team ? G.runPts + pts : pts; G.runTeam = team;
+    if (G.runPts >= 8 && G.score[1 - team] < G.score[team] - 5 && !G.runCalled[team]) { G.runCalled[team] = true; setTimeout(function () { UI.callout(HW.TEAMS[team].name.toUpperCase() + ' ON A RUN!', HW.TEAMS[team].color, { life: 1.6, size: 90 }); }, 1700); }
+    if (G.runTeam !== team) G.runCalled = [false, false];
+  };
+  G.runCalled = [false, false]; G.runPts = 0; G.runTeam = -1;
+  G.ignite = function (p) {
+    p.setFire(true); Au.fire();
+    UI.callout(p.def.first.toUpperCase() + ' IS ON FIRE!', '#ff5a1f', { life: 2.2, big: 1.15, dist: 3.8 });
+    HW.FX.sparks(new THREE.Vector3(p.pos.x, 1.2, p.pos.z), 40, ['#ff7a1a', '#ffd23f']);
+  };
+  G.shotMissed = function (shot) {
+    if (!shot || shot.resolved || shot.scored) return; shot.resolved = true; shot.by.streak = 0;
+  };
 
   function updateViewNow() { var v = G.ctx.view; G.ctx.camera.updateMatrixWorld(true); G.ctx.camera.getWorldPosition(v.pos); }
 
@@ -160,6 +180,7 @@ window.HW = window.HW || {};
       G.tickState(p, dt); Act.vertical(p, dt);
       p.cd.catchBlock = Math.max(0, (p.cd.catchBlock || 0) - dt);
     });
+    G.players.forEach(function (p) { if (p.state === 'dunk') Act.updateDunk(p, dt); });
     G.separate(dt);
 
     // ball
@@ -168,7 +189,9 @@ window.HW = window.HW || {};
     Act.carry(dt);
     if (live || G.phase === 'dead') { if (live) { Act.pickup(); Act.checkBlocks(); } b.step(dt); }
     b.sync();
+    var fb = !!((b.holder && b.holder.onFire) || (b.shot && b.shot.by.onFire)); if (fb !== b.fire) b.setFire(fb);
     if (b.fire) HW.FX.fireAt(b.pos, 0.15);
+    G.players.forEach(function (p) { if (p.onFire && (G.t * 60 | 0) % 2 === 0) { HW.FX.fireAt(_a.set(p.pos.x, p.y + 0.15 + Math.random() * 1.5, p.pos.z), 0.45); } });
 
     // VR: keep the head glued to the (collision-adjusted) player; jump lifts the rig
     if (vr && h) { ctx.moveRigTo(h.pos); ctx.rig.position.y = (ctx.seatOffset || 0) + h.y * HW.settings.vrJump; }
@@ -246,6 +269,16 @@ window.HW = window.HW || {};
     var jump = I.jump; if (I.vr && G.vrJumpGesture()) jump = true;
     if (jump) Act.jump(p);
     if (I.steal) Act.stealOrShove(p);
+    var hoop = G.world.hoops[p.team], hd = Math.hypot(hoop.x - p.pos.x, hoop.z - p.pos.z);
+    if (p.hasBall && I.turbo && p.turboOn && Math.hypot(wx, wz) > 0.5 && Act.canDunk(p, hd)) {
+      var tx = (hoop.x - p.pos.x) / hd, tz = (hoop.z - p.pos.z) / hd, mm = Math.hypot(wx, wz);
+      if ((wx * tx + wz * tz) / mm > 0.55) { G.vrHeld = -1; Act.startDunk(p); return; }
+    }
+    // ball handlers: reversing the stick hard is a crossover
+    var mmag = Math.hypot(wx, wz);
+    if (p.def.type === 'handler' && p.hasBall && mmag > 0.6 && G.lastMove && G.lastMove.m > 0.6 && (wx * G.lastMove.x + wz * G.lastMove.z) / mmag / G.lastMove.m < -0.2 && p.cd.juke <= 0) Act.juke(p, (wx * Math.cos(p.yaw) - wz * Math.sin(p.yaw)) >= 0 ? 1 : -1);
+    G.lastMove = { x: wx, z: wz, m: mmag };
+    if (I.vr) G.humanHands(p);
     if (I.pass && p.hasBall) { G.passTo(p); G.vrHeld = -1; }
     if (p.hasBall) { if (I.vr) G.humanVRBall(dt); else G.humanDesktopBall(dt); }
     else { G.vrHeld = -1; p.charging = false; G.charge = 0; }
@@ -255,6 +288,19 @@ window.HW = window.HW || {};
     var t = Act.passTarget(p); if (!t) { UI.callout('NO ONE TO PASS TO', '#ffffff', { life: 0.8, size: 80, silent: true }); return; }
     var from = I.vr ? I.hands[G.vrHeld >= 0 ? G.vrHeld : 1].pos.clone() : null;
     Act.pass(p, t, from);
+  };
+
+  // VR hands do real defense: swat a shot out of the air, or swipe at a dribble
+  G.humanHands = function (p) {
+    var b = G.ball, i, h, d;
+    for (i = 0; i < 2; i++) {
+      h = I.hands[i]; if (!h.valid) continue; d = h.pos.distanceTo(b.pos);
+      if (b.state === 'free' && b.shot && b.shot.team !== p.team && b.airT < 1.3 && d < 0.34) {
+        Act.swat(p, b, 1); b.vel.addScaledVector(h.vel, 0.6); return;
+      }
+      var hold = b.holder;
+      if (b.state === 'dribble' && hold && hold.team !== p.team && p.cd.steal <= 0 && d < 0.4 && h.vel.length() > 2.4) { if (!Act.steal(p, hold, 0.4)) p.cd.steal = 0.8; return; }
+    }
   };
 
   // quick raise of the free (left) hand above the head = jump

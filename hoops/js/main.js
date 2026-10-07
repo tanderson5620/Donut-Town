@@ -105,7 +105,7 @@ window.HW = window.HW || {};
     if (!I.vr) { camera.position.copy(view.pos); camera.rotation.set(view.pitch, view.yaw, 0, 'YXZ'); }
     HW.FX.update(dt); world.update(dt, now); HW.UI.updateCallouts(dt);
     // comfort overlays
-    var mv = Math.hypot(I.move.x, I.move.y) + Math.abs(I.smoothTurn) * 0.6;
+    var mv = Math.max(Math.hypot(I.move.x, I.move.y) + Math.abs(I.smoothTurn) * 0.6, ctx.comfortBoost || 0);
     vignAmt = U.damp(vignAmt, I.vr && settings.vignette ? Math.min(1, mv) : 0, mv > 0 ? 6 : 3, dt);
     vign.visible = vignAmt > 0.02; vign.material.opacity = vignAmt * 0.9; vign.scale.setScalar(1.15 - 0.5 * vignAmt);
     if (fadeT > 0) { fadeT -= dt; fade.visible = true; fade.material.opacity = Math.min(1, Math.sin(Math.max(0, fadeT) / fadeDur * Math.PI) * 1.6); if (fadeT <= 0) fade.visible = false; }

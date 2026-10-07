@@ -54,7 +54,7 @@ window.HW = window.HW || {};
 
   HW.FX = {
     init: function (scene) {
-      this.flame = new System(scene, 260, 0.34, true, -1.6, true);   // negative gravity = rises
+      this.flame = new System(scene, 260, 0.24, true, -1.6, true);   // negative gravity = rises
       this.spark = new System(scene, 220, 0.09, true, 6, false);
       this.debris = new System(scene, 260, 0.08, false, 7, false);
     },
@@ -65,7 +65,7 @@ window.HW = window.HW || {};
     fireAt: function (p, spread) {
       var s = spread || 0.1;
       this.flame.emit(p.x + (Math.random() - 0.5) * s, p.y + (Math.random() - 0.3) * s, p.z + (Math.random() - 0.5) * s,
-        (Math.random() - 0.5) * 0.5, 0.5 + Math.random() * 0.9, (Math.random() - 0.5) * 0.5, Math.random() < 0.5 ? '#ff7a1a' : '#ffc233', 0.55 + Math.random() * 0.3);
+        (Math.random() - 0.5) * 0.5, 0.5 + Math.random() * 0.9, (Math.random() - 0.5) * 0.5, Math.random() < 0.5 ? '#c24a08' : '#d98a14', 0.5 + Math.random() * 0.3);
     }
   };
 })(window.HW);

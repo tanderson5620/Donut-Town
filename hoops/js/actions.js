@@ -1,7 +1,7 @@
 /* actions.js - ball handling and player actions: carry/dribble, pickup, shoot, pass, jump (more added per stage) */
 window.HW = window.HW || {};
 (function (HW) {
-  var C = HW.C, U = HW.U, S = HW.Shoot, UI = HW.UI, Au = HW.Audio;
+  var C = HW.C, U = HW.U, S = HW.Shoot, UI = HW.UI, Au = HW.Audio, I = HW.Input;
   var A = HW.Act = {};
   var _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), G;
 
@@ -69,6 +69,8 @@ window.HW = window.HW || {};
       b.pos.x = p.pos.x + fx * lead + rx * 0.3 + p.vel.x * 0.04; b.pos.z = p.pos.z + fz * lead + rz * 0.3 + p.vel.z * 0.04;
       var top = H * 0.52 + p.y;
       b.pos.y = C.BALL_R + (top - C.BALL_R) * Math.abs(Math.sin(Math.PI * p.dribPhase)) * (p.y > 0.05 ? 0.4 : 1);
+    } else if (b.state === 'dunk') {
+      p.handWorld('r', _a); p.handWorld('l', _b); if (p.dunk && (p.dunk.style === 'twohand' || p.dunk.style === 'spin360')) b.pos.copy(_a).lerp(_b, 0.5); else b.pos.copy(_a); b.pos.y += 0.1;
     } else if (b.state === 'held') {
       if (p.isHuman && G.vrHeld >= 0) return;          // VR hand drives the ball itself
       p.handWorld('r', _a); p.handWorld('l', _b); b.pos.copy(_a).lerp(_b, 0.5); b.pos.y += 0.02;
@@ -226,7 +228,7 @@ window.HW = window.HW || {};
       var p = G.players[i]; if (p.team === b.shot.team || p.state === 'down') continue;
       var hx = p.pos.x, hy = p.y + p.def.height + 0.28, hz = p.pos.z;
       var d = Math.hypot(b.pos.x - hx, (b.pos.y - hy) * 0.8, b.pos.z - hz);
-      if (p.y > 0.2 && d < 0.55 + 0.025 * p.def.stats.block && !b.shot.checked[p.slot + 'x' + p.team]) { b.shot.checked[p.slot + 'x' + p.team] = true; if (Math.random() < (p.isHuman ? 1 : (0.45 + 0.05 * p.def.stats.block) * G.diff.block)) { A.swat(p, b, 1); return; } }
+      if (p.y > 0.2 && d < 0.55 + 0.025 * p.def.stats.block && !b.shot.checked[p.slot + 'x' + p.team]) { b.shot.checked[p.slot + 'x' + p.team] = true; if (Math.random() < (p.isHuman ? 1 : (0.32 + 0.04 * p.def.stats.block) * G.diff.block)) { A.swat(p, b, 1); return; } }
     }
   };
   A.swat = function (p, b, power) {
@@ -236,5 +238,59 @@ window.HW = window.HW || {};
     b.shot = null; b.pass = null; G.shotInAir = false; b.noCatch = 0.2; b.lastTouch = p; p.stats.blocks++;
     Au.board(); Au.steal(); HW.FX.sparks(b.pos, 16);
     UI.callout(U.pick(['DENIED!', 'GET OUTTA HERE!', 'NOT IN MY HOUSE!', 'REJECTED!']), '#ff6b6b', { life: 1.3 });
+  };
+
+  /* ---------- dunks: turbo + drive at the rim; slow-mo cinematic, style by Dunk rating ---------- */
+  var DUNK_NAMES = { onehand: 'JELLY-FILLED JAM!', twohand: 'TWO-HAND THUNDER!', tomahawk: 'TOMAHAWK CHOP!', windmill: 'WINDMILL WALLOP!', spin360: 'SPINNING SPRINKLE SLAM!', backflip: 'BACKFLIP BOOM!' };
+  A.dunkRange = function (p) { var t = HW.TYPES[p.def.type]; return 2.3 + 0.2 * p.def.stats.dunk + t.dunkRange; };
+  A.canDunk = function (p, d) {
+    if (!p.hasBall || p.state !== 'idle' || p.y > 0.05 || G.ball.state === 'free' || G.phase !== 'play') return false;
+    if (d === undefined) { var h = G.world.hoops[p.team]; d = Math.hypot(p.pos.x - h.x, p.pos.z - h.z); }
+    return d < A.dunkRange(p) && d > 1.2 && p.turbo > 12;
+  };
+  A.startDunk = function (p) {
+    var hoop = G.world.hoops[p.team], b = G.ball, st = p.def.stats.dunk, style;
+    if (st >= 9) style = U.pick(['windmill', 'spin360', 'backflip', 'tomahawk', 'windmill']);
+    else if (st >= 6) style = U.pick(['tomahawk', 'twohand', 'twohand']); else style = U.pick(['onehand', 'twohand', 'onehand']);
+    var H = C.RIM_H + 0.42 - (p.def.height + 0.3) + (st >= 9 ? 0.35 : 0);
+    p.state = 'dunk'; p.stateT = 0; p.turboOn = false;
+    p.dunk = { t: 0, dur: 0.95 + (st >= 9 ? 0.15 : 0), from: p.pos.clone(), to: new THREE.Vector3(hoop.x, 0, hoop.z + hoop.dir * 0.45), style: style, H: H, hangT: 0.6, scored: false, hoop: hoop };
+    p.yaw = U.yawOf(hoop.x - p.pos.x, hoop.z - p.pos.z); p.vel.set(0, 0, 0);
+    b.state = 'dunk'; b.holder = p; p.hasBall = true; G.slowTarget = 0.4;
+    if (p.isHuman) G.ctx.comfortBoost = 0.7;
+    Au.jump(); Au.whoosh(8);
+  };
+  A.updateDunk = function (p, dt) {
+    var d = p.dunk; if (!d) { p.state = 'idle'; return; }
+    d.t += dt / d.dur; var t = Math.min(1, d.t), u = U.easeInOut(Math.min(1, t / 0.6));
+    p.pos.x = U.lerp(d.from.x, d.to.x, u); p.pos.z = U.lerp(d.from.z, d.to.z, u);
+    var k = (t - 0.5) / 0.5; p.y = d.H * Math.max(0, 1 - k * k);
+    p.vel.set((d.to.x - d.from.x) / d.dur * 0.3, 0, (d.to.z - d.from.z) / d.dur * 0.3);
+    if (t >= 0.52 && !d.scored) A.dunkScore(p, d);
+    if (t >= 1) {
+      p.state = 'idle'; p.dunk = null; p.y = 0; p.vy = 0; p.vel.set(0, 0, 0); G.slowTarget = 1; G.ctx.comfortBoost = 0; Au.bounce(5);
+      if (p.isHuman && I.vr) I.resetHistory();
+    }
+  };
+  A.dunkScore = function (p, d) {
+    d.scored = true; var b = G.ball, h = d.hoop;
+    A.drop(p); b.state = 'free'; b.pos.set(h.x, C.RIM_H + 0.3, h.z); b.vel.set(0, -6.5, 0); b.shot = null; b.pass = null; b.dunkBy = p; b.scoredCd = 0; b.noCatch = 1;
+    h.shake = 1; Au.dunk(); Au.rim(9);
+    UI.callout(DUNK_NAMES[d.style], '#ff7a1a', { life: 2.0, big: 1.25, dist: 3.6 });
+    HW.FX.sparks(b.pos, 30, ['#ffd166', '#ff7a1a', '#ffffff']); HW.FX.confetti(new THREE.Vector3(h.x, C.RIM_H + 0.8, h.z), 70);
+    if (d.style === 'windmill' || d.style === 'backflip' || d.style === 'spin360' ? Math.random() < 0.55 : Math.random() < 0.12) G.world.shatter(h);
+  };
+
+  /* ---------- ball-handler crossover: burst sideways, defender loses his feet ---------- */
+  A.juke = function (p, side) {
+    if (p.cd.juke > 0) return; p.cd.juke = 2.2;
+    var yaw = p.yaw, rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    p.vel.x += rx * side * 4.6; p.vel.z += rz * side * 4.6; p.turbo = Math.min(100, p.turbo + 6); p.jukeT = 0.35;
+    var opp = null, bd = 2.0; G.opponentsOf(p).forEach(function (q) { var d = A.dist(p, q); if (d < bd && q.state === 'idle') { bd = d; opp = q; } });
+    Au.whoosh(6);
+    if (opp && Math.random() < 0.55 + 0.04 * p.def.stats.speed - 0.04 * opp.def.stats.speed) {
+      opp.slow = 0.9; if (Math.random() < 0.3) { A.knockdown(opp, rx * side * -1, rz * side * -1, 0.9); UI.callout('ANKLE BREAKER!', '#ffe14d', { life: 1.2 }); }
+      else UI.callout(U.pick(['CROSSOVER!', 'SHAKE AND BAKE!']), '#ffe14d', { life: 1.0 });
+    }
   };
 })(window.HW);
