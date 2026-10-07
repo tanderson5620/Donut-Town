@@ -154,6 +154,7 @@ window.HW = window.HW || {};
     var roof = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshLambertMaterial({ color: 0x15151f, side: THREE.DoubleSide })); roof.rotation.x = Math.PI / 2; roof.position.y = 14; scene.add(roof);
 
     world.makeBlob = function (r) { var b = makeBlob(r); scene.add(b); world.blobs.push(b); return b; };
+    world.removeBlob = function (b) { scene.remove(b); var i = world.blobs.indexOf(b); if (i >= 0) world.blobs.splice(i, 1); };
     world.blobAt = function (blob, x, z, height) {
       blob.position.x = x; blob.position.z = z; var s = U.clamp(1.15 - height * 0.18, 0.4, 1.2); blob.scale.set(s, s, 1); blob.material.opacity = U.clamp(1 - height * 0.12, 0.3, 1);
     };

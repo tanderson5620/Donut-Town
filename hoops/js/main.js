@@ -32,7 +32,7 @@ window.HW = window.HW || {};
     HW.UI.dom.init(); HW.UI.initCallouts(scene); HW.UI.scoreboard.build(scene); HW.UI.hud.build();
     buildComfort();
 
-    HW.XR.onStart = function () { rig.rotation.y = 0; rig.position.set(0, 0, 0); standing = true; seatOffset = 0; ctx.vrStart && ctx.vrStart(); };
+    HW.XR.onStart = function () { rig.rotation.y = 0; rig.position.set(0, 0, 0); standing = true; seatOffset = 0; ctx.seatOffset = 0; ctx.vrStart && ctx.vrStart(); };
     HW.XR.onEnd = function () { rig.position.set(0, 0, 0); rig.rotation.y = 0; camera.position.set(0, 0, 0); if (ctx.vrEnd) ctx.vrEnd(); };
     I.onControllerChange = function () { I.resetHistory(); attachWristHud(); };
     window.addEventListener('resize', function () { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
@@ -78,7 +78,7 @@ window.HW = window.HW || {};
   function recenter() {
     if (!I.vr) return;
     if (settings.seated) { seatOffset = (ctx.eyeY || 1.7) - camera.position.y; } else seatOffset = 0;
-    rig.position.y = seatOffset;
+    ctx.seatOffset = seatOffset; rig.position.y = seatOffset;
   }
   function setSeated(on) { settings.seated = on; HW.saveSettings(); recenter(); }
 

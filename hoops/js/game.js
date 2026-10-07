@@ -1,108 +1,316 @@
-/* game.js - STAGE 1: practice mode (one ball, one hoop, physical throwing). Replaced by the full game in later stages. */
+/* game.js - match flow: players, phases, clocks, scoring, human control, camera */
 window.HW = window.HW || {};
 (function (HW) {
-  var C = HW.C, U = HW.U, I = HW.Input, S = HW.Shoot, UI = HW.UI;
+  var C = HW.C, U = HW.U, I = HW.Input, S = HW.Shoot, UI = HW.UI, Au = HW.Audio, Act = HW.Act;
   var THROW_SCALE = 1.6;
-  var G = HW.Game = {};
+  var G = HW.Game = { players: [], human: null, score: [0, 0], q: 1, clock: 0, shotClock: 24, phase: 'idle', phaseT: 0, timeScale: 1, t: 0, possTeam: -1, charge: 0, vrHeld: -1, camMode: 'chase' };
   var _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
 
+  var PH = {
+    two: ['BUCKET!', 'NOTHING BUT NET!', 'CASH IT IN!', 'SPRINKLES!', 'FRESH FROM THE FRYER!', 'GLAZED IT!'],
+    three: ['SPLASH FROM DOWNTOWN!', 'RAIN MAKER!', 'THREE IN THE HOLE!', 'DEEP DISH DELIGHT!', 'FROM WAY OUT THERE!'],
+    swish: ['SWISHEROONI!', 'NOT A TOUCH!', 'PURE GLAZE!'],
+    dunk: ['KABLAMMO!', 'SLAM-A-LICIOUS!', 'JELLY-FILLED JAM!', 'SHAZAMMA-JAMMA!', 'ROOF-RATTLER!']
+  };
+  HW.PHRASES = PH;
+
   G.init = function (ctx) {
-    G.ctx = ctx; G.ball = ctx.ball; G.world = ctx.world; G.rig = ctx.rig; G.camera = ctx.camera;
-    G.me = { pos: new THREE.Vector3(0, 0, 3.5 - 9.38 + 2), vel: new THREE.Vector3(), yaw: 0, y: 0, def: { height: 1.85, stats: { tp: 6 } }, team: 0 };
-    G.makes = 0; G.att = 0; G.streak = 0; G.best = 0; G.held = -1; G.respawnT = 0; G.charge = 0; G.lastShot = null;
-    G.ball.onScore = G.onScore;
-    G.ball.onEvent = function (type, v, h) {
-      if (type === 'bounce') HW.Audio.bounce(v); else if (type === 'rim') { HW.Audio.rim(v); if (G.lastShot) G.lastShot.rim = true; } else if (type === 'board') { HW.Audio.board(); if (G.lastShot) G.lastShot.board = true; }
-    };
-    G.reset();
+    G.ctx = ctx; G.ball = ctx.ball; G.world = ctx.world; G.scene = ctx.scene; G.camera = ctx.camera; G.rig = ctx.rig;
+    Act.init(G);
+    ctx.vrStart = function () { G.pendingPlace = 3; };
+    ctx.vrEnd = function () { if (G.human) I.lookYaw = G.human.yaw; G.vrHeld = -1; };
+    G.ball.onScore = function (hoopIdx) { G.onScore(hoopIdx); };
+    G.ball.onEvent = G.onBallEvent;
+    var q = /[?&]quick(=(\w+))?/.exec(location.search);
+    G.start({ teams: [['carl', 'tyler'], ['katelyn', 'kody']], human: (q && q[2]) || 'carl', difficulty: HW.settings.difficulty, only: true });
   };
 
-  G.reset = function () {
-    G.ball.state = 'float'; G.held = -1; G.respawnT = 0; G.lastShot = null;
-    G.floatBall();
+  G.onBallEvent = function (type, v, h) {
+    var shot = G.ball.shot || G.lastShot;
+    if (type === 'bounce') Au.bounce(v);
+    else if (type === 'rim') { Au.rim(v); if (G.ball.shot) G.ball.shot.rim = true; }
+    else if (type === 'board') { Au.board(); if (G.ball.shot) G.ball.shot.board = true; }
   };
 
-  G.floatBall = function () {
-    var v = G.ctx.view, yaw = v.yaw;
-    G.ball.pos.set(v.pos.x - Math.sin(yaw) * 0.55, 1.15, v.pos.z - Math.cos(yaw) * 0.55);
-    G.ball.vel.set(0, 0, 0); G.ball.state = 'float'; G.ball.shot = null; G.ball.setFire(false);
+  /* ---------- setup ---------- */
+  G.start = function (setup) {
+    G.setup = setup;
+    G.players.forEach(function (p) { G.scene.remove(p.root); G.world.removeBlob(p.blob); });
+    G.players = []; G.human = null;
+    var hdef = HW.PLAYERS[setup.human], hteam = hdef.team;
+    var slotCount = [0, 0];
+    setup.teams.forEach(function (ids, team) {
+      ids.forEach(function (id) {
+        if (setup.only && id !== setup.human) return;
+        var p = new HW.Player(HW.PLAYERS[id], team, slotCount[team]++, G.world, G.scene, id === setup.human);
+        G.players.push(p); if (id === setup.human) G.human = p;
+      });
+    });
+    G.diff = HW.DIFFICULTY[setup.difficulty || 'normal']; G.humanTeam = hteam;
+    G.score = [0, 0]; G.q = 1; G.possTeam = -1; G.lastShot = null; G.shotInAir = false;
+    G.human.arrowOn = true;
+    HW.XR.tint && HW.XR.tint(hdef.skin, hdef.color);
+    HW.ctx.eyeY = G.human.eyeHeight(); HW.ctx.recenter && HW.ctx.recenter();
+    G.timeScale = 1; G.ball.setFire(false);
+    G.beginQuarter(true);
   };
 
-  G.onScore = function (hoopIdx, ball) {
-    if (hoopIdx !== 0) return;
-    var s = G.lastShot; if (s) s.scored = true; G.makes++; G.streak++; G.best = Math.max(G.best, G.streak);
-    var clean = s && !s.rim && !s.board, green = s && s.quality === 'green';
-    HW.Audio.swish(); HW.Audio.cheer(false);
-    UI.callout(green && clean ? 'SWISH!' : (s && s.three ? 'THREE!' : 'BUCKET!'), green ? '#5cffa0' : '#ffd23f', { life: 1.4 });
-    G.respawnT = 2.2;
+  G.opponentsOf = function (p) { return G.players.filter(function (q) { return q.team !== p.team; }); };
+  G.matesOf = function (p) { return G.players.filter(function (q) { return q.team === p.team && q !== p; }); };
+
+  /* ---------- phases & clocks ---------- */
+  G.beginQuarter = function (first) {
+    G.clock = G.q > 4 ? C.OT_S : C.QUARTER_S; G.shotClock = C.SHOT_CLOCK;
+    G.formation(first ? G.humanTeam : G.possTeam < 0 ? G.humanTeam : (G.q % 2 ? G.humanTeam : 1 - G.humanTeam), 'tip');
+    G.phase = 'countdown'; G.phaseT = 3.2; G.cdLast = 4;
+    UI.callout((G.q > 4 ? 'OVERTIME' : 'QUARTER ' + G.q), '#ffffff', { life: 1.6, size: 110, silent: true });
   };
 
-  G.update = function (dt, now) {
-    var b = G.ball, view = G.ctx.view, hoop = G.world.hoops[0];
-    if (!I.vr) view.pos.set(G.me.pos.x, 1.7, G.me.pos.z);
-    G.moveHuman(dt);
-    if (!I.vr) view.pos.set(G.me.pos.x, 1.7, G.me.pos.z);
-    if (I.pass) { G.floatBall(); G.held = -1; }
-    if (I.vr) G.updateVR(dt); else G.updateDesktop(dt);
-    if (b.state === 'free') {
-      if (G.respawnT > 0) { G.respawnT -= dt; if (G.respawnT <= 0) G.floatBall(); }
-      else if (b.restT > 1.2 || b.airT > 8) { if (G.lastShot && !G.lastShot.counted) { G.lastShot.counted = true; G.streak = 0; } G.floatBall(); }
-      else if (G.lastShot && !G.lastShot.counted && b.pos.y < 1.0 && b.airT > 0.4 && b.vel.y < 0) { G.lastShot.counted = true; if (!G.lastShot.scored) G.streak = 0; }
+  G.formation = function (team, mode) {
+    var own = team === 0 ? 1 : -1;               // +1: team 0's own half is +z
+    var off = G.players.filter(function (p) { return p.team === team; }), def = G.players.filter(function (p) { return p.team !== team; });
+    var yawOff = team === 0 ? 0 : Math.PI, yawDef = team === 0 ? Math.PI : 0;
+    G.players.forEach(function (p) { p.vel.set(0, 0, 0); p.y = 0; p.vy = 0; p.state = 'idle'; p.stateT = 0; p.dunk = null; p.slow = 0; p.cd.catchBlock = 0; p.turboLock = false; if (!p.onFire) p.hasBall = false; });
+    var spots;
+    if (mode === 'tip') spots = { off: [[0, own * 1.5], [3.0, own * 4.2]], def: [[-2.2, -own * 1.8], [2.2, -own * 3.5]] };
+    else spots = { off: [[0, own * 10.4], [3.0, own * 5.0]], def: [[-2.4, -own * 4.2], [2.4, -own * 4.2]] };
+    if (G.setup && G.setup.only) spots.off[0] = [0, own * 2.0];
+    off.forEach(function (p, i) { var s = spots.off[i] || spots.off[0]; p.pos.set(s[0], 0, s[1]); p.yaw = yawOff; });
+    def.forEach(function (p, i) { var s = spots.def[i] || spots.def[0]; p.pos.set(s[0], 0, s[1]); p.yaw = yawDef; });
+    var ball = G.ball, holder = off[0];
+    G.players.forEach(function (p) { p.hasBall = false; });
+    ball.holder = null; G.possTeam = -1; G.lastShot = null; G.shotInAir = false; ball.shot = null; ball.pass = null; ball.setFire(false);
+    if (holder) { Act.grab(holder); G.shotClock = C.SHOT_CLOCK; }
+    G.possTeam = team; G.shotClock = C.SHOT_CLOCK;
+    if (G.human) G.placeHuman(G.human);
+    if (G.human && G.human.onFire) ball.setFire(G.human.hasBall);
+  };
+
+  // Teleport the human's view onto their player (fades in VR)
+  G.placeHuman = function (p) {
+    var ctx = G.ctx;
+    if (HW.XR.presenting) {
+      ctx.fade(0.5); I.resetHistory();
+      ctx.camera.getWorldPosition(_a); ctx.rotateRig(U.angDiff(p.yaw, ctx.view.yaw));
+      ctx.moveRigTo(p.pos); ctx.view.yaw = p.yaw;
+    } else { I.lookYaw = p.yaw; I.lookPitch = -0.2; }
+    G.vrHeld = -1;
+  };
+
+  G.streakReset = function (prevTeam) { /* stage 4: on-fire ends when the other team scores */ };
+  G.onPossession = function (p) { };
+
+  /* ---------- scoring ---------- */
+  G.onScore = function (hoopIdx) {
+    if (G.phase !== 'play') return;
+    var team = hoopIdx, ball = G.ball, shot = ball.shot || null;
+    var scorer = shot ? shot.by : (ball.dunkBy || ball.lastTouch);
+    var three = !!(shot && shot.three), pts = ball.dunkBy ? 2 : (three ? 3 : 2);
+    G.score[team] += pts; G.shotInAir = false;
+    if (scorer && scorer.team === team) { scorer.stats.pts += pts; scorer.stats.fgm++; if (three) scorer.stats.tpm++; }
+    if (shot) shot.scored = true;
+    var clean = shot && !shot.rim && !shot.board;
+    var txt = ball.dunkBy ? null : three ? U.pick(PH.three) : (clean && shot.quality === 'green') ? U.pick(PH.swish) : U.pick(PH.two);
+    if (txt) UI.callout(txt, three ? '#ff9f43' : '#ffd23f', { life: 1.6 });
+    if (scorer) G.afterScore(scorer, pts, shot);
+    Au.swish(); Au.cheer(three || pts > 2);
+    G.phase = 'dead'; G.phaseT = 2.0; G.deadFor = team;
+    G.scoredTeam = team; ball.dunkBy = null;
+  };
+  G.afterScore = function (scorer, pts, shot) { /* stage 4: streaks / on fire */ };
+
+  function updateViewNow() { var v = G.ctx.view; G.ctx.camera.updateMatrixWorld(true); G.ctx.camera.getWorldPosition(v.pos); }
+
+  /* ---------- per-frame ---------- */
+  G.update = function (rdt, now) {
+    var ctx = G.ctx, view = ctx.view;
+    // slow-mo target (dunks) eases in and out
+    G.timeScale = U.damp(G.timeScale, G.slowTarget || 1, 6, rdt); var dt = rdt * G.timeScale; G.t += dt;
+    var vr = I.vr, h = G.human;
+    if (vr && G.pendingPlace && --G.pendingPlace === 0) { ctx.recenter(); G.placeHuman(h); updateViewNow(); }
+
+    // headset position is the authority for the VR player's body
+    if (vr && h && h.state !== 'dunk' && !G.pendingPlace) { h.pos.x = view.pos.x; h.pos.z = view.pos.z; }
+
+    if (I.camToggle) G.camMode = G.camMode === 'chase' ? 'first' : 'chase';
+    if (I.pause) { /* stage 5: pause menu */ I.pause = false; }
+
+    var live = G.phase === 'play';
+    if (G.phase === 'countdown') G.tickCountdown(rdt);
+    else if (G.phase === 'dead') { G.phaseT -= dt; if (G.phaseT <= 0) G.afterDead(); }
+    else if (G.phase === 'break') { G.phaseT -= rdt; if (G.phaseT <= 0) { G.q++; G.beginQuarter(false); } }
+    else if (G.phase === 'over') { G.phaseT -= rdt; if (G.phaseT <= 0) G.start(G.setup); }
+
+    if (live) {
+      G.clock -= dt;
+      if (!G.shotInAir && G.possTeam >= 0 && G.ball.state !== 'free') G.shotClock -= dt;
+      if (G.shotClock <= 0 && !G.shotInAir) G.shotViolation();
+      if (G.clock <= 0) G.endQuarter();
     }
-    b.step(dt); b.sync();
-    var dist = Math.hypot(G.me.pos.x - hoop.x, G.me.pos.z - hoop.z);
-    UI.scoreboard.set({ score: [G.makes, 0], names: ['MAKES', ''], msg: G.att ? Math.round(100 * G.makes / G.att) + '%  BEST STREAK ' + G.best : 'PRACTICE: GRIP + THROW', quarter: 1, clock: 0, shot: 0 });
-    UI.hud.update({ score: [G.makes, G.att], names: ['MAKES', 'SHOTS'], clock: dist, turbo: 100 * (1 - 0), charge: !I.vr && G.held === 99 ? G.charge : -1, green: [1, 0], msg: 'DIST ' + dist.toFixed(1) + ' m' + (S.isThree(G.me.pos, hoop) ? '  (3PT)' : '') }, I.vr);
+
+    // players
+    G.humanControl(dt, rdt);
+    G.players.forEach(function (p) {
+      if (p === h) return;
+      if (G.ai) G.ai(p, dt, live);
+    });
+    G.players.forEach(function (p) {
+      G.tickState(p, dt); Act.vertical(p, dt);
+      p.cd.catchBlock = Math.max(0, (p.cd.catchBlock || 0) - dt);
+    });
+    G.separate(dt);
+
+    // ball
+    var b = G.ball;
+    G.players.forEach(function (p) { p.animate(dt, G.t, G.ctx); p.root.updateMatrixWorld(true); });
+    Act.carry(dt);
+    if (live || G.phase === 'dead') { if (live) Act.pickup(); b.step(dt); }
+    b.sync();
+    if (b.fire) HW.FX.fireAt(b.pos, 0.15);
+
+    // VR: keep the head glued to the (collision-adjusted) player; jump lifts the rig
+    if (vr && h) { ctx.moveRigTo(h.pos); ctx.rig.position.y = (ctx.seatOffset || 0) + h.y * HW.settings.vrJump; }
+    G.updateCamera(rdt);
+    G.updateHud();
   };
 
-  G.moveHuman = function (dt) {
-    var me = G.me, spd = 3.6 * (I.turbo ? 1.5 : 1), yaw = G.ctx.view.yaw;
-    var mx = I.move.x, my = I.move.y;
-    var fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
-    me.vel.set((fx * my + rx * mx) * spd, 0, (fz * my + rz * mx) * spd);
-    if (I.vr) { _a.copy(G.ctx.view.pos); _a.addScaledVector(me.vel, dt); G.ctx.moveRigTo(_a); }
-    else { me.pos.addScaledVector(me.vel, dt); me.pos.x = U.clamp(me.pos.x, -C.BOUND_X, C.BOUND_X); me.pos.z = U.clamp(me.pos.z, -C.BOUND_Z, C.BOUND_Z); }
-    if (I.vr) { me.pos.copy(G.ctx.view.pos); me.pos.y = 0; }
+  G.tickCountdown = function (rdt) {
+    G.phaseT -= rdt; var n = Math.ceil(G.phaseT);
+    if (n !== G.cdLast && n >= 1 && n <= 3) { UI.callout(String(n), '#ffffff', { life: 0.8, size: 200, silent: true, dist: 3.4 }); Au.beep(false); }
+    G.cdLast = n;
+    if (G.phaseT <= 0) { G.phase = 'play'; UI.callout('GO!', '#5cffa0', { life: 0.8, size: 200, silent: true, dist: 3.4 }); Au.beep(true); Au.whistle(); }
   };
 
-  // ---- VR: ball follows a gripping hand; releasing the grip throws with the hand's velocity ----
-  G.updateVR = function (dt) {
-    var b = G.ball, hoop = G.world.hoops[0], i, h;
-    if (G.held < 0 && (b.state === 'float' || (b.state === 'free' && b.noCatch <= 0 && b.airT > 0.3))) {
-      for (i = 1; i >= 0; i--) { h = I.hands[i]; if (h.valid && h.grip && h.pos.distanceTo(b.pos) < 0.38) { G.held = i; b.state = 'held'; b.shot = null; HW.Audio.click(); break; } }
+  G.afterDead = function () {
+    var next = 1 - G.deadFor; if (G.setup.only) next = G.humanTeam;
+    G.ctx.fade && I.vr && G.ctx.fade(0.5);
+    G.formation(next, 'inbound'); G.phase = 'play'; G.slowTarget = 1; Au.whistle();
+  };
+
+  G.shotViolation = function () {
+    Au.buzzer(); UI.callout('SHOT CLOCK!', '#ff5a4a', { life: 1.2 });
+    G.formation(G.setup.only ? G.humanTeam : 1 - G.possTeam, 'inbound'); G.shotClock = C.SHOT_CLOCK;
+  };
+
+  G.endQuarter = function () {
+    G.clock = 0; Au.buzzer();
+    var tied = G.score[0] === G.score[1];
+    if (G.q >= 4 && !tied) { G.endGame(); return; }
+    G.phase = 'break'; G.phaseT = 4.5; G.slowTarget = 1;
+    UI.callout(G.q >= 4 ? 'TIED - OVERTIME!' : 'END OF QUARTER ' + G.q, '#ffffff', { life: 2.5, size: 100 });
+    G.players.forEach(function (p) { p.state = 'idle'; });
+  };
+  G.endGame = function () {
+    G.phase = 'over'; G.phaseT = 8; G.slowTarget = 1; Au.buzzer(); Au.cheer(true);
+    var w = G.score[0] > G.score[1] ? 0 : 1;
+    UI.callout(HW.TEAMS[w].name.toUpperCase() + ' WIN!', HW.TEAMS[w].color, { life: 4, size: 110 });
+    G.players.forEach(function (p) { p.state = p.team === w ? 'celebrate' : 'idle'; });
+    if (G.onGameOver) G.onGameOver(w);
+  };
+
+  G.tickState = function (p, dt) {
+    p.stateT += dt; var st = p.state;
+    if (st === 'shoot' && !p.charging && p.stateT > 0.45) p.state = 'idle';
+    else if (st === 'steal' && p.stateT > 0.35) p.state = 'idle';
+    else if (st === 'shove' && p.stateT > 0.4) p.state = 'idle';
+    else if (st === 'down' && p.stateT > p.downDur) { p.state = 'idle'; p.stateT = 0; }
+    for (var k in p.cd) if (k !== 'catchBlock') p.cd[k] = Math.max(0, p.cd[k] - dt);
+    if (p.slow > 0) p.slow = Math.max(0, p.slow - dt);
+    if (p.defendT > 0) p.defendT -= dt;
+  };
+
+  // soft body-to-body separation (the human's own displacement flows back to the rig)
+  G.separate = function (dt) {
+    var P = G.players;
+    for (var i = 0; i < P.length; i++) for (var j = i + 1; j < P.length; j++) {
+      var a = P[i], b = P[j]; if (a.state === 'dunk' || b.state === 'dunk' || a.state === 'down' || b.state === 'down') continue;
+      var dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d = Math.hypot(dx, dz), min = 0.55 * (a.def.bulk + b.def.bulk) * 0.5 + 0.2;
+      if (d < min && d > 1e-4) { var push = (min - d) * 0.5, nx = dx / d, nz = dz / d; a.pos.x -= nx * push; a.pos.z -= nz * push; b.pos.x += nx * push; b.pos.z += nz * push; }
     }
-    if (G.held >= 0) {
-      h = I.hands[G.held]; b.pos.copy(h.pos); b.vel.set(0, 0, 0);
+  };
+
+  /* ---------- human control (VR and desktop) ---------- */
+  G.humanControl = function (dt, rdt) {
+    var p = G.human; if (!p) return; var view = G.ctx.view, live = G.phase === 'play' || G.phase === 'dead';
+    var yaw = view.yaw, fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    var mx = live ? I.move.x : 0, my = live ? I.move.y : 0;
+    var wx = fx * my + rx * mx, wz = fz * my + rz * mx;
+    if (p.state === 'dunk') { return; }
+    Act.move(p, wx, wz, I.turbo && live, dt, 1);
+    // face where you look; the body model follows
+    if (I.vr) p.yaw = yaw; else p.yaw += U.angDiff(yaw, p.yaw) * (1 - Math.exp(-14 * rdt));
+    if (!live) return;
+    var jump = I.jump; if (I.vr && G.vrJumpGesture()) jump = true;
+    if (jump) Act.jump(p);
+    if (p.hasBall) { if (I.vr) G.humanVRBall(dt); else G.humanDesktopBall(dt); }
+    else { G.vrHeld = -1; p.charging = false; G.charge = 0; }
+  };
+
+  // quick raise of the free (left) hand above the head = jump
+  G.vrJumpGesture = function () {
+    var hs = I.hands[0]; if (!hs.valid || G.human.y > 0.02) return false;
+    if (hs.vel.y > 2.6 && hs.pos.y > G.ctx.view.pos.y - 0.05 && !(hs.grip)) return true; return false;
+  };
+
+  // VR: grip holds the ball in that hand; releasing the grip throws it with the hand's velocity
+  G.humanVRBall = function (dt) {
+    var p = G.human, b = G.ball, h, i;
+    if (G.vrHeld < 0) {
+      for (i = 1; i >= 0; i--) { h = I.hands[i]; if (h.valid && h.grip) { G.vrHeld = i; b.state = 'held'; b.holder = p; p.hasBall = true; HW.Audio.click(); break; } }
+    }
+    if (G.vrHeld >= 0) {
+      h = I.hands[G.vrHeld]; b.pos.lerp(h.pos, 0.6); if (b.pos.distanceTo(h.pos) < 0.05) b.pos.copy(h.pos);
+      b.vel.set(0, 0, 0); p.charging = false;
       if (!h.grip) {
-        _a.copy(h.vel).multiplyScalar(THROW_SCALE); G.release(_a, h.pos);
+        var v = _a.copy(h.vel); G.vrHeld = -1;
+        if (v.length() > 2.2) { v.multiplyScalar(THROW_SCALE); p.state = 'shoot'; p.stateT = 0.3; Act.release(p, v.clone(), h.pos.clone()); }
+        else { b.state = 'dribble'; p.dribPhase = 0.3; }
       }
     }
   };
 
-  // ---- Desktop: hold the mouse to charge, release near the green zone to shoot ----
-  G.updateDesktop = function (dt) {
-    var b = G.ball, v = G.ctx.view;
-    if (b.state === 'float' && (I.mouseEdge || I.shootEdge)) { b.state = 'held'; G.held = 99; G.charge = 0; return; }
-    if (b.state === 'float') { b.state = 'held'; G.held = 99; G.charge = 0; }
-    if (G.held === 99) {
-      var yaw = v.yaw;
-      b.pos.set(v.pos.x - Math.sin(yaw) * 0.45 + Math.cos(yaw) * 0.22, 1.25 - (I.mouse.down ? 0 : 0.12) , v.pos.z - Math.cos(yaw) * 0.45 - Math.sin(yaw) * 0.22);
-      if (I.shootHeld) G.charge = Math.min(1, G.charge + dt / 0.9); else if (!I.shootRelease) G.charge = 0;
-      if (I.shootRelease && G.charge > 0.05) {
-        var hoop = G.world.hoops[0], from = _b.set(v.pos.x, 1.9, v.pos.z), ideal = S.ideal(from, hoop, _c);
-        var pitch = Math.atan2(ideal.y, Math.hypot(ideal.x, ideal.z)), sp = ideal.length() * (0.5 + 0.77 * G.charge);
-        _a.set(-Math.sin(yaw) * Math.cos(pitch) * sp, Math.sin(pitch) * sp, -Math.cos(yaw) * Math.cos(pitch) * sp);
-        G.release(_a, from); G.charge = 0;
-      }
+  // Desktop: hold the mouse to raise the ball and charge, release near the green zone
+  G.humanDesktopBall = function (dt) {
+    var p = G.human, b = G.ball, view = G.ctx.view;
+    if (I.shootHeld && b.state !== 'free') {
+      if (!p.charging) { p.charging = true; G.charge = 0; b.state = 'held'; p.state = 'shoot'; }
+      G.charge = Math.min(1, G.charge + dt / 0.9); p.stateT = 0.18 + G.charge * 0.1;
+    }
+    if (I.shootRelease && p.charging) {
+      p.charging = false; var ch = G.charge; G.charge = 0;
+      if (ch < 0.1) { b.state = 'dribble'; p.state = 'idle'; if (G.passTo) G.passTo(p); return; }
+      var hoop = G.world.hoops[p.team];
+      p.handWorld('r', _b); p.handWorld('l', _c); _b.lerp(_c, 0.5); if (_b.y < p.y + p.def.height) _b.y = p.y + p.def.height + 0.1;
+      var ideal = S.ideal(_b, hoop, new THREE.Vector3()), pitch = Math.atan2(ideal.y, Math.hypot(ideal.x, ideal.z)), sp = ideal.length() * (0.5 + 0.77 * ch);
+      var yaw = view.yaw; _a.set(-Math.sin(yaw) * Math.cos(pitch) * sp, Math.sin(pitch) * sp, -Math.cos(yaw) * Math.cos(pitch) * sp);
+      p.state = 'shoot'; p.stateT = 0.32;
+      Act.release(p, _a.clone(), _b.clone());
+    }
+    if (!I.shootHeld && p.charging && !I.shootRelease) { p.charging = false; G.charge = 0; b.state = 'dribble'; p.state = 'idle'; }
+    if (I.pass && G.passTo) G.passTo(p);
+  };
+
+  /* ---------- camera ---------- */
+  G.updateCamera = function (rdt) {
+    if (I.vr) { var h = G.human; if (h) h.setHidden(true); return; }
+    var view = G.ctx.view, p = G.human; if (!p) return;
+    I.wantLock = G.phase !== 'menu';
+    p.setHidden(G.camMode === 'first');
+    if (G.camMode === 'first') {
+      view.pos.set(p.pos.x, p.y + p.eyeHeight(), p.pos.z);
+    } else {
+      var yaw = view.yaw, pitch = U.clamp(view.pitch, -0.8, 0.2), dist = 3.6, h2 = 2.1 - pitch * 2.5;
+      var cx = p.pos.x + Math.sin(yaw) * dist, cz = p.pos.z + Math.cos(yaw) * dist;
+      view.pos.set(U.clamp(cx, -12, 12), Math.max(0.6, p.y * 0.5 + h2), U.clamp(cz, -14.5, 14.5));
+      view.pitch = -0.2 + pitch * 0.5 - 0.08;
     }
   };
 
-  G.release = function (raw, from) {
-    var b = G.ball, me = G.me, hoop = G.world.hoops[0];
-    var res = S.resolve(raw, { from: from, hoop: hoop, mates: [], assist: 0.55, greenWin: 1.2, contest: 0 });
-    var shot = null;
-    if (res.kind === 'shot') { shot = { by: me, quality: res.quality, three: S.isThree(me.pos, hoop), rim: false, board: false }; G.att++; G.lastShot = shot; if (res.quality === 'green') UI.callout('GREEN!', '#5cffa0', { life: 0.8, size: 110, silent: true }); }
-    b.throwWith(res.vel, shot); b.pos.copy(from); G.held = -1; HW.Audio.whoosh(res.vel.length());
-    if (!shot) G.respawnT = 3;
+  G.updateHud = function () {
+    var p = G.human, SB = UI.scoreboard, names = [HW.TEAMS[0].short, HW.TEAMS[1].short];
+    var msg = G.phase === 'play' || G.phase === 'dead' ? '' : G.phase === 'countdown' ? 'GET READY' : G.phase === 'break' ? 'BREAK' : 'FINAL';
+    SB.set({ score: G.score.slice(), names: names, colors: [HW.TEAMS[0].color, HW.TEAMS[1].color], quarter: G.q, clock: G.clock, shot: G.shotClock, msg: msg, poss: G.possTeam, fire: [false, false] });
+    UI.hud.update({ score: G.score.slice(), names: names, colors: [HW.TEAMS[0].color, HW.TEAMS[1].color], clock: G.clock, quarter: G.q, shot: G.shotClock, turbo: p ? p.turbo : 0, fire: p ? p.onFire : false,
+      charge: !I.vr && p && p.charging ? G.charge : -1, green: [p ? p.st.greenWin : 1, 0], msg: '' }, I.vr);
   };
 })(window.HW);
