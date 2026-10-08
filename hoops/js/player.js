@@ -136,6 +136,7 @@ window.HW = window.HW || {};
     }
     this.legR = leg(1); this.legL = leg(-1);
     this.standY = hipY;
+    if (HW.Athlete && HW.Athlete.available()) this.buildAthlete(skin);
     if (HW.HIGH) body.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
     // name tag
     var nm = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTexture(d), transparent: true, depthWrite: false, fog: false }));
@@ -144,6 +145,39 @@ window.HW = window.HW || {};
     var call = new THREE.Sprite(new THREE.SpriteMaterial({ map: U.canvasTex(64, 64, function (g) { g.fillStyle = '#ffd23f'; g.beginPath(); g.arc(32, 32, 28, 0, 6.283); g.fill(); g.fillStyle = '#000'; g.font = 'bold 44px Arial Black'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('!', 32, 36); }), transparent: true, depthTest: false }));
     call.scale.set(0.28, 0.28, 1); call.position.y = H + 0.72; call.visible = false; root.add(call); this.callMark = call;
     this.rim = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.035, 5, 18), new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.8 })); this.rim.rotation.x = Math.PI / 2; this.rim.position.y = 0.04; this.rim.visible = false; root.add(this.rim);
+  };
+
+  // Swap the simple shapes for the sculpted, skinned athlete body (the shapes stay as an invisible pose rig)
+  Player.prototype.buildAthlete = function () {
+    var d = this.def, L = d.look || {}, team = HW.TEAMS[this.team];
+    this.body.traverse(function (o) { if (o.isMesh) o.visible = false; });
+    var A = HW.Athlete.build({
+      skin: d.skin, iris: L.iris, hair: { style: d.hairStyle, color: d.hair }, brow: d.brow, band: d.noBand ? null : L.band,
+      glasses: L.glasses, jersey: d.color, trim: '#f6f6f2', dark: team.dark, num: d.num, team: team.name.toUpperCase(), name: d.first.toUpperCase(),
+      shorts: d.shorts, plainShorts: L.plainShorts, shoe: L.shoe, noSocks: L.noSocks
+    });
+    var s = d.height / 1.89, bx = 1 + (d.bulk - 1) * 0.45, bz = bx * (d.belly ? 1.08 : 1);
+    A.root.scale.setScalar(s); A.root.rotation.y = Math.PI; this.body.add(A.root);
+    A.spine.scale.set(bx, 1, bz); A.neck.scale.set(1 / bx, 1, 1 / bz); A.sh.forEach(function (sh) { sh.scale.set(1 / bx, 1, 1 / bz); });
+    if (HW.HIGH) A.root.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
+    this.ath = A; this.athS = s; this.handR = A.palm[0]; this.handL = A.palm[1]; this.mats = this.mats.concat(A.mats);
+  };
+
+  // copy the pose rig's joint angles onto the athlete skeleton (it faces +Z, so x/z rotations flip sign and sides swap)
+  Player.prototype.poseAthlete = function (dt) {
+    var A = this.ath, R = this.armR, Lf = this.armL;
+    A.sh[0].rotation.set(-R.s.rotation.x, 0, -R.s.rotation.z - 0.04); A.el[0].rotation.x = -R.e.rotation.x;
+    A.sh[1].rotation.set(-Lf.s.rotation.x, 0, -Lf.s.rotation.z + 0.04); A.el[1].rotation.x = -Lf.e.rotation.x;
+    var legs = [this.legR, this.legL];
+    for (var i = 0; i < 2; i++) {
+      A.th[i].rotation.x = -legs[i].h.rotation.x; A.kn[i].rotation.x = -legs[i].k.rotation.x;
+      A.feet[i].rotation.x = -(A.th[i].rotation.x + A.kn[i].rotation.x) * (this.y > 0.05 ? 0.4 : 0.9);
+    }
+    A.hips.position.y = 1.02 - (this.standY - this.hips.position.y) / this.athS;
+    A.hips.rotation.x = -this.hips.rotation.x; A.spine.rotation.x = -this.spine.rotation.x * 0.6; A.chest.rotation.x = -this.spine.rotation.x * 0.4;
+    A.head.rotation.x = -this.head.rotation.x;
+    if (A.pony) A.pony.rotation.x = -0.35 - Math.min(0.6, Math.hypot(this.vel.x, this.vel.z) * 0.08) + Math.sin(this.phase * 2) * 0.08;
+    A.face.update(dt, HW.view && HW.view.pos);
   };
 
   Player.prototype.eyeHeight = function () { return this.def.height - C.EYE_ADJUST; };
@@ -215,13 +249,14 @@ window.HW = window.HW || {};
       this.body.rotation.x = U.easeOut(Math.min(fd, rec)) * (-Math.PI / 2 + 0.1); this.body.position.set(0, 0.2 * Math.min(fd, rec), 0.4 * Math.min(fd, rec));
     } else { this.body.rotation.x = a.flip; this.body.position.set(0, a.flip ? 0.4 * Math.sin(-a.flip / 2) * 0 : 0, 0); }
     if (this.pony) this.pony.rotation.x = -0.6 - run * 0.4 + Math.sin(t * 9) * 0.1 * run;
-    var big = HW.Input.vr ? 1 : 1.45; this.head.scale.setScalar(big); this.nameTag.position.y = this.nameY + (big - 1) * 0.3;   // arcade big heads off-headset
+    var big = this.ath || HW.Input.vr ? 1 : 1.45; this.head.scale.setScalar(big); this.nameTag.position.y = this.nameY + (big - 1) * 0.3;   // arcade big heads off-headset
     this.head.rotation.x = st === 'down' ? 0.2 : (st === 'shoot' ? -0.35 : 0);
     // overlays
     this.arrow.visible = this.isHuman && this.arrowOn; if (this.arrow.visible) { this.arrow.position.y = H + 0.75 + Math.sin(t * 5) * 0.05; this.arrow.material.color.set(this.def.color); }
     this.callMark.visible = this.callT > 0; if (this.callT > 0) this.callT -= dt;
     if (this.onFire) { this.rim.rotation.z += dt * 3; this.rim.scale.setScalar(1 + 0.1 * Math.sin(t * 12)); }
     this.world.blobAt(this.blob, this.pos.x, this.pos.z, this.y);
+    if (this.ath) this.poseAthlete(dt);
   };
 
   HW.Player = Player;
