@@ -27,6 +27,20 @@ window.HW = window.HW || {};
     }, { aniso: 2 });
   }
 
+  // skin with freckles and a little sun color, for players whose photo shows it
+  var frCache = {};
+  function freckleTexture(base) {
+    if (frCache[base]) return frCache[base];
+    return (frCache[base] = U.canvasTex(256, 256, function (g, w, h) {
+      g.fillStyle = base; g.fillRect(0, 0, w, h);
+      var c = new THREE.Color(base);
+      for (var i = 0; i < 260; i++) {
+        var k = 0.8 + U.hash(i * 3.3) * 0.1; g.fillStyle = 'rgba(' + Math.round(c.r * 255 * k) + ',' + Math.round(c.g * 255 * k * 0.92) + ',' + Math.round(c.b * 255 * k * 0.85) + ',' + (0.18 + U.hash(i) * 0.22) + ')';
+        g.beginPath(); g.arc(U.hash(i * 1.7) * w, U.hash(i * 9.1) * h, 0.6 + U.hash(i * 4.4) * 1.0, 0, 6.283); g.fill();
+      }
+    }, { aniso: 2 }));
+  }
+
   function limb(len, r0, r1, mat) { var m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, len, 7), mat); m.position.y = -len / 2; return m; }
 
   function Player(def, teamIdx, slot, world, scene, isHuman) {
@@ -43,9 +57,9 @@ window.HW = window.HW || {};
 
   Player.prototype.build = function (scene) {
     var d = this.def, H = d.height, k = H / 1.8, b = d.bulk;
-    var skin = U.mat({ color: d.skin, roughness: 0.55 }), jersey = U.mat({ map: jerseyTexture(d, this.team), roughness: 0.85 });
-    var shorts = U.mat({ color: new THREE.Color(d.color).multiplyScalar(0.55), roughness: 0.7 });
-    var shoe = U.mat({ color: 0xf4f4f4, roughness: 0.45 }), sole = U.mat({ color: new THREE.Color(d.color), roughness: 0.5 });
+    var skin = d.freckles ? U.mat({ map: freckleTexture(d.skin), roughness: 0.55 }) : U.mat({ color: d.skin, roughness: 0.55 }), jersey = U.mat({ map: jerseyTexture(d, this.team), roughness: 0.85 });
+    var shorts = U.mat({ color: d.shorts || new THREE.Color(d.color).multiplyScalar(0.55), roughness: 0.7 });
+    var shoe = U.mat({ color: d.shoes || 0xf4f4f4, roughness: d.shoes ? 0.95 : 0.45 }), sole = U.mat({ color: d.soles || new THREE.Color(d.color), roughness: 0.5 });
     var hairM = U.mat({ color: d.hair, roughness: 0.9 });
     this.mats = [skin, jersey, shorts];
     var root = this.root = new THREE.Group(); scene.add(root);
@@ -56,14 +70,36 @@ window.HW = window.HW || {};
     // torso (jersey wraps around, number front and back)
     var spine = this.spine = new THREE.Group(); spine.position.y = 0.06 * k; hips.add(spine);
     var torsoH = 0.45 * k;
-    var tor = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * b * k, 0.155 * b * k, torsoH, 10), jersey); tor.position.y = torsoH / 2; spine.add(tor);
+    var torGeo;
+    if (d.belly) {   // barrel torso: a comfortable middle that eases into the chest, same jersey wrap
+      var R = 0.2 * b * k, pts = [[0.8, 0], [0.95, 0.12], [1.04, 0.3], [1.02, 0.5], [0.93, 0.72], [0.98, 0.9], [0.9, 1]].map(function (q) { return new THREE.Vector2(q[0] * R, q[1] * torsoH); });
+      torGeo = new THREE.LatheGeometry(pts, 14);
+    } else torGeo = new THREE.CylinderGeometry(0.2 * b * k, 0.155 * b * k, torsoH, 10);
+    var tor = new THREE.Mesh(torGeo, jersey); tor.position.y = d.belly ? 0 : torsoH / 2; if (d.belly) tor.scale.z = 1.08; spine.add(tor);
     // head
     var head = this.head = new THREE.Group(); head.position.y = torsoH + 0.15 * k; spine.add(head);
     var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * k, 0.06 * k, 0.1 * k, 6), skin); neck.position.y = -0.06 * k; head.add(neck);
     var hr = 0.115 * k, hm = new THREE.Mesh(new THREE.SphereGeometry(hr, HW.HIGH ? 20 : 12, HW.HIGH ? 14 : 9), skin); hm.scale.set(0.92, 1.08, 1); head.add(hm);
+    var browM = U.mat({ color: d.brow || d.hair, roughness: 0.9 }), lipM = U.mat({ color: new THREE.Color(d.skin).multiplyScalar(0.72), roughness: 0.6 });
     [-1, 1].forEach(function (s) {
-      var e = new THREE.Mesh(new THREE.SphereGeometry(0.014 * k, 5, 4), new THREE.MeshBasicMaterial({ color: 0x151515 })); e.position.set(s * 0.042 * k, 0.015 * k, -hr * 0.93); head.add(e);
+      var e = new THREE.Mesh(new THREE.SphereGeometry(0.014 * k, 6, 5), new THREE.MeshBasicMaterial({ color: 0x151515 })); e.position.set(s * 0.042 * k, 0.015 * k, -hr * 0.93); head.add(e);
+      var ear = new THREE.Mesh(new THREE.SphereGeometry(0.03 * k, 7, 6), skin); ear.scale.set(0.4, 0.75, 0.55); ear.position.set(s * hr * 0.9, 0.0, 0.005 * k); head.add(ear);
+      var br = new THREE.Mesh(new THREE.BoxGeometry(0.038 * k, 0.008 * k, 0.012 * k), browM); br.position.set(s * 0.043 * k, 0.042 * k, -hr * 0.92); br.rotation.z = -s * 0.12; head.add(br);
     });
+    var nose = new THREE.Mesh(new THREE.ConeGeometry(0.016 * k, 0.04 * k, 6), skin); nose.rotation.x = -Math.PI / 2 - 0.3; nose.position.set(0, -0.008 * k, -hr * 1.0); head.add(nose);
+    [-1, 1].forEach(function (s) {   // a relaxed half smile
+      var m = new THREE.Mesh(new THREE.BoxGeometry(0.024 * k, 0.007 * k, 0.01 * k), lipM); m.position.set(s * 0.011 * k, -0.049 * k + 0.002 * k, -hr * 0.9); m.rotation.z = s * 0.2; head.add(m);
+    });
+    if (d.glasses) {   // thin dark wire frames with brown tinted lenses
+      var frame = U.mat({ color: 0x2e2a28, roughness: 0.35, metalness: 0.6 });
+      var lens = new THREE.MeshStandardMaterial({ color: 0x6a4a35, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.72 });
+      [-1, 1].forEach(function (s) {
+        var l = new THREE.Mesh(new THREE.CylinderGeometry(0.019 * k, 0.019 * k, 0.003 * k, 14), lens); l.rotation.x = Math.PI / 2; l.scale.set(1.15, 1, 0.75); l.position.set(s * 0.042 * k, 0.014 * k, -hr * 0.99); head.add(l);
+        var rimTop = new THREE.Mesh(new THREE.BoxGeometry(0.042 * k, 0.003 * k, 0.004 * k), frame); rimTop.position.set(s * 0.042 * k, 0.029 * k, -hr * 0.995); head.add(rimTop);
+        var tmp = new THREE.Mesh(new THREE.BoxGeometry(0.004 * k, 0.004 * k, hr * 0.95), frame); tmp.position.set(s * hr * 0.93, 0.025 * k, -hr * 0.5); head.add(tmp);
+      });
+      var bridge = new THREE.Mesh(new THREE.BoxGeometry(0.018 * k, 0.004 * k, 0.005 * k), frame); bridge.position.set(0, 0.024 * k, -hr * 1.01); head.add(bridge);
+    }
     var hs = d.hairStyle;
     if (hs === 'afro') { var af = new THREE.Mesh(new THREE.SphereGeometry(hr * 1.28, 10, 8), hairM); af.position.y = hr * 0.25; head.add(af); }
     else if (hs === 'fade') { var fd = new THREE.Mesh(new THREE.SphereGeometry(hr * 1.03, 10, 7, 0, 6.283, 0, 1.25), hairM); fd.position.y = hr * 0.06; head.add(fd); }
@@ -71,8 +107,11 @@ window.HW = window.HW || {};
       var pt = new THREE.Mesh(new THREE.CylinderGeometry(0.02 * k, 0.045 * k, 0.2 * k, 6), hairM); pt.position.set(0, 0.0, hr * 1.0); pt.rotation.x = -0.6; head.add(pt); this.pony = pt; }
     else if (hs === 'bun') { var bc = new THREE.Mesh(new THREE.SphereGeometry(hr * 1.07, 10, 7, 0, 6.283, 0, 1.55), hairM); bc.position.y = hr * 0.06; head.add(bc);
       var bn = new THREE.Mesh(new THREE.SphereGeometry(hr * 0.5, 7, 6), hairM); bn.position.set(0, hr * 1.1, hr * 0.35); head.add(bn); }
+    else if (hs === 'swept') {   // short, swept back, higher hairline in front
+      var sw = new THREE.Mesh(new THREE.SphereGeometry(hr * 1.06, 16, 10, 0, 6.283, 0, 1.2), hairM); sw.position.set(0, hr * 0.1, hr * 0.03); sw.rotation.x = 0.22; sw.scale.set(0.98, 1.0, 1.02); head.add(sw);
+    }
     else { var sc = new THREE.Mesh(new THREE.SphereGeometry(hr * 1.06, 10, 7, 0, 6.283, 0, 1.4), hairM); sc.position.y = hr * 0.08; head.add(sc); }
-    var band = new THREE.Mesh(new THREE.CylinderGeometry(hr * 1.02, hr * 1.02, 0.03 * k, 10, 1, true), new THREE.MeshLambertMaterial({ color: d.color, side: THREE.DoubleSide })); band.position.y = hr * 0.42; head.add(band);
+    var band = new THREE.Mesh(new THREE.CylinderGeometry(hr * 1.02, hr * 1.02, 0.03 * k, 10, 1, true), new THREE.MeshLambertMaterial({ color: d.color, side: THREE.DoubleSide })); band.position.y = hr * 0.42; if (!d.noBand) head.add(band);
     // arms
     var self = this, armLen = 0.27 * k;
     function arm(side) {
