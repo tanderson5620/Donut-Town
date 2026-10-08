@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Hoops Jam sprite factory</title></head>
 <body style="margin:0;background:#333">
-<!-- Offline tool: poses the realistic athlete body through every animation and saves flat sprite frames
-     (like the digitized frames of the classic arcade games). Run by tools/gen.js with Playwright. -->
+<!-- Offline tool: poses the realistic athlete body through every animation and bakes flat 2D arcade sprite frames, like the
+     digitized frames of the classic arcade games: supersampled render under hard arcade lights, hard-cut alpha, a limited
+     palette per sheet with a light ordered dither and a 1 px dark outline. The big heads get soft studio portrait lighting
+     and the same digitized finish. Run by tools/gen.js with Playwright (it writes the indexed PNGs). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="../../hoops/js/config.js"></script>
 <script src="../../hoops/js/util.js"></script>
@@ -10,19 +12,29 @@
 <script src="../../hoops/js/athlete.js"></script>
 <script src="../../hoops/js/player.js"></script>
 <script>
-var FW = 96, FH = 128, SS = 2;                 // frame size, supersampling
+var PPM = 72, FW = 138, FH = 188, SS = 3;      // 72 px per meter (the close game camera draws 62-80), frame size, supersampling
 var R = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-R.setPixelRatio(1); R.setSize(FW * SS, FH * SS); R.setClearColor(0x000000, 0);
-R.outputEncoding = THREE.sRGBEncoding; R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = 0.95;
+R.setPixelRatio(1); R.setClearColor(0x000000, 0);
+R.outputEncoding = THREE.sRGBEncoding; R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = 1.0;
 document.body.appendChild(R.domElement);
-var scene = new THREE.Scene();
-scene.add(new THREE.HemisphereLight(0xfff4e8, 0x4a4050, 0.75));
-var key = new THREE.DirectionalLight(0xfff0dc, 1.5); key.position.set(-2, 4, 5); scene.add(key);
-var fill = new THREE.DirectionalLight(0xc8d8ff, 0.5); fill.position.set(4, 2, -3); scene.add(fill);
+var scene = new THREE.Scene(), V3 = THREE.Vector3;
 HW.HIGH = true;
-// camera: straight on from the front, a touch above, orthographic so every frame shares one scale (50 px per meter)
-var cam = new THREE.OrthographicCamera(-FW / 100, FW / 100, FH / 100, -FH / 100, 0.1, 50);
-var PITCH = 0.16; cam.position.set(0, 1.28 + Math.sin(PITCH) * 12, Math.cos(PITCH) * 12); cam.lookAt(0, 1.28, 0); cam.updateMatrixWorld(true);
+// two light rigs (directional lights only care about direction): hard contrasty arcade light for the bodies - warm key from the
+// upper front-left, dark cool fill, cool rim from behind - and soft studio portrait light for the heads
+function rig(list) {
+  var g = new THREE.Group();
+  list.forEach(function (l) { var L = l[0] ? new THREE.DirectionalLight(l[1], l[2]) : new THREE.HemisphereLight(l[1], l[3], l[2]); if (l[0]) L.position.set(l[3], l[4], l[5]); g.add(L); });
+  scene.add(g); return g;
+}
+var LIT = {
+  body: rig([[0, 0x7884b8, 0.42, 0x231a26], [1, 0xffd9b0, 3.0, -3, 4.2, 4], [1, 0x8094d8, 0.3, 4, 1.2, 2.5], [1, 0xc4e4ff, 2.4, 4, 2.6, -3.6], [1, 0xffc896, 1.1, -4, 2, -3]]),
+  head: rig([[0, 0xc4cce8, 0.5, 0x45342c], [1, 0xfff0dc, 1.9, -1.7, 1.5, 2.2], [1, 0xfff0dc, 0.7, -0.6, 2.4, 2.0], [1, 0xd0dcff, 0.5, 2.3, 0.3, 1.6], [1, 0xffffff, 1.7, 2.4, 1.4, -1.6], [1, 0xffe2c4, 0.9, -2.4, 1.0, -1.8], [1, 0xffffff, 0.6, 0, 3, -0.5]])
+};
+function lights(k) { Object.keys(LIT).forEach(function (n) { LIT[n].visible = n === k; }); }
+
+// body camera: straight on from the front, a touch above, orthographic so every frame shares one scale
+var cam = new THREE.OrthographicCamera(-FW / PPM / 2, FW / PPM / 2, FH / PPM / 2, -FH / PPM / 2, 0.1, 50);
+var PITCH = 0.16, CY = FH / PPM / 2 - 0.07; cam.position.set(0, CY + Math.sin(PITCH) * 12, Math.cos(PITCH) * 12); cam.lookAt(0, CY, 0); cam.updateMatrixWorld(true);
 
 // ---------- poses: angles in athlete space (athlete faces +Z) ----------
 function apply(A, p) {
@@ -80,55 +92,197 @@ var ANIMS = {
 };
 var DIRS = { R: Math.PI / 2 - 0.42, F: Math.PI / 2 - 1.05, B: Math.PI / 2 + 0.95 };   // facing screen-right in profile, turned toward / away from the camera
 
-function project(v) { var p = v.clone().project(cam); return [(p.x + 1) / 2 * FW, (1 - p.y) / 2 * FH]; }
+function project(v, c, w, h) { var p = v.clone().project(c || cam); return [(p.x + 1) / 2 * (w || FW), (1 - p.y) / 2 * (h || FH)]; }
 
-// returns { png, meta } for one player
-window.genPlayer = function (id) {
+/* ---------- the digitized finish ---------- */
+var rc = document.createElement('canvas'), rg = rc.getContext('2d');
+// render at ss x the size and box-filter down (premultiplied), then cut the alpha hard: no soft fringe
+function grab(c, w, h, ss, cut) {
+  var W = w * ss, H = h * ss; if (R.domElement.width !== W || R.domElement.height !== H) R.setSize(W, H);
+  R.render(scene, c);
+  if (rc.width !== W || rc.height !== H) { rc.width = W; rc.height = H; } rg.clearRect(0, 0, W, H); rg.drawImage(R.domElement, 0, 0);
+  var s = rg.getImageData(0, 0, W, H).data, out = new Uint8ClampedArray(w * h * 4), n = ss * ss;
+  for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+    var r = 0, g = 0, b = 0, a = 0;
+    for (var j = 0; j < ss; j++) for (var i = 0, o = ((y * ss + j) * W + x * ss) * 4; i < ss; i++, o += 4) { var al = s[o + 3]; r += s[o] * al; g += s[o + 1] * al; b += s[o + 2] * al; a += al; }
+    if (a >= cut * 255 * n) { var q = (y * w + x) * 4; out[q] = r / a; out[q + 1] = g / a; out[q + 2] = b / a; out[q + 3] = 255; }
+  }
+  return out;
+}
+// punchier arcade grade: contrast around mid-gray, saturation, and a little lift or crush of the darks
+function grade(d, con, sat, black) {
+  for (var i = 0; i < d.length; i += 4) {
+    if (!d[i + 3]) continue;
+    var l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    for (var k = 0; k < 3; k++) { var v = l + (d[i + k] - l) * sat; v = (v - 128) * con + 128; d[i + k] = (v - black) * 255 / (255 - black); }
+  }
+}
+// median-cut palette over a 5-bit histogram of every opaque pixel in the sheet
+var WR = 1.0, WG = 1.25, WB = 0.8;
+function palette(list, n) {
+  var hist = new Uint32Array(32768), cols = [];
+  list.forEach(function (d) { for (var i = 0; i < d.length; i += 4) if (d[i + 3]) hist[(d[i] >> 3) << 10 | (d[i + 1] >> 3) << 5 | d[i + 2] >> 3]++; });
+  for (var k = 0; k < 32768; k++) if (hist[k]) cols.push(k);
+  var ch = function (c, j) { return j === 0 ? c >> 10 : j === 1 ? (c >> 5) & 31 : c & 31; }, W = [WR, WG, WB];
+  function info(box) {
+    var lo = [99, 99, 99], hi = [-1, -1, -1], cnt = 0;
+    box.forEach(function (c) { cnt += hist[c]; for (var j = 0; j < 3; j++) { var v = ch(c, j); if (v < lo[j]) lo[j] = v; if (v > hi[j]) hi[j] = v; } });
+    var best = 0, ax = 0; for (var j = 0; j < 3; j++) { var r = (hi[j] - lo[j]) * W[j]; if (r > best) { best = r; ax = j; } }
+    return { box: box, cnt: cnt, range: best, ax: ax };
+  }
+  var boxes = [info(cols)];
+  while (boxes.length < n) {
+    var bi = -1, bs = 0; boxes.forEach(function (b, i) { var sc = b.box.length > 1 ? Math.sqrt(b.cnt) * b.range : 0; if (sc > bs) { bs = sc; bi = i; } });
+    if (bi < 0) break;
+    var b = boxes[bi], ax = b.ax; b.box.sort(function (p, q) { return ch(p, ax) - ch(q, ax); });
+    var half = b.cnt / 2, acc = 0, cut = 1; for (var i = 0; i < b.box.length - 1; i++) { acc += hist[b.box[i]]; if (acc >= half) { cut = i + 1; break; } }
+    boxes.splice(bi, 1, info(b.box.slice(0, cut)), info(b.box.slice(cut)));
+  }
+  return boxes.map(function (b) {
+    var r = 0, g = 0, bb = 0, t = 0; b.box.forEach(function (c) { var h = hist[c]; r += ((c >> 10) * 8 + 4) * h; g += (((c >> 5) & 31) * 8 + 4) * h; bb += ((c & 31) * 8 + 4) * h; t += h; });
+    return [Math.round(r / t), Math.round(g / t), Math.round(bb / t)];
+  });
+}
+var BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+// map one image to palette indices (+base) with a light 4x4 ordered dither; 0 = transparent; outline: 1 px ring of index `ol`
+function indexed(d, w, h, pal, base, amp, ol) {
+  var out = new Uint8Array(w * h), cache = new Int16Array(32768).fill(-1);
+  for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+    var p = y * w + x, i = p * 4; if (!d[i + 3]) continue;
+    var t = ((BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16 - 0.5) * amp;
+    var r = Math.max(0, Math.min(255, d[i] + t)), g = Math.max(0, Math.min(255, d[i + 1] + t)), b = Math.max(0, Math.min(255, d[i + 2] + t));
+    var key = (r >> 3) << 10 | (g >> 3) << 5 | b >> 3, c = cache[key];
+    if (c < 0) {
+      var best = 1e9, rr = (r >> 3) * 8 + 4, gg = (g >> 3) * 8 + 4, bb = (b >> 3) * 8 + 4;
+      for (var k = 0; k < pal.length; k++) { var dr = rr - pal[k][0], dg = gg - pal[k][1], db = bb - pal[k][2], e = dr * dr * WR + dg * dg * WG * 1.4 + db * db * WB; if (e < best) { best = e; c = k; } }
+      cache[key] = c;
+    }
+    out[p] = c + base;
+  }
+  if (ol) for (var y2 = 0; y2 < h; y2++) for (var x2 = 0; x2 < w; x2++) {
+    var q = y2 * w + x2; if (out[q]) continue;
+    if ((x2 > 0 && out[q - 1] > 1) || (x2 < w - 1 && out[q + 1] > 1) || (y2 > 0 && out[q - w] > 1) || (y2 < h - 1 && out[q + w] > 1)) out[q] = ol;
+  }
+  return out;
+}
+function b64(u8) { var s = ''; for (var i = 0; i < u8.length; i += 32768) s += String.fromCharCode.apply(null, u8.subarray(i, i + 32768)); return btoa(s); }
+var OUTLINE = [18, 12, 26];
+
+/* ---------- bodies ---------- */
+// returns { w, h, pal, idx (base64 palette indices), meta } for one player's sheet
+window.genPlayer = function (id, opt) {
+  opt = opt || {}; lights('body');
   var d = HW.PLAYERS[id], A = HW.Athlete.build(HW.lookOpts(d, d.team));
   A.head.scale.setScalar(0.001);                                    // the big digitized head is drawn on top in the game
   scene.add(A.root);
   var s = d.height / 1.89; A.root.scale.setScalar(s);
   var bx = 1 + (d.bulk - 1) * 0.45, bz = bx * (d.belly ? 1.08 : 1);
   A.spine.scale.set(bx, 1, bz); A.neck.scale.set(1 / bx, 1, 1 / bz); A.sh.forEach(function (sh) { sh.scale.set(1 / bx, 1, 1 / bz); });
-  var frames = [], meta = { fw: FW, fh: FH, ppm: 50, anim: {}, head: [], hand: [], feet: project(new THREE.Vector3(0, 0, 0)) };
-  var tmp = document.createElement('canvas'); tmp.width = FW; tmp.height = FH; var tg = tmp.getContext('2d'); tg.imageSmoothingQuality = 'high';
+  var frames = [], meta = { fw: FW, fh: FH, ppm: PPM, anim: {}, head: [], hand: [], feet: project(new V3(0, 0, 0)) };
+  var only = opt.only;
   Object.keys(ANIMS).forEach(function (name) {
+    if (only && only.indexOf(name) < 0) return;
     var an = ANIMS[name]; meta.anim[name] = {};
     an.dirs.forEach(function (dir) {
       var list = meta.anim[name][dir] = [];
       for (var i = 0; i < an.n; i++) {
         A.root.rotation.y = DIRS[dir]; apply(A, an.f(i / an.n, i)); A.root.updateMatrixWorld(true);
-        R.render(scene, cam);
-        tg.clearRect(0, 0, FW, FH); tg.drawImage(R.domElement, 0, 0, FW, FH);
-        var c = document.createElement('canvas'); c.width = FW; c.height = FH; c.getContext('2d').drawImage(tmp, 0, 0); frames.push(c);
-        var hp = A.head.getWorldPosition(new THREE.Vector3()), np = A.neck.getWorldPosition(new THREE.Vector3());
-        var hr = A.palm[0].getWorldPosition(new THREE.Vector3()), hl = A.palm[1].getWorldPosition(new THREE.Vector3());
+        var px = grab(cam, FW, FH, SS, 0.5); grade(px, opt.con || 1.1, opt.sat || 1.12, opt.black || 6); frames.push(px);
+        var hp = A.head.getWorldPosition(new V3()), np = A.neck.getWorldPosition(new V3());
+        var hr = A.palm[0].getWorldPosition(new V3()), hl = A.palm[1].getWorldPosition(new V3());
         meta.head.push(project(hp).concat(project(np))); meta.hand.push(project(hr).concat(project(hl)));
         list.push(frames.length - 1);
       }
     });
   });
   scene.remove(A.root);
-  var cols = 16, rows = Math.ceil(frames.length / cols), atlas = document.createElement('canvas'); atlas.width = cols * FW; atlas.height = rows * FH;
-  var ag = atlas.getContext('2d'); frames.forEach(function (c, i) { ag.drawImage(c, (i % cols) * FW, Math.floor(i / cols) * FH); });
+  var pal = palette(frames, opt.colors || 46), cols = 16, rows = Math.ceil(frames.length / cols), AW = cols * FW, AH = rows * FH, idx = new Uint8Array(AW * AH);
+  frames.forEach(function (px, f) {
+    var fr = indexed(px, FW, FH, pal, 2, opt.dither === undefined ? 14 : opt.dither, 1), ox = (f % cols) * FW, oy = Math.floor(f / cols) * FH;
+    for (var y = 0; y < FH; y++) idx.set(fr.subarray(y * FW, y * FW + FW), (oy + y) * AW + ox);
+  });
   meta.cols = cols; meta.count = frames.length;
-  meta.head = meta.head.map(function (a) { return a.map(function (v) { return +v.toFixed(1); }); }); meta.hand = meta.hand.map(function (a) { return a.map(function (v) { return +v.toFixed(1); }); });
-  return { png: atlas.toDataURL('image/png'), meta: meta };
+  var r1 = function (a) { return a.map(function (v) { return +v.toFixed(1); }); };
+  meta.feet = r1(meta.feet); meta.head = meta.head.map(r1); meta.hand = meta.hand.map(r1);
+  return { w: AW, h: AH, pal: [[0, 0, 0, 0], OUTLINE.concat(255)].concat(pal.map(function (c) { return c.concat(255); })), idx: b64(idx), meta: meta };
 };
 
-// big digitized heads: front (3/4) and back of the head, transparent background
-window.genHead = function (id, back) {
-  var d = HW.PLAYERS[id], A = HW.Athlete.build(HW.lookOpts(d, d.team));
+/* ---------- big heads ---------- */
+var FEMALE = { lisa: 1, katelyn: 1, karen: 1 };
+var HD = { rx: 0.08, ry: 0.109, cy: 0.083, cz: 0.012 }, TH_JAW = Math.acos(-0.55);   // athlete.js head sculpt constants
+function sm(a, b, x) { var t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+function g1(x) { return Math.exp(-x * x); }
+function hsh(x, y) { var h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+function vn(x, y) { var xi = Math.floor(x), yi = Math.floor(y), u = x - xi, v = y - yi; u = u * u * (3 - 2 * u); v = v * v * (3 - 2 * v); var a = hsh(xi, yi), b = hsh(xi + 1, yi), c = hsh(xi, yi + 1), e = hsh(xi + 1, yi + 1); return a + (b - a) * u + (c - a) * v + (a - b - c + e) * u * v; }
+function headDir(th, ph) {
+  if (th <= TH_JAW) return [Math.sin(th) * Math.sin(ph), Math.cos(th), Math.sin(th) * Math.cos(ph)];
+  var q = (th - TH_JAW) / (Math.PI - TH_JAW), hr = Math.sin(TH_JAW) * Math.pow(Math.cos(q * Math.PI / 2), 0.45);
+  return [Math.sin(ph) * hr, -0.55 - 0.36 * Math.sin(q * Math.PI / 2), Math.cos(ph) * hr];
+}
+// a fuller skin paint for the head (same layout as athlete.js's): lips, nostrils, eye sockets, flushed cheeks and nose,
+// pores, and a shaved-beard shadow on the men, so the face reads like a photo instead of a smooth figurine
+function skinMap(id) {
+  var d = HW.PLAYERS[id], female = FEMALE[id], sk = new THREE.Color(d.skin), lum = 0.3 * sk.r + 0.59 * sk.g + 0.11 * sk.b;
+  var W = 512, H = 256, c = document.createElement('canvas'); c.width = W; c.height = H; var g = c.getContext('2d'), img = g.createImageData(W, H), px = img.data;
+  for (var y = 0; y < H; y++) { var th = (y + 0.5) / H * Math.PI;
+    for (var x = 0; x < W; x++) {
+      var ph = (x + 0.5) / W * TAU - Math.PI, n = headDir(th, ph), nx = n[0], ny = n[1], nz = n[2], ax = Math.abs(nx), fr = sm(0.05, 0.5, nz), r = 1, gg = 1, b = 1;
+      var lips = Math.max(g1((ny + 0.452) / 0.03), g1((ny + 0.535) / 0.036)) * sm(0.27, 0.17, ax) * fr;
+      r *= 1 - (female ? 0.12 : 0.1) * lips; gg *= 1 - (female ? 0.45 : 0.36) * lips; b *= 1 - (female ? 0.36 : 0.34) * lips;
+      var lipLine = g1((ny + 0.492) / 0.008) * sm(0.29, 0.2, ax) * fr; r *= 1 - 0.45 * lipLine; gg *= 1 - 0.5 * lipLine; b *= 1 - 0.45 * lipLine;
+      var nos = g1((ax - 0.075) / 0.03) * g1((ny + 0.315) / 0.02) * fr; r *= 1 - 0.7 * nos; gg *= 1 - 0.7 * nos; b *= 1 - 0.7 * nos;
+      var lid = g1((ax - 0.4) / 0.13) * g1((ny - 0.2) / 0.06) * fr; r *= 1 - 0.16 * lid; gg *= 1 - 0.21 * lid; b *= 1 - 0.18 * lid;
+      var under = g1((ax - 0.38) / 0.12) * g1((ny + 0.01) / 0.05) * fr; r *= 1 - 0.07 * under; gg *= 1 - 0.1 * under; b *= 1 - 0.06 * under;
+      var cheek = g1((ax - 0.47) / 0.16) * g1((ny + 0.16) / 0.15) * fr; gg *= 1 - (female ? 0.12 : 0.08) * cheek; b *= 1 - (female ? 0.12 : 0.09) * cheek;
+      var nose = g1(nx / 0.12) * g1((ny + 0.24) / 0.1) * fr; gg *= 1 - 0.06 * nose; b *= 1 - 0.07 * nose;
+      var temple = g1((ax - 0.75) / 0.12) * g1((ny - 0.2) / 0.2); r *= 1 - 0.05 * temple; gg *= 1 - 0.05 * temple; b *= 1 - 0.03 * temple;
+      if (!female) {   // shaved beard shadow: jaw, chin and upper lip, grainy, stronger on lighter skin
+        var beard = Math.max(sm(-0.3, -0.45, ny) * sm(0.92, 0.7, ax) * sm(-0.2, 0.1, nz), g1((ny + 0.41) / 0.035) * sm(0.3, 0.18, ax) * fr) * (1 - lips * 0.9);
+        var gr = beard * (0.55 + 0.45 * hsh(x * 3, y * 5)) * (lum > 0.45 ? 0.16 : 0.1);
+        r *= 1 - gr; gg *= 1 - gr * 0.95; b *= 1 - gr * 0.8;
+      }
+      var m = 0.94 + 0.09 * vn(th * 40, ph * 40) + 0.05 * (hsh(x, y) - 0.5), o = (y * W + x) * 4;
+      px[o] = Math.min(255, r * m * 232); px[o + 1] = Math.min(255, gg * m * 232); px[o + 2] = Math.min(255, b * m * 232); px[o + 3] = 255;
+    } }
+  g.putImageData(img, 0, 0);
+  var t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+}
+// once: lift the mouth corners and cheeks of the shared head sculpt into a slight, relaxed smile
+function smile(A) {
+  var m = A.meshes.filter(function (q) { return q.name === 'head'; })[0], geo = m.geometry; if (geo.userData.smile) return; geo.userData.smile = 1;
+  A.root.updateMatrixWorld(true); var J = A.head.getWorldPosition(new V3()), p = geo.attributes.position;
+  for (var i = 0; i < p.count; i++) {
+    var nx = p.getX(i) / HD.rx, ny = (p.getY(i) - J.y - HD.cy) / HD.ry, nz = (p.getZ(i) - J.z - HD.cz) / 0.099, ax = Math.abs(nx), s = nx < 0 ? -1 : 1, fr = sm(0.05, 0.55, nz);
+    var corner = g1((ax - 0.26) / 0.08) * g1((ny + 0.492) / 0.06) * fr, cheek = g1((ax - 0.42) / 0.13) * g1((ny + 0.27) / 0.13) * fr;
+    p.setXYZ(i, p.getX(i) + s * 0.0014 * corner, p.getY(i) + 0.0036 * corner + 0.0016 * cheek, p.getZ(i) - 0.0018 * corner + 0.0022 * cheek);
+  }
+  p.needsUpdate = true;
+}
+// head picture framing, in meters at the head: the head fills the width like Alan's photo cut-out; the head bone (the neck
+// point the game pastes it on) sits at 88% of the height so the chin lands near the bottom edge, as on his photo
+var HEAD_W = 0.205, HEAD_ANCHOR = 0.88, HEAD_DIST = 1.0;
+window.PHOTO = { alan: 1 };   // players with a real photo cut-out for the front head (never regenerated)
+// big digitized heads: front (near-frontal, turned a little like Alan's photo) and back of the head, transparent background
+window.genHead = function (id, back, opt) {
+  opt = opt || {}; lights('head');
+  var d = HW.PLAYERS[id], A = HW.Athlete.build(HW.lookOpts(d, d.team)), w = back ? 96 : 192, h = Math.round(w * 244 / 192);
+  smile(A);
   A.meshes.forEach(function (m) { if (m.name !== 'head') m.visible = false; });
   A.feet.forEach(function (f) { f.visible = false; }); A.kn.forEach(function (k) { k.children.forEach(function (c) { c.visible = false; }); });
-  scene.add(A.root); A.root.rotation.y = back ? Math.PI + 0.35 : -0.3; A.root.updateMatrixWorld(true);
-  A.face.update(0, null);
-  var hp = A.head.getWorldPosition(new THREE.Vector3()), hc = new THREE.OrthographicCamera(-0.15, 0.15, 0.19, -0.19, 0.1, 50);
-  hc.position.set(hp.x, hp.y + 0.09, hp.z + 5); hc.lookAt(hp.x, hp.y + 0.09, hp.z); hc.updateMatrixWorld(true);
-  R.setSize(192, 243); R.render(scene, hc);
-  var c = document.createElement('canvas'); c.width = 96; c.height = 122; var g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(R.domElement, 0, 0, 96, 122);
-  R.setSize(FW * SS, FH * SS); scene.remove(A.root);
-  return c.toDataURL('image/png');
+  var hm = A.mats[1]; hm.map = skinMap(id); hm.needsUpdate = true;
+  if (A.pony) { if (back) A.pony.rotation.x = -0.25; else A.pony.visible = false; }
+  // catchlights on the eyes (toward the key light)
+  A.face.eyes.forEach(function (e) { var cl = new THREE.Mesh(new THREE.CircleGeometry(0.0016, 10), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false })); cl.position.set(-0.0035, 0.0012, 0.0127); e.parent.add(cl); });
+  scene.add(A.root); A.root.rotation.y = back ? Math.PI + 0.35 : -(opt.turn === undefined ? 0.3 : opt.turn); A.head.rotation.set(opt.tilt || 0.03, 0, opt.roll || 0.035);
+  A.root.updateMatrixWorld(true);
+  var hp = A.head.getWorldPosition(new V3()), hc = A.head.localToWorld(new V3(0, HD.cy, HD.cz)), HH = HEAD_W * h / w;
+  var cy = hp.y + (HEAD_ANCHOR - 0.5) * HH, c = new THREE.PerspectiveCamera(2 * Math.atan(HH / 2 / HEAD_DIST) * 180 / Math.PI, w / h, 0.05, 10);
+  c.position.set(hc.x, cy, hc.z + HEAD_DIST); c.lookAt(hc.x, cy, hc.z); c.updateMatrixWorld(true);
+  A.face.update(0, back ? null : c.position);
+  var px = grab(c, w, h, 4, 0.5); grade(px, opt.con || 1.06, opt.sat || 1.06, opt.black || 4);
+  scene.remove(A.root);
+  var pal = palette([px], opt.colors || 64), idx = indexed(px, w, h, pal, 2, opt.dither === undefined ? 8 : opt.dither, opt.outline ? 1 : 0);
+  return { w: w, h: h, pal: [[0, 0, 0, 0], OUTLINE.concat(255)].concat(pal.map(function (c) { return c.concat(255); })), idx: b64(idx) };
 };
 window.ready = new Promise(function (res) { HW.Athlete.whenReady(res); });
 </script>
