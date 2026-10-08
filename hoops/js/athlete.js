@@ -181,7 +181,8 @@ window.HW = window.HW || {};
       g.setAttribute('uv2', g.attributes.uv);
       S.bodyGeo = g;
       var loader = new THREE.TextureLoader();
-      S.tex = function (k) { return D.images[k] ? loader.load(D.images[k]) : null; };
+      S.pending = 0; S.waiters = [];
+      S.tex = function (k) { if (!D.images[k]) return null; S.pending++; return loader.load(D.images[k], function () { if (--S.pending === 0) { var w = S.waiters; S.waiters = []; w.forEach(function (f) { f(); }); } }, undefined, function () { S.pending--; }); };
       S.bodyNrm = S.tex('body_nrm'); S.bodyAO = S.tex('body_ao'); S.headNrm = S.tex('head_nrm'); S.headAO = S.tex('head_ao');
       S.jerseyNrm = S.tex('jersey_nrm'); S.jerseyAO = S.tex('jersey_ao'); S.shortsNrm = S.tex('shorts_nrm'); S.shortsAO = S.tex('shorts_ao');
     }
@@ -282,6 +283,8 @@ window.HW = window.HW || {};
   /* ---------- per player ---------- */
   // o: { skin, iris, hair:{style,color}, brow, jersey, trim, dark, num, team, name, shorts, shoe:{base,accent,sole}, band, glasses, bulk }
   HW.Athlete = { available: function () { return !!HW.BODY_DATA; } };
+  // run cb once the baked maps have decoded (rendering before that leaves faces unlit)
+  HW.Athlete.whenReady = function (cb) { shared(); if (!S.pending) cb(); else S.waiters.push(cb); };
   HW.Athlete.build = function (o) {
     shared();
     var P = { sh: [], el: [], th: [], kn: [], hand: [], feet: [], palm: [], hipY: 1.02, mats: [] };

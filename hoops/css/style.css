@@ -4,6 +4,7 @@ html, body { margin: 0; height: 100%; background: #0b0d1a; overflow: hidden; fon
 #vrbtn { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); padding: 14px 30px; font: 700 20px 'Arial Black', Impact, sans-serif; letter-spacing: 2px;
   color: #101018; background: #ff8a1f; border: 3px solid #fff; border-radius: 40px; cursor: pointer; z-index: 20; box-shadow: 0 6px 24px rgba(255,138,31,.5); }
 #vrbtn:hover:not(:disabled) { background: #ffb347; }
+body.jamon #vrbtn.off, body.touch #vrbtn { display: none; }
 #vrbtn.off { background: #333; color: #aaa; border-color: #666; box-shadow: none; cursor: default; }
 #info { position: fixed; top: 12px; right: 14px; font-size: 13px; line-height: 1.5; text-align: right; opacity: .8; z-index: 5; text-shadow: 0 1px 3px #000; max-width: 360px; }
 #info b { color: #ffb347; }
@@ -44,3 +45,31 @@ body.touch #callout { font-size: 40px; top: 14%; -webkit-text-stroke: 2px #000; 
   body.touch #rotate div { font-size: 72px; color: #ff8a1f; animation: spin 1.6s ease-in-out infinite; }
 }
 @keyframes spin { 0%, 30% { transform: rotate(0); } 70%, 100% { transform: rotate(90deg); } }
+
+/* ---------- arcade HUD (flat screens) ---------- */
+#jamhud, #jambottom { display: none; font-family: "Press Start 2P", "Courier New", monospace; pointer-events: none; z-index: 7; }
+body.jamon #jamhud { display: flex; position: fixed; top: max(6px, env(safe-area-inset-top)); left: 0; right: 0; justify-content: space-around; padding: 0 70px; }
+body.jamon #jambottom { display: flex; flex-direction: column; align-items: center; gap: 6px; position: fixed; left: 50%; transform: translateX(-50%); bottom: max(10px, env(safe-area-inset-bottom)); }
+body.jamon #hud, body.jamon #info { display: none; }
+.jt { width: 22%; text-align: center; }
+.jt .nm { color: #ffe14d; font-size: 15px; letter-spacing: 1px; text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; white-space: nowrap; }
+.jt .nm em { font-style: normal; color: #fff; background: var(--tc); padding: 1px 3px; margin-right: 6px; font-size: 10px; vertical-align: 2px; }
+.jt .nm.fire { color: #ff7a1a; animation: flick .25s steps(2) infinite; }
+@keyframes flick { 50% { color: #ffd23f; } }
+.jt .tb { height: 7px; margin: 5px auto 0; width: 80%; background: #222; border: 2px solid #000; }
+.jt .tb i { display: block; height: 100%; background: linear-gradient(#5cff7a, #1fa34a); }
+.jt .sub { font-size: 7px; color: #fff; margin-top: 3px; text-shadow: 1px 1px 0 #000; }
+#jamscore { display: flex; gap: 18px; align-items: center; background: rgba(10,10,40,.85); border: 3px solid #ffe14d; padding: 7px 14px; color: #fff; font-size: 15px; box-shadow: 0 3px 0 #000; }
+#jamscore b { font-weight: normal; }
+#jsq { color: #ff4b3a; font-size: 13px; }
+#jsq small { color: #ffe14d; font-size: 10px; margin-left: 8px; }
+#jammeter { position: relative; width: 220px; height: 12px; background: #222; border: 2px solid #000; visibility: hidden; }
+#jmgreen { position: absolute; top: 0; bottom: 0; background: #35e07c; }
+#jmmark { position: absolute; top: -5px; width: 5px; height: 20px; background: #fff; border: 1px solid #000; transform: translateX(-50%); }
+#callout { font-family: "Press Start 2P", "Courier New", monospace; font-size: 40px; -webkit-text-stroke: 2px #000; text-shadow: 4px 4px 0 #000; }
+body.touch #callout { font-size: 22px; }
+body.touch.jamon #jamhud { padding: 0 110px 0 max(10px, env(safe-area-inset-left)); }
+body.touch .jt .nm { font-size: 9px; } body.touch .jt .sub { display: none; } body.touch .jt .tb { height: 5px; margin-top: 3px; }
+body.touch #jamscore { font-size: 10px; padding: 5px 9px; gap: 10px; } body.touch #jsq { font-size: 9px; }
+body.touch #jambottom { bottom: max(6px, env(safe-area-inset-bottom)); }
+body.touch #jammeter { width: 150px; }

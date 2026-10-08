@@ -11,15 +11,21 @@ window.HW = window.HW || {};
       var pw = Math.round(PPM * 0.13);
       for (var x = 0; x < W; x += pw) {
         var t = U.hash(x * 0.37) * 0.5;
-        g.fillStyle = 'rgb(' + Math.round(196 + t * 30) + ',' + Math.round(146 + t * 28) + ',' + Math.round(82 + t * 20) + ')';
+        g.fillStyle = 'rgb(' + Math.round(208 + t * 30) + ',' + Math.round(122 + t * 26) + ',' + Math.round(56 + t * 16) + ')';
         g.fillRect(x, 0, pw, H);
         g.fillStyle = 'rgba(80,45,15,0.25)'; g.fillRect(x, 0, 1, H);
         for (var k = 0; k < 6; k++) { var yy = U.hash(x + k * 91) * H; g.fillStyle = 'rgba(70,40,10,0.10)'; g.fillRect(x + 2, yy, 1, 40 + U.hash(k + x) * 120); }
       }
-      // out of bounds stain
-      g.fillStyle = 'rgba(40,25,10,0.38)';
+      // arcade apron: deep blue band all round the court, lettering facing the sideline camera
+      g.fillStyle = '#26246e';
       g.fillRect(0, 0, W, Z(-C.HALF_L)); g.fillRect(0, Z(C.HALF_L), W, H - Z(C.HALF_L));
       g.fillRect(0, 0, X(-C.HALF_W), H); g.fillRect(X(C.HALF_W), 0, W - X(C.HALF_W), H);
+      g.fillStyle = 'rgba(255,255,255,0.05)'; for (var yy = 0; yy < H; yy += 6) g.fillRect(0, yy, W, 2);
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      [-C.HALF_W - 0.5, C.HALF_W + 0.5].forEach(function (ax) {
+        [-6, 6].forEach(function (az) { g.save(); g.translate(X(ax), Z(az)); g.rotate(-Math.PI / 2); g.font = 'bold 40px Arial Black, Impact, sans-serif'; g.fillStyle = '#ffd23f'; g.fillText('HOOPS JAM', 0, 0); g.restore(); });
+      });
+      [[-1, HW.TEAMS[1].name], [1, HW.TEAMS[0].name]].forEach(function (e) { g.save(); g.translate(X(0), Z(e[0] * (C.HALF_L + 0.75))); g.rotate(-Math.PI / 2); g.font = 'bold 34px Arial Black, Impact, sans-serif'; g.fillStyle = 'rgba(255,255,255,0.85)'; g.fillText(e[1].toUpperCase(), 0, 0); g.restore(); });
       // paint (team colors)
       [[-1, HW.TEAMS[1].color], [1, HW.TEAMS[0].color]].forEach(function (e) {
         var s = e[0], z0 = s * C.HALF_L, z1 = s * (C.HALF_L - C.LANE_L);
@@ -56,6 +62,23 @@ window.HW = window.HW || {};
       g.fillStyle = '#1a1624'; g.fillRect(0, 0, w, h);
       var cols = ['#d94f4f', '#f2c14e', '#4f8bd9', '#e8e8e8', '#6ac48a', '#b46fd6', '#f28c4e'];
       for (var i = 0; i < 520; i++) { g.fillStyle = cols[(U.hash(i) * cols.length) | 0]; g.fillRect(U.hash(i * 3.1) * w, U.hash(i * 7.7) * h, 3, 3); }
+    }, { aniso: 2 });
+  }
+
+  // a row of seated fans: heads, hair, colorful shirts, some arms up and a few signs (transparent background)
+  function peopleTexture() {
+    return U.canvasTex(1024, 108, function (g, w, h) {
+      var skins = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#5c3a1e', '#ffdbac'], hairs = ['#1a1a1a', '#3b2314', '#6b4423', '#c9a227', '#a0522d', '#888', '#111'];
+      var shirts = ['#e63946', '#ffb703', '#3a86ff', '#06d6a0', '#ffffff', '#8338ec', '#fb5607', '#222', '#2ec4b6', '#ff006e', '#9ad0ff'];
+      for (var x = 6, k = 0; x < w - 6; x += 18 + U.hash(k * 3.1) * 8, k++) {
+        var r = function (n) { return U.hash(k * 7.3 + n); }, cx = x + 8, top = 40 + r(1) * 12, shirt = shirts[(r(2) * shirts.length) | 0], skin = skins[(r(3) * skins.length) | 0];
+        g.fillStyle = shirt; U.roundRect(g, cx - 10, top + 14, 20, h - top - 14, 6); g.fill();
+        if (r(4) < 0.35) { g.strokeStyle = skin; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(cx - 8, top + 20); g.lineTo(cx - 13, top - 8); g.moveTo(cx + 8, top + 20); g.lineTo(cx + 13, top - 8); g.stroke(); }
+        if (r(5) < 0.06) { g.fillStyle = '#fff'; g.fillRect(cx - 15, top - 30, 30, 18); g.fillStyle = r(6) < 0.5 ? '#e63946' : '#3a86ff'; g.fillRect(cx - 12, top - 25, 24, 4); g.fillRect(cx - 12, top - 18, 16, 3); }
+        g.fillStyle = skin; g.beginPath(); g.arc(cx, top + 6, 8, 0, 6.283); g.fill();
+        g.fillStyle = hairs[(r(7) * hairs.length) | 0]; g.beginPath(); g.arc(cx, top + 3, 8.5, Math.PI * 1.05, Math.PI * 1.95); g.fill();
+        if (r(8) < 0.2) { g.fillStyle = shirts[(r(9) * shirts.length) | 0]; g.fillRect(cx - 9, top - 6, 18, 5); }
+      }
     }, { aniso: 2 });
   }
 
@@ -126,14 +149,14 @@ window.HW = window.HW || {};
 
     var floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshLambertMaterial({ color: 0x14141c }));
     floor.rotation.x = -Math.PI / 2; floor.position.y = -0.02; scene.add(floor);
-    var court = new THREE.Mesh(new THREE.PlaneGeometry(15, 25), U.mat({ map: courtTexture(), emissive: HW.HIGH ? 0x000000 : 0x2a1c10, roughness: 0.32 })); court.receiveShadow = true;
+    var court = new THREE.Mesh(new THREE.PlaneGeometry(15, 25), U.mat({ map: courtTexture(), emissive: HW.HIGH ? 0x000000 : 0x2a1c10, roughness: 0.32 })); if (HW.HIGH) court.material.envMapIntensity = 0.35; court.receiveShadow = true;
     court.rotation.x = -Math.PI / 2; court.position.y = 0; scene.add(court);
 
     var ctx = { netTex: netTexture() };
     world.hoops.push(buildHoop(scene, 0, ctx), buildHoop(scene, 1, ctx));
 
     // stands: stepped tiers with crowd texture on both sidelines and behind the baselines
-    var crowd = crowdTexture(); crowd.wrapS = crowd.wrapT = THREE.RepeatWrapping;
+    var crowd = crowdTexture(); crowd.wrapS = crowd.wrapT = THREE.RepeatWrapping; var peopleTex = peopleTexture(); world.crowd = []; world.hype = 0;
     function tiers(cx, cz, len, rotY) {
       var gr = new THREE.Group(); gr.position.set(cx, 0, cz); gr.rotation.y = rotY;
       for (var i = 0; i < 5; i++) {
@@ -141,6 +164,11 @@ window.HW = window.HW || {};
         var top = new THREE.MeshLambertMaterial({ map: t }), side = new THREE.MeshLambertMaterial({ color: 0x23202e });
         var b = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.75 * (i + 1), len), [side, side, top, side, side, side]);
         b.position.set(i * 1.4, 0.375 * (i + 1), 0); gr.add(b);
+        // a row of fans sitting on this tier, facing the court
+        var ct = peopleTex.clone(); ct.needsUpdate = true; ct.wrapS = THREE.RepeatWrapping; ct.repeat.set(len / 9, 1); ct.offset.x = Math.random();
+        var fans = new THREE.Mesh(new THREE.PlaneGeometry(len, 0.95), new THREE.MeshLambertMaterial({ map: ct, alphaTest: 0.5, side: THREE.DoubleSide }));
+        fans.rotation.y = -Math.PI / 2; fans.position.set(i * 1.4 - 0.25, 0.75 * (i + 1) + 0.45, 0); gr.add(fans);
+        world.crowd.push({ m: fans, y0: fans.position.y, ph: Math.random() * 6.283, sp: 3 + Math.random() * 2 });
       }
       scene.add(gr);
     }
@@ -169,7 +197,10 @@ window.HW = window.HW || {};
     };
 
     // hoop animation: rim shake spring and net swish
+    world.cheer = function (lvl) { world.hype = Math.max(world.hype, lvl); };
     world.update = function (dt, t) {
+      world.hype = Math.max(0, world.hype - dt * 0.8); var amp = 0.015 + 0.13 * Math.min(1, world.hype);
+      world.crowd.forEach(function (c) { c.m.position.y = c.y0 + Math.abs(Math.sin(t * (c.sp + world.hype * 2) + c.ph)) * amp; });
       world.hoops.forEach(function (h) {
         h.shake = Math.max(0, h.shake - dt * 2.2); h.swish = Math.max(0, h.swish - dt * 2.6);
         h.rimGroup.rotation.x = Math.sin(t * 38) * 0.05 * h.shake; h.rimGroup.position.y = C.RIM_H - Math.abs(Math.sin(t * 30)) * 0.04 * h.shake;

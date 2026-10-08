@@ -121,7 +121,7 @@ window.HW = window.HW || {};
     var txt = ball.dunkBy ? null : three ? U.pick(PH.three) : (clean && shot.quality === 'green') ? U.pick(PH.swish) : U.pick(PH.two);
     if (txt) UI.callout(txt, three ? '#ff9f43' : '#ffd23f', { life: 1.6 });
     if (scorer) G.afterScore(scorer, pts, shot);
-    Au.swish(); Au.cheer(three || pts > 2);
+    Au.swish(); Au.cheer(three || pts > 2); G.world.cheer(ball.dunkBy || three ? 3 : 1.6);
     G.phase = 'dead'; G.phaseT = 2.0; G.deadFor = team;
     G.scoredTeam = team; ball.dunkBy = null;
   };
@@ -401,9 +401,9 @@ window.HW = window.HW || {};
       // classic arcade broadcast view: high on the sideline, sliding along with the play
       var b = G.ball, fz = U.clamp(b.pos.z * 0.7 + p.pos.z * 0.3, -7.2, 7.2), fx = U.clamp(b.pos.x * 0.25, -1.5, 1.5);
       G.camZ = U.damp(G.camZ, fz, 3.2, rdt); G.camX = U.damp(G.camX || 0, fx, 2, rdt);
-      var portrait = window.innerHeight > window.innerWidth, dist = portrait ? 17 : (HW.TOUCH ? 10.5 : 11.5), ht = portrait ? 8 : (HW.TOUCH ? 5.2 : 5.6);
+      var portrait = window.innerHeight > window.innerWidth, dist = portrait ? 17 : (HW.TOUCH ? 11.5 : 12.5), ht = portrait ? 8 : (HW.TOUCH ? 4.3 : 4.6);
       view.pos.set(G.camX + dist, ht, G.camZ);
-      view.yaw = Math.PI / 2; I.lookYaw = view.yaw; view.pitch = Math.atan2(0.8 - ht, dist);
+      view.yaw = Math.PI / 2; I.lookYaw = view.yaw; view.pitch = Math.atan2(1.25 - ht, dist);
     } else if (G.camMode === 'first') {
       view.pos.set(p.pos.x, p.y + p.eyeHeight(), p.pos.z);
     } else {
@@ -419,7 +419,7 @@ window.HW = window.HW || {};
   G.teamOnFire = function (t) { return G.players.some(function (p) { return p.team === t && p.onFire; }); };
 
   G.updateHud = function () {
-    var p = G.human; HW.Touch.update(p);
+    var p = G.human; HW.Touch.update(p); UI.jam.update(G);
     var SB = UI.scoreboard, names = [HW.TEAMS[0].short, HW.TEAMS[1].short];
     var msg = G.phase === 'play' || G.phase === 'dead' ? '' : G.phase === 'countdown' ? 'GET READY' : G.phase === 'break' ? 'BREAK' : G.phase === 'menu' ? 'WELCOME TO THE COURT' : 'FINAL';
     SB.set({ score: G.score.slice(), names: names, colors: [HW.TEAMS[0].color, HW.TEAMS[1].color], quarter: G.q, clock: G.clock, shot: G.shotClock, msg: msg, poss: G.possTeam, fire: [G.teamOnFire(0), G.teamOnFire(1)] });
