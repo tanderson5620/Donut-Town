@@ -10,7 +10,7 @@ window.HW = window.HW || {};
 
   // Everyone: id, display name, team (0 Andersons, 1 Gormans), type, jersey number/color, look, stats.
   HW.PLAYERS = {
-    carl:    { id: 'carl',    name: 'Carl Anderson',    first: 'Carl',    team: 0, type: 'dunker',   num: 23, color: '#e63946', skin: '#8d5524', hair: '#1a1a1a', hairStyle: 'fade',  height: 1.95, bulk: 1.0,  stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6 } },
+    carl:    { id: 'carl',    name: 'Carl Anderson',    first: 'Carl',    team: 0, type: 'dunker',   num: 23, color: '#e63946', skin: '#e0a68c', hair: '#8a6a50', hairStyle: 'short', photo: true, brow: '#9a6a4a', height: 1.95, bulk: 1.0,  stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6 } },
     tyler:   { id: 'tyler',   name: 'Tyler Anderson',   first: 'Tyler',   team: 0, type: 'shooter',  num: 3,  color: '#ffb703', skin: '#e2ae94', hair: '#76634f', hairStyle: 'short', photo: true, height: 1.86, bulk: 0.9,  stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4 } },
     alan:    { id: 'alan',    name: 'Alan Anderson',    first: 'Alan',    team: 0, type: 'handler',  num: 11, color: '#fb5607', skin: '#c98262', hair: '#c2ab82', hairStyle: 'swept', photo: true, height: 1.76, bulk: 1.12,
                // from his photo: sun-tanned freckled skin, short swept-back ash-blond/gray hair, tinted wire glasses, stocky with a belly, gray shorts, tan suede slip-ons
@@ -25,7 +25,7 @@ window.HW = window.HW || {};
 
   // Realistic-body extras per player: eye color, headband, and anything special (Alan: from his photo)
   var LOOK = {
-    carl:    { iris: '#3b2414', band: '#ffffff' },
+    carl:    { iris: '#6f8a8a' },
     tyler:   { iris: '#4f7396' },
     alan:    { iris: '#6e8794', glasses: true, plainShorts: true, noSocks: true, shoe: { base: '#c4a57e', sole: '#efe6d4', suede: true } },
     lisa:    { iris: '#4a3018' },
