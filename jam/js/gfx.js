@@ -191,52 +191,83 @@ window.HW = window.HW || {};
   X.face = function (id) { return faces[id]; };
 
   var HEAD_M = 0.56;   // big digitized head width in meters (arcade proportions)
-  X.drawPlayer = function (g, p) {
-    var sh = sheets[p.id]; if (!sh || !sh.meta) return;
+  function frameOf(p) {
+    var sh = sheets[p.id]; if (!sh || !sh.meta) return null;
     var m = sh.meta, A = m.anim[p.anim] || m.anim.idle, list = A[p.dir] || A.R || A[Object.keys(A)[0]];
-    var fi = list[Math.min(list.length - 1, Math.floor(p.frame) % list.length)];
-    var ground = X.proj(p.x, 0, p.z), k = ground.s / m.ppm, flip = p.face < 0;
+    var fi = list[Math.min(list.length - 1, Math.floor(p.frame) % list.length)], ground = X.proj(p.x, 0, p.z);
+    return { sh: sh, m: m, fi: fi, ground: ground, k: ground.s / m.ppm, flip: p.face < 0, lift: p.y * ground.s, sx: (fi % m.cols) * m.fw, sy: Math.floor(fi / m.cols) * m.fh };
+  }
+  function drawBody(g, p, o, alpha) {
+    var m = o.m, k = o.k, fx = m.feet[0], fy = m.feet[1];
+    g.drawImage(o.sh.img, o.sx, o.sy, m.fw, m.fh, -fx * k, -fy * k, m.fw * k, m.fh * k);
+    var hd = m.head[o.fi], f = faces[p.id], img = f && (p.dir === 'B' ? f.back : f.front);
+    if (img && img.naturalWidth && hd) {
+      var hw = HEAD_M * o.ground.s * (p.bigHead || 1), hh = hw * img.naturalHeight / img.naturalWidth;
+      g.drawImage(img, (hd[0] - fx) * k - hw / 2, (hd[1] - fy) * k - hh * 0.8, hw, hh);
+    }
+  }
+  // the polished floor mirrors the players faintly, like the arcade's glossy hardwood
+  X.drawReflection = function (g, p) {
+    var o = frameOf(p); if (!o) return;
+    g.save(); g.globalAlpha = Math.max(0, 0.2 - p.y * 0.05); g.translate(o.ground.x, o.ground.y + o.lift); g.scale(o.flip ? -1 : 1, -0.85);
+    drawBody(g, p, o); g.restore();
+  };
+  X.drawPlayer = function (g, p) {
+    var o = frameOf(p); if (!o) return;
+    var m = o.m, k = o.k, ground = o.ground, lift = o.lift, fx = m.feet[0], fy = m.feet[1];
     p.screen = ground;
     // shadow
-    var sr = 0.55 * ground.s; g.fillStyle = 'rgba(0,0,0,' + Math.max(0.12, 0.35 - p.y * 0.08) + ')'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * (1 - Math.min(0.5, p.y * 0.12)), sr * 0.28, 0, 0, 6.283); g.fill();
-    if (p.onFire) { g.fillStyle = 'rgba(255,120,20,0.35)'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * 1.3, sr * 0.38, 0, 0, 6.283); g.fill(); }
-    var lift = p.y * ground.s, sx = (fi % m.cols) * m.fw, sy = Math.floor(fi / m.cols) * m.fh, fx = m.feet[0], fy = m.feet[1];
-    g.save(); g.translate(ground.x, ground.y - lift); if (flip) g.scale(-1, 1);
-    if (p.flash > 0) g.filter = 'brightness(1.8)';
-    g.drawImage(sh.img, sx, sy, m.fw, m.fh, -fx * k, -fy * k, m.fw * k, m.fh * k);
-    g.filter = 'none';
-    // big digitized head on the neck
-    var hd = m.head[fi], f = faces[p.id], img = f && (p.dir === 'B' ? f.back : f.front);
-    if (img && img.naturalWidth) {
-      var hw = HEAD_M * ground.s * (p.bigHead || 1), hh = hw * img.naturalHeight / img.naturalWidth;
-      var hx = (hd[0] - fx) * k, hy = (hd[1] - fy) * k;
-      g.drawImage(img, hx - hw / 2, hy - hh * 0.8, hw, hh);
-    }
+    var sr = 0.55 * ground.s; g.fillStyle = 'rgba(0,0,0,' + Math.max(0.12, 0.38 - p.y * 0.08) + ')'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * (1 - Math.min(0.5, p.y * 0.12)), sr * 0.26, 0, 0, 6.283); g.fill();
+    if (p.onFire) { g.fillStyle = 'rgba(255,120,20,0.35)'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * 1.3, sr * 0.36, 0, 0, 6.283); g.fill(); }
+    g.save(); g.translate(ground.x, ground.y - lift); if (o.flip) g.scale(-1, 1);
+    drawBody(g, p, o);
+    // hit flash: the same frame again, added on top (no canvas filters - slow on phones, missing on older Safari)
+    if (p.flash > 0 && Math.floor(p.flash * 16) % 2) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.6; drawBody(g, p, o); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
     g.restore();
+    var hd = m.head[o.fi];
     p.headTop = ground.y - lift + (hd ? (hd[1] - fy) * k : -2 * ground.s) - HEAD_M * ground.s;
     // ball hand (for dribbles and holding), in screen space
-    var hand = m.hand[fi]; p.handScr = { x: ground.x + (flip ? -1 : 1) * (hand[0] - fx) * k, y: ground.y - lift + (hand[1] - fy) * k };
+    var hand = m.hand[o.fi]; p.handScr = { x: ground.x + (o.flip ? -1 : 1) * (hand[0] - fx) * k, y: ground.y - lift + (hand[1] - fy) * k };
   };
 
   /* ---------- ball and particles ---------- */
   X.drawBall = function (g, b, t) {
     var sh = X.proj(b.x, 0, b.z), p = X.proj(b.x, b.y, b.z), r = Math.max(3, 0.15 * p.s);
-    g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(sh.x, sh.y, r * 1.1, r * 0.35, 0, 0, 6.283); g.fill();
-    if (b.fire) for (var i = 0; i < 4; i++) { g.fillStyle = ['rgba(255,80,0,0.55)', 'rgba(255,170,0,0.5)'][i % 2]; g.beginPath(); g.arc(p.x - b.vx * 0.012 * i * p.s / 20, p.y - b.vy * 0.012 * i * p.s / 20 + Math.sin(t * 30 + i) * 2, r * (1.5 - i * 0.2), 0, 6.283); g.fill(); }
-    var gr = g.createRadialGradient(p.x - r * 0.35, p.y - r * 0.35, r * 0.1, p.x, p.y, r);
-    gr.addColorStop(0, '#ffb066'); gr.addColorStop(1, '#c4520e'); g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, r, 0, 6.283); g.fill();
-    g.strokeStyle = 'rgba(40,15,0,0.8)'; g.lineWidth = 1; g.beginPath(); g.moveTo(p.x - r, p.y); g.lineTo(p.x + r, p.y); g.moveTo(p.x, p.y - r); g.lineTo(p.x, p.y + r); g.stroke();
+    g.fillStyle = 'rgba(0,0,0,' + Math.max(0.1, 0.35 - b.y * 0.06) + ')'; g.beginPath(); g.ellipse(sh.x, sh.y, r * 1.1, r * 0.32, 0, 0, 6.283); g.fill();
+    b.spin = ((b.spin || 0) + (b.vx || 0) * 0.02 + 6.283) % 6.283;
+    if (b.fire) X.flame(b.x, b.y, b.z, 2, 0.2);
+    var gr = g.createRadialGradient(p.x - r * 0.4, p.y - r * 0.45, r * 0.05, p.x, p.y, r);
+    gr.addColorStop(0, '#ffc488'); gr.addColorStop(0.45, '#f07a26'); gr.addColorStop(1, '#9c3a08'); g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, r, 0, 6.283); g.fill();
+    // seams turn with the spin
+    g.save(); g.beginPath(); g.arc(p.x, p.y, r, 0, 6.283); g.clip();
+    g.strokeStyle = 'rgba(35,12,0,0.85)'; g.lineWidth = Math.max(1, r * 0.11);
+    var o = Math.sin(b.spin) * r * 0.55;
+    g.beginPath(); g.moveTo(p.x - r, p.y + Math.cos(b.spin) * r * 0.15); g.lineTo(p.x + r, p.y - Math.cos(b.spin) * r * 0.15); g.stroke();
+    g.beginPath(); g.ellipse(p.x + o, p.y, Math.abs(Math.cos(b.spin)) * r * 0.5 + 1, r, 0, 0, 6.283); g.stroke();
+    g.restore();
+    g.strokeStyle = 'rgba(60,20,0,0.9)'; g.lineWidth = 1; g.beginPath(); g.arc(p.x, p.y, r, 0, 6.283); g.stroke();
     b.scr = p;
   };
   var parts = [];
   X.burst = function (x, y, z, n, cols, sp, life, grav) {
     for (var i = 0; i < n; i++) { var a = Math.random() * 6.283, s = sp * (0.3 + Math.random()); parts.push({ x: x, y: y, z: z, vx: Math.cos(a) * s, vy: Math.random() * sp + 1, vz: Math.sin(a) * s * 0.5, c: cols[(Math.random() * cols.length) | 0], life: life * (0.5 + Math.random() * 0.5), g: grav === undefined ? 9 : grav, sz: 0.06 + Math.random() * 0.06 }); }
   };
+  // fire: glowing blobs that rise, swell and cool from yellow to red
+  var FLAME = ['#fff3a0', '#ffd23f', '#ff9a1f', '#ff5a10', '#c82808'];
+  X.flame = function (x, y, z, n, spread) {
+    for (var i = 0; i < n; i++) { var w = spread || 0.1, l = 0.25 + Math.random() * 0.2; parts.push({ x: x + (Math.random() - 0.5) * w, y: y + (Math.random() - 0.5) * w, z: z + (Math.random() - 0.5) * w * 0.5, vx: (Math.random() - 0.5) * 0.5, vy: 0.9 + Math.random() * 1.1, vz: 0, life: l, max: l, g: -1.5, sz: 0.045 + Math.random() * 0.04, flame: true }); }
+  };
   X.drawParts = function (g, dt) {
     for (var i = parts.length - 1; i >= 0; i--) {
       var q = parts[i]; q.life -= dt; if (q.life <= 0) { parts.splice(i, 1); continue; }
       q.vy -= q.g * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; if (q.y < 0) { q.y = 0; q.vy *= -0.4; }
-      var p = X.proj(q.x, q.y, q.z); g.fillStyle = q.c; g.fillRect(p.x, p.y, Math.max(1.5, q.sz * p.s), Math.max(1.5, q.sz * p.s));
+      var p = X.proj(q.x, q.y, q.z);
+      if (q.flame) {
+        // teardrop licks: wide at the bottom, pointed on top, shrinking as they cool
+        var u = 1 - q.life / q.max, rr = Math.max(1.2, q.sz * p.s * (1.1 - u * 0.6)); g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.max(0, 0.9 - u * 0.8);
+        g.fillStyle = FLAME[Math.min(4, (u * 5) | 0)]; g.beginPath(); g.moveTo(p.x, p.y - rr * 2.4); g.quadraticCurveTo(p.x + rr * 1.1, p.y - rr * 0.2, p.x, p.y + rr); g.quadraticCurveTo(p.x - rr * 1.1, p.y - rr * 0.2, p.x, p.y - rr * 2.4); g.fill();
+        g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+      } else { g.fillStyle = q.c; g.fillRect(p.x, p.y, Math.max(1.5, q.sz * p.s), Math.max(1.5, q.sz * p.s)); }
     }
   };
 
@@ -248,6 +279,7 @@ window.HW = window.HW || {};
     X.shake = Math.max(0, X.shake - dt * 3); X.shakeX = (Math.random() - 0.5) * X.shake * 10; X.shakeY = (Math.random() - 0.5) * X.shake * 8;
     X.hype = Math.max(0, X.hype - dt * 0.7);
     drawCrowd(g, t); drawFloor(g);
+    players.forEach(function (p) { X.drawReflection(g, p); if (p.onFire && dt > 0 && Math.random() < 0.5) X.flame(p.x + (Math.random() - 0.5) * 0.5, p.y + 0.05, p.z - 0.1, 1, 0.3); });
     var items = players.map(function (p) { return { z: p.z, draw: function () { X.drawPlayer(g, p); } }; });
     [-1, 1].forEach(function (side) {
       items.push({ z: K.HZ + 0.75, draw: function () { drawHoopBack(g, side); drawRim(g, side, false); } });
