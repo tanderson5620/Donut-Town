@@ -5,9 +5,10 @@ window.HW = window.HW || {};
   var W = 640, H = 360;
   // court (meters): x along the length, z into the screen (0 = near sideline), y up
   var K = X.K = { HL: 12.5, CD: 14, RIMX: 11.3, BOARDX: 11.95, HZ: 7, RIM_H: 3.05, R3: 6.6, LANE: 4.8, LANEW: 4.2 };
-  // camera: low and close on the near sideline like the arcade cabinet - about half the court in view, players a third of the screen tall.
-  // Tuned by where things land on the 360-high screen: SMID px per meter at mid-court, near sideline at Y0, far sideline at Y14.
-  var D = 30, SMID = 62, Y0 = 384, Y14 = 204;
+  // camera: up close and nearly flat, like a 2D side-view arcade game - players about 40% of the screen tall, the court a shallow band
+  // under them, the crowd filling the rest. Tuned by where things land on the 360-high screen: SMID px per meter at mid-court,
+  // near sideline at Y0, far sideline at Y14; a long lens (big D) keeps near and far players close in size.
+  var D = 40, SMID = 70, Y0 = 364, Y14 = 240;
   var F = SMID * (D + 7), CAMH = (Y0 - Y14) * D * (D + 14) / (F * 14), HY = Y0 - CAMH * F / D;
   X.W = W; X.H = H; X.camX = 0; X.shake = 0; X.SMID = SMID;
   // wide phones get a wider view instead of black bars (height stays 360)
