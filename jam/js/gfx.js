@@ -80,6 +80,7 @@ window.HW = window.HW || {};
   /* ---------- crowd: js/crowd.js paints the arena behind the far sideline (fallback: simple fans) ---------- */
   var crowdC, CROWD_W = 1400, wallC;
   function buildCrowd() {
+    buildWall();
     if (HW.Crowd && HW.Crowd.init) { HW.Crowd.init(); return; }
     crowdC = canvas(CROWD_W, 230); var g = crowdC.getContext('2d');
     var grd = g.createLinearGradient(0, 0, 0, 230); grd.addColorStop(0, '#05050c'); grd.addColorStop(0.35, '#191433'); grd.addColorStop(1, '#2a2050'); g.fillStyle = grd; g.fillRect(0, 0, CROWD_W, 230);
@@ -94,6 +95,8 @@ window.HW = window.HW || {};
         g.fillStyle = hairs[(r(4) * 6) | 0]; g.beginPath(); g.arc(x, y + 0.5 * sc, 5.2 * sc, Math.PI, 0); g.fill();
       }
     }
+  }
+  function buildWall() {
     // a low courtside board: dark panels with small lettering, so it frames the court instead of shouting over it
     wallC = canvas(1600, 40); var w = wallC.getContext('2d'); w.fillStyle = '#0b0b16'; w.fillRect(0, 0, 1600, 40);
     w.font = '8px "Press Start 2P", monospace'; w.textBaseline = 'middle'; w.textAlign = 'center';
@@ -107,18 +110,19 @@ window.HW = window.HW || {};
     return { W: W, H: H, t: t, camX: X.camX, hype: X.hype, shakeX: X.shakeX, shakeY: X.shakeY, wallTop: a.y, wallBottom: b.y, s: b.s, proj: X.proj };
   };
   // the stands sit in the dark so the players on the court stand out
-  var DIM_TOP = 0.62, DIM_LOW = 0.42, dimG = null, dimFor = '';
+  var DIM_TOP = 0.45, DIM_LOW = 0.34, dimG = null, dimFor = '';
   function dimCrowd(g, v) {
     var key = W + ':' + Math.round(v.wallBottom);
     if (key !== dimFor) { dimFor = key; dimG = g.createLinearGradient(0, 0, 0, v.wallBottom); dimG.addColorStop(0, 'rgba(4,4,14,' + DIM_TOP + ')'); dimG.addColorStop(1, 'rgba(4,4,14,' + DIM_LOW + ')'); }
     g.fillStyle = dimG; g.fillRect(0, 0, W, Math.ceil(v.wallBottom) + 1);
   }
-  function drawCrowd(g, t) {
-    if (HW.Crowd && HW.Crowd.draw) { var cv = X.crowdView(t); HW.Crowd.draw(g, cv); dimCrowd(g, cv); return; }
+  X.drawWall = function (g, v) { var off = ((X.camX * v.s) % 800 + 800) % 800; g.drawImage(wallC, off, 0, W, 40, 0, v.wallTop, W, v.wallBottom - v.wallTop); };
+  function drawCrowd(g, t, dt) {
+    if (HW.Crowd && HW.Crowd.draw) { var cv = X.crowdView(t); HW.Crowd.draw(g, cv); dimCrowd(g, cv); if (HW.Crowd.over) HW.Crowd.over(g, cv, dt); return; }
     var v = X.crowdView(t), bob = Math.abs(Math.sin(t * (6 + X.hype * 3))) * (1 + X.hype * 3), ox = ((CROWD_W - W) / 2 + X.camX * v.s * 0.9 + X.shakeX) | 0;
     g.drawImage(crowdC, Math.max(0, Math.min(CROWD_W - W, ox)), 0, W, 230, 0, v.wallTop - 230 + 18 - bob, W, 230);
     g.fillStyle = '#05050c'; if (v.wallTop - 212 - bob > 0) g.fillRect(0, 0, W, v.wallTop - 212 - bob + 1);
-    var off = ((X.camX * v.s) % 800 + 800) % 800; g.drawImage(wallC, off, 0, W, 40, 0, v.wallTop, W, v.wallBottom - v.wallTop);
+    X.drawWall(g, v);
     dimCrowd(g, v);
   }
 
@@ -214,10 +218,12 @@ window.HW = window.HW || {};
     var sh = sheets[p.id]; if (!sh || !sh.meta) return null;
     var m = sh.meta, A = m.anim[p.anim] || m.anim.idle, list = A[p.dir] || A.R || A[Object.keys(A)[0]];
     var fi = list[Math.min(list.length - 1, Math.floor(p.frame) % list.length)], ground = X.proj(p.x, 0, p.z);
-    return { sh: sh, m: m, fi: fi, ground: ground, k: ground.s / m.ppm, flip: p.face < 0, lift: p.y * ground.s, sx: (fi % m.cols) * m.fw, sy: Math.floor(fi / m.cols) * m.fh };
+    // off: frames rendered slid over to fit the frame (a body falling backward) are slid back here
+    var off = m.off && m.off[fi] || null;
+    return { sh: sh, m: m, fi: fi, ground: ground, k: ground.s / m.ppm, flip: p.face < 0, lift: p.y * ground.s, sx: (fi % m.cols) * m.fw, sy: Math.floor(fi / m.cols) * m.fh, fx: m.feet[0] + (off ? off[0] : 0), fy: m.feet[1] + (off ? off[1] : 0) };
   }
   function drawBody(g, p, o, alpha) {
-    var m = o.m, k = o.k, fx = m.feet[0], fy = m.feet[1];
+    var m = o.m, k = o.k, fx = o.fx, fy = o.fy;
     g.drawImage(o.sh.img, o.sx, o.sy, m.fw, m.fh, -fx * k, -fy * k, m.fw * k, m.fh * k);
     var hd = m.head[o.fi], f = faces[p.id], img = f && (p.dir === 'B' ? f.back : f.front);
     if (img && img.naturalWidth && hd) {
@@ -234,7 +240,7 @@ window.HW = window.HW || {};
   };
   X.drawPlayer = function (g, p) {
     var o = frameOf(p); if (!o) return;
-    var m = o.m, k = o.k, ground = o.ground, lift = o.lift, fx = m.feet[0], fy = m.feet[1];
+    var m = o.m, k = o.k, ground = o.ground, lift = o.lift, fx = o.fx, fy = o.fy;
     p.screen = ground;
     // shadow
     var sr = 0.6 * ground.s; g.fillStyle = 'rgba(0,0,0,' + Math.max(0.15, 0.5 - p.y * 0.1) + ')'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * (1 - Math.min(0.5, p.y * 0.12)), sr * 0.26, 0, 0, 6.283); g.fill();
@@ -298,7 +304,7 @@ window.HW = window.HW || {};
   X.drawScene = function (g, t, dt, players, ball, hoopFx) {
     X.shake = Math.max(0, X.shake - dt * 3); X.shakeX = (Math.random() - 0.5) * X.shake * 10; X.shakeY = (Math.random() - 0.5) * X.shake * 8;
     X.hype = Math.max(0, X.hype - dt * 0.7);
-    drawCrowd(g, t); drawFloor(g);
+    drawCrowd(g, t, dt); drawFloor(g);
     players.forEach(function (p) { X.drawReflection(g, p); if (p.onFire && dt > 0 && Math.random() < 0.5) X.flame(p.x + (Math.random() - 0.5) * 0.5, p.y + 0.05, p.z - 0.1, 1, 0.3); });
     var items = players.map(function (p) { return { z: p.z, draw: function () { X.drawPlayer(g, p); } }; });
     [-1, 1].forEach(function (side) {
