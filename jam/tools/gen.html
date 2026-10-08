@@ -15,7 +15,7 @@
 var PPM = 72, FW = 138, FH = 188, SS = 3;      // 72 px per meter (the close game camera draws 62-80), frame size, supersampling
 var R = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 R.setPixelRatio(1); R.setClearColor(0x000000, 0);
-R.outputEncoding = THREE.sRGBEncoding; R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = 1.0;
+R.outputEncoding = THREE.sRGBEncoding;   // no tone mapping: filmic curves wash the jersey colors out
 document.body.appendChild(R.domElement);
 var scene = new THREE.Scene(), V3 = THREE.Vector3;
 HW.HIGH = true;
@@ -27,7 +27,7 @@ function rig(list) {
   scene.add(g); return g;
 }
 var LIT = {
-  body: rig([[0, 0x7884b8, 0.42, 0x231a26], [1, 0xffd9b0, 3.0, -3, 4.2, 4], [1, 0x8094d8, 0.3, 4, 1.2, 2.5], [1, 0xc4e4ff, 2.4, 4, 2.6, -3.6], [1, 0xffc896, 1.1, -4, 2, -3]]),
+  body: rig([[0, 0x7884b8, 0.3, 0x231a26], [1, 0xfff0e0, 2.0, -4, 4, 2.4], [1, 0x7080c0, 0.2, 4, 1.2, 2.5], [1, 0xc4e4ff, 2.0, 4, 2.6, -3.6], [1, 0xffc896, 0.8, -4, 2, -3]]),
   head: rig([[0, 0xc4cce8, 0.5, 0x45342c], [1, 0xfff0dc, 1.9, -1.7, 1.5, 2.2], [1, 0xfff0dc, 0.7, -0.6, 2.4, 2.0], [1, 0xd0dcff, 0.5, 2.3, 0.3, 1.6], [1, 0xffffff, 1.7, 2.4, 1.4, -1.6], [1, 0xffe2c4, 0.9, -2.4, 1.0, -1.8], [1, 0xffffff, 0.6, 0, 3, -0.5]])
 };
 function lights(k) { Object.keys(LIT).forEach(function (n) { LIT[n].visible = n === k; }); }
@@ -279,7 +279,8 @@ window.genHead = function (id, back, opt) {
   var cy = hp.y + (HEAD_ANCHOR - 0.5) * HH, c = new THREE.PerspectiveCamera(2 * Math.atan(HH / 2 / HEAD_DIST) * 180 / Math.PI, w / h, 0.05, 10);
   c.position.set(hc.x, cy, hc.z + HEAD_DIST); c.lookAt(hc.x, cy, hc.z); c.updateMatrixWorld(true);
   A.face.update(0, back ? null : c.position);
-  var px = grab(c, w, h, 4, 0.5); grade(px, opt.con || 1.06, opt.sat || 1.06, opt.black || 4);
+  var px = grab(c, w, h, 4, 0.5); if (opt.raw) { scene.remove(A.root); return R.domElement.toDataURL(); }
+  grade(px, opt.con || 1.06, opt.sat || 1.06, opt.black || 4);
   scene.remove(A.root);
   var pal = palette([px], opt.colors || 64), idx = indexed(px, w, h, pal, 2, opt.dither === undefined ? 8 : opt.dither, opt.outline ? 1 : 0);
   return { w: w, h: h, pal: [[0, 0, 0, 0], OUTLINE.concat(255)].concat(pal.map(function (c) { return c.concat(255); })), idx: b64(idx) };

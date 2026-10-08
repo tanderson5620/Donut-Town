@@ -78,7 +78,8 @@ window.HW = window.HW || {};
   function css(a) { return 'rgb(' + (a[0] | 0) + ',' + (a[1] | 0) + ',' + (a[2] | 0) + ')'; }
   function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
   function toHex(a) { return '#' + a.map(function (v) { v = Math.max(0, Math.min(255, Math.round(v))); return (v < 16 ? '0' : '') + v.toString(16); }).join(''); }
-  F.shade = function (c, k) { var a = hex(c); return toHex(k > 0 ? mix(a, [255, 255, 255], k) : mix(a, [0, 0, 0], -k)); };
+  var shades = {};
+  F.shade = function (c, k) { var key = c + k; if (shades[key]) return shades[key]; var a = hex(c); return shades[key] = toHex(k > 0 ? mix(a, [255, 255, 255], k) : mix(a, [0, 0, 0], -k)); };
   function ramp(top, mid, bot) { var a = hex(top), b = hex(mid), c = hex(bot), o = []; for (var i = 0; i < ROWS; i++) o.push(css(i < 4 ? mix(a, b, i / 4) : mix(b, c, (i - 4) / 4))); return o; }
   var SCH = F.SCHEMES = {
     yellow: ['#ffffb0', '#fff64a', '#fff23a', '#ffec20', '#ffd400', '#ffbf00', '#f7a800', '#ee9500', '#d97c00'],
