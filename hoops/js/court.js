@@ -140,7 +140,7 @@ window.HW = window.HW || {};
     // ad boards around the court
     var adTex = U.canvasTex(1024, 64, function (g, w, h) {
       g.fillStyle = '#111'; g.fillRect(0, 0, w, h); g.font = 'bold 40px Arial Black, Impact'; g.textBaseline = 'middle';
-      var t = ['DONUT TOWN', 'GLAZED & CONFUSED', 'SPRINKLE BAKERY', 'PAIGE GLAZE FLOWERS', 'DONUT TOWN'], x = 16;
+      var t = ['HOOPS JAM', 'ANDERSONS', '2 ON 2', 'GORMANS', 'HOOPS JAM'], x = 16;
       t.forEach(function (s, i) { g.fillStyle = ['#ff8a1f', '#ffffff', '#ff4fa3', '#6ae3a6', '#3a86ff'][i]; g.fillText(s, x, h / 2); x += g.measureText(s).width + 50; });
     }, { aniso: 2 });
     adTex.wrapS = THREE.RepeatWrapping; adTex.repeat.set(2, 1);

@@ -1,6 +1,6 @@
-# Donut Town Hoops
+# Hoops Jam
 
-A WebXR 2-on-2 arcade basketball game for **Meta Quest 2** (and any desktop browser). Andersons vs Gormans: over-the-top dunks, "on fire" streaks, shoving, steals, and fast 3-minute quarters. Plain HTML + JavaScript with three.js, no build step. It lives in `hoops/`, next to Donut Town, which stays untouched.
+A WebXR 2-on-2 arcade basketball game for **Meta Quest 2** (and any desktop browser). Andersons vs Gormans: over-the-top dunks, "on fire" streaks, shoving, steals, and fast 3-minute quarters. Plain HTML + JavaScript with three.js, no build step. It's a standalone game that just lives in the `hoops/` folder of this repo.
 
 ## Play it
 

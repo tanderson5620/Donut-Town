@@ -185,7 +185,7 @@ window.HW = window.HW || {};
     if (holder.state === 'down' || holder.state === 'dunk') return false;
     if (Math.random() < chance) {
       Au.steal(); p.stats.steals++; holder.slow = 0.5;
-      A.grab(p); UI.callout(U.pick(['PICKPOCKET!', 'STOLEN GLAZE!', 'SWIPED!', 'SNEAKY SPRINKLES!']), '#7ee0ff', { life: 1.2 });
+      A.grab(p); UI.callout(U.pick(['PICKPOCKET!', 'CLEAN PICK!', 'SWIPED!', 'STRIPPED!']), '#7ee0ff', { life: 1.2 });
       G.shotClock = C.SHOT_CLOCK; return true;
     }
     return false;
@@ -242,7 +242,7 @@ window.HW = window.HW || {};
   };
 
   /* ---------- dunks: turbo + drive at the rim; slow-mo cinematic, style by Dunk rating ---------- */
-  var DUNK_NAMES = { onehand: 'JELLY-FILLED JAM!', twohand: 'TWO-HAND THUNDER!', tomahawk: 'TOMAHAWK CHOP!', windmill: 'WINDMILL WALLOP!', spin360: 'SPINNING SPRINKLE SLAM!', backflip: 'BACKFLIP BOOM!' };
+  var DUNK_NAMES = { onehand: 'RIM ROCKER!', twohand: 'TWO-HAND THUNDER!', tomahawk: 'TOMAHAWK CHOP!', windmill: 'WINDMILL WALLOP!', spin360: 'THREE-SIXTY SLAM!', backflip: 'BACKFLIP BOOM!' };
   A.dunkRange = function (p) { var t = HW.TYPES[p.def.type]; return 2.3 + 0.2 * p.def.stats.dunk + t.dunkRange; };
   A.canDunk = function (p, d) {
     if (!p.hasBall || p.state !== 'idle' || p.y > 0.05 || G.ball.state === 'free' || G.phase !== 'play') return false;

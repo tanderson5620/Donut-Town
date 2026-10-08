@@ -109,7 +109,7 @@ window.HW = window.HW || {};
   SB.drawBoard = function (g, w, h, p) {
     var s = SB.state; g.fillStyle = '#080a14'; g.fillRect(0, 0, w, h);
     g.strokeStyle = '#ff8a1f'; g.lineWidth = 10; g.strokeRect(8, 8, w - 16, h - 16);
-    p.text('DONUT TOWN HOOPS', w / 2, 52, 40, '#ff8a1f', 'center');
+    p.text('HOOPS JAM', w / 2, 52, 40, '#ff8a1f', 'center');
     [0, 1].forEach(function (i) {
       var cx = i ? w - 215 : 215;
       p.text(s.names[i], cx, 120, 54, s.colors[i], 'center');

@@ -58,11 +58,11 @@ window.HW = window.HW || {};
     if (title) p.text(title, w / 2, 86, 66, '#ffffff', 'center', { stroke: '#000', strokeW: 10 });
     if (sub) p.text(sub, w / 2, 150, 32, '#aab4d8', 'center', { weight: 'normal' });
   }
-  function donut(g, x, y, r) {
-    g.save(); g.translate(x, y); g.lineWidth = r * 0.62; g.strokeStyle = '#e8a35c'; g.beginPath(); g.arc(0, 0, r * 0.7, 0, 6.283); g.stroke();
-    g.lineWidth = r * 0.42; g.strokeStyle = '#ff7eb6'; g.beginPath(); g.arc(0, -r * 0.04, r * 0.7, 0, 6.283); g.stroke();
-    var cols = ['#fff', '#ffd23f', '#5cffa0', '#6ec6ff', '#c58bff'];
-    for (var i = 0; i < 18; i++) { var a = i / 18 * 6.283 + 0.2; g.save(); g.rotate(a); g.translate(r * 0.7, 0); g.rotate(i * 1.7); g.fillStyle = cols[i % 5]; g.fillRect(-9, -3, 18, 6); g.restore(); }
+  function hoopBall(g, x, y, r) {
+    g.save(); g.translate(x, y); g.fillStyle = '#e8701a'; g.beginPath(); g.arc(0, 0, r, 0, 6.283); g.fill();
+    g.strokeStyle = '#1a0d05'; g.lineWidth = r * 0.07;
+    g.beginPath(); g.moveTo(-r, 0); g.lineTo(r, 0); g.stroke(); g.beginPath(); g.moveTo(0, -r); g.lineTo(0, r); g.stroke();
+    g.beginPath(); g.arc(-r * 1.25, 0, r * 0.9, -0.95, 0.95); g.stroke(); g.beginPath(); g.arc(r * 1.25, 0, r * 0.9, Math.PI - 0.95, Math.PI + 0.95); g.stroke();
     g.restore();
   }
   function statBars(p, g, x, y, w, def) {
@@ -85,8 +85,8 @@ window.HW = window.HW || {};
   M.draw = function (g, w, h, p) {
     var s = M.screen, st = M.st, S = HW.settings;
     if (s === 'title') {
-      frame(p, g, w, h); donut(g, w / 2, 200, 92);
-      p.text('DONUT TOWN', w / 2, 345, 70, '#ff8a1f', 'center', { stroke: '#000', strokeW: 12 }); p.text('HOOPS', w / 2, 450, 120, '#ffffff', 'center', { stroke: '#000', strokeW: 16 });
+      frame(p, g, w, h); hoopBall(g, w / 2, 200, 92);
+      p.text('HOOPS', w / 2, 350, 120, '#ffffff', 'center', { stroke: '#000', strokeW: 16 }); p.text('JAM', w / 2, 455, 90, '#ff8a1f', 'center', { stroke: '#000', strokeW: 14 });
       p.text('2-ON-2 ARCADE BASKETBALL  -  ANDERSONS vs GORMANS', w / 2, 540, 30, '#aab4d8', 'center', { weight: 'normal' });
       p.button('play', 468, 590, 600, 120, 'PLAY', { size: 64, selected: true, onClick: function () { M.show('team'); } });
       p.button('how', 468, 740, 290, 90, 'HOW TO PLAY', { size: 32, onClick: function () { M.show('how'); } });
@@ -164,7 +164,7 @@ window.HW = window.HW || {};
       var G = HW.Game, win = G.score[0] > G.score[1] ? 0 : 1, T = HW.TEAMS;
       frame(p, g, w, h); p.text(T[win].name.toUpperCase() + ' WIN!', w / 2, 90, 80, T[win].color, 'center', { stroke: '#000', strokeW: 12 });
       p.text(G.score[0] + '  -  ' + G.score[1], w / 2, 190, 100, '#fff', 'center', { stroke: '#000', strokeW: 12 });
-      p.text(G.humanTeam === win ? 'YOU WIN! SWEET SPRINKLES!' : 'TOUGH LOSS - RUN IT BACK?', w / 2, 262, 34, G.humanTeam === win ? '#5cffa0' : '#ff9f8a', 'center');
+      p.text(G.humanTeam === win ? 'YOU WIN! WHAT A PERFORMANCE!' : 'TOUGH LOSS - RUN IT BACK?', w / 2, 262, 34, G.humanTeam === win ? '#5cffa0' : '#ff9f8a', 'center');
       var cols = [['PLAYER', 120, 'left'], ['PTS', 700, 'center'], ['FG', 820, 'center'], ['3PT', 940, 'center'], ['DNK', 1060, 'center'], ['STL', 1180, 'center'], ['BLK', 1290, 'center'], ['SHV', 1400, 'center']];
       cols.forEach(function (c) { p.text(c[0], c[1], 320, 28, '#8f9ac2', c[2]); });
       g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(90, 340, w - 180, 3);
