@@ -7,10 +7,10 @@ window.HW = window.HW || {};
   var _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
 
   var PH = {
-    two: ['BUCKET!', 'NOTHING BUT NET!', 'CASH IT IN!', 'SPRINKLES!', 'FRESH FROM THE FRYER!', 'GLAZED IT!'],
-    three: ['SPLASH FROM DOWNTOWN!', 'RAIN MAKER!', 'THREE IN THE HOLE!', 'DEEP DISH DELIGHT!', 'FROM WAY OUT THERE!'],
-    swish: ['SWISHEROONI!', 'NOT A TOUCH!', 'PURE GLAZE!'],
-    dunk: ['KABLAMMO!', 'SLAM-A-LICIOUS!', 'JELLY-FILLED JAM!', 'SHAZAMMA-JAMMA!', 'ROOF-RATTLER!']
+    two: ['BUCKET!', 'NOTHING BUT NET!', 'CASH IT IN!', 'MONEY!', 'COUNT IT!', 'PUT IT IN THE BOOK!'],
+    three: ['SPLASH FROM DOWNTOWN!', 'RAIN MAKER!', 'THREE IN THE HOLE!', 'FROM THE PARKING LOT!', 'FROM WAY OUT THERE!'],
+    swish: ['SWISHEROONI!', 'NOT A TOUCH!', 'PURE BUTTER!'],
+    dunk: ['KABLAMMO!', 'SLAM-A-LICIOUS!', 'RIM ROCKER!', 'SHAZAMMA-JAMMA!', 'ROOF-RATTLER!']
   };
   HW.PHRASES = PH;
 

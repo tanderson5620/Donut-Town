@@ -161,5 +161,5 @@ Headless Chromium with SwiftShader (`--use-angle=swiftshader --enable-unsafe-swi
 - A lighter "performance mode" toggle for Quest 2.
 - A true installable app (APK) would require porting to Unity or Godot with real 3D models.
 
-## Also in this repo: Donut Town Hoops
+## Also in this repo: Hoops Jam
 `hoops/` holds a separate WebXR 2-on-2 arcade basketball game (own `index.html`, plain JS files, see `hoops/README.md`). It does not touch `donut-town-vr.html`, so the single-file rules above only apply to Donut Town.
