@@ -19,7 +19,7 @@ window.HW = window.HW || {};
     this.jumpH = 0.85 + 0.05 * s.dunk + t.jumpBonus; this.reach = d.height + 0.45;
     this.x = 0; this.z = 7; this.y = 0; this.vx = 0; this.vz = 0; this.vy = 0; this.face = 1; this.dir = 'R';
     this.anim = 'idle'; this.frame = 0; this.state = 'idle'; this.st = 0; this.turbo = 100; this.turboOn = false;
-    this.onFire = false; this.streak = 0; this.cd = { steal: 0, shove: 0, jump: 0, catch: 0 }; this.flash = 0;
+    this.onFire = false; this.streak = 0; this.cd = { steal: 0, shove: 0, jump: 0, catch: 0, block: 0 }; this.flash = 0;
     this.stats = { pts: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, dunks: 0, steals: 0, blocks: 0, shoves: 0 };
     this.ai = { t: 0, spot: null, spotT: 0, hold: 0 };
   }
@@ -177,6 +177,16 @@ window.HW = window.HW || {};
     G.phase = 'scored'; G.phaseT = 1.6; G.nextPoss = 1 - team;
   };
   G.missed = function (info) { info.by.streak = 0; };
+  // your odds on a block try: 75-95% right on him (by block rating), dropping off toward the edge of your reach
+  G.humanBlock = function (q, d) { return clamp(0.66 + 0.035 * q.def.stats.block - 0.25 * Math.max(0, d - 0.7), 0.35, 0.95); };
+  // a block: the shot is dead and the blocker comes down with the ball
+  G.blocked = function (q, shooter, info) {
+    var b = G.ball; q.stats.blocks++;
+    if (info) G.missed(info); else { shooter.streak = 0; shooter.released = true; }
+    X.burst(b.x, b.y, b.z, 14, ['#ffffff', '#ffd23f', '#ff6b6b'], 3, 0.5);
+    G.give(q); q.cd.catch = 0;
+    G.say(pick(HW.PHRASES.block), '#ff6b6b', 1.3); Au.board(); X.shake = 0.6; X.hype = Math.max(X.hype, 1.6);
+  };
 
   /* ---------- per frame ---------- */
   G.update = function (dt, In) {
@@ -217,7 +227,7 @@ window.HW = window.HW || {};
     else p.turbo = Math.min(100, p.turbo + (p.hasBall ? 9 : 14) * dt);
     var sp = p.run * (p.turboOn ? p.turboMult : 1) * (p.hasBall ? 0.93 : 1) * (p.onFire ? 1.1 : 1) * (p.human ? 1 : G.diff.speed) * (can ? 1 : 0) * (p.y > 0.05 ? 0.7 : 1);
     var k = 1 - Math.exp(-(m > 0.1 ? 10 : 12) * dt);
-    p.vx += (mx * sp - p.vx) * k; p.vz += (mz * sp * ZS - p.vz) * k;
+    p.vx += (mx * sp - p.vx) * k; p.vz += (mz * sp * G.ZS - p.vz) * k;
   }
   G.move = move;
   function physics(p, dt) {
@@ -260,18 +270,30 @@ window.HW = window.HW || {};
   function updateBall(dt) {
     var b = G.ball; b.noCatch = Math.max(0, (b.noCatch || 0) - dt); b.inFront = false;
     b.fire = !!((b.holder && b.holder.onFire) || (b.shotInfo && b.shotInfo.by.onFire && b.state === 'shot'));
-    if (b.state === 'held') { ballAtHolder(b.holder, dt); return; }
+    if (b.state === 'held') {
+      ballAtHolder(b.holder, dt);
+      // swat it out of a shooter's hands on the way up: you, in the air, close enough to reach the ball
+      var sh = b.holder;
+      if (sh.state === 'shoot' && !sh.released && sh.y > 0.1) G.opps(sh).forEach(function (q) {
+        if (!q.human || b.holder !== sh || q.y < 0.15 || q.cd.block) return;
+        var d = Math.hypot(q.x - sh.x, q.z - sh.z);
+        if (d < 1.5 && b.y < q.y + q.reach + 0.7) { q.cd.block = 1; if (Math.random() < G.humanBlock(q, d)) G.blocked(q, sh, null); }
+      });
+      return;
+    }
     if (b.state === 'shot') {
       var s = b.shotInfo, u = Math.min(1, (s.t += dt) / s.T);
       var ex = s.rx + (s.make ? 0 : s.missX), ez = K.HZ + (s.make ? 0 : s.missZ), ey = K.RIM_H + 0.12;
       var nx = s.x0 + (ex - s.x0) * u, nz = s.z0 + (ez - s.z0) * u, ny = s.y0 + (ey - s.y0) * u + s.arc * 4 * u * (1 - u);
       b.vx = (nx - b.x) / dt; b.vy = (ny - b.y) / dt; b.vz = (nz - b.z) / dt; b.x = nx; b.y = ny; b.z = nz;
-      // blocks: anyone off the floor near the ball early in the flight (goaltending is legal here)
-      if (u < 0.45) G.opps(s.by).forEach(function (q) {
+      // blocks: anyone off the floor near the ball in its flight (goaltending is legal here); one try per jump. You get a wide reach
+      // and good odds when you're right on him (G.humanBlock); computer blockers need to be closer and get worse odds
+      G.opps(s.by).forEach(function (q) {
         if (b.state !== 'shot' || q.y < 0.15 || q.cd.block) return;
-        if (Math.hypot(q.x - b.x, q.z - b.z) < 1.0 && b.y < q.y + q.reach + 0.35) {
-          q.cd.block = 1; var bl = q.human ? 0.85 : (0.16 + 0.035 * q.def.stats.block) * G.diff.block;
-          if (Math.random() < bl) { b.state = 'loose'; b.vx = (q.face || 1) * rand(3, 6); b.vy = rand(1, 3); b.vz = rand(-2, 2); b.last = q; q.stats.blocks++; G.missed(s); G.say(pick(HW.PHRASES.block), '#ff6b6b', 1.3); Au.board(); X.shake = 0.6; }
+        var hum = q.human, d = Math.hypot(q.x - b.x, q.z - b.z);
+        if (u < (hum ? 0.6 : 0.45) && d < (hum ? 1.6 : 1.0) && b.y < q.y + q.reach + (hum ? 0.7 : 0.35)) {
+          q.cd.block = 1;
+          if (Math.random() < (hum ? G.humanBlock(q, d) : (0.16 + 0.035 * q.def.stats.block) * G.diff.block)) G.blocked(q, s.by, s);
         }
       });
       if (b.state === 'shot' && u >= 1) {
@@ -308,7 +330,7 @@ window.HW = window.HW || {};
       // which way the body turns: toward / away from the camera when running mostly up or down the screen. Hysteresis and a short
       // hold keep diagonal runs from flickering between the side and front views.
       p.dirT = Math.max(0, (p.dirT || 0) - dt);
-      var ang = Math.atan2(Math.abs(p.vz) / ZS, Math.abs(p.vx)), want = p.dir;
+      var ang = Math.atan2(Math.abs(p.vz) / G.ZS, Math.abs(p.vx)), want = p.dir;
       if (sp > 0.6) { if (ang > 0.98) want = p.vz < 0 ? 'F' : 'B'; else if (ang < 0.7) want = 'R'; else if (want === 'F' || want === 'B') want = p.vz < 0 ? 'F' : 'B'; }
       else if (p.state !== 'idle') want = 'R';
       if (want !== p.dir && p.dirT <= 0) { p.dir = want; p.dirT = 0.18; }
@@ -327,7 +349,7 @@ window.HW = window.HW || {};
     }
     var defending = b.holder && b.holder.team !== p.team && dist(p, b.holder) < 3;
     // stride rate follows the ground speed (depth speed counted at its true length), in real time so 120 Hz phones don't double it
-    var stride = Math.hypot(p.vx, p.vz / ZS);
+    var stride = Math.hypot(p.vx, p.vz / G.ZS);
     if (sp > 0.6) { p.anim = p.hasBall ? 'drun' : (defending && sp < 4 ? 'defend' : 'run'); p.frame = (p.frame + Math.min(stride, 9) * dt * 1.7) % 8; }
     else { p.anim = p.hasBall ? 'dribble' : defending ? 'defend' : 'idle'; p.frame = (p.frame + dt * (p.hasBall ? 9 : 4)) % 6; }
   }
