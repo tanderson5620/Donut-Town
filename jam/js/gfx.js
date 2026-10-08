@@ -205,7 +205,8 @@ window.HW = window.HW || {};
     g.drawImage(o.sh.img, o.sx, o.sy, m.fw, m.fh, -fx * k, -fy * k, m.fw * k, m.fh * k);
     var hd = m.head[o.fi], f = faces[p.id], img = f && (p.dir === 'B' ? f.back : f.front);
     if (img && img.naturalWidth && hd) {
-      var hw = HEAD_M * o.ground.s * (p.bigHead || 1), hh = hw * img.naturalHeight / img.naturalWidth;
+      // photo cut-outs with lots of hair around the face (headScale) are drawn wider so every face comes out the same size
+      var hs = img === f.front && p.def && p.def.headScale || 1, hw = HEAD_M * o.ground.s * (p.bigHead || 1) * hs, hh = hw * img.naturalHeight / img.naturalWidth;
       g.drawImage(img, (hd[0] - fx) * k - hw / 2, (hd[1] - fy) * k - hh * 0.8, hw, hh);
     }
   }
