@@ -185,7 +185,7 @@ window.genPlayer = function (id, opt) {
   var s = d.height / 1.89; A.root.scale.setScalar(s);
   var bx = 1 + (d.bulk - 1) * 0.45, bz = bx * (d.belly ? 1.08 : 1);
   A.spine.scale.set(bx, 1, bz); A.neck.scale.set(1 / bx, 1, 1 / bz); A.sh.forEach(function (sh) { sh.scale.set(1 / bx, 1, 1 / bz); });
-  var frames = [], meta = { fw: FW, fh: FH, ppm: PPM, anim: {}, head: [], hand: [], feet: project(new V3(0, 0, 0)) };
+  var frames = [], meta = { fw: FW, fh: FH, ppm: PPM, anim: {}, head: [], hand: [], off: {}, feet: project(new V3(0, 0, 0)) };
   var only = opt.only;
   Object.keys(ANIMS).forEach(function (name) {
     if (only && only.indexOf(name) < 0) return;
@@ -193,7 +193,16 @@ window.genPlayer = function (id, opt) {
     an.dirs.forEach(function (dir) {
       var list = meta.anim[name][dir] = [];
       for (var i = 0; i < an.n; i++) {
-        A.root.rotation.y = DIRS[dir]; apply(A, an.f(i / an.n, i)); A.root.updateMatrixWorld(true);
+        A.root.position.set(0, 0, 0); A.root.rotation.y = DIRS[dir]; apply(A, an.f(i / an.n, i)); A.root.updateMatrixWorld(true);
+        if (name === 'fall') {
+          // a body falling backward tips out of the frame and through the floor: rest its lowest joint just above the floor, centre it in
+          // the frame, and tell the game to slide it back by the same amount sideways (meta.off) so it lands behind where he stood
+          var js = [A.head, A.neck, A.hips, A.kn[0], A.kn[1], A.feet[0], A.feet[1], A.palm[0], A.palm[1]].map(function (b) { return b.getWorldPosition(new V3()); });
+          var minY = Math.min.apply(null, js.map(function (v) { return v.y; })), minX = Math.min.apply(null, js.map(function (v) { return v.x; })), maxX = Math.max.apply(null, js.map(function (v) { return v.x; }));
+          var dx = -(minX + maxX) / 2, dy = Math.max(0, 0.13 - minY);
+          A.root.position.set(dx, dy, 0); A.root.updateMatrixWorld(true);
+          if (Math.abs(dx) > 0.01) meta.off[frames.length] = [+(dx * PPM).toFixed(1), 0];
+        }
         var px = grab(cam, FW, FH, SS, 0.5); grade(px, opt.con || 1.1, opt.sat || 1.12, opt.black || 6); frames.push(px);
         var hp = A.head.getWorldPosition(new V3()), np = A.neck.getWorldPosition(new V3());
         var hr = A.palm[0].getWorldPosition(new V3()), hl = A.palm[1].getWorldPosition(new V3());
@@ -202,7 +211,7 @@ window.genPlayer = function (id, opt) {
       }
     });
   });
-  scene.remove(A.root);
+  A.root.position.set(0, 0, 0); scene.remove(A.root);
   var pal = palette(frames, opt.colors || 46), cols = 16, rows = Math.ceil(frames.length / cols), AW = cols * FW, AH = rows * FH, idx = new Uint8Array(AW * AH);
   frames.forEach(function (px, f) {
     var fr = indexed(px, FW, FH, pal, 2, opt.dither === undefined ? 14 : opt.dither, 1), ox = (f % cols) * FW, oy = Math.floor(f / cols) * FH;
