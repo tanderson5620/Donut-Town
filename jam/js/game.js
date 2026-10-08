@@ -48,7 +48,7 @@ window.HW = window.HW || {};
     hand.x = bx; hand.z = 7; off.forEach(function (p) { if (p !== hand) { p.x = bx + s * 3.5; p.z = 3; } });
     def.forEach(function (p, i) { p.x = bx + s * (center ? 3.2 : 4.5); p.z = i ? 10 : 5; });
     G.players.forEach(function (p) { p.face = p.team === team ? s : -s; });
-    G.give(hand); G.poss = team; G.shot = 24; X.camX = clamp(bx * 0.8, -7.2, 7.2);
+    G.give(hand); G.poss = team; G.shot = 24; X.camX = X.camClamp(bx);
   };
 
   /* ---------- ball ---------- */
@@ -202,8 +202,9 @@ window.HW = window.HW || {};
     separate();
     updateBall(dt);
     G.players.forEach(animate);
-    var b = G.ball, tx = clamp((b.holder ? b.holder.x : b.x) * 0.85 + (G.human ? (G.human.x - b.x) * 0.1 : 0), -7.2, 7.2);
-    X.camX += (tx - X.camX) * (1 - Math.exp(-3 * dt));
+    // the camera rides with the ball, leading toward the basket its team is attacking
+    var b = G.ball, bx = b.holder ? b.holder.x : b.x + b.vx * 0.3, lead = b.holder ? side(b.holder.team) * 1.6 : 0;
+    X.follow(bx + lead, dt);
   };
 
   function move(p, mx, mz, turbo, dt) {
