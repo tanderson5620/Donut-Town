@@ -5,10 +5,10 @@ window.HW = window.HW || {};
   var W = 640, H = 360;
   // court (meters): x along the length, z into the screen (0 = near sideline), y up
   var K = X.K = { HL: 12.5, CD: 14, RIMX: 11.3, BOARDX: 11.95, HZ: 7, RIM_H: 3.05, R3: 6.6, LANE: 4.8, LANEW: 4.2 };
-  // camera: up close and nearly flat, like a 2D side-view arcade game - players about 40% of the screen tall, the court a shallow band
-  // under them, the crowd filling the rest. Tuned by where things land on the 360-high screen: SMID px per meter at mid-court,
+  // camera: up close like a 2D side-view arcade game - players over a third of the screen tall, the court a band under them deep enough
+  // that running up and down reads as well as running along it, the crowd filling the rest. Tuned by where things land on the 360-high screen: SMID px per meter at mid-court,
   // near sideline at Y0, far sideline at Y14; a long lens (big D) keeps near and far players close in size.
-  var D = 40, SMID = 70, Y0 = 364, Y14 = 240;
+  var D = 40, SMID = 66, Y0 = 372, Y14 = 206;
   var F = SMID * (D + 7), CAMH = (Y0 - Y14) * D * (D + 14) / (F * 14), HY = Y0 - CAMH * F / D;
   X.W = W; X.H = H; X.camX = 0; X.shake = 0; X.SMID = SMID;
   // wide phones get a wider view instead of black bars (height stays 360)
@@ -35,18 +35,18 @@ window.HW = window.HW || {};
     for (var y = pz(K.CD), row = 0; y < pz(0); y += 6, row++) {
       for (var x = px(-K.HL), k = 0; x < px(K.HL); k++) {
         var len = 90 + hash(row * 7 + k) * 170, t = hash(row * 3.7 + k * 1.3), streak = hash(row * 11.3 + k * 5.1) < 0.12 ? 14 : 0;
-        g.fillStyle = 'rgb(' + Math.round(222 + t * 24 + streak) + ',' + Math.round(136 + t * 26 + streak) + ',' + Math.round(62 + t * 16 + streak / 2) + ')';
-        g.fillRect(x, y, Math.min(len, px(K.HL) - x), 6); g.fillStyle = 'rgba(110,50,10,0.28)'; g.fillRect(x, y + 5, len, 1); g.fillRect(x, y, 1, 6);
+        g.fillStyle = 'rgb(' + Math.round(186 + t * 20 + streak) + ',' + Math.round(126 + t * 18 + streak) + ',' + Math.round(76 + t * 12 + streak / 2) + ')';
+        g.fillRect(x, y, Math.min(len, px(K.HL) - x), 6); g.fillStyle = 'rgba(80,40,12,0.3)'; g.fillRect(x, y + 5, len, 1); g.fillRect(x, y, 1, 6);
         x += len;
       }
     }
     // soft reflections of the arena lights
-    for (var i = -2; i <= 2; i++) { var gr = g.createRadialGradient(px(i * 6), pz(10), 0, px(i * 6), pz(10), 4 * PPM); gr.addColorStop(0, 'rgba(255,240,210,0.16)'); gr.addColorStop(1, 'rgba(255,240,210,0)'); g.fillStyle = gr; g.fillRect(px(i * 6 - 4), pz(14), 8 * PPM, 8 * PPM); }
+    for (var i = -2; i <= 2; i++) { var gr = g.createRadialGradient(px(i * 6), pz(10), 0, px(i * 6), pz(10), 4 * PPM); gr.addColorStop(0, 'rgba(255,240,210,0.1)'); gr.addColorStop(1, 'rgba(255,240,210,0)'); g.fillStyle = gr; g.fillRect(px(i * 6 - 4), pz(14), 8 * PPM, 8 * PPM); }
     var teams = HW.TEAMS;
     // paint: each team's color under the hoop it defends (team 0 attacks +x, so defends -x)
     [[-1, teams[0].color], [1, teams[1].color]].forEach(function (e) {
       var s = e[0], x0 = s * K.HL, x1 = s * (K.HL - K.LANE);
-      g.fillStyle = e[1]; g.globalAlpha = 0.9; g.fillRect(Math.min(px(x0), px(x1)), pz(K.HZ + K.LANEW / 2), K.LANE * PPM, K.LANEW * PPM); g.globalAlpha = 1;
+      g.fillStyle = e[1]; g.globalAlpha = 0.6; g.fillRect(Math.min(px(x0), px(x1)), pz(K.HZ + K.LANEW / 2), K.LANE * PPM, K.LANEW * PPM); g.globalAlpha = 1;
     });
     g.strokeStyle = '#fff'; g.lineWidth = 4;
     g.strokeRect(px(-K.HL), pz(K.CD), 2 * K.HL * PPM, K.CD * PPM);
@@ -94,23 +94,32 @@ window.HW = window.HW || {};
         g.fillStyle = hairs[(r(4) * 6) | 0]; g.beginPath(); g.arc(x, y + 0.5 * sc, 5.2 * sc, Math.PI, 0); g.fill();
       }
     }
-    wallC = canvas(1600, 40); var w = wallC.getContext('2d'); w.fillStyle = '#101018'; w.fillRect(0, 0, 1600, 40);
-    w.font = '16px "Press Start 2P", monospace'; w.textBaseline = 'middle';
-    var ads = [['HOOPS JAM', '#ffd23f'], ['ANDERSONS', '#ff8a1f'], ['2 ON 2', '#ff4fa3'], ['GORMANS', '#3a86ff'], ['TURBO!', '#5cffa0']];
-    for (var i2 = 0, x2 = 20; x2 < 1600; i2++) { var a2 = ads[i2 % ads.length]; w.fillStyle = a2[1]; w.fillText(a2[0], x2, 21); x2 += w.measureText(a2[0]).width + 50; }
+    // a low courtside board: dark panels with small lettering, so it frames the court instead of shouting over it
+    wallC = canvas(1600, 40); var w = wallC.getContext('2d'); w.fillStyle = '#0b0b16'; w.fillRect(0, 0, 1600, 40);
+    w.font = '8px "Press Start 2P", monospace'; w.textBaseline = 'middle'; w.textAlign = 'center';
+    var ads = [['HOOPS JAM', '#c9a53a'], ['ANDERSONS', '#c46a1c'], ['2 ON 2', '#b8407e'], ['GORMANS', '#2f6cc4'], ['TURBO!', '#47b07c']];
+    for (var i2 = 0; i2 < 16; i2++) { var a2 = ads[i2 % ads.length], x2 = i2 * 100; w.fillStyle = '#15152a'; w.fillRect(x2 + 3, 4, 94, 32); w.fillStyle = a2[1]; w.fillRect(x2 + 3, 4, 94, 2); w.fillText(a2[0], x2 + 50, 21); }
   }
   X.hype = 0;
   // what the crowd module gets each frame: screen size, camera, the far wall's screen rows and its scale, hype for cheering
   X.crowdView = function (t) {
-    var a = X.proj(0, 0.9, 15.5), b = X.proj(0, 0, 15.5);
+    var a = X.proj(0, 0.55, 15.5), b = X.proj(0, 0, 15.5);
     return { W: W, H: H, t: t, camX: X.camX, hype: X.hype, shakeX: X.shakeX, shakeY: X.shakeY, wallTop: a.y, wallBottom: b.y, s: b.s, proj: X.proj };
   };
+  // the stands sit in the dark so the players on the court stand out
+  var DIM_TOP = 0.62, DIM_LOW = 0.42, dimG = null, dimFor = '';
+  function dimCrowd(g, v) {
+    var key = W + ':' + Math.round(v.wallBottom);
+    if (key !== dimFor) { dimFor = key; dimG = g.createLinearGradient(0, 0, 0, v.wallBottom); dimG.addColorStop(0, 'rgba(4,4,14,' + DIM_TOP + ')'); dimG.addColorStop(1, 'rgba(4,4,14,' + DIM_LOW + ')'); }
+    g.fillStyle = dimG; g.fillRect(0, 0, W, Math.ceil(v.wallBottom) + 1);
+  }
   function drawCrowd(g, t) {
-    if (HW.Crowd && HW.Crowd.draw) { HW.Crowd.draw(g, X.crowdView(t)); return; }
+    if (HW.Crowd && HW.Crowd.draw) { var cv = X.crowdView(t); HW.Crowd.draw(g, cv); dimCrowd(g, cv); return; }
     var v = X.crowdView(t), bob = Math.abs(Math.sin(t * (6 + X.hype * 3))) * (1 + X.hype * 3), ox = ((CROWD_W - W) / 2 + X.camX * v.s * 0.9 + X.shakeX) | 0;
     g.drawImage(crowdC, Math.max(0, Math.min(CROWD_W - W, ox)), 0, W, 230, 0, v.wallTop - 230 + 18 - bob, W, 230);
     g.fillStyle = '#05050c'; if (v.wallTop - 212 - bob > 0) g.fillRect(0, 0, W, v.wallTop - 212 - bob + 1);
     var off = ((X.camX * v.s) % 800 + 800) % 800; g.drawImage(wallC, off, 0, W, 40, 0, v.wallTop, W, v.wallBottom - v.wallTop);
+    dimCrowd(g, v);
   }
 
   /* ---------- hoops: padded stanchion, steel support, angled glass board, rim and net ---------- */
@@ -180,9 +189,16 @@ window.HW = window.HW || {};
       fetch('sprites/' + id + '.json').then(function (r) { return r.json(); }).then(function (m) { s.meta = m; }),
       new Promise(function (res) { s.img.onload = res; s.img.onerror = res; s.img.src = 'sprites/' + id + '.png'; }),
       X.loadFace(id)
-    ]);
+    ]).then(function () { if (s.meta && !s.meta.outline && s.img.naturalWidth) s.img = outlined(s.img); });
     return s.ready;
   };
+  // a dark rim around every sprite so players pop off the floor and the crowd (built once per sheet at load)
+  function outlined(img) {
+    var w = img.naturalWidth, h = img.naturalHeight, sil = canvas(w, h), sg = sil.getContext('2d'), out = canvas(w, h), og = out.getContext('2d');
+    sg.drawImage(img, 0, 0); sg.globalCompositeOperation = 'source-in'; sg.fillStyle = '#0b0710'; sg.fillRect(0, 0, w, h);
+    [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (d) { og.drawImage(sil, d[0], d[1]); });
+    og.drawImage(img, 0, 0); return out;
+  }
   X.loadFace = function (id) {
     if (faces[id]) return faces[id].ready;
     var f = faces[id] = { front: new Image(), back: new Image() };
@@ -213,7 +229,7 @@ window.HW = window.HW || {};
   // the polished floor mirrors the players faintly, like the arcade's glossy hardwood
   X.drawReflection = function (g, p) {
     var o = frameOf(p); if (!o) return;
-    g.save(); g.globalAlpha = Math.max(0, 0.2 - p.y * 0.05); g.translate(o.ground.x, o.ground.y + o.lift); g.scale(o.flip ? -1 : 1, -0.85);
+    g.save(); g.globalAlpha = Math.max(0, 0.12 - p.y * 0.04); g.translate(o.ground.x, o.ground.y + o.lift); g.scale(o.flip ? -1 : 1, -0.85);
     drawBody(g, p, o); g.restore();
   };
   X.drawPlayer = function (g, p) {
@@ -221,7 +237,7 @@ window.HW = window.HW || {};
     var m = o.m, k = o.k, ground = o.ground, lift = o.lift, fx = m.feet[0], fy = m.feet[1];
     p.screen = ground;
     // shadow
-    var sr = 0.55 * ground.s; g.fillStyle = 'rgba(0,0,0,' + Math.max(0.12, 0.38 - p.y * 0.08) + ')'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * (1 - Math.min(0.5, p.y * 0.12)), sr * 0.26, 0, 0, 6.283); g.fill();
+    var sr = 0.6 * ground.s; g.fillStyle = 'rgba(0,0,0,' + Math.max(0.15, 0.5 - p.y * 0.1) + ')'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * (1 - Math.min(0.5, p.y * 0.12)), sr * 0.26, 0, 0, 6.283); g.fill();
     if (p.onFire) { g.fillStyle = 'rgba(255,120,20,0.35)'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * 1.3, sr * 0.36, 0, 0, 6.283); g.fill(); }
     g.save(); g.translate(ground.x, ground.y - lift); if (o.flip) g.scale(-1, 1);
     drawBody(g, p, o);

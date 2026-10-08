@@ -28,8 +28,14 @@ function rig(list) {
 }
 var LIT = {
   body: rig([[0, 0x7884b8, 0.3, 0x231a26], [1, 0xfff0e0, 2.0, -4, 4, 2.4], [1, 0x7080c0, 0.2, 4, 1.2, 2.5], [1, 0xc4e4ff, 2.0, 4, 2.6, -3.6], [1, 0xffc896, 0.8, -4, 2, -3]]),
-  head: rig([[0, 0xc4cce8, 0.5, 0x45342c], [1, 0xfff0dc, 1.9, -1.7, 1.5, 2.2], [1, 0xfff0dc, 0.7, -0.6, 2.4, 2.0], [1, 0xd0dcff, 0.5, 2.3, 0.3, 1.6], [1, 0xffffff, 1.7, 2.4, 1.4, -1.6], [1, 0xffe2c4, 0.9, -2.4, 1.0, -1.8], [1, 0xffffff, 0.6, 0, 3, -0.5]])
+  head: rig([[0, 0xc8d0ea, 0.42, 0x3a302c], [1, 0xfff4ea, 0.45, -0.6, 2.4, 2.0], [1, 0xd8e2ff, 0.38, 2.3, 0.3, 1.6], [1, 0xffffff, 1.4, 2.4, 1.4, -1.6], [1, 0xffe6cc, 0.7, -2.4, 1.0, -1.8], [1, 0xffffff, 0.5, 0, 3, -0.5]])
 };
+// the portrait key casts soft shadows (nose, brows, lids and hairline), aimed at the head each time
+R.shadowMap.enabled = true; R.shadowMap.type = THREE.PCFSoftShadowMap;
+var KEY = new THREE.DirectionalLight(0xfff2e4, 1.55), KEYDIR = new V3(-1.7, 1.5, 2.2).normalize();
+KEY.castShadow = true; KEY.shadow.mapSize.set(2048, 2048); KEY.shadow.bias = -0.0003; KEY.shadow.normalBias = 0.0015; KEY.shadow.radius = 3;
+['left', 'bottom'].forEach(function (k) { KEY.shadow.camera[k] = -0.2; }); ['right', 'top'].forEach(function (k) { KEY.shadow.camera[k] = 0.2; }); KEY.shadow.camera.near = 0.5; KEY.shadow.camera.far = 3;
+LIT.head.add(KEY); scene.add(KEY.target);
 function lights(k) { Object.keys(LIT).forEach(function (n) { LIT[n].visible = n === k; }); }
 
 // body camera: straight on from the front, a touch above, orthographic so every frame shares one scale
@@ -223,14 +229,19 @@ function headDir(th, ph) {
 // pores, and a shaved-beard shadow on the men, so the face reads like a photo instead of a smooth figurine
 function skinMap(id) {
   var d = HW.PLAYERS[id], female = FEMALE[id], sk = new THREE.Color(d.skin), lum = 0.3 * sk.r + 0.59 * sk.g + 0.11 * sk.b;
-  var W = 512, H = 256, c = document.createElement('canvas'); c.width = W; c.height = H; var g = c.getContext('2d'), img = g.createImageData(W, H), px = img.data;
+  // painted brows (the sculpt's bead brows read as caterpillars): the map multiplies the skin color in linear space, so the
+  // brow value is (brow / skin) in linear, back to sRGB
+  var bl = new THREE.Color(d.brow || d.hair).convertSRGBToLinear(), sl = sk.clone().convertSRGBToLinear(), dk = female ? 0.75 : 0.62;
+  var brow = [bl.r * dk / sl.r, bl.g * dk / sl.g, bl.b * dk / sl.b].map(function (v) { v = Math.min(1, v); return (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055) * 255; });
+  var W = 1024, H = 512, c = document.createElement('canvas'); c.width = W; c.height = H; var g = c.getContext('2d'), img = g.createImageData(W, H), px = img.data;
+  var c2 = document.createElement('canvas'); c2.width = W; c2.height = H; var g2 = c2.getContext('2d'), img2 = g2.createImageData(W, H), ro = img2.data;   // roughness: oily T-zone and lips, matte brows
   for (var y = 0; y < H; y++) { var th = (y + 0.5) / H * Math.PI;
     for (var x = 0; x < W; x++) {
       var ph = (x + 0.5) / W * TAU - Math.PI, n = headDir(th, ph), nx = n[0], ny = n[1], nz = n[2], ax = Math.abs(nx), fr = sm(0.05, 0.5, nz), r = 1, gg = 1, b = 1;
       var lips = Math.max(g1((ny + 0.452) / 0.03), g1((ny + 0.535) / 0.036)) * sm(0.27, 0.17, ax) * fr;
       r *= 1 - (female ? 0.12 : 0.1) * lips; gg *= 1 - (female ? 0.45 : 0.36) * lips; b *= 1 - (female ? 0.36 : 0.34) * lips;
       var lipLine = g1((ny + 0.492) / 0.008) * sm(0.29, 0.2, ax) * fr; r *= 1 - 0.45 * lipLine; gg *= 1 - 0.5 * lipLine; b *= 1 - 0.45 * lipLine;
-      var nos = g1((ax - 0.075) / 0.03) * g1((ny + 0.315) / 0.02) * fr; r *= 1 - 0.7 * nos; gg *= 1 - 0.7 * nos; b *= 1 - 0.7 * nos;
+      var nos = g1((ax - 0.068) / 0.02) * g1((ny + 0.308) / 0.013) * fr; r *= 1 - 0.4 * nos; gg *= 1 - 0.45 * nos; b *= 1 - 0.42 * nos;
       var lid = g1((ax - 0.4) / 0.13) * g1((ny - 0.2) / 0.06) * fr; r *= 1 - 0.16 * lid; gg *= 1 - 0.21 * lid; b *= 1 - 0.18 * lid;
       var under = g1((ax - 0.38) / 0.12) * g1((ny + 0.01) / 0.05) * fr; r *= 1 - 0.07 * under; gg *= 1 - 0.1 * under; b *= 1 - 0.06 * under;
       var cheek = g1((ax - 0.47) / 0.16) * g1((ny + 0.16) / 0.15) * fr; gg *= 1 - (female ? 0.12 : 0.08) * cheek; b *= 1 - (female ? 0.12 : 0.09) * cheek;
@@ -242,21 +253,75 @@ function skinMap(id) {
         r *= 1 - gr; gg *= 1 - gr * 0.95; b *= 1 - gr * 0.8;
       }
       var m = 0.94 + 0.09 * vn(th * 40, ph * 40) + 0.05 * (hsh(x, y) - 0.5), o = (y * W + x) * 4;
-      px[o] = Math.min(255, r * m * 232); px[o + 1] = Math.min(255, gg * m * 232); px[o + 2] = Math.min(255, b * m * 232); px[o + 3] = 255;
+      var bt = (ax - 0.17) / 0.49, bw = female ? 0.022 - 0.008 * bt : 0.03 - 0.012 * bt, bc = 0.29 + 0.035 * Math.sin(Math.max(0, Math.min(1, bt)) * Math.PI) - 0.024 * bt;
+      var bm = sm(0.12, 0.2, ax) * sm(0.7, 0.6, ax) * g1((ny - bc) / bw) * fr * (0.55 + 0.45 * hsh(x >> 1, y * 7 + (x >> 3)));
+      bm = Math.min(1, bm * 1.3);
+      var tz = Math.max(g1(nx / 0.35) * g1((ny - 0.45) / 0.15), g1(nx / 0.13) * g1((ny + 0.05) / 0.22)) * fr, rv = 0.66 - 0.14 * tz - 0.22 * lips + 0.3 * bm + 0.06 * (hsh(x * 7, y * 3) - 0.5);
+      ro[o] = ro[o + 1] = ro[o + 2] = Math.max(0.2, Math.min(1, rv)) * 255; ro[o + 3] = 255;
+      px[o] = Math.min(255, r * m * 232) * (1 - bm) + brow[0] * bm; px[o + 1] = Math.min(255, gg * m * 232) * (1 - bm) + brow[1] * bm; px[o + 2] = Math.min(255, b * m * 232) * (1 - bm) + brow[2] * bm; px[o + 3] = 255;
     } }
-  g.putImageData(img, 0, 0);
-  var t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+  g.putImageData(img, 0, 0); g2.putImageData(img2, 0, 0);
+  var t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  return [t, new THREE.CanvasTexture(c2)];
 }
-// once: lift the mouth corners and cheeks of the shared head sculpt into a slight, relaxed smile
-function smile(A) {
-  var m = A.meshes.filter(function (q) { return q.name === 'head'; })[0], geo = m.geometry; if (geo.userData.smile) return; geo.userData.smile = 1;
-  A.root.updateMatrixWorld(true); var J = A.head.getWorldPosition(new V3()), p = geo.attributes.position;
-  for (var i = 0; i < p.count; i++) {
-    var nx = p.getX(i) / HD.rx, ny = (p.getY(i) - J.y - HD.cy) / HD.ry, nz = (p.getZ(i) - J.z - HD.cz) / 0.099, ax = Math.abs(nx), s = nx < 0 ? -1 : 1, fr = sm(0.05, 0.55, nz);
-    var corner = g1((ax - 0.26) / 0.08) * g1((ny + 0.492) / 0.06) * fr, cheek = g1((ax - 0.42) / 0.13) * g1((ny + 0.27) / 0.13) * fr;
-    p.setXYZ(i, p.getX(i) + s * 0.0014 * corner, p.getY(i) + 0.0036 * corner + 0.0016 * cheek, p.getZ(i) - 0.0018 * corner + 0.0022 * cheek);
+// hair strands (the stock texture clamps past u = 1, smearing half the head into streaks): fine strands in locks along v,
+// tinted by the material, with a ragged, thinning hairline cut out of the alpha (v = 0 is the hairline)
+var HAIRTEX = {};
+function hairTex(coil) {
+  if (HAIRTEX[coil]) return HAIRTEX[coil];
+  var W = 512, H = 512, c = document.createElement('canvas'); c.width = W; c.height = H; var g = c.getContext('2d');
+  g.fillStyle = '#8a8a8a'; g.fillRect(0, 0, W, H);
+  if (coil) { for (var i = 0; i < 30000; i++) { var v = 90 + hsh(i, 7) * 165 | 0; g.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; g.fillRect(hsh(i, 1) * W, hsh(i, 2) * H, 1 + hsh(i, 3) * 2, 1 + hsh(i, 4) * 2); } }
+  else {
+    for (var x = 0; x < W; x++) { var lock = 0.5 + 0.5 * Math.sin(x / W * TAU * 22 + Math.sin(x * 0.05) * 2); g.fillStyle = 'rgba(255,255,255,' + (0.18 * lock) + ')'; g.fillRect(x, 0, 1, H); }
+    for (var j = 0; j < 5000; j++) {
+      var x0 = hsh(j, 11) * W, y0 = hsh(j, 12) * H * 1.1 - H * 0.1, len = 40 + hsh(j, 13) * 260, v2 = 70 + hsh(j, 14) * 185 | 0;
+      g.strokeStyle = 'rgba(' + v2 + ',' + v2 + ',' + v2 + ',' + (0.35 + hsh(j, 15) * 0.5) + ')'; g.lineWidth = 0.7 + hsh(j, 16) * 0.9;
+      g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(x0 + (hsh(j, 17) - 0.5) * 10, y0 + len / 2, x0 + (hsh(j, 18) - 0.5) * 14, y0 + len); g.stroke();
+    }
   }
-  p.needsUpdate = true;
+  // ragged hairline: strands end at random heights over the last ~12% (bottom rows of the canvas)
+  var img = g.getImageData(0, 0, W, H), d = img.data;
+  for (var x2 = 0; x2 < W; x2++) { var cut = H * (1 - (coil ? 0.03 : 0.04) - (coil ? 0.05 : 0.09) * (0.6 * hsh(x2 >> 1, 99) + 0.4 * hsh(x2 >> 3, 98)));
+    for (var y = Math.floor(cut); y < H; y++) d[(y * W + x2) * 4 + 3] = 0; }
+  g.putImageData(img, 0, 0);
+  var t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4;
+  return (HAIRTEX[coil] = t);
+}
+// once, on the shared head sculpt: smooth the hard crease where it switches from skull to jaw taper (it read like a
+// ventriloquist dummy's jaw), add a nose bridge, cheekbones and chin, taper the jaw and lift the mouth corners
+function sculpt(A) {
+  var geo = A.meshes.filter(function (q) { return q.name === 'head'; })[0].geometry; if (geo.userData.sculpt) return; geo.userData.sculpt = 1;
+  A.root.updateMatrixWorld(true);
+  var J = A.head.getWorldPosition(new V3()), p = geo.attributes.position, n = p.count, ix = geo.index.array, key = {}, grp = new Int32Array(n), gp = [], adj = [];
+  for (var i = 0; i < n; i++) { var k = Math.round(p.getX(i) * 1e5) + ',' + Math.round(p.getY(i) * 1e5) + ',' + Math.round(p.getZ(i) * 1e5); if (key[k] === undefined) { key[k] = gp.length; gp.push([p.getX(i), p.getY(i), p.getZ(i)]); adj.push([]); } grp[i] = key[k]; }
+  for (var t = 0; t < ix.length; t += 3) for (var e = 0; e < 3; e++) { var a = grp[ix[t + e]], b = grp[ix[t + (e + 1) % 3]]; if (a !== b) { if (adj[a].indexOf(b) < 0) adj[a].push(b); if (adj[b].indexOf(a) < 0) adj[b].push(a); } }
+  var nc = function (q) { return [q[0] / HD.rx, (q[1] - J.y - HD.cy) / HD.ry, (q[2] - J.z - HD.cz) / 0.099]; };
+  for (var it = 0; it < 10; it++) {
+    var np = gp.map(function (q, g) {
+      var c = nc(q), w = 0.6 * g1((c[1] + 0.56) / 0.09) * (1 - sm(0.38, 0.26, Math.abs(c[0])) * sm(0.2, 0.55, c[2])); if (w < 0.01) return q;
+      var m = [0, 0, 0]; adj[g].forEach(function (o) { m[0] += gp[o][0]; m[1] += gp[o][1]; m[2] += gp[o][2]; }); var L = adj[g].length;
+      return [q[0] + w * (m[0] / L - q[0]), q[1] + w * (m[1] / L - q[1]), q[2] + w * (m[2] / L - q[2])];
+    });
+    gp = np;
+  }
+  gp = gp.map(function (q) {
+    var c = nc(q), nx = c[0], ny = c[1], nz = c[2], ax = Math.abs(nx), s = nx < 0 ? -1 : 1, fr = sm(0.05, 0.55, nz), dx = 0, dy = 0, dz = 0;
+    dz += 0.0045 * g1(nx / 0.075) * sm(0.2, 0.08, ny) * sm(-0.3, -0.17, ny) * fr;                       // nose bridge
+    var cb = g1((ax - 0.55) / 0.12) * g1((ny + 0.06) / 0.1) * fr; dz += 0.0035 * cb; dx += s * 0.0015 * cb;   // cheekbones
+    dz -= 0.0025 * g1((ax - 0.6) / 0.12) * g1((ny + 0.36) / 0.1) * fr;                                   // hollow under them
+    dx -= q[0] * 0.08 * sm(-0.35, -0.8, ny) * sm(-0.4, 0.2, nz);                                        // narrower jaw
+    dz += 0.004 * g1(nx / 0.22) * g1((ny + 0.8) / 0.1) * fr;                                             // chin
+    var co = g1((ax - 0.26) / 0.08) * g1((ny + 0.492) / 0.06) * fr, ch = g1((ax - 0.42) / 0.13) * g1((ny + 0.27) / 0.13) * fr;   // slight smile
+    dx += s * 0.0014 * co; dy += 0.0036 * co + 0.0016 * ch; dz += -0.0018 * co + 0.0022 * ch;
+    return [q[0] + dx, q[1] + dy, q[2] + dz];
+  });
+  for (var v = 0; v < n; v++) { var q = gp[grp[v]]; p.setXYZ(v, q[0], q[1], q[2]); }
+  p.needsUpdate = true; geo.computeVertexNormals();
+  var nm = geo.attributes.normal, sum = gp.map(function () { return new V3(); });
+  for (var v2 = 0; v2 < n; v2++) sum[grp[v2]].x += nm.getX(v2), sum[grp[v2]].y += nm.getY(v2), sum[grp[v2]].z += nm.getZ(v2);
+  for (var v3 = 0; v3 < n; v3++) { var sv = sum[grp[v3]].clone().normalize(); nm.setXYZ(v3, sv.x, sv.y, sv.z); }
+  nm.needsUpdate = true;
 }
 // head picture framing, in meters at the head: the head fills the width like Alan's photo cut-out; the head bone (the neck
 // point the game pastes it on) sits at 88% of the height so the chin lands near the bottom edge, as on his photo
@@ -266,16 +331,29 @@ window.PHOTO = { alan: 1 };   // players with a real photo cut-out for the front
 window.genHead = function (id, back, opt) {
   opt = opt || {}; lights('head');
   var d = HW.PLAYERS[id], A = HW.Athlete.build(HW.lookOpts(d, d.team)), w = back ? 96 : 192, h = Math.round(w * 244 / 192);
-  smile(A);
+  sculpt(A);
   A.meshes.forEach(function (m) { if (m.name !== 'head') m.visible = false; });
   A.feet.forEach(function (f) { f.visible = false; }); A.kn.forEach(function (k) { k.children.forEach(function (c) { c.visible = false; }); });
-  var hm = A.mats[1]; hm.map = skinMap(id); hm.needsUpdate = true;
+  var sk = skinMap(id), hm = A.mats[1]; hm.map = sk[0]; hm.roughnessMap = sk[1]; hm.roughness = 1; hm.normalMap = null; hm.needsUpdate = true;   // the baked normal map creases the jaw and nose
+  // hair: new strand texture on every shell (and the dark base shell), alpha-cut for a ragged hairline
+  var coil = d.hairStyle === 'fade' || d.hairStyle === 'afro';
+  A.head.children.forEach(function (o) {
+    var mt = o.material; if (!o.isMesh || !mt || o.geometry.type !== 'BufferGeometry' || !o.geometry.attributes.uv) return;
+    var isShell = (mt.map && mt.map.image && mt.map.image.width === 512 && mt.map.image.height === 256) || (!mt.map && mt.roughness === 0.85);
+    if (!isShell) return;
+    var base = !mt.map; mt.map = hairTex(coil); mt.alphaTest = 0.5; mt.transparent = false; mt.opacity = 1; mt.roughness = coil ? 0.9 : 0.5; if (base) mt.color.multiplyScalar(0.8); mt.needsUpdate = true;
+  });
+  A.face.brows.forEach(function (b) { b.visible = false; });
+  // ears and eyelids use a plain skin material: give them the face's darker, ruddier tone so they don't glow orange
+  A.head.traverse(function (o) { var mt = o.material; if (o.isMesh && mt && mt.emissive && mt.emissive.getHex() === 0x0b0503 && !mt.map && !mt.skinning) { mt.color.copy(new THREE.Color(d.skin).convertSRGBToLinear()).multiplyScalar(0.74); mt.color.r *= 1.06; } });
   if (A.pony) { if (back) A.pony.rotation.x = -0.25; else A.pony.visible = false; }
   // catchlights on the eyes (toward the key light)
   A.face.eyes.forEach(function (e) { var cl = new THREE.Mesh(new THREE.CircleGeometry(0.0016, 10), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false })); cl.position.set(-0.0035, 0.0012, 0.0127); e.parent.add(cl); });
   scene.add(A.root); A.root.rotation.y = back ? Math.PI + 0.35 : -(opt.turn === undefined ? 0.3 : opt.turn); A.head.rotation.set(opt.tilt || 0.03, 0, opt.roll || 0.035);
+  A.root.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   A.root.updateMatrixWorld(true);
   var hp = A.head.getWorldPosition(new V3()), hc = A.head.localToWorld(new V3(0, HD.cy, HD.cz)), HH = HEAD_W * h / w;
+  KEY.target.position.copy(hc); KEY.position.copy(hc).addScaledVector(KEYDIR, 1.5); KEY.target.updateMatrixWorld(true); KEY.updateMatrixWorld(true);
   var cy = hp.y + (HEAD_ANCHOR - 0.5) * HH, c = new THREE.PerspectiveCamera(2 * Math.atan(HH / 2 / HEAD_DIST) * 180 / Math.PI, w / h, 0.05, 10);
   c.position.set(hc.x, cy, hc.z + HEAD_DIST); c.lookAt(hc.x, cy, hc.z); c.updateMatrixWorld(true);
   A.face.update(0, back ? null : c.position);
