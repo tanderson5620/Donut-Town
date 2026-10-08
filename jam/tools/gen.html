@@ -11,6 +11,7 @@
 <script src="../../hoops/js/body-data.js"></script>
 <script src="../../hoops/js/athlete.js"></script>
 <script src="../../hoops/js/player.js"></script>
+<script src="../js/data.js"></script>   <!-- the game's own roster (skin, hair, looks from the photos) overrides the VR game's -->
 <script>
 var PPM = 72, FW = 138, FH = 188, SS = 3;      // 72 px per meter (the close game camera draws 62-80), frame size, supersampling
 var R = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -207,7 +208,7 @@ window.genPlayer = function (id, opt) {
     var fr = indexed(px, FW, FH, pal, 2, opt.dither === undefined ? 14 : opt.dither, 1), ox = (f % cols) * FW, oy = Math.floor(f / cols) * FH;
     for (var y = 0; y < FH; y++) idx.set(fr.subarray(y * FW, y * FW + FW), (oy + y) * AW + ox);
   });
-  meta.cols = cols; meta.count = frames.length;
+  meta.cols = cols; meta.count = frames.length; meta.outline = 1;   // tells the game not to add its own rim
   var r1 = function (a) { return a.map(function (v) { return +v.toFixed(1); }); };
   meta.feet = r1(meta.feet); meta.head = meta.head.map(r1); meta.hand = meta.hand.map(r1);
   return { w: AW, h: AH, pal: [[0, 0, 0, 0], OUTLINE.concat(255)].concat(pal.map(function (c) { return c.concat(255); })), idx: b64(idx), meta: meta };
@@ -326,7 +327,8 @@ function sculpt(A) {
 // head picture framing, in meters at the head: the head fills the width like Alan's photo cut-out; the head bone (the neck
 // point the game pastes it on) sits at 88% of the height so the chin lands near the bottom edge, as on his photo
 var HEAD_W = 0.205, HEAD_ANCHOR = 0.88, HEAD_DIST = 1.0;
-window.PHOTO = { alan: 1 };   // players with a real photo cut-out for the front head (never regenerated)
+window.PHOTO = {};   // players with a real photo cut-out for the front head (faces/<id>_photo.png) - their CG front head is never written
+Object.keys(HW.PLAYERS).forEach(function (id) { if (HW.PLAYERS[id].photo) window.PHOTO[id] = 1; });
 // big digitized heads: front (near-frontal, turned a little like Alan's photo) and back of the head, transparent background
 window.genHead = function (id, back, opt) {
   opt = opt || {}; lights('head');
