@@ -213,11 +213,11 @@ window.HW = window.HW || {};
   };
 
   // Human B / E: swipe at the ball handler if close, else shove whoever is in front
-  A.stealOrShove = function (p) {
+  A.stealOrShove = function (p, preferShove) {
     if (p.state === 'down' || p.state === 'dunk' || p.cd.steal > 0) return;
     var holder = G.ball.holder, i, q, best = null, bd = 99;
     var reach = 1.55 + 0.05 * p.def.stats.str;
-    if (holder && holder.team !== p.team && A.dist(p, holder) < reach + 0.2 && A.facing(p, holder, 1.1)) { if (A.steal(p, holder, 0.1)) return; if (p.def.type === 'strength' && A.dist(p, holder) < reach) A.shove(p, holder); return; }
+    if (holder && holder.team !== p.team && A.dist(p, holder) < reach + 0.2 && A.facing(p, holder, 1.1)) { if (preferShove && A.dist(p, holder) < reach) { A.shove(p, holder); return; } if (A.steal(p, holder, 0.1)) return; if (p.def.type === 'strength' && A.dist(p, holder) < reach) A.shove(p, holder); return; }
     for (i = 0; i < G.players.length; i++) { q = G.players[i]; if (q.team === p.team) continue; var d = A.dist(p, q); if (d < reach && d < bd && A.facing(p, q, 1.2)) { bd = d; best = q; } }
     if (best) A.shove(p, best); else { p.state = 'steal'; p.stateT = 0; p.cd.steal = 0.5; }
   };
