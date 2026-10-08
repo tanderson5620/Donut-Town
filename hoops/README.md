@@ -43,7 +43,7 @@ Stats are 1-10. The type sets how the player plays; the numbers feed the shot as
 | Ball Handler | Fastest, big steal chance, slower turbo drain, crossovers (reverse the stick hard) | Alan Anderson, Katelyn Gorman |
 | Max Strength | Shoves knock people down, big blocks | Lisa Anderson, Kody Gorman, Kenny Gorman |
 
-The roster, colors, numbers and stats are all in `js/config.js`.
+The roster, colors, numbers, stats and looks (skin, hair style and color, eye color, headband, glasses) are all in `js/config.js`. Alan Anderson is modeled on a photo: tanned freckled skin, short swept-back gray-blond hair, tinted wire glasses, gray shorts and tan suede slip-ons.
 
 ## Graphics tiers
 
@@ -81,7 +81,9 @@ hoops/
   js/xr.js            Enter VR button, controllers, gloves, lasers
   js/input.js         one input state for Quest and desktop
   js/ui.js            canvas panels, callouts, scoreboard, HUD
-  js/player.js        low-poly player model and animation
+  js/body-data.js     sculpted athlete body: baked mesh + normal/AO maps (generated offline by Donut Town's tools/rimshot)
+  js/athlete.js       realistic skinned player: body, sculpted face, eyes, hair styles, glasses, uniform, shoes
+  js/player.js        player state, animation (a simple pose rig drives the athlete skeleton)
   js/actions.js       carry/dribble, pickup, shoot, pass, steal, shove, block, dunk, crossover
   js/menus.js         laser-pointer menus
   js/ai.js            computer players
@@ -89,7 +91,7 @@ hoops/
   js/main.js          renderer, rig, comfort overlays, main loop
 ```
 
-Everything is a classic script sharing the `HW` global. three.js r128 comes from cdnjs. All textures are drawn to canvases and all sounds are synthesized, so there are no assets to host.
+Everything is a classic script sharing the `HW` global. three.js r128 comes from cdnjs. The only baked asset is the athlete body in `js/body-data.js` (about 2.8 MB); everything else is drawn to canvases or synthesized at load.
 
 ## Run locally
 

@@ -26,7 +26,7 @@ window.HW = window.HW || {};
   HW.PLAYERS = {
     carl:    { id: 'carl',    name: 'Carl Anderson',    first: 'Carl',    team: 0, type: 'dunker',   num: 23, color: '#e63946', skin: '#8d5524', hair: '#1a1a1a', hairStyle: 'fade',  height: 1.95, bulk: 1.0,  stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6 } },
     tyler:   { id: 'tyler',   name: 'Tyler Anderson',   first: 'Tyler',   team: 0, type: 'shooter',  num: 3,  color: '#ffb703', skin: '#f1c27d', hair: '#6b4423', hairStyle: 'short', height: 1.86, bulk: 0.9,  stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4 } },
-    alan:    { id: 'alan',    name: 'Alan Anderson',    first: 'Alan',    team: 0, type: 'handler',  num: 11, color: '#fb5607', skin: '#cf9070', hair: '#c9b791', hairStyle: 'swept', height: 1.76, bulk: 1.12,
+    alan:    { id: 'alan',    name: 'Alan Anderson',    first: 'Alan',    team: 0, type: 'handler',  num: 11, color: '#fb5607', skin: '#c98262', hair: '#c2ab82', hairStyle: 'swept', height: 1.76, bulk: 1.12,
                // from his photo: sun-tanned freckled skin, short swept-back ash-blond/gray hair, tinted wire glasses, stocky with a belly, gray shorts, tan suede slip-ons
                freckles: true, glasses: true, belly: true, noBand: true, shorts: '#6f6b72', shoes: '#c9ad86', soles: '#ece2cf', brow: '#b5a07a', age: true,  stats: { speed: 10, tp: 5, dunk: 4, steal: 9, block: 3, str: 3 } },
     lisa:    { id: 'lisa',    name: 'Lisa Anderson',    first: 'Lisa',    team: 0, type: 'strength', num: 34, color: '#ff006e', skin: '#e0ac69', hair: '#3b2314', hairStyle: 'pony',  height: 1.80, bulk: 1.2,  stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10 } },
@@ -36,6 +36,20 @@ window.HW = window.HW || {};
     kenny:   { id: 'kenny',   name: 'Kenny Gorman',     first: 'Kenny',   team: 1, type: 'strength', num: 44, color: '#118ab2', skin: '#f1c27d', hair: '#8a5a2b', hairStyle: 'short', height: 1.90, bulk: 1.25, stats: { speed: 5, tp: 4, dunk: 5, steal: 5, block: 9, str: 9 } },
     karen:   { id: 'karen',   name: 'Karen Gorman',     first: 'Karen',   team: 1, type: 'shooter',  num: 30, color: '#2ec4b6', skin: '#e0ac69', hair: '#a0522d', hairStyle: 'bun',   height: 1.76, bulk: 0.9,  stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4 } }
   };
+
+  // Realistic-body extras per player: eye color, headband, and anything special (Alan: from his photo)
+  var LOOK = {
+    carl:    { iris: '#3b2414', band: '#ffffff' },
+    tyler:   { iris: '#4f7396' },
+    alan:    { iris: '#6e8794', glasses: true, plainShorts: true, noSocks: true, shoe: { base: '#c4a57e', sole: '#efe6d4', suede: true } },
+    lisa:    { iris: '#4a3018' },
+    katelyn: { iris: '#4a7aa0' },
+    kameron: { iris: '#2e1c10', band: '#3a86ff' },
+    kody:    { iris: '#3d2a18' },
+    kenny:   { iris: '#556b3e', band: '#118ab2' },
+    karen:   { iris: '#4f7a4a' }
+  };
+  Object.keys(LOOK).forEach(function (id) { HW.PLAYERS[id].look = LOOK[id]; });
 
   HW.TEAMS = [
     { id: 0, name: 'Andersons', short: 'AND', color: '#ff8a1f', dark: '#7a3a00', roster: ['carl', 'tyler', 'alan', 'lisa'] },
