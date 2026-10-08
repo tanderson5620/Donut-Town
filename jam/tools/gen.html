@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Hoops Jam sprite factory</title></head>
+<body style="margin:0;background:#333">
+<!-- Offline tool: poses the realistic athlete body through every animation and saves flat sprite frames
+     (like the digitized frames of the classic arcade games). Run by tools/gen.js with Playwright. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../../hoops/js/config.js"></script>
+<script src="../../hoops/js/util.js"></script>
+<script src="../../hoops/js/body-data.js"></script>
+<script src="../../hoops/js/athlete.js"></script>
+<script src="../../hoops/js/player.js"></script>
+<script>
+var FW = 96, FH = 128, SS = 2;                 // frame size, supersampling
+var R = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+R.setPixelRatio(1); R.setSize(FW * SS, FH * SS); R.setClearColor(0x000000, 0);
+R.outputEncoding = THREE.sRGBEncoding; R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = 0.95;
+document.body.appendChild(R.domElement);
+var scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xfff4e8, 0x4a4050, 0.75));
+var key = new THREE.DirectionalLight(0xfff0dc, 1.5); key.position.set(-2, 4, 5); scene.add(key);
+var fill = new THREE.DirectionalLight(0xc8d8ff, 0.5); fill.position.set(4, 2, -3); scene.add(fill);
+HW.HIGH = true;
+// camera: straight on from the front, a touch above, orthographic so every frame shares one scale (50 px per meter)
+var cam = new THREE.OrthographicCamera(-FW / 100, FW / 100, FH / 100, -FH / 100, 0.1, 50);
+var PITCH = 0.16; cam.position.set(0, 1.28 + Math.sin(PITCH) * 12, Math.cos(PITCH) * 12); cam.lookAt(0, 1.28, 0); cam.updateMatrixWorld(true);
+
+// ---------- poses: angles in athlete space (athlete faces +Z) ----------
+function apply(A, p) {
+  A.hips.position.y = 1.02 - (p.crouch || 0);
+  A.hips.rotation.set((p.lean || 0) * 0.5, p.twist || 0, 0); A.spine.rotation.x = (p.lean || 0) * 0.3; A.chest.rotation.x = (p.lean || 0) * 0.2;
+  A.sh[0].rotation.set(-(p.rs || 0), 0, -0.12 - (p.rz || 0)); A.el[0].rotation.x = -(p.re || 0);   // right arm (athlete's right is -x)
+  A.sh[1].rotation.set(-(p.ls || 0), 0, 0.12 + (p.lz || 0)); A.el[1].rotation.x = -(p.le || 0);
+  A.th[0].rotation.set(-(p.rt || 0), 0, -(p.ra || 0)); A.kn[0].rotation.x = p.rk || 0;
+  A.th[1].rotation.set(-(p.lt || 0), 0, (p.la || 0)); A.kn[1].rotation.x = p.lk || 0;
+  A.feet[0].rotation.x = ((p.rt || 0) - (p.rk || 0)) * (p.air ? 0.4 : 0.9); A.feet[1].rotation.x = ((p.lt || 0) - (p.lk || 0)) * (p.air ? 0.4 : 0.9);
+  A.body.rotation.set(p.flip || 0, 0, p.roll || 0); A.body.position.set(0, p.lift || 0, p.slide || 0);
+}
+var TAU = Math.PI * 2, S = Math.sin, Cc = Math.cos, mx = Math.max;
+var ANIMS = {
+  idle:    { n: 4, dirs: ['R', 'F', 'B'], f: function (t) { return { crouch: 0.05 + 0.02 * S(t * TAU), rs: 0.1, ls: 0.1, rz: 0.12, lz: 0.12, re: 0.25, le: 0.25, lean: 0.05 }; } },
+  dribble: { n: 6, dirs: ['R', 'F', 'B'], f: function (t) { var b = S(t * TAU); return { crouch: 0.16, lean: 0.28, rs: 0.55 + 0.3 * b, re: 0.75 - 0.25 * b, rz: 0.3, ls: 0.75, le: 1.1, lz: 0.45, rt: 0.15, lt: -0.1, rk: 0.35, lk: 0.3 }; } },
+  run:     { n: 8, dirs: ['R', 'F', 'B'], f: function (t) { var p = t * TAU, s = S(p); return { crouch: 0.07 + 0.04 * Math.abs(S(2 * p)), lean: 0.3, rt: 0.8 * s, lt: -0.8 * s, rk: 0.25 + 1.2 * mx(0, -Cc(p)), lk: 0.25 + 1.2 * mx(0, Cc(p)), rs: -0.9 * s, ls: 0.9 * s, re: 1.35, le: 1.35, rz: 0.08, lz: 0.08 }; } },
+  drun:    { n: 8, dirs: ['R', 'F', 'B'], f: function (t) { var p = t * TAU, s = S(p); return { crouch: 0.1 + 0.04 * Math.abs(S(2 * p)), lean: 0.35, rt: 0.75 * s, lt: -0.75 * s, rk: 0.3 + 1.1 * mx(0, -Cc(p)), lk: 0.3 + 1.1 * mx(0, Cc(p)), rs: 0.55 + 0.3 * S(2 * p), re: 0.7, rz: 0.3, ls: 0.6 + 0.4 * s, le: 1.2, lz: 0.4 }; } },
+  defend:  { n: 4, dirs: ['R', 'F', 'B'], f: function (t) { var s = S(t * TAU); return { crouch: 0.3, lean: 0.3, rs: 0.7, ls: 0.7, rz: 1.1 + 0.15 * s, lz: 1.1 - 0.15 * s, re: 0.35, le: 0.35, rt: 0.35, lt: 0.35, rk: 0.7, lk: 0.7, ra: 0.25 + 0.08 * s, la: 0.25 - 0.08 * s }; } },
+  shoot:   { n: 5, dirs: ['R', 'F'], f: function (t, i) { return [
+    { crouch: 0.28, lean: 0.2, rs: 1.25, re: 1.7, ls: 1.25, le: 1.7, rt: 0.5, lt: 0.5, rk: 1.0, lk: 1.0, rz: 0.1, lz: 0.1 },
+    { crouch: 0.02, rs: 2.2, re: 1.3, ls: 2.1, le: 1.3, rk: 0.2, lk: 0.2, air: 1 },
+    { rs: 2.75, re: 1.5, ls: 2.4, le: 1.0, rk: 0.45, lk: 0.35, rt: 0.2, lt: 0.1, air: 1 },
+    { rs: 3.0, re: 0.15, ls: 2.5, le: 0.6, rk: 0.5, lk: 0.4, rt: 0.25, lt: 0.15, air: 1 },
+    { rs: 2.75, re: 0.45, ls: 1.9, le: 0.5, rk: 0.4, lk: 0.3, rt: 0.2, lt: 0.1, air: 1 }][i]; } },
+  jump:    { n: 3, dirs: ['R', 'F'], f: function (t, i) { return [
+    { crouch: 0.25, rs: 0.9, ls: 0.9, re: 0.6, le: 0.6, rt: 0.45, lt: 0.45, rk: 0.9, lk: 0.9 },
+    { rs: 2.9, ls: 2.9, re: 0.25, le: 0.25, rz: 0.15, lz: 0.15, rk: 0.6, lk: 0.5, rt: 0.3, lt: 0.2, air: 1 },
+    { rs: 3.05, ls: 2.7, re: 0.1, le: 0.3, rz: 0.25, lz: 0.2, rk: 0.9, lk: 0.7, rt: 0.5, lt: 0.3, air: 1 }][i]; } },
+  dunk:    { n: 6, dirs: ['R'], f: function (t, i) { return [
+    { crouch: 0.32, lean: 0.35, rs: -0.5, ls: -0.5, re: 0.3, le: 0.3, rt: 0.6, lt: 0.5, rk: 1.1, lk: 1.0 },
+    { rs: 2.4, re: 1.0, ls: 1.6, le: 0.8, rt: 0.9, rk: 1.6, lt: -0.2, lk: 0.4, lean: 0.1, air: 1 },
+    { rs: 3.3, re: 2.0, ls: 2.2, le: 0.5, rt: 1.0, rk: 1.8, lt: 0.1, lk: 0.6, lean: -0.15, air: 1 },
+    { rs: 1.7, re: 0.05, ls: 2.0, le: 0.4, rt: 0.6, rk: 1.2, lt: 0.2, lk: 0.5, lean: 0.35, air: 1 },
+    { rs: 2.95, re: 0.35, ls: 2.9, le: 0.4, rt: 0.2, rk: 0.6, lt: 0.1, lk: 0.5, air: 1 },
+    { rs: 2.5, re: 0.6, ls: 2.4, le: 0.6, rt: 0.3, rk: 0.8, lt: 0.2, lk: 0.7, air: 1 }][i]; } },
+  pass:    { n: 3, dirs: ['R', 'F'], f: function (t, i) { return [
+    { crouch: 0.1, lean: 0.2, rs: 1.2, ls: 1.2, re: 1.7, le: 1.7, rz: 0.15, lz: 0.15 },
+    { crouch: 0.1, lean: 0.35, rs: 1.55, ls: 1.55, re: 0.15, le: 0.15, rz: 0.05, lz: 0.05, rt: 0.35, rk: 0.4 },
+    { crouch: 0.08, lean: 0.25, rs: 1.3, ls: 1.2, re: 0.5, le: 0.6, rt: 0.2, rk: 0.3 }][i]; } },
+  steal:   { n: 3, dirs: ['R', 'F'], f: function (t, i) { return [
+    { crouch: 0.25, lean: 0.35, rs: 1.3, re: 0.6, rz: 0.7, ls: 0.5, le: 0.8, lz: 0.5, rt: 0.4, rk: 0.8, lt: 0.2, lk: 0.6 },
+    { crouch: 0.3, lean: 0.5, rs: 1.4, re: 0.1, rz: -0.3, ls: 0.6, le: 0.8, lz: 0.5, rt: 0.6, rk: 0.9, lt: 0.1, lk: 0.6, twist: -0.3 },
+    { crouch: 0.25, lean: 0.4, rs: 1.1, re: 0.3, rz: -0.6, ls: 0.6, le: 0.8, lz: 0.4, rt: 0.4, rk: 0.8, lt: 0.2, lk: 0.6, twist: -0.45 }][i]; } },
+  shove:   { n: 3, dirs: ['R'], f: function (t, i) { return [
+    { crouch: 0.2, lean: 0.15, rs: 1.1, ls: 1.1, re: 1.8, le: 1.8, rt: 0.3, rk: 0.6, lt: -0.2, lk: 0.3 },
+    { crouch: 0.15, lean: 0.55, rs: 1.6, ls: 1.6, re: 0.0, le: 0.0, rt: 0.55, rk: 0.6, lt: -0.4, lk: 0.2 },
+    { crouch: 0.12, lean: 0.4, rs: 1.4, ls: 1.4, re: 0.3, le: 0.3, rt: 0.4, rk: 0.5, lt: -0.3, lk: 0.3 }][i]; } },
+  fall:    { n: 4, dirs: ['R'], f: function (t, i) { return [
+    { crouch: 0.1, lean: -0.4, flip: -0.35, rs: 1.8, ls: 1.5, re: 0.4, le: 0.6, rz: 0.6, lz: 0.6, rt: 0.6, rk: 0.4 },
+    { crouch: 0.2, flip: -0.9, lift: -0.15, slide: -0.2, rs: 2.4, ls: 2.0, re: 0.4, le: 0.5, rz: 0.8, lz: 0.9, rt: 1.0, rk: 0.5, lt: 0.5, lk: 0.6 },
+    { flip: -1.45, lift: -0.5, slide: -0.45, rs: 2.6, ls: 2.9, re: 0.3, le: 0.2, rz: 1.0, lz: 1.2, rt: 0.9, rk: 0.6, lt: 0.6, lk: 0.9 },
+    { flip: -1.5, lift: -0.62, slide: -0.5, rs: 2.9, ls: 3.0, re: 0.5, le: 0.4, rz: 1.3, lz: 1.3, rt: 0.6, rk: 1.0, lt: 0.3, lk: 1.2 }][i]; } },
+  cheer:   { n: 4, dirs: ['F'], f: function (t) { var s = S(t * TAU); return { crouch: 0.03 - 0.03 * s, rs: 2.8 + 0.25 * s, ls: 2.8 - 0.25 * s, re: 0.4, le: 0.4, rz: 0.4, lz: 0.4, rk: 0.15, lk: 0.15, lift: 0.08 * mx(0, s) }; } }
+};
+var DIRS = { R: Math.PI / 2 - 0.42, F: Math.PI / 2 - 1.05, B: Math.PI / 2 + 0.95 };   // facing screen-right in profile, turned toward / away from the camera
+
+function project(v) { var p = v.clone().project(cam); return [(p.x + 1) / 2 * FW, (1 - p.y) / 2 * FH]; }
+
+// returns { png, meta } for one player
+window.genPlayer = function (id) {
+  var d = HW.PLAYERS[id], A = HW.Athlete.build(HW.lookOpts(d, d.team));
+  A.head.scale.setScalar(0.001);                                    // the big digitized head is drawn on top in the game
+  scene.add(A.root);
+  var s = d.height / 1.89; A.root.scale.setScalar(s);
+  var bx = 1 + (d.bulk - 1) * 0.45, bz = bx * (d.belly ? 1.08 : 1);
+  A.spine.scale.set(bx, 1, bz); A.neck.scale.set(1 / bx, 1, 1 / bz); A.sh.forEach(function (sh) { sh.scale.set(1 / bx, 1, 1 / bz); });
+  var frames = [], meta = { fw: FW, fh: FH, ppm: 50, anim: {}, head: [], hand: [], feet: project(new THREE.Vector3(0, 0, 0)) };
+  var tmp = document.createElement('canvas'); tmp.width = FW; tmp.height = FH; var tg = tmp.getContext('2d'); tg.imageSmoothingQuality = 'high';
+  Object.keys(ANIMS).forEach(function (name) {
+    var an = ANIMS[name]; meta.anim[name] = {};
+    an.dirs.forEach(function (dir) {
+      var list = meta.anim[name][dir] = [];
+      for (var i = 0; i < an.n; i++) {
+        A.root.rotation.y = DIRS[dir]; apply(A, an.f(i / an.n, i)); A.root.updateMatrixWorld(true);
+        R.render(scene, cam);
+        tg.clearRect(0, 0, FW, FH); tg.drawImage(R.domElement, 0, 0, FW, FH);
+        var c = document.createElement('canvas'); c.width = FW; c.height = FH; c.getContext('2d').drawImage(tmp, 0, 0); frames.push(c);
+        var hp = A.head.getWorldPosition(new THREE.Vector3()), np = A.neck.getWorldPosition(new THREE.Vector3());
+        var hr = A.palm[0].getWorldPosition(new THREE.Vector3()), hl = A.palm[1].getWorldPosition(new THREE.Vector3());
+        meta.head.push(project(hp).concat(project(np))); meta.hand.push(project(hr).concat(project(hl)));
+        list.push(frames.length - 1);
+      }
+    });
+  });
+  scene.remove(A.root);
+  var cols = 16, rows = Math.ceil(frames.length / cols), atlas = document.createElement('canvas'); atlas.width = cols * FW; atlas.height = rows * FH;
+  var ag = atlas.getContext('2d'); frames.forEach(function (c, i) { ag.drawImage(c, (i % cols) * FW, Math.floor(i / cols) * FH); });
+  meta.cols = cols; meta.count = frames.length;
+  meta.head = meta.head.map(function (a) { return a.map(function (v) { return +v.toFixed(1); }); }); meta.hand = meta.hand.map(function (a) { return a.map(function (v) { return +v.toFixed(1); }); });
+  return { png: atlas.toDataURL('image/png'), meta: meta };
+};
+
+// big digitized heads: front (3/4) and back of the head, transparent background
+window.genHead = function (id, back) {
+  var d = HW.PLAYERS[id], A = HW.Athlete.build(HW.lookOpts(d, d.team));
+  A.meshes.forEach(function (m) { if (m.name !== 'head') m.visible = false; });
+  A.feet.forEach(function (f) { f.visible = false; }); A.kn.forEach(function (k) { k.children.forEach(function (c) { c.visible = false; }); });
+  scene.add(A.root); A.root.rotation.y = back ? Math.PI + 0.35 : -0.3; A.root.updateMatrixWorld(true);
+  A.face.update(0, null);
+  var hp = A.head.getWorldPosition(new THREE.Vector3()), hc = new THREE.OrthographicCamera(-0.15, 0.15, 0.19, -0.19, 0.1, 50);
+  hc.position.set(hp.x, hp.y + 0.09, hp.z + 5); hc.lookAt(hp.x, hp.y + 0.09, hp.z); hc.updateMatrixWorld(true);
+  R.setSize(192, 243); R.render(scene, hc);
+  var c = document.createElement('canvas'); c.width = 96; c.height = 122; var g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(R.domElement, 0, 0, 96, 122);
+  R.setSize(FW * SS, FH * SS); scene.remove(A.root);
+  return c.toDataURL('image/png');
+};
+window.ready = new Promise(function (res) { HW.Athlete.whenReady(res); });
+</script>
+</body></html>
