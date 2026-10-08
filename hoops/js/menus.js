@@ -15,6 +15,7 @@ window.HW = window.HW || {};
 
   M.show = function (screen) {
     if (screen === 'settings' && M.screen !== 'settings') M.back = M.screen || 'title';
+    if (screen === 'team' || screen === 'pick' || screen === 'control') M.makePortraits();
     M.screen = screen; M.open = true; panel.mesh.visible = true; panel.hover = null; panel.redraw(); M.place();
     I.exitLock(); I.wantLock = false;
   };
@@ -69,6 +70,46 @@ window.HW = window.HW || {};
     g.beginPath(); g.arc(-r * 1.25, 0, r * 0.9, -0.95, 0.95); g.stroke(); g.beginPath(); g.arc(r * 1.25, 0, r * 0.9, Math.PI - 0.95, Math.PI + 0.95); g.stroke();
     g.restore();
   }
+  // arcade-style face portraits: each player's real head rendered once, small, then drawn pixelated
+  M.portraits = {};
+  M.makePortraits = function () {
+    if (M.portraitsDone || !HW.Athlete || !HW.Athlete.available()) return; M.portraitsDone = true;
+    HW.Athlete.whenReady(function () { M.renderPortraits(); if (M.open) panel.redraw(); });
+  };
+  M.renderPortraits = function () {
+    var R = HW.ctx.renderer, N = 72, rt = new THREE.WebGLRenderTarget(N, N);
+    var sc = new THREE.Scene(); sc.environment = HW.ctx.scene.environment || null;
+    sc.add(new THREE.HemisphereLight(0xfff4e8, 0x606070, 0.7)); sc.add(new THREE.AmbientLight(0xffffff, 0.15)); var key = new THREE.DirectionalLight(0xffffff, 1.2); key.position.set(0.5, 2.4, 3); sc.add(key); var rim = new THREE.DirectionalLight(0xbfd8ff, 0.7); rim.position.set(-1.5, 2, -1); sc.add(rim);
+    var cam = new THREE.PerspectiveCamera(19, 1, 0.05, 10), buf = new Uint8Array(N * N * 4), prevTarget = R.getRenderTarget(), wasXR = R.xr.enabled;
+    R.xr.enabled = false;
+    Object.keys(HW.PLAYERS).forEach(function (id) {
+      var d = HW.PLAYERS[id], A = HW.Athlete.build(HW.lookOpts(d, d.team));
+      sc.background = new THREE.Color(HW.TEAMS[d.team].dark).lerp(new THREE.Color(d.color), 0.35);
+      sc.add(A.root); A.root.updateMatrixWorld(true);
+      var hy = A.head.getWorldPosition(new THREE.Vector3()).y + 0.085; cam.position.set(0.12, hy + 0.02, 0.9); cam.lookAt(0, hy - 0.035, 0);
+      R.setRenderTarget(rt); R.clear(); R.render(sc, cam); R.readRenderTargetPixels(rt, 0, 0, N, N, buf);
+      var cv = document.createElement('canvas'); cv.width = cv.height = N; var cx = cv.getContext('2d'), img = cx.createImageData(N, N);
+      if (!M.gammaLUT) { M.gammaLUT = new Uint8Array(256); for (var gi = 0; gi < 256; gi++) { var v = gi / 255; M.gammaLUT[gi] = Math.round(255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055)); } }
+      var lut = M.gammaLUT, linearOut = !(THREE.sRGBEncoding !== undefined && rt.texture.encoding === THREE.sRGBEncoding && M.rtEncodes);
+      for (var y = 0; y < N; y++) for (var xq = 0; xq < N; xq++) { var si = ((N - 1 - y) * N + xq) * 4, di = (y * N + xq) * 4; img.data[di] = lut[buf[si]]; img.data[di + 1] = lut[buf[si + 1]]; img.data[di + 2] = lut[buf[si + 2]]; img.data[di + 3] = 255; }
+      cx.putImageData(img, 0, 0); M.portraits[id] = cv; sc.remove(A.root);
+    });
+    R.setRenderTarget(prevTarget); R.xr.enabled = wasXR; rt.dispose();
+  };
+  function portrait(g, d, x, y, s) {
+    var cv = M.portraits[d.id];
+    g.fillStyle = '#000'; g.fillRect(x - 6, y - 6, s + 12, s + 12); g.fillStyle = d.color; g.fillRect(x - 3, y - 3, s + 6, s + 6);
+    if (cv) { g.imageSmoothingEnabled = false; g.drawImage(cv, x, y, s, s); g.imageSmoothingEnabled = true; } else { g.fillStyle = '#223'; g.fillRect(x, y, s, s); badge(g, x + s / 2, y + s / 2, s * 0.35, d); }
+  }
+  // arcade stat lines: SPD:8 POWER:3 / 3PTS:6 STEAL:9 / DUNK:9 BLOCK:5
+  function jamStats(p, x, y, d, size, colW) {
+    var s = d.stats, rows = [['SPD', s.speed, 'POWER', s.str], ['3PTS', s.tp, 'STEAL', s.steal], ['DUNK', s.dunk, 'BLOCK', s.block]];
+    rows.forEach(function (r, i) {
+      var yy = y + i * size * 1.25;
+      p.text(r[0] + ':', x, yy, size, '#ffe14d', 'left'); p.text(String(r[1]), x + colW * 0.44, yy, size, '#fff', 'right');
+      p.text(r[2] + ':', x + colW * 0.51, yy, size, '#ffe14d', 'left'); p.text(String(r[3]), x + colW, yy, size, '#fff', 'right');
+    });
+  }
   function statBars(p, g, x, y, w, def) {
     STATS.forEach(function (s, i) {
       var yy = y + i * 34, v = def.stats[s[1]];
@@ -78,7 +119,7 @@ window.HW = window.HW || {};
   }
   function badge(g, x, y, r, def) {
     g.fillStyle = def.color; g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill(); g.lineWidth = 5; g.strokeStyle = '#fff'; g.stroke();
-    g.fillStyle = '#fff'; g.font = 'bold ' + Math.round(r * 0.95) + 'px ' + UI.FONT; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 6; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.strokeText(String(def.num), x, y + 3); g.fillText(String(def.num), x, y + 3);
+    g.fillStyle = '#fff'; g.font = UI.font(Math.round(r * 0.95)); g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 6; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.strokeText(String(def.num), x, y + 3); g.fillText(String(def.num), x, y + 3);
   }
   function toggleRow(p, y, label, id, opts, cur, onPick) {
     p.text(label, 120, y + 36, 40, '#ffffff', 'left');
@@ -102,7 +143,7 @@ window.HW = window.HW || {};
         var x = 110 + i * 710, y = 210;
         U.roundRect(g, x, y, 640, 560, 36); g.fillStyle = 'rgba(255,255,255,0.06)'; g.fill(); g.lineWidth = 6; g.strokeStyle = t.color; g.stroke();
         p.text(t.name.toUpperCase(), x + 320, y + 70, 64, t.color, 'center', { stroke: '#000', strokeW: 10 });
-        t.roster.forEach(function (id, k) { var d = HW.PLAYERS[id]; badge(g, x + 70, y + 160 + k * 72, 26, d); p.text(d.name, x + 120, y + 158 + k * 72, 34, '#fff', 'left'); p.text(HW.TYPES[d.type].label, x + 600, y + 158 + k * 72, 26, '#9aa5cc', 'right', { weight: 'normal' }); });
+        t.roster.forEach(function (id, k) { var d = HW.PLAYERS[id]; portrait(g, d, x + 44, y + 134 + k * 72, 52); p.text(d.name, x + 120, y + 158 + k * 72, 34, '#fff', 'left'); p.text(HW.TYPES[d.type].label, x + 600, y + 158 + k * 72, 26, '#9aa5cc', 'right', { weight: 'normal' }); });
         p.button('team' + i, x + 120, y + 470, 400, 74, 'PLAY AS ' + t.short, { selected: false, color: t.color, size: 34, onClick: function () { st.team = i; st.picks = []; st.ctrl = null; M.show('pick'); } });
       });
       p.button('back', 60, 840, 260, 80, 'BACK', { size: 36, onClick: function () { M.show('title'); } });
@@ -113,10 +154,10 @@ window.HW = window.HW || {};
         var d = HW.PLAYERS[id], x = x0 + i * (cw + gap), y = 200, sel = st.picks.indexOf(id) >= 0;
         var b = p.button('pl' + id, x, y, cw, 560, '', { selected: false, color: sel ? '#5cffa0' : d.color, onClick: function () { var k = st.picks.indexOf(id); if (k >= 0) st.picks.splice(k, 1); else { if (st.picks.length >= 2) st.picks.shift(); st.picks.push(id); } } });
         if (sel) { g.save(); U.roundRect(g, x, y, cw, 560, 24); g.fillStyle = 'rgba(92,255,160,0.16)'; g.fill(); g.restore(); }
-        badge(g, x + cw / 2, y + 90, 56, d);
-        p.text(d.first.toUpperCase(), x + cw / 2, y + 190, 44, '#fff', 'center'); p.text(d.name.split(' ')[1].toUpperCase(), x + cw / 2, y + 230, 26, '#9aa5cc', 'center', { weight: 'normal' });
-        p.text(HW.TYPES[d.type].label.toUpperCase(), x + cw / 2, y + 276, 28, d.color, 'center');
-        statBars(p, g, x + 30, y + 330, cw - 60, d);
+        portrait(g, d, x + cw / 2 - 75, y + 22, 150);
+        p.text(d.first.toUpperCase(), x + cw / 2, y + 205, 44, '#fff', 'center'); p.text(d.name.split(' ')[1].toUpperCase(), x + cw / 2, y + 230, 26, '#9aa5cc', 'center', { weight: 'normal' });
+        p.text(HW.TYPES[d.type].label.toUpperCase(), x + cw / 2, y + 282, 24, d.color, 'center');
+        jamStats(p, x + 14, y + 345, d, 21, cw - 28);
         if (sel) p.text('PICKED', x + cw / 2, y + 530, 30, '#5cffa0', 'center');
       });
       p.button('back', 60, 840, 260, 80, 'BACK', { size: 36, onClick: function () { M.show('team'); } });
@@ -127,9 +168,9 @@ window.HW = window.HW || {};
         var d = HW.PLAYERS[id], x = 150 + i * 650, y = 190, sel = st.ctrl === id;
         p.button('c' + id, x, y, 580, 450, '', { color: d.color, onClick: function () { st.ctrl = id; } });
         if (sel) { U.roundRect(g, x, y, 580, 450, 24); g.fillStyle = 'rgba(92,255,160,0.16)'; g.fill(); }
-        badge(g, x + 110, y + 130, 66, d); p.text(d.name, x + 400, y + 90, 40, '#fff', 'center'); p.text(HW.TYPES[d.type].label.toUpperCase(), x + 400, y + 140, 28, d.color, 'center'); p.text(HW.TYPES[d.type].blurb, x + 400, y + 185, 22, '#aab4d8', 'center', { weight: 'normal' });
-        statBars(p, g, x + 50, y + 252, 480, d);
-        p.text(sel ? 'YOU' : 'COMPUTER', x + 110, y + 212, 26, sel ? '#5cffa0' : '#7f8ab0', 'center');
+        portrait(g, d, x + 30, y + 40, 160); p.text(d.name, x + 400, y + 90, 34, '#fff', 'center'); p.text(HW.TYPES[d.type].label.toUpperCase(), x + 400, y + 140, 28, d.color, 'center'); p.text(HW.TYPES[d.type].blurb, x + 400, y + 185, 22, '#aab4d8', 'center', { weight: 'normal' });
+        jamStats(p, x + 225, y + 245, d, 28, 330);
+        p.text(sel ? 'YOU' : 'COMPUTER', x + 110, y + 232, 26, sel ? '#5cffa0' : '#7f8ab0', 'center');
       });
       toggleRow(p, 660, 'DIFFICULTY', 'diff', [{ label: 'EASY', v: 'easy' }, { label: 'NORMAL', v: 'normal' }, { label: 'HARD', v: 'hard' }], st.diff, function (v) { st.diff = v; S.difficulty = v; HW.saveSettings(); });
       var opp = M.opponents(); p.text('vs  ' + opp.map(function (id) { return HW.PLAYERS[id].first; }).join(' & ') + '  (' + HW.TEAMS[1 - st.team].name + ')', w / 2, 790, 32, '#aab4d8', 'center', { weight: 'normal' });

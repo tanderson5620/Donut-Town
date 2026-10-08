@@ -2,7 +2,14 @@
 window.HW = window.HW || {};
 (function (HW) {
   var U = HW.U, FONT = 'Arial Black, Impact, Helvetica, sans-serif';
-  var UI = HW.UI = { FONT: FONT };
+  var PIXEL = '"Press Start 2P", "Courier New", monospace';
+  var UI = HW.UI = { FONT: FONT, PIXEL: PIXEL };
+  // arcade pixel lettering everywhere; sizes are given for a heavy sans, so the wide pixel font is scaled down to match widths
+  UI.font = function (size, weight) { return Math.round(size * 0.62) + 'px ' + PIXEL; };
+  UI.fontReady = function (cb) {
+    var done = function () { if (cb) cb(); };
+    try { if (document.fonts && document.fonts.load) document.fonts.load('16px "Press Start 2P"').then(done, done); else done(); } catch (e) { done(); }
+  };
 
   /* ---------- Panel: a plane with a 2D canvas; immediate-mode buttons ---------- */
   function Panel(wm, hm, pw, ph, opts) {
@@ -19,7 +26,7 @@ window.HW = window.HW || {};
     if (this.draw) this.draw(this.g, this.pw, this.ph, this); this.tex.needsUpdate = true; this.dirty = false;
   };
   Panel.prototype.text = function (s, x, y, size, color, align, o) {
-    var g = this.g; o = o || {}; g.font = (o.weight || 'bold') + ' ' + size + 'px ' + FONT; g.textAlign = align || 'left'; g.textBaseline = 'middle';
+    var g = this.g; o = o || {}; g.font = UI.font(size, o.weight); g.textAlign = align || 'left'; g.textBaseline = 'middle';
     if (o.stroke) { g.lineJoin = 'round'; g.lineWidth = o.strokeW || size * 0.16; g.strokeStyle = o.stroke; g.strokeText(s, x, y); }
     g.fillStyle = color || '#fff'; g.fillText(s, x, y);
   };
@@ -135,7 +142,7 @@ window.HW = window.HW || {};
     var s = HUD.state; g.clearRect(0, 0, w, h);
     g.fillStyle = 'rgba(8,10,20,0.78)'; U.roundRect(g, 4, 4, w - 8, h - 8, 26); g.fill();
     g.strokeStyle = s.fire ? '#ff7a1a' : '#ffffff55'; g.lineWidth = s.fire ? 8 : 3; g.stroke();
-    function t(str, x, y, size, col, al) { g.font = 'bold ' + size + 'px ' + FONT; g.textAlign = al || 'center'; g.textBaseline = 'middle'; g.fillStyle = col; g.fillText(str, x, y); }
+    function t(str, x, y, size, col, al) { g.font = UI.font(size); g.textAlign = al || 'center'; g.textBaseline = 'middle'; g.fillStyle = col; g.fillText(str, x, y); }
     t(s.names[0], w * 0.2, 36, 28, s.colors[0]); t(String(s.score[0]), w * 0.2, 92, 64, '#fff');
     t(s.names[1], w * 0.8, 36, 28, s.colors[1]); t(String(s.score[1]), w * 0.8, 92, 64, '#fff');
     t((s.quarter > 4 ? 'OT' : 'Q' + s.quarter), w / 2, 34, 28, '#ffd23f'); t(UI.fmtClock(s.clock), w / 2, 84, 46, '#ff3b3b');
@@ -164,5 +171,31 @@ window.HW = window.HW || {};
     if (key === HUD.key) return; HUD.key = key;
     HUD.panel.redraw();
     if (!vr && HUD.ctx) { HUD.ctx.clearRect(0, 0, HUD.cv.width, HUD.cv.height); HUD.ctx.drawImage(HUD.panel.cv, 0, 0, HUD.cv.width, HUD.cv.height); }
+  };
+
+  /* ---------- arcade HUD on flat screens: names + turbo across the top, score strip at the bottom ---------- */
+  var JAM = UI.jam = { key: '', els: null };
+  JAM.update = function (G) {
+    var on = !HW.Input.vr && G.players.length && G.phase !== 'menu';
+    document.body.classList.toggle('jamon', !!on); if (!on) return;
+    if (!JAM.els) JAM.els = { t: [0, 1, 2, 3].map(function (i) { return document.getElementById('jt' + i); }), s0: document.getElementById('js0'), s1: document.getElementById('js1'), q: document.getElementById('jsq'), meter: document.getElementById('jammeter'), green: document.getElementById('jmgreen'), mark: document.getElementById('jmmark') };
+    var E = JAM.els, P = G.players.slice().sort(function (a, b) { return a.team - b.team || (b.isHuman - a.isHuman) || a.slot - b.slot; });
+    P.forEach(function (p, i) {
+      var el = E.t[i]; if (!el) return;
+      var k = p.def.id + '|' + Math.round(p.turbo / 4) + '|' + p.onFire + '|' + (G.ball.holder === p);
+      if (el.dataset.k === k) return; el.dataset.k = k;
+      el.innerHTML = '<div class="nm' + (p.onFire ? ' fire' : '') + '" style="--tc:' + p.def.color + '">' + (p.isHuman ? '<em>P1</em>' : '') + p.def.name.split(' ')[0].toUpperCase() + '</div>' +
+        '<div class="tb"><i style="width:' + Math.max(3, p.turbo) + '%"></i></div><div class="sub">' + (p.onFire ? 'ON FIRE!' : 'TURBO') + '</div>';
+    });
+    var key = G.score.join('-') + '|' + G.q + '|' + Math.ceil(G.clock) + '|' + Math.ceil(G.shotClock);
+    if (key !== JAM.key) {
+      JAM.key = key;
+      E.s0.innerHTML = '<b style="color:' + HW.TEAMS[0].color + '">' + HW.TEAMS[0].short + '</b> ' + G.score[0];
+      E.s1.innerHTML = G.score[1] + ' <b style="color:' + HW.TEAMS[1].color + '">' + HW.TEAMS[1].short + '</b>';
+      E.q.innerHTML = (G.q > 4 ? 'OT' : ['1ST', '2ND', '3RD', '4TH'][G.q - 1]) + ' ' + UI.fmtClock(G.clock) + '<small>' + Math.ceil(Math.max(0, G.shotClock)) + '</small>';
+    }
+    var h = G.human, charging = h && h.charging;
+    E.meter.style.visibility = charging ? 'visible' : 'hidden';
+    if (charging) { var gw = 0.12 * h.st.greenWin; E.green.style.left = ((0.65 - gw / 2) * 100) + '%'; E.green.style.width = (gw * 100) + '%'; E.mark.style.left = (G.charge * 100) + '%'; }
   };
 })(window.HW);

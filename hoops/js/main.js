@@ -51,6 +51,7 @@ window.HW = window.HW || {};
     HW.Game.init(ctx);
     clock = new THREE.Clock(); renderer.setAnimationLoop(loop);
     document.getElementById('info').innerHTML = '<b>WASD</b> move &middot; <b>Shift</b> turbo &middot; <b>Space</b> jump<br><b>Hold click</b> shoot (release near green), click on D to block<br><b>Q</b> pass / steal &middot; <b>Shift+E</b> shove &middot; <b>C</b> camera &middot; <b>Esc</b> pause';
+    HW.UI.fontReady(function () { if (HW.Menu.open) HW.Menu.panel.redraw(); HW.UI.scoreboard.key = ''; HW.UI.hud.key = ''; });
     document.body.classList.add('ready');
     if (/[?&]debug/.test(location.search)) { window.__hw = HW; }
   }

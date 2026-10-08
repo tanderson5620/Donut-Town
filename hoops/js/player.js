@@ -22,7 +22,7 @@ window.HW = window.HW || {};
     return U.canvasTex(512, 128, function (g, w, h) {
       g.fillStyle = 'rgba(8,10,20,0.78)'; U.roundRect(g, 6, 14, w - 12, h - 28, 30); g.fill();
       g.lineWidth = 6; g.strokeStyle = def.color; g.stroke();
-      g.font = 'bold 54px Arial Black, Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = '30px ' + HW.UI.PIXEL; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillStyle = def.color; g.fillText('#' + def.num, 92, h / 2 + 2); g.fillStyle = '#fff'; g.fillText(def.first.toUpperCase(), 318, h / 2 + 2);
     }, { aniso: 2 });
   }
@@ -147,15 +147,19 @@ window.HW = window.HW || {};
     this.rim = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.035, 5, 18), new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.8 })); this.rim.rotation.x = Math.PI / 2; this.rim.position.y = 0.04; this.rim.visible = false; root.add(this.rim);
   };
 
+  // athlete options for a player definition (also used for the menu portraits)
+  HW.lookOpts = function (d, teamIdx) {
+    var L = d.look || {}, team = HW.TEAMS[teamIdx];
+    return { skin: d.skin, iris: L.iris, hair: { style: d.hairStyle, color: d.hair }, brow: d.brow, band: d.noBand ? null : L.band,
+      glasses: L.glasses, jersey: d.color, trim: '#f6f6f2', dark: team.dark, num: d.num, team: team.name.toUpperCase(), name: d.first.toUpperCase(),
+      shorts: d.shorts, plainShorts: L.plainShorts, shoe: L.shoe, noSocks: L.noSocks };
+  };
+
   // Swap the simple shapes for the sculpted, skinned athlete body (the shapes stay as an invisible pose rig)
   Player.prototype.buildAthlete = function () {
     var d = this.def, L = d.look || {}, team = HW.TEAMS[this.team];
     this.body.traverse(function (o) { if (o.isMesh) o.visible = false; });
-    var A = HW.Athlete.build({
-      skin: d.skin, iris: L.iris, hair: { style: d.hairStyle, color: d.hair }, brow: d.brow, band: d.noBand ? null : L.band,
-      glasses: L.glasses, jersey: d.color, trim: '#f6f6f2', dark: team.dark, num: d.num, team: team.name.toUpperCase(), name: d.first.toUpperCase(),
-      shorts: d.shorts, plainShorts: L.plainShorts, shoe: L.shoe, noSocks: L.noSocks
-    });
+    var A = HW.Athlete.build(HW.lookOpts(d, this.team));
     var s = d.height / 1.89, bx = 1 + (d.bulk - 1) * 0.45, bz = bx * (d.belly ? 1.08 : 1);
     A.root.scale.setScalar(s); A.root.rotation.y = Math.PI; this.body.add(A.root);
     A.spine.scale.set(bx, 1, bz); A.neck.scale.set(1 / bx, 1, 1 / bz); A.sh.forEach(function (sh) { sh.scale.set(1 / bx, 1, 1 / bz); });
@@ -176,6 +180,7 @@ window.HW = window.HW || {};
     A.hips.position.y = 1.02 - (this.standY - this.hips.position.y) / this.athS;
     A.hips.rotation.x = -this.hips.rotation.x; A.spine.rotation.x = -this.spine.rotation.x * 0.6; A.chest.rotation.x = -this.spine.rotation.x * 0.4;
     A.head.rotation.x = -this.head.rotation.x;
+    var bigHead = HW.Game.camMode === 'arcade' && !HW.Input.vr ? 1.3 : 1; A.head.scale.setScalar(bigHead);   // arcade big heads off-headset
     if (A.pony) A.pony.rotation.x = -0.35 - Math.min(0.6, Math.hypot(this.vel.x, this.vel.z) * 0.08) + Math.sin(this.phase * 2) * 0.08;
     A.face.update(dt, HW.view && HW.view.pos);
   };
