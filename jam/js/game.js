@@ -48,7 +48,7 @@ window.HW = window.HW || {};
     hand.x = bx; hand.z = 7; off.forEach(function (p) { if (p !== hand) { p.x = bx + s * 3.5; p.z = 3; } });
     def.forEach(function (p, i) { p.x = bx + s * (center ? 3.2 : 4.5); p.z = i ? 10 : 5; });
     G.players.forEach(function (p) { p.face = p.team === team ? s : -s; });
-    G.give(hand); G.poss = team; G.shot = 24; X.camX = clamp(bx * 0.8, -7.2, 7.2);
+    G.give(hand); G.poss = team; G.shot = 24; X.camX = X.camClamp(bx);
   };
 
   /* ---------- ball ---------- */
@@ -201,11 +201,14 @@ window.HW = window.HW || {};
     });
     separate();
     updateBall(dt);
-    G.players.forEach(animate);
-    var b = G.ball, tx = clamp((b.holder ? b.holder.x : b.x) * 0.85 + (G.human ? (G.human.x - b.x) * 0.1 : 0), -7.2, 7.2);
-    X.camX += (tx - X.camX) * (1 - Math.exp(-3 * dt));
+    G.players.forEach(function (p) { animate(p, dt); });
+    // the camera rides with the ball, leading toward the basket its team is attacking
+    var b = G.ball, bx = b.holder ? b.holder.x : b.x + b.vx * 0.3, lead = b.holder ? side(b.holder.team) * 1.6 : 0;
+    X.follow(bx + lead, dt);
   };
 
+  // up/down the screen is squeezed by the camera, so moving in depth runs faster than along the court to feel as quick
+  var ZS = G.ZS = 1.5;
   function move(p, mx, mz, turbo, dt) {
     var can = !(p.state === 'fall' || p.state === 'dunk' || p.state === 'shove' || (p.state === 'shoot' && p.grounded()));
     var m = Math.hypot(mx, mz); if (m > 1) { mx /= m; mz /= m; m = 1; }
@@ -214,7 +217,7 @@ window.HW = window.HW || {};
     else p.turbo = Math.min(100, p.turbo + (p.hasBall ? 9 : 14) * dt);
     var sp = p.run * (p.turboOn ? p.turboMult : 1) * (p.hasBall ? 0.93 : 1) * (p.onFire ? 1.1 : 1) * (p.human ? 1 : G.diff.speed) * (can ? 1 : 0) * (p.y > 0.05 ? 0.7 : 1);
     var k = 1 - Math.exp(-(m > 0.1 ? 10 : 12) * dt);
-    p.vx += (mx * sp - p.vx) * k; p.vz += (mz * sp * 0.8 - p.vz) * k;
+    p.vx += (mx * sp - p.vx) * k; p.vz += (mz * sp * ZS - p.vz) * k;
   }
   G.move = move;
   function physics(p, dt) {
@@ -237,7 +240,7 @@ window.HW = window.HW || {};
   function humanControl(p, dt, In, live) {
     if (!live) { move(p, 0, 0, false, dt); return; }
     move(p, In.mx, In.mz, In.turbo, dt);
-    if (Math.abs(p.vx) > 0.4 && p.state !== 'shoot') p.face = p.vx > 0 ? 1 : -1;
+    if (Math.abs(p.vx) > 1.0 && p.state !== 'shoot') p.face = p.vx > 0 ? 1 : -1;   // a little sideways drift while running up or down doesn't flip him
     var holder = G.ball.holder, mate = G.mates(p)[0];
     if (p.hasBall) {
       if (In.shootDown) { if (In.turbo && G.canDunk(p) && towardRim(p, In)) G.startDunk(p); else G.startShot(p); }
@@ -299,18 +302,23 @@ window.HW = window.HW || {};
     if (best) G.give(best);
   }
 
-  function animate(p) {
+  function animate(p, dt) {
     var sp = Math.hypot(p.vx, p.vz), b = G.ball;
     if (p.state !== 'dunk') {
-      // which way the body turns: toward / away from the camera when running mostly up or down the screen
-      if (sp > 0.6 && Math.abs(p.vz) > Math.abs(p.vx) * 0.9) p.dir = p.vz < 0 ? 'F' : 'B'; else if (sp > 0.6 || p.state !== 'idle') p.dir = 'R';
+      // which way the body turns: toward / away from the camera when running mostly up or down the screen. Hysteresis and a short
+      // hold keep diagonal runs from flickering between the side and front views.
+      p.dirT = Math.max(0, (p.dirT || 0) - dt);
+      var ang = Math.atan2(Math.abs(p.vz) / ZS, Math.abs(p.vx)), want = p.dir;
+      if (sp > 0.6) { if (ang > 0.98) want = p.vz < 0 ? 'F' : 'B'; else if (ang < 0.7) want = 'R'; else if (want === 'F' || want === 'B') want = p.vz < 0 ? 'F' : 'B'; }
+      else if (p.state !== 'idle') want = 'R';
+      if (want !== p.dir && p.dirT <= 0) { p.dir = want; p.dirT = 0.18; }
       if (sp < 0.6 && p.state === 'idle' && !p.hasBall) { var tgt = b.holder || b; p.face = tgt.x >= p.x ? 1 : -1; }
       if (p.hasBall && sp < 0.6 && p.state === 'idle') p.face = side(p.team);
     }
     switch (p.state) {
       case 'dunk': return;
       case 'fall': p.anim = 'fall'; p.dir = 'R'; p.frame = Math.min(3, p.st / 0.12); return;
-      case 'shoot': p.anim = 'shoot'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + 1 / 60, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
+      case 'shoot': p.anim = 'shoot'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
       case 'jump': p.anim = 'jump'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.vy > 2 ? 1 : 2; return;
       case 'pass': p.anim = 'pass'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); return;
       case 'steal': p.anim = 'steal'; if (p.dir === 'B') p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); return;
@@ -318,8 +326,10 @@ window.HW = window.HW || {};
       case 'cheer': p.anim = 'cheer'; p.dir = 'F'; p.frame = (p.st * 8) % 4; return;
     }
     var defending = b.holder && b.holder.team !== p.team && dist(p, b.holder) < 3;
-    if (sp > 0.6) { p.anim = p.hasBall ? 'drun' : (defending && sp < 4 ? 'defend' : 'run'); p.frame = (p.frame + sp * (1 / 60) * 1.7) % 8; }
-    else { p.anim = p.hasBall ? 'dribble' : defending ? 'defend' : 'idle'; p.frame = (p.frame + (1 / 60) * (p.hasBall ? 9 : 4)) % 6; }
+    // stride rate follows the ground speed (depth speed counted at its true length), in real time so 120 Hz phones don't double it
+    var stride = Math.hypot(p.vx, p.vz / ZS);
+    if (sp > 0.6) { p.anim = p.hasBall ? 'drun' : (defending && sp < 4 ? 'defend' : 'run'); p.frame = (p.frame + Math.min(stride, 9) * dt * 1.7) % 8; }
+    else { p.anim = p.hasBall ? 'dribble' : defending ? 'defend' : 'idle'; p.frame = (p.frame + dt * (p.hasBall ? 9 : 4)) % 6; }
   }
 
   G.endQuarter = function () {

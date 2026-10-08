@@ -31,7 +31,7 @@ window.HW = window.HW || {};
     if (G.phase === 'over' && G.phaseT <= 0 && UI.screen !== 'results') UI.screen = 'results';
     g.fillStyle = '#05050c'; g.fillRect(0, 0, X.W, X.H);
     if (G.players.length && G.phase !== 'menu') { X.drawScene(g, G.t, UI.screen === 'paused' ? 0 : dt, G.players, G.ball, G.hoopFx); UI.drawHUD(g); }
-    else { idleT += dt; X.camX = Math.sin(idleT * 0.15) * 6; X.drawScene(g, idleT, dt, [], null, [0, 0]); }
+    else { idleT += dt; X.camX = Math.sin(idleT * 0.15) * X.camMax(); X.drawScene(g, idleT, dt, [], null, [0, 0]); }
     if (UI.screen) UI.drawMenu(g, dt);
     var inMenu = !!UI.screen; if (inMenu !== UI.wasMenu) { document.body.classList.toggle('inmenu', inMenu); UI.wasMenu = inMenu; }
     UI.endFrame();

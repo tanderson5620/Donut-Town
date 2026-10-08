@@ -9,8 +9,8 @@ window.HW = window.HW || {};
   function nearest(p, list) { var best = null, bd = 99; list.forEach(function (q) { var d = dist(p, q); if (d < bd) { bd = d; best = q; } }); return { who: best, d: bd }; }
   function goTo(p, x, z, turbo, dt) {
     var dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz), k = d < 0.15 ? 0 : Math.min(1, d / 0.8);
-    G.move(p, d > 1e-3 ? dx / d * k : 0, d > 1e-3 ? dz / d * k / 0.8 : 0, turbo && d > 2.5 && p.turbo > 25, dt);
-    if (Math.abs(p.vx) > 0.4) p.face = p.vx > 0 ? 1 : -1;
+    G.move(p, d > 1e-3 ? dx / d * k : 0, d > 1e-3 ? dz / d * k : 0, turbo && d > 2.5 && p.turbo > 25, dt);
+    if (Math.abs(p.vx) > 1.0) p.face = p.vx > 0 ? 1 : -1;
   }
 
   AI.update = function (p, dt, live) {
