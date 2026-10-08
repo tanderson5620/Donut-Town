@@ -11,8 +11,8 @@ window.HW = window.HW || {};
   // Everyone: id, display name, team (0 Andersons, 1 Gormans), type, jersey number/color, look, stats.
   HW.PLAYERS = {
     carl:    { id: 'carl',    name: 'Carl Anderson',    first: 'Carl',    team: 0, type: 'dunker',   num: 23, color: '#e63946', skin: '#8d5524', hair: '#1a1a1a', hairStyle: 'fade',  height: 1.95, bulk: 1.0,  stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6 } },
-    tyler:   { id: 'tyler',   name: 'Tyler Anderson',   first: 'Tyler',   team: 0, type: 'shooter',  num: 3,  color: '#ffb703', skin: '#f1c27d', hair: '#6b4423', hairStyle: 'short', height: 1.86, bulk: 0.9,  stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4 } },
-    alan:    { id: 'alan',    name: 'Alan Anderson',    first: 'Alan',    team: 0, type: 'handler',  num: 11, color: '#fb5607', skin: '#c98262', hair: '#c2ab82', hairStyle: 'swept', height: 1.76, bulk: 1.12,
+    tyler:   { id: 'tyler',   name: 'Tyler Anderson',   first: 'Tyler',   team: 0, type: 'shooter',  num: 3,  color: '#ffb703', skin: '#e2ae94', hair: '#76634f', hairStyle: 'short', photo: true, height: 1.86, bulk: 0.9,  stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4 } },
+    alan:    { id: 'alan',    name: 'Alan Anderson',    first: 'Alan',    team: 0, type: 'handler',  num: 11, color: '#fb5607', skin: '#c98262', hair: '#c2ab82', hairStyle: 'swept', photo: true, height: 1.76, bulk: 1.12,
                // from his photo: sun-tanned freckled skin, short swept-back ash-blond/gray hair, tinted wire glasses, stocky with a belly, gray shorts, tan suede slip-ons
                freckles: true, glasses: true, belly: true, noBand: true, shorts: '#6f6b72', shoes: '#c9ad86', soles: '#ece2cf', brow: '#b5a07a', age: true,  stats: { speed: 10, tp: 5, dunk: 4, steal: 9, block: 3, str: 3 } },
     lisa:    { id: 'lisa',    name: 'Lisa Anderson',    first: 'Lisa',    team: 0, type: 'strength', num: 34, color: '#ff006e', skin: '#e0ac69', hair: '#3b2314', hairStyle: 'pony',  height: 1.80, bulk: 1.2,  stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10 } },

@@ -186,7 +186,9 @@ window.HW = window.HW || {};
   X.loadFace = function (id) {
     if (faces[id]) return faces[id].ready;
     var f = faces[id] = { front: new Image(), back: new Image() };
-    f.ready = Promise.all(['front', 'back'].map(function (k) { return new Promise(function (res) { f[k].onload = res; f[k].onerror = res; f[k].src = 'faces/' + id + '_' + k + '.png'; }); }));
+    // players with a real photo get their cut-out face (faces/<id>_photo.png) up front; the back of the head is always rendered
+    var photo = HW.PLAYERS[id] && HW.PLAYERS[id].photo;
+    f.ready = Promise.all(['front', 'back'].map(function (k) { return new Promise(function (res) { f[k].onload = res; f[k].onerror = res; f[k].src = 'faces/' + id + '_' + (k === 'front' && photo ? 'photo' : k) + '.png'; }); }));
     return f.ready;
   };
   X.face = function (id) { return faces[id]; };
