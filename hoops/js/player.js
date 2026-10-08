@@ -43,10 +43,10 @@ window.HW = window.HW || {};
 
   Player.prototype.build = function (scene) {
     var d = this.def, H = d.height, k = H / 1.8, b = d.bulk;
-    var skin = new THREE.MeshLambertMaterial({ color: d.skin }), jersey = new THREE.MeshLambertMaterial({ map: jerseyTexture(d, this.team) });
-    var shorts = new THREE.MeshLambertMaterial({ color: new THREE.Color(d.color).multiplyScalar(0.55) });
-    var shoe = new THREE.MeshLambertMaterial({ color: 0xf4f4f4 }), sole = new THREE.MeshLambertMaterial({ color: new THREE.Color(d.color) });
-    var hairM = new THREE.MeshLambertMaterial({ color: d.hair });
+    var skin = U.mat({ color: d.skin, roughness: 0.55 }), jersey = U.mat({ map: jerseyTexture(d, this.team), roughness: 0.85 });
+    var shorts = U.mat({ color: new THREE.Color(d.color).multiplyScalar(0.55), roughness: 0.7 });
+    var shoe = U.mat({ color: 0xf4f4f4, roughness: 0.45 }), sole = U.mat({ color: new THREE.Color(d.color), roughness: 0.5 });
+    var hairM = U.mat({ color: d.hair, roughness: 0.9 });
     this.mats = [skin, jersey, shorts];
     var root = this.root = new THREE.Group(); scene.add(root);
     var body = this.body = new THREE.Group(); root.add(body);                  // tilt / flip / lie-down happens here
@@ -60,7 +60,7 @@ window.HW = window.HW || {};
     // head
     var head = this.head = new THREE.Group(); head.position.y = torsoH + 0.15 * k; spine.add(head);
     var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * k, 0.06 * k, 0.1 * k, 6), skin); neck.position.y = -0.06 * k; head.add(neck);
-    var hr = 0.115 * k, hm = new THREE.Mesh(new THREE.SphereGeometry(hr, 12, 9), skin); hm.scale.set(0.92, 1.08, 1); head.add(hm);
+    var hr = 0.115 * k, hm = new THREE.Mesh(new THREE.SphereGeometry(hr, HW.HIGH ? 20 : 12, HW.HIGH ? 14 : 9), skin); hm.scale.set(0.92, 1.08, 1); head.add(hm);
     [-1, 1].forEach(function (s) {
       var e = new THREE.Mesh(new THREE.SphereGeometry(0.014 * k, 5, 4), new THREE.MeshBasicMaterial({ color: 0x151515 })); e.position.set(s * 0.042 * k, 0.015 * k, -hr * 0.93); head.add(e);
     });
@@ -97,9 +97,10 @@ window.HW = window.HW || {};
     }
     this.legR = leg(1); this.legL = leg(-1);
     this.standY = hipY;
+    if (HW.HIGH) body.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
     // name tag
     var nm = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTexture(d), transparent: true, depthWrite: false, fog: false }));
-    nm.scale.set(0.95, 0.24, 1); nm.position.y = H + 0.42; root.add(nm); this.nameTag = nm;
+    nm.scale.set(0.95, 0.24, 1); nm.position.y = H + 0.42; this.nameY = H + 0.42; root.add(nm); this.nameTag = nm;
     var arrow = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.2, 4), new THREE.MeshBasicMaterial({ color: 0xffffff })); arrow.rotation.x = Math.PI; arrow.position.y = H + 0.75; arrow.visible = false; root.add(arrow); this.arrow = arrow;
     var call = new THREE.Sprite(new THREE.SpriteMaterial({ map: U.canvasTex(64, 64, function (g) { g.fillStyle = '#ffd23f'; g.beginPath(); g.arc(32, 32, 28, 0, 6.283); g.fill(); g.fillStyle = '#000'; g.font = 'bold 44px Arial Black'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('!', 32, 36); }), transparent: true, depthTest: false }));
     call.scale.set(0.28, 0.28, 1); call.position.y = H + 0.72; call.visible = false; root.add(call); this.callMark = call;
@@ -175,6 +176,7 @@ window.HW = window.HW || {};
       this.body.rotation.x = U.easeOut(Math.min(fd, rec)) * (-Math.PI / 2 + 0.1); this.body.position.set(0, 0.2 * Math.min(fd, rec), 0.4 * Math.min(fd, rec));
     } else { this.body.rotation.x = a.flip; this.body.position.set(0, a.flip ? 0.4 * Math.sin(-a.flip / 2) * 0 : 0, 0); }
     if (this.pony) this.pony.rotation.x = -0.6 - run * 0.4 + Math.sin(t * 9) * 0.1 * run;
+    var big = HW.Input.vr ? 1 : 1.45; this.head.scale.setScalar(big); this.nameTag.position.y = this.nameY + (big - 1) * 0.3;   // arcade big heads off-headset
     this.head.rotation.x = st === 'down' ? 0.2 : (st === 'shoot' ? -0.35 : 0);
     // overlays
     this.arrow.visible = this.isHuman && this.arrowOn; if (this.arrow.visible) { this.arrow.position.y = H + 0.75 + Math.sin(t * 5) * 0.05; this.arrow.material.color.set(this.def.color); }

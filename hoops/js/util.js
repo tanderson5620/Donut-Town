@@ -24,6 +24,12 @@ window.HW = window.HW || {};
     t.needsUpdate = true; t.userData = { canvas: c, ctx: ctx };
     return t;
   };
+  // Material by quality tier: physically based (shadows, reflections) on phones/desktop, cheap Lambert in a headset.
+  U.mat = function (o) {
+    o = Object.assign({}, o || {});
+    if (HW.HIGH) { if (o.color !== undefined) o.color = new THREE.Color(o.color).convertSRGBToLinear(); return new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.75, metalness: 0 }, o)); }
+    delete o.roughness; delete o.metalness; return new THREE.MeshLambertMaterial(o);
+  };
   U.roundRect = function (ctx, x, y, w, h, r) {
     ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();

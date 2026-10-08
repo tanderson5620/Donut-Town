@@ -2,7 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hoops Jam">
+<meta name="theme-color" content="#0b0d1a">
+<link rel="manifest" href="manifest.webmanifest">
 <title>Hoops Jam</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -11,6 +17,15 @@
 <canvas id="hud" width="512" height="320"></canvas>
 <div id="callout"></div>
 <div id="info"></div>
+<div id="touchui">
+  <div id="stickZone"><div id="stickBase"><div id="stickKnob"></div></div></div>
+  <button id="bTurbo" class="tb">TURBO</button>
+  <button id="bPass" class="tb">PASS</button>
+  <button id="bShoot" class="tb">SHOOT</button>
+  <button id="bPause" class="small">II</button>
+  <button id="bCam" class="small">CAM</button>
+</div>
+<div id="rotate"><div>&#x21bb;</div>Turn your phone sideways to play</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="js/config.js"></script>
 <script src="js/util.js"></script>
@@ -21,6 +36,7 @@
 <script src="js/shooting.js"></script>
 <script src="js/xr.js"></script>
 <script src="js/input.js"></script>
+<script src="js/touch.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/player.js"></script>
 <script src="js/actions.js"></script>

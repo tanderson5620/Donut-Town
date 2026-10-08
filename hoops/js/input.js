@@ -100,7 +100,8 @@ window.HW = window.HW || {};
     } else {
       var k = I.keys, mx = 0, my = 0;
       if (k.KeyW || k.ArrowUp) my += 1; if (k.KeyS || k.ArrowDown) my -= 1; if (k.KeyD) mx += 1; if (k.KeyA) mx -= 1;
-      I.move.x = mx; I.move.y = my; I.turbo = !!(k.ShiftLeft || k.ShiftRight);
+      if (I.touchMove && (I.touchMove.x || I.touchMove.y)) { mx = I.touchMove.x; my = I.touchMove.y; }
+      I.move.x = mx; I.move.y = my; I.turbo = !!(k.ShiftLeft || k.ShiftRight || I.touchTurbo);
       if (k.ArrowLeft) I.lookYaw += 1.9 * dt; if (k.ArrowRight) I.lookYaw -= 1.9 * dt;
       if (camera) {
         if (!I.rays[0] || I.rays[0].ctrl) I.rays[0] = { origin: new THREE.Vector3(), dir: new THREE.Vector3(), pressed: false, justPressed: false, hand: null };

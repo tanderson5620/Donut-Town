@@ -12,23 +12,33 @@ window.HW = window.HW || {};
   var _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ');
   var simT = 0, vign, fade, fadeT = 0, fadeDur = 0.001, vignAmt = 0, seatOffset = 0, standing = true;
 
+  // Quality tier: headsets get the light renderer, phones and computers get shadows and shiny materials
+  var UA = navigator.userAgent;
+  HW.HEADSET = /OculusBrowser|Quest|Pico|Wolvic/i.test(UA);
+  HW.TOUCH = ('ontouchstart' in window || (window.matchMedia && matchMedia('(pointer: coarse)').matches)) && !HW.HEADSET;
+  HW.HIGH = !HW.HEADSET && settings.graphics !== 'fast';
+
   function boot() {
     var el = document.getElementById('app');
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     } catch (e) { document.getElementById('info').textContent = 'WebGL is not available in this browser.'; return; }
-    var mobile = /Android|iPhone|iPad/i.test(navigator.userAgent) && !/OculusBrowser/i.test(navigator.userAgent);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.25 : 1.5));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, HW.HIGH ? 2 : 1.5));
+    if (HW.HIGH) {
+      renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.82;
+    }
     renderer.setSize(window.innerWidth, window.innerHeight); el.appendChild(renderer.domElement);
     if (THREE.sRGBEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
     scene = new THREE.Scene(); camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.05, 160);
     rig = new THREE.Group(); rig.add(camera); scene.add(rig);
+    if (HW.HIGH) buildEnvironment(renderer, scene);
     ctx.renderer = renderer; ctx.scene = scene; ctx.camera = camera; ctx.rig = rig;
 
     HW.FX.init(scene); world = HW.world = HW.buildWorld(scene); ctx.world = world;
     HW.Audio.vol = settings.sfx; HW.Audio.voice = settings.announcer;
     ball = ctx.ball = new HW.Ball(scene, world);
-    I.init(renderer.domElement, camera); HW.XR.init(renderer, scene, rig);
+    I.init(renderer.domElement, camera); HW.XR.init(renderer, scene, rig); HW.Touch.init(renderer.domElement);
     HW.UI.dom.init(); HW.UI.initCallouts(scene); HW.UI.scoreboard.build(scene); HW.UI.hud.build();
     buildComfort();
 
@@ -40,9 +50,20 @@ window.HW = window.HW || {};
     ctx.moveRigTo = moveRigTo; ctx.rotateRig = rotateRig; ctx.fade = doFade; ctx.recenter = recenter; ctx.setSeated = setSeated;
     HW.Game.init(ctx);
     clock = new THREE.Clock(); renderer.setAnimationLoop(loop);
-    document.getElementById('info').innerHTML = '<b>WASD</b> move &middot; <b>Shift</b> turbo &middot; <b>Space</b> jump<br><b>Hold click</b> charge shot, release near green<br><b>Q</b> pass &middot; <b>E</b>/right-click steal &middot; <b>C</b> camera &middot; <b>Esc</b> pause';
+    document.getElementById('info').innerHTML = '<b>WASD</b> move &middot; <b>Shift</b> turbo &middot; <b>Space</b> jump<br><b>Hold click</b> shoot (release near green), click on D to block<br><b>Q</b> pass / steal &middot; <b>Shift+E</b> shove &middot; <b>C</b> camera &middot; <b>Esc</b> pause';
     document.body.classList.add('ready');
     if (/[?&]debug/.test(location.search)) { window.__hw = HW; }
+  }
+
+  // Reflection environment for the physically based materials: a dark arena with bright roof light banks
+  function buildEnvironment(renderer, scene) {
+    try {
+      var pm = new THREE.PMREMGenerator(renderer), es = new THREE.Scene(); es.background = new THREE.Color(0x15151f);
+      var lamp = new THREE.MeshBasicMaterial({ color: 0xffffff }), warm = new THREE.MeshBasicMaterial({ color: 0xffb070 }), side = new THREE.BoxGeometry(1, 1, 1);
+      for (var i = -2; i <= 2; i++) { var l = new THREE.Mesh(side, lamp); l.scale.set(9, 0.3, 1.2); l.position.set(0, 12, i * 5); es.add(l); }
+      [[-14, 0], [14, 0]].forEach(function (p) { var w = new THREE.Mesh(side, warm); w.scale.set(0.5, 3, 20); w.position.set(p[0], 4, p[1]); es.add(w); });
+      scene.environment = pm.fromScene(es, 0.04).texture; pm.dispose();
+    } catch (e) { /* environment is optional */ }
   }
 
   function buildComfort() {

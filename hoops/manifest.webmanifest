@@ -1,0 +1,9 @@
+{
+  "name": "Hoops Jam",
+  "short_name": "Hoops Jam",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0d1a",
+  "theme_color": "#0b0d1a"
+}

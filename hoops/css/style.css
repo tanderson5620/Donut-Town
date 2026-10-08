@@ -14,3 +14,33 @@ html, body { margin: 0; height: 100%; background: #0b0d1a; overflow: hidden; fon
 @keyframes pop { 0% { opacity: 0; transform: scale(.4); } 10% { opacity: 1; transform: scale(1.25); } 20% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(1.05); } }
 body.invr #info, body.invr #hud, body.invr #callout { display: none; }
 body.inmenu #hud { display: none; }
+
+/* ---------- phones / tablets ---------- */
+html, body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+#touchui, #rotate { display: none; }
+body.touch #touchui { display: block; }
+body.touch.inmenu #touchui { display: none; }
+body.touch #vrbtn, body.touch #info { display: none; }
+body.touch #hud { top: max(6px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); width: 150px; height: 94px; }
+body.touch #callout { font-size: 40px; top: 14%; -webkit-text-stroke: 2px #000; }
+#stickZone { position: fixed; left: 0; top: 0; bottom: 0; width: 46%; z-index: 8; }
+#stickBase { position: fixed; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 3px solid rgba(255,255,255,.35); background: rgba(255,255,255,.08);
+  left: calc(max(20px, env(safe-area-inset-left)) + 90px); top: calc(100% - 110px); opacity: .45; pointer-events: none; transition: opacity .15s; }
+#stickBase.on { opacity: 1; }
+#stickKnob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; border-radius: 50%; background: rgba(255,255,255,.85); transform: translate(-50%,-50%); }
+#touchui .tb { position: fixed; z-index: 9; border-radius: 50%; border: 3px solid #fff; color: #fff; font: 700 15px 'Arial Black', Impact, sans-serif; letter-spacing: 1px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.5); -webkit-tap-highlight-color: transparent; padding: 0; }
+#touchui .tb.down { transform: scale(.92); filter: brightness(1.3); }
+#bShoot { width: 96px; height: 96px; right: calc(max(18px, env(safe-area-inset-right)) + 4px); bottom: 22px; background: #ff7a1a; font-size: 17px; }
+#bPass { width: 76px; height: 76px; right: calc(max(18px, env(safe-area-inset-right)) + 118px); bottom: 16px; background: #2f7dff; }
+#bTurbo { width: 76px; height: 76px; right: calc(max(18px, env(safe-area-inset-right)) + 60px); bottom: 128px; background: #20b86a; }
+#touchui .small { position: fixed; z-index: 9; top: max(8px, env(safe-area-inset-top)); width: 46px; height: 36px; border-radius: 10px; border: 2px solid rgba(255,255,255,.7);
+  background: rgba(10,12,30,.6); color: #fff; font: 700 13px Arial, sans-serif; }
+#bPause { right: calc(max(10px, env(safe-area-inset-right))); }
+#bCam { right: calc(max(10px, env(safe-area-inset-right)) + 54px); }
+@media (orientation: portrait) {
+  body.touch #rotate { display: flex; position: fixed; inset: 0; z-index: 50; background: #0b0d1a; color: #fff; flex-direction: column; align-items: center; justify-content: center;
+    font: 700 22px 'Arial Black', Impact, sans-serif; text-align: center; padding: 30px; gap: 18px; }
+  body.touch #rotate div { font-size: 72px; color: #ff8a1f; animation: spin 1.6s ease-in-out infinite; }
+}
+@keyframes spin { 0%, 30% { transform: rotate(0); } 70%, 100% { transform: rotate(90deg); } }

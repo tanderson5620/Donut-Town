@@ -27,7 +27,11 @@ window.HW = window.HW || {};
   M.place = function () {
     var v = HW.view, yaw = v.yaw, d = 2.3;
     if (!I.vr && HW.Game.phase === 'menu') { panel.mesh.position.set(0, 1.55, 3.7); panel.mesh.rotation.set(0, 0, 0); panel.mesh.updateMatrixWorld(true); return; }
-    var y = I.vr ? v.pos.y - 0.12 : 1.55;
+    if (!I.vr) {   // flat screen: straight down the camera's line of sight, whatever camera is active
+      var cam = HW.ctx.camera, dd = cam.fov < 50 ? 2.7 : 2.3; cam.updateMatrixWorld(true); cam.getWorldDirection(_v);
+      panel.mesh.position.setFromMatrixPosition(cam.matrixWorld).addScaledVector(_v, dd); panel.mesh.quaternion.copy(cam.quaternion); panel.mesh.updateMatrixWorld(true); return;
+    }
+    var y = v.pos.y - 0.12;
     panel.mesh.position.set(v.pos.x - Math.sin(yaw) * d, y, v.pos.z - Math.cos(yaw) * d); panel.mesh.rotation.set(0, yaw, 0); panel.mesh.updateMatrixWorld(true);
   };
 
@@ -91,7 +95,7 @@ window.HW = window.HW || {};
       p.button('play', 468, 590, 600, 120, 'PLAY', { size: 64, selected: true, onClick: function () { M.show('team'); } });
       p.button('how', 468, 740, 290, 90, 'HOW TO PLAY', { size: 32, onClick: function () { M.show('how'); } });
       p.button('settings', 778, 740, 290, 90, 'SETTINGS', { size: 32, onClick: function () { M.show('settings'); } });
-      p.text(I.vr ? 'Point a controller at a button and pull the trigger' : 'Click a button with the mouse', w / 2, 890, 28, '#7f8ab0', 'center', { weight: 'normal' });
+      p.text(I.vr ? 'Point a controller at a button and pull the trigger' : HW.TOUCH ? 'Tap a button' : 'Click a button with the mouse', w / 2, 890, 28, '#7f8ab0', 'center', { weight: 'normal' });
     } else if (s === 'team') {
       frame(p, g, w, h, 'CHOOSE YOUR TEAM', 'Pick the crew you want to play with');
       HW.TEAMS.forEach(function (t, i) {
@@ -140,7 +144,8 @@ window.HW = window.HW || {};
       toggleRow(p, 460, 'PLAY POSITION', 'seat', [{ label: 'STANDING', v: false }, { label: 'SEATED', v: true }], S.seated, function (v) { HW.ctx.setSeated(v); });
       toggleRow(p, 550, 'ANNOUNCER VOICE', 'voice', [{ label: 'ON', v: true }, { label: 'OFF', v: false }], S.announcer, function (v) { S.announcer = v; Au.voice = v; HW.saveSettings(); });
       toggleRow(p, 640, 'VOLUME', 'vol', [{ label: 'LOW', v: 0.4 }, { label: 'MED', v: 0.7 }, { label: 'HIGH', v: 1 }], S.sfx, function (v) { S.sfx = v; Au.setVolume(v); HW.saveSettings(); });
-      toggleRow(p, 730, 'VR JUMP HEIGHT', 'vj', [{ label: 'NONE', v: 0 }, { label: 'LOW', v: 0.5 }, { label: 'FULL', v: 1 }], S.vrJump, function (v) { S.vrJump = v; HW.saveSettings(); });
+      if (!HW.HEADSET && !I.vr) toggleRow(p, 730, 'GRAPHICS (RELOADS)', 'gfx', [{ label: 'HIGH', v: 'high' }, { label: 'FAST', v: 'fast' }], S.graphics === 'fast' ? 'fast' : 'high', function (v) { S.graphics = v; HW.saveSettings(); location.reload(); });
+      else toggleRow(p, 730, 'VR JUMP HEIGHT', 'vj', [{ label: 'NONE', v: 0 }, { label: 'LOW', v: 0.5 }, { label: 'FULL', v: 1 }], S.vrJump, function (v) { S.vrJump = v; HW.saveSettings(); });
       p.button('recenter', 60, 840, 400, 80, 'RECENTER HEIGHT', { size: 30, onClick: function () { HW.ctx.recenter(); M.place(); } });
       p.button('back', 1216, 840, 260, 80, 'BACK', { size: 36, selected: true, onClick: function () { M.show(M.back || 'title'); } });
     } else if (s === 'how') {
@@ -148,8 +153,9 @@ window.HW = window.HW || {};
       var L = [['LEFT STICK', 'Move'], ['RIGHT STICK', 'Turn (snap or smooth)'], ['RIGHT TRIGGER', 'Turbo (+ drive at the rim = DUNK)'], ['GRIP', 'Hold the ball; release while swinging to throw'], ['A', 'Pass to your teammate'], ['B', 'Steal / shove'], ['X  or raise left hand', 'Jump'], ['Y', 'Pause menu'], ['LEFT STICK CLICK', 'Recenter height']];
       p.text('QUEST CONTROLLERS', 400, 215, 36, '#ff8a1f', 'center');
       L.forEach(function (r, i) { p.text(r[0], 90, 280 + i * 54, 26, '#ffd23f', 'left'); p.text(r[1], 390, 280 + i * 54, 25, '#e8ecff', 'left', { weight: 'normal' }); });
-      var D = [['WASD / arrows', 'Move'], ['Mouse', 'Look (click the court to capture)'], ['Hold click', 'Charge a shot, release near green'], ['Shift', 'Turbo (+ drive at the rim = DUNK)'], ['Space', 'Jump'], ['Q', 'Pass'], ['E / right click', 'Steal / shove'], ['C', 'Camera: behind / first person'], ['Esc', 'Pause menu']];
-      p.text('DESKTOP', 1150, 215, 36, '#6ec6ff', 'center');
+      var D = HW.TOUCH ? [['Left thumb', 'Joystick: move'], ['SHOOT (hold)', 'Release near green to shoot'], ['JUMP', 'On defense: jump / block'], ['PASS', 'Pass to your teammate'], ['STEAL', 'On defense: swipe the ball'], ['TURBO (hold)', 'Speed burst; + drive = DUNK'], ['TURBO + STEAL', 'Shove'], ['CAM', 'Arcade / behind / first person'], ['II', 'Pause menu']]
+        : [['WASD / arrows', 'Move'], ['Hold click', 'Charge a shot, release near green'], ['Click (defense)', 'Jump / block'], ['Shift', 'Turbo (+ drive at the rim = DUNK)'], ['Space', 'Jump'], ['Q', 'Pass (steal on defense)'], ['E / right click', 'Steal (+ Shift: shove)'], ['C', 'Camera: arcade / behind / first person'], ['Esc', 'Pause menu']];
+      p.text(HW.TOUCH ? 'PHONE' : 'DESKTOP', 1150, 215, 36, '#6ec6ff', 'center');
       D.forEach(function (r, i) { p.text(r[0], 830, 280 + i * 54, 26, '#ffd23f', 'left'); p.text(r[1], 1080, 280 + i * 54, 25, '#e8ecff', 'left', { weight: 'normal' }); });
       p.text('3 makes in a row = ON FIRE: flaming ball and unlimited turbo until the other team scores.  Goaltending is off, shoving is on.', w / 2, 790, 26, '#aab4d8', 'center', { weight: 'normal' });
       p.button('back', 640, 840, 260, 80, 'BACK', { size: 36, selected: true, onClick: function () { M.show('title'); } });

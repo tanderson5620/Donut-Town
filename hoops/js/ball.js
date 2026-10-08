@@ -16,8 +16,8 @@ window.HW = window.HW || {};
 
   function Ball(scene, world) {
     this.world = world; this.r = C.BALL_R;
-    this.mat = new THREE.MeshLambertMaterial({ map: ballTexture() });
-    this.mesh = new THREE.Mesh(new THREE.SphereGeometry(this.r, 16, 12), this.mat); scene.add(this.mesh);
+    this.mat = U.mat({ map: ballTexture(), roughness: 0.6 });
+    this.mesh = new THREE.Mesh(new THREE.SphereGeometry(this.r, HW.HIGH ? 28 : 16, HW.HIGH ? 20 : 12), this.mat); scene.add(this.mesh); this.mesh.castShadow = true;
     this.blob = world.makeBlob(0.2);
     this.pos = this.mesh.position; this.vel = new THREE.Vector3();
     this.state = 'free';          // free | held | dribble | dunk

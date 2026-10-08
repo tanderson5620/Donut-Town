@@ -81,14 +81,14 @@ window.HW = window.HW || {};
       g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, 64, 64);
     }, { aniso: 1 });
     var m = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2), new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false }));
-    m.rotation.x = -Math.PI / 2; m.position.y = 0.012; m.renderOrder = 1; m.userData.r = radius; return m;
+    m.rotation.x = -Math.PI / 2; m.position.y = 0.012; m.renderOrder = 1; m.userData.r = radius; m.userData.k = HW.HIGH ? 0.45 : 1; return m;
   }
 
   function buildHoop(scene, idx, ctx) {
     var dir = idx === 0 ? 1 : -1, z = idx === 0 ? -C.RIM_Z : C.RIM_Z;
     var g = new THREE.Group(); g.position.set(0, 0, z); g.rotation.y = dir > 0 ? 0 : Math.PI; scene.add(g);
     var back = C.BOARD_Z - C.RIM_Z;                               // board is this far behind rim center
-    var steel = new THREE.MeshLambertMaterial({ color: 0x3a3f4a }), pad = new THREE.MeshLambertMaterial({ color: new THREE.Color(HW.TEAMS[idx === 0 ? 1 : 0].color) });
+    var steel = U.mat({ color: 0x3a3f4a, roughness: 0.4, metalness: 0.6 }), pad = new THREE.MeshLambertMaterial({ color: new THREE.Color(HW.TEAMS[idx === 0 ? 1 : 0].color) });
     var pz = -(back + 1.55);
     var base = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 1.0), pad); base.position.set(0, 0.25, pz); g.add(base);
     var pole = new THREE.Mesh(new THREE.BoxGeometry(0.22, C.RIM_H + 0.6, 0.22), steel); pole.position.set(0, (C.RIM_H + 0.6) / 2, pz); g.add(pole);
@@ -96,7 +96,7 @@ window.HW = window.HW || {};
     var board = new THREE.Mesh(new THREE.BoxGeometry(C.BOARD_W, C.BOARD_H, 0.05), new THREE.MeshLambertMaterial({ map: boardTexture(), transparent: true, side: THREE.DoubleSide, emissive: 0x334455 }));
     board.position.set(0, C.RIM_H + 0.45, -back); g.add(board);
     var rimGroup = new THREE.Group(); rimGroup.position.set(0, C.RIM_H, 0); g.add(rimGroup);
-    var rim = new THREE.Mesh(new THREE.TorusGeometry(C.RIM_R, C.RIM_TUBE, 6, 24), new THREE.MeshLambertMaterial({ color: 0xff5a1f, emissive: 0x551a00 }));
+    var rim = new THREE.Mesh(new THREE.TorusGeometry(C.RIM_R, C.RIM_TUBE, 6, 24), U.mat({ color: 0xff5a1f, emissive: 0x551a00, roughness: 0.35, metalness: 0.5 })); rim.castShadow = true;
     rim.rotation.x = Math.PI / 2; rimGroup.add(rim);
     var plate = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.04, back - C.RIM_R), new THREE.MeshLambertMaterial({ color: 0xff5a1f }));
     plate.position.set(0, 0, -(C.RIM_R + (back - C.RIM_R) / 2)); rimGroup.add(plate);
@@ -112,12 +112,21 @@ window.HW = window.HW || {};
   HW.buildWorld = function (scene) {
     var world = { hoops: [], blobs: [] };
     scene.background = new THREE.Color(0x0b0d1a); scene.fog = new THREE.Fog(0x0b0d1a, 28, 80);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x556070, 0.95));
-    var sun = new THREE.DirectionalLight(0xfff2dd, 0.55); sun.position.set(4, 20, 6); scene.add(sun);
+    if (HW.HIGH) {
+      scene.add(new THREE.HemisphereLight(0xfff4e8, 0x30303a, 0.45));
+      var key = new THREE.DirectionalLight(0xfff0dc, 0.95); key.position.set(5, 20, 7); key.castShadow = true;
+      var sc = key.shadow.camera; sc.left = -11; sc.right = 11; sc.top = 15; sc.bottom = -15; sc.near = 4; sc.far = 45;
+      key.shadow.mapSize.set(HW.TOUCH ? 1024 : 2048, HW.TOUCH ? 1024 : 2048); key.shadow.bias = -0.0004; key.shadow.normalBias = 0.03; key.shadow.radius = 3;
+      scene.add(key); scene.add(key.target);
+      var fill = new THREE.DirectionalLight(0xc8d8ff, 0.4); fill.position.set(-8, 12, -10); scene.add(fill);
+    } else {
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x556070, 0.95));
+      var sun = new THREE.DirectionalLight(0xfff2dd, 0.55); sun.position.set(4, 20, 6); scene.add(sun);
+    }
 
     var floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshLambertMaterial({ color: 0x14141c }));
     floor.rotation.x = -Math.PI / 2; floor.position.y = -0.02; scene.add(floor);
-    var court = new THREE.Mesh(new THREE.PlaneGeometry(15, 25), new THREE.MeshLambertMaterial({ map: courtTexture(), emissive: 0x2a1c10 }));
+    var court = new THREE.Mesh(new THREE.PlaneGeometry(15, 25), U.mat({ map: courtTexture(), emissive: HW.HIGH ? 0x000000 : 0x2a1c10, roughness: 0.32 })); court.receiveShadow = true;
     court.rotation.x = -Math.PI / 2; court.position.y = 0; scene.add(court);
 
     var ctx = { netTex: netTexture() };
@@ -156,7 +165,7 @@ window.HW = window.HW || {};
     world.makeBlob = function (r) { var b = makeBlob(r); scene.add(b); world.blobs.push(b); return b; };
     world.removeBlob = function (b) { scene.remove(b); var i = world.blobs.indexOf(b); if (i >= 0) world.blobs.splice(i, 1); };
     world.blobAt = function (blob, x, z, height) {
-      blob.position.x = x; blob.position.z = z; var s = U.clamp(1.15 - height * 0.18, 0.4, 1.2); blob.scale.set(s, s, 1); blob.material.opacity = U.clamp(1 - height * 0.12, 0.3, 1);
+      blob.position.x = x; blob.position.z = z; var s = U.clamp(1.15 - height * 0.18, 0.4, 1.2); blob.scale.set(s, s, 1); blob.material.opacity = U.clamp(1 - height * 0.12, 0.3, 1) * blob.userData.k;
     };
 
     // hoop animation: rim shake spring and net swish

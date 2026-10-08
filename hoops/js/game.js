@@ -3,7 +3,7 @@ window.HW = window.HW || {};
 (function (HW) {
   var C = HW.C, U = HW.U, I = HW.Input, S = HW.Shoot, UI = HW.UI, Au = HW.Audio, Act = HW.Act;
   var THROW_SCALE = 1.6;
-  var G = HW.Game = { players: [], human: null, score: [0, 0], q: 1, clock: 0, shotClock: 24, phase: 'idle', phaseT: 0, timeScale: 1, t: 0, possTeam: -1, charge: 0, vrHeld: -1, camMode: 'chase' };
+  var G = HW.Game = { players: [], human: null, score: [0, 0], q: 1, clock: 0, shotClock: 24, phase: 'idle', phaseT: 0, timeScale: 1, t: 0, possTeam: -1, charge: 0, vrHeld: -1, camMode: 'arcade', camZ: 0 };
   var _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
 
   var PH = {
@@ -161,7 +161,7 @@ window.HW = window.HW || {};
     // headset position is the authority for the VR player's body
     if (vr && h && h.state !== 'dunk' && !G.pendingPlace) { h.pos.x = view.pos.x; h.pos.z = view.pos.z; }
 
-    if (I.camToggle) G.camMode = G.camMode === 'chase' ? 'first' : 'chase';
+    if (I.camToggle) G.camMode = G.camMode === 'arcade' ? 'chase' : G.camMode === 'chase' ? 'first' : 'arcade';
 
     HW.Menu.update(rdt);
     if (I.pause) { I.pause = false; G.onPause(); }
@@ -229,7 +229,7 @@ window.HW = window.HW || {};
   // menu / paused frame: nothing simulates, but the view and displays stay live
   G.menuFrame = function (rdt) {
     var view = G.ctx.view; document.body.classList.toggle('inmenu', G.phase === 'menu');
-    if (G.phase === 'menu') { if (!I.vr) { view.pos.set(0, 1.7, 6.0); view.pitch = -0.05; view.yaw = 0; I.lookYaw = 0; } G.ball.sync(); }
+    if (G.phase === 'menu') { if (!I.vr) { G.setFov(72); view.pos.set(0, 1.7, HW.TOUCH ? 5.4 : 6.0); view.pitch = -0.05; view.yaw = 0; I.lookYaw = 0; } G.ball.sync(); }
     else G.updateCamera(rdt);
     G.updateHud();
   };
@@ -300,11 +300,19 @@ window.HW = window.HW || {};
     if (p.state === 'dunk') { return; }
     Act.move(p, wx, wz, I.turbo && live, dt, 1);
     // face where you look; the body model follows
-    if (I.vr) p.yaw = yaw; else p.yaw += U.angDiff(yaw, p.yaw) * (1 - Math.exp(-14 * rdt));
+    if (I.vr) p.yaw = yaw;
+    else if (G.camMode === 'arcade') {
+      // arcade view: face where you run, or the rim when standing with the ball
+      var mvm = Math.hypot(wx, wz), hp = G.world.hoops[p.team], fy = p.yaw;
+      if (mvm > 0.2) fy = U.yawOf(wx, wz); else if (p.hasBall) fy = U.yawOf(hp.x - p.pos.x, hp.z - p.pos.z);
+      p.yaw += U.angDiff(fy, p.yaw) * (1 - Math.exp(-12 * rdt));
+    } else p.yaw += U.angDiff(yaw, p.yaw) * (1 - Math.exp(-14 * rdt));
     if (!live) return;
     var jump = I.jump; if (I.vr && G.vrJumpGesture()) jump = true;
+    // arcade buttons: on defense SHOOT jumps and PASS steals (TURBO + PASS shoves)
+    if (!I.vr && !p.hasBall) { if (I.shootEdge) jump = true; if (I.pass) Act.stealOrShove(p, I.turbo); }
     if (jump) Act.jump(p);
-    if (I.steal) Act.stealOrShove(p);
+    if (I.steal) Act.stealOrShove(p, I.turbo);
     var hoop = G.world.hoops[p.team], hd = Math.hypot(hoop.x - p.pos.x, hoop.z - p.pos.z);
     if (p.hasBall && I.turbo && p.turboOn && Math.hypot(wx, wz) > 0.5 && Act.canDunk(p, hd)) {
       var tx = (hoop.x - p.pos.x) / hd, tz = (hoop.z - p.pos.z) / hd, mm = Math.hypot(wx, wz);
@@ -375,7 +383,7 @@ window.HW = window.HW || {};
       var hoop = G.world.hoops[p.team];
       p.handWorld('r', _b); p.handWorld('l', _c); _b.lerp(_c, 0.5); if (_b.y < p.y + p.def.height) _b.y = p.y + p.def.height + 0.1;
       var ideal = S.ideal(_b, hoop, new THREE.Vector3()), pitch = Math.atan2(ideal.y, Math.hypot(ideal.x, ideal.z)), sp = ideal.length() * (0.5 + 0.77 * ch);
-      var yaw = view.yaw; _a.set(-Math.sin(yaw) * Math.cos(pitch) * sp, Math.sin(pitch) * sp, -Math.cos(yaw) * Math.cos(pitch) * sp);
+      var yaw = G.camMode === 'arcade' ? U.yawOf(hoop.x - p.pos.x, hoop.z - p.pos.z) : view.yaw; _a.set(-Math.sin(yaw) * Math.cos(pitch) * sp, Math.sin(pitch) * sp, -Math.cos(yaw) * Math.cos(pitch) * sp);
       p.state = 'shoot'; p.stateT = 0.32;
       Act.release(p, _a.clone(), _b.clone());
     }
@@ -386,9 +394,17 @@ window.HW = window.HW || {};
   G.updateCamera = function (rdt) {
     if (I.vr) { var h = G.human; if (h) h.setHidden(true); return; }
     var view = G.ctx.view, p = G.human; if (!p) return;
-    I.wantLock = G.phase !== 'menu' && !G.paused && !HW.Menu.open;
+    I.wantLock = G.camMode !== 'arcade' && G.phase !== 'menu' && !G.paused && !HW.Menu.open;
     p.setHidden(G.camMode === 'first');
-    if (G.camMode === 'first') {
+    G.setFov(G.camMode === 'arcade' ? 40 : 72);
+    if (G.camMode === 'arcade') {
+      // classic arcade broadcast view: high on the sideline, sliding along with the play
+      var b = G.ball, fz = U.clamp(b.pos.z * 0.7 + p.pos.z * 0.3, -7.2, 7.2), fx = U.clamp(b.pos.x * 0.25, -1.5, 1.5);
+      G.camZ = U.damp(G.camZ, fz, 3.2, rdt); G.camX = U.damp(G.camX || 0, fx, 2, rdt);
+      var portrait = window.innerHeight > window.innerWidth, dist = portrait ? 17 : (HW.TOUCH ? 10.5 : 11.5), ht = portrait ? 8 : (HW.TOUCH ? 5.2 : 5.6);
+      view.pos.set(G.camX + dist, ht, G.camZ);
+      view.yaw = Math.PI / 2; I.lookYaw = view.yaw; view.pitch = Math.atan2(0.8 - ht, dist);
+    } else if (G.camMode === 'first') {
       view.pos.set(p.pos.x, p.y + p.eyeHeight(), p.pos.z);
     } else {
       var yaw = view.yaw, pitch = U.clamp(view.pitch, -0.8, 0.2), dist = 3.6, h2 = 2.1 - pitch * 2.5;
@@ -398,10 +414,13 @@ window.HW = window.HW || {};
     }
   };
 
+  G.setFov = function (f) { var c = G.ctx.camera; if (c.fov !== f) { c.fov = f; c.updateProjectionMatrix(); } };
+
   G.teamOnFire = function (t) { return G.players.some(function (p) { return p.team === t && p.onFire; }); };
 
   G.updateHud = function () {
-    var p = G.human, SB = UI.scoreboard, names = [HW.TEAMS[0].short, HW.TEAMS[1].short];
+    var p = G.human; HW.Touch.update(p);
+    var SB = UI.scoreboard, names = [HW.TEAMS[0].short, HW.TEAMS[1].short];
     var msg = G.phase === 'play' || G.phase === 'dead' ? '' : G.phase === 'countdown' ? 'GET READY' : G.phase === 'break' ? 'BREAK' : G.phase === 'menu' ? 'WELCOME TO THE COURT' : 'FINAL';
     SB.set({ score: G.score.slice(), names: names, colors: [HW.TEAMS[0].color, HW.TEAMS[1].color], quarter: G.q, clock: G.clock, shot: G.shotClock, msg: msg, poss: G.possTeam, fire: [G.teamOnFire(0), G.teamOnFire(1)] });
     UI.hud.update({ score: G.score.slice(), names: names, colors: [HW.TEAMS[0].color, HW.TEAMS[1].color], clock: G.clock, quarter: G.q, shot: G.shotClock, turbo: p ? p.turbo : 0, fire: p ? p.onFire : false,

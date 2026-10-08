@@ -1,8 +1,10 @@
 # Hoops Jam
 
-A WebXR 2-on-2 arcade basketball game for **Meta Quest 2** (and any desktop browser). Andersons vs Gormans: over-the-top dunks, "on fire" streaks, shoving, steals, and fast 3-minute quarters. Plain HTML + JavaScript with three.js, no build step. It's a standalone game that just lives in the `hoops/` folder of this repo.
+A 2-on-2 arcade basketball game in the style of the classic arcade cabinets, for **phones** (landscape), **Meta Quest** (WebXR) and desktop browsers. Andersons vs Gormans: over-the-top dunks, "on fire" streaks, shoving, steals, and fast 3-minute quarters. Plain HTML + JavaScript with three.js, no build step. It's a standalone game that just lives in the `hoops/` folder of this repo.
 
 ## Play it
+
+- **Phone:** open the page and turn the phone sideways. Big-head players, sideline arcade camera, touch controls: joystick on the left, **SHOOT / PASS / TURBO** on the right (on defense they become **JUMP / STEAL / TURBO**, and TURBO + STEAL shoves). On iPhone, Share > **Add to Home Screen** runs it fullscreen with no browser bars.
 
 - **Quest:** open the page in the Quest Browser, tap **ENTER VR**, point a controller at menu buttons and pull the trigger.
 - **Desktop:** open the page and click through the menus. Click the court to capture the mouse (Esc releases it and pauses).
@@ -42,6 +44,10 @@ Stats are 1-10. The type sets how the player plays; the numbers feed the shot as
 | Max Strength | Shoves knock people down, big blocks | Lisa Anderson, Kody Gorman, Kenny Gorman |
 
 The roster, colors, numbers and stats are all in `js/config.js`.
+
+## Graphics tiers
+
+Phones and computers get the high tier: physically based materials, a real-time shadow from the arena lights, reflections and tone mapping. The Quest Browser gets the light tier (flat Lambert materials, blob shadows) so it holds 72 fps in stereo. On phones and computers, Settings > Graphics switches to **FAST** if a phone runs hot or slow.
 
 ## Shooting and aim assist
 
