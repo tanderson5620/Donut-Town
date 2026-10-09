@@ -16,7 +16,7 @@ window.HW = window.HW || {};
   AI.update = function (p, dt, live) {
     G = HW.Jam;
     var b = G.ball, a = p.ai;
-    if (!live || p.state === 'fall' || p.state === 'dunk') { G.move(p, 0, 0, false, dt); return; }
+    if (!live || p.state === 'fall' || p.state === 'dunk' || p.pending) { G.move(p, 0, 0, false, dt); return; }
     if (p.state === 'shoot') {
       G.move(p, 0, 0, false, dt);
       if (p.hasBall && !p.released && p.st >= p.tApex * (a.relAt || 1)) G.releaseShot(p);

@@ -45,7 +45,7 @@ window.HW = window.HW || {};
   // set everyone up with `team` bringing the ball up from its own end
   G.lineup = function (team, center) {
     var s = side(team), off = G.players.filter(function (p) { return p.team === team; }), def = G.players.filter(function (p) { return p.team !== team; });
-    G.players.forEach(function (p) { p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; });
+    G.players.forEach(function (p) { p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; });
     var hand = off.slice().sort(function (a, b) { return (b.human - a.human) || (b.def.type === 'handler') - (a.def.type === 'handler'); })[0];
     var bx = center ? -s * 1.5 : -s * 8.5;
     hand.x = bx; hand.z = 7; off.forEach(function (p) { if (p !== hand) { p.x = bx + s * 3.5; p.z = 3; } });
@@ -68,6 +68,7 @@ window.HW = window.HW || {};
   function ballAtHolder(p, dt) {
     var b = G.ball;
     if (p.state === 'shoot' || p.state === 'dunk') { b.x = p.x + p.face * 0.12; b.y = p.y + p.def.height + 0.2; b.z = p.z - 0.15; return; }
+    if (p.state === 'pass' && p.pending) { var hw = X.handWorld(p); if (hw) { b.x = hw.x; b.y = Math.max(0.15, hw.y); b.z = p.z - 0.25; } return; }   // in his hand through a fancy pass
     if (p.state === 'pass' || p.state === 'fall') return;
     p.dribT = (p.dribT || 0) + dt * (2.3 + Math.hypot(p.vx, p.vz) * 0.12);
     var ph = p.dribT % 1, h = 0.95 * Math.abs(Math.sin(Math.PI * ph));
@@ -136,25 +137,45 @@ window.HW = window.HW || {};
     if (u >= 1) { p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; }
   }
 
-  // PASS rating: faster, truer passes that are harder to pick off; good passers throw fancy ones to a teammate behind them
-  var FANCY = { back: 'BEHIND THE BACK!', legs: 'THROUGH THE LEGS!', head: 'OVER THE HEAD!', nolook: 'NO LOOK!' };
+  // PASS rating: faster, truer passes that are harder to pick off. Good passers show off: the ball stays in his hand through the move
+  // (behind the back, a 360 spin, a flip, a football snap through his legs, over the head, a no-look flick) and leaves from his hand
+  // on the release frame. n: frames of the move, dur: seconds, rel: release frame, away: he faces away from the target
+  var FANCY = { back: { n: 5, dur: 0.42, rel: 4, away: true }, spin: { n: 8, dur: 0.56, rel: 6 }, flip: { n: 8, dur: 0.8, rel: 4 },
+    hike: { n: 4, dur: 0.42, rel: 2, away: true, stop: true }, head: { n: 3, dur: 0.33, rel: 2, away: true }, nolook: { n: 3, dur: 0.3, rel: 1, away: true } };
+  G.FANCY = FANCY;
   G.passTo = function (p, to) {
-    if (!p.hasBall || !to || p.state === 'dunk') return;
+    if (!p.hasBall || !to || p.state === 'dunk' || p.pending) return;
     var air = p.state === 'shoot';
     if (air) { if (p.released) return; p.state = 'idle'; }
-    var b = G.ball, d = dist(p, to), pr = p.def.stats.pass || 5, style = null;
-    // showboat: good passers turn their back on the target and throw it out the back - about half of a 10 passer's passes, any direction
+    var d = dist(p, to), pr = p.def.stats.pass || 5, style = null, dirTo = to.x >= p.x ? 1 : -1;
     if (!air && p.grounded() && Math.random() < clamp((pr - 5) * 0.1, 0, 0.5)) {
-      var opts = ['back', 'nolook']; if (d < 9) opts.push('legs'); if (d > 3) opts.push('head'); style = pick(opts);
+      // teammate behind him: snap it back through his legs (or over the head / no-look); otherwise behind the back, a spin or a flip
+      var behind = (to.x - p.x) * p.face < -0.5;
+      style = pick(behind ? ['hike', 'hike', 'head', 'nolook'] : d > 4 ? ['back', 'back', 'spin', 'spin', 'flip'] : ['back', 'back', 'spin']);
     }
-    p.face = (to.x >= p.x ? 1 : -1) * (style ? -1 : 1);
-    p.state = 'pass'; p.st = 0; p.passStyle = style; p.hasBall = false; b.holder = null; b.state = 'pass'; b.last = p;
-    var f = p.face, o = style === 'back' ? [-0.35, 1.0] : style === 'legs' ? [-0.15, 0.5] : style === 'head' ? [-0.1, p.def.height + 0.25] : style === 'nolook' ? [-0.25, 1.25] : [0.3, 1.3 + p.y];
-    var miss = Math.max(0, 7 - pr) * 0.12, lead = 0.2 + 0.01 * pr;
-    b.pass = { from: p, to: to, t: 0, T: Math.max(0.16, d / (15 + 0.8 * pr)), x0: p.x + f * o[0], y0: o[1], z0: p.z - 0.2, x1: to.x + to.vx * lead + (Math.random() - 0.5) * 2 * miss, z1: to.z + to.vz * lead + (Math.random() - 0.5) * miss, y1: 1.3,
-      arc: style === 'head' ? 1.1 : 0.5, bounce: style === 'legs', safe: clamp(1.3 - 0.08 * pr, 0.45, 1.2), style: style };
-    if (style) { G.say(FANCY[style], '#7ee0ff', 1.3, 0.85); X.hype = Math.max(X.hype, 0.7); Au.whoosh(7); } else Au.whoosh(4);
+    if (!style) { p.face = dirTo; launchPass(p, to, null); return; }
+    var F = FANCY[style];
+    p.face = F.away ? -dirTo : dirTo; p.state = 'pass'; p.st = 0; p.passStyle = style; p.pending = { to: to, at: F.dur * F.rel / F.n };
+    p.anim = 'pass_' + style; p.frame = 0; p.dir = style === 'back' ? 'W' : 'R';
+    if (F.stop) { p.vx = p.vz = 0; }
+    if (style === 'flip') { p.vy = GRAV * F.dur / 2; p.y = 0.001; Au.jump(); }
   };
+  // the ball leaves his hand: from the hand on the current frame for the fancy ones, from the chest for a plain pass
+  function launchPass(p, to, style) {
+    var b = G.ball, d = dist(p, to), pr = p.def.stats.pass || 5, f = p.face, hw = style && X.handWorld(p);
+    if (!style) { p.state = 'pass'; p.st = 0; p.passStyle = null; }
+    p.pending = null; p.hasBall = false; b.holder = null; b.state = 'pass'; b.last = p;
+    var miss = Math.max(0, 7 - pr) * 0.12, lead = 0.2 + 0.01 * pr;
+    b.pass = { from: p, to: to, t: 0, T: Math.max(0.16, d / (15 + 0.8 * pr)), x0: hw ? hw.x : p.x + f * 0.3, y0: hw ? hw.y : 1.3 + p.y, z0: p.z - 0.2,
+      x1: to.x + to.vx * lead + (Math.random() - 0.5) * 2 * miss, z1: to.z + to.vz * lead + (Math.random() - 0.5) * miss, y1: 1.3,
+      arc: style === 'head' ? 1.1 : style === 'hike' || style === 'flip' ? 0.25 : 0.5, safe: clamp(1.3 - 0.08 * pr, 0.45, 1.2) };
+    Au.whoosh(style ? 6 : 4);
+  }
+  function updatePending(p) {
+    var pd = p.pending; if (!pd) return;
+    if (p.state !== 'pass' || !p.hasBall || G.ball.holder !== p) { p.pending = null; return; }   // stripped, shoved or knocked down mid-move
+    if (p.st >= pd.at) launchPass(p, pd.to, p.passStyle);
+  }
   G.trySteal = function (p) {
     if (p.cd.steal > 0 || p.busy()) return; p.cd.steal = 0.55; p.state = 'steal'; p.st = 0;
     var h = G.ball.holder; if (!h || h.team === p.team || dist(p, h) > 1.55) { Au.steal(); return; }
@@ -252,7 +273,7 @@ window.HW = window.HW || {};
   // up/down the screen is squeezed by the camera, so moving in depth runs faster than along the court to feel as quick
   var ZS = G.ZS = 1.5;
   function move(p, mx, mz, turbo, dt) {
-    var can = !(p.state === 'fall' || p.state === 'dunk' || p.state === 'shove' || (p.state === 'shoot' && p.grounded()));
+    var can = !(p.state === 'fall' || p.state === 'dunk' || p.state === 'shove' || (p.state === 'shoot' && p.grounded()) || (p.state === 'pass' && p.passStyle === 'hike'));
     var m = Math.hypot(mx, mz); if (m > 1) { mx /= m; mz /= m; m = 1; }
     p.turboOn = false;
     if (turbo && m > 0.1 && can && (p.turbo > 2 || p.onFire)) { p.turboOn = true; if (!p.onFire) p.turbo = Math.max(0, p.turbo - p.drain * dt); }
@@ -264,12 +285,14 @@ window.HW = window.HW || {};
   G.move = move;
   function physics(p, dt) {
     p.st += dt;
+    if (p.pending && p.state !== 'pass') p.pending = null;   // knocked out of a fancy pass (shoved, fell, new possession): the move is off
     if (p.state === 'dunk') { updateDunk(p, dt); return; }
     if (p.state === 'fall') { p.vx *= 1 - 4 * dt; p.vz *= 1 - 4 * dt; if (p.st > (p.fallT || 1.3)) { p.state = 'idle'; p.flash = 0.6; p.fallT = 0; } }
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
     if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.bleed) { X.blood(X.fallHeadX(p), p.z, p.bleed); p.bleed = 0; } if (p.state === 'jump') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = 'idle'; } } }
     if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * 1.7) G.releaseShot(p);
-    if ((p.state === 'pass' && p.st > 0.3) || (p.state === 'steal' && p.st > 0.3) || (p.state === 'shove' && p.st > 0.35) || (p.state === 'cheer' && p.st > 1.5)) p.state = 'idle';
+    if (p.state === 'pass') updatePending(p);
+    if ((p.state === 'pass' && p.st > (p.passStyle ? FANCY[p.passStyle].dur : 0.3) && p.grounded()) || (p.state === 'steal' && p.st > 0.3) || (p.state === 'shove' && p.st > 0.35) || (p.state === 'cheer' && p.st > 1.5)) p.state = 'idle';
   }
   function separate() {
     var P = G.players;
@@ -356,8 +379,6 @@ window.HW = window.HW || {};
     if (b.state === 'pass') {
       var ps = b.pass, v = Math.min(1, (ps.t += dt) / ps.T);
       var px = ps.x0 + (ps.x1 - ps.x0) * v, pz = ps.z0 + (ps.z1 - ps.z0) * v, py = ps.y0 + (ps.y1 - ps.y0) * v + ps.arc * 4 * v * (1 - v);
-      if (ps.style && Math.random() < 0.8) X.burst(px, py, pz, 1, ['#ffffff', '#7ee0ff', '#ffd23f'], 0.5, 0.35, 0);   // sparkle trail on a fancy pass
-      if (ps.bounce) { var vb = 0.42; if (v < vb) py = ps.y0 + (0.15 - ps.y0) * (v / vb); else { var w = (v - vb) / (1 - vb); py = 0.15 + (ps.y1 - 0.15) * w + 0.35 * 4 * w * (1 - w); if (!ps.bounced) { ps.bounced = true; Au.bounce(5); } } }
       b.vx = (px - b.x) / dt; b.vz = (pz - b.z) / dt; b.vy = (py - b.y) / dt; b.x = px; b.z = pz; b.y = py;
       // interceptions
       // one try per defender per pass (it used to roll every frame the ball was in reach, so a defender in the lane almost always got it)
@@ -399,7 +420,8 @@ window.HW = window.HW || {};
       case 'fall': p.anim = 'fall'; p.dir = 'R'; p.frame = Math.min(3, p.st / 0.12); return;
       case 'shoot': p.anim = 'shoot'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
       case 'jump': p.anim = 'jump'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.vy > 2 ? 1 : 2; return;
-      case 'pass': p.anim = p.passStyle ? 'pass_' + p.passStyle : 'pass'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); return;
+      case 'pass': if (p.passStyle) { var F = FANCY[p.passStyle]; p.anim = 'pass_' + p.passStyle; p.dir = p.passStyle === 'back' ? 'W' : 'R'; p.frame = Math.min(F.n - 1, Math.floor(p.st / F.dur * F.n)); }
+        else { p.anim = 'pass'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); } return;
       case 'steal': p.anim = 'steal'; if (p.dir === 'B') p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); return;
       case 'shove': p.anim = 'shove'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); return;
       case 'cheer': p.anim = 'cheer'; p.dir = 'F'; p.frame = (G.t * 8) % 4; return;   // st is parked at -99 for the end-of-game cheer
