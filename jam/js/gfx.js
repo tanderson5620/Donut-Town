@@ -216,7 +216,7 @@ window.HW = window.HW || {};
   var HEAD_M = 0.56;   // big digitized head width in meters (arcade proportions)
   function frameOf(p) {
     var sh = sheets[p.id]; if (!sh || !sh.meta) return null;
-    var m = sh.meta, A = m.anim[p.anim] || (p.anim && p.anim.indexOf('pass_') === 0 && m.anim.pass) || m.anim.idle, list = A[p.dir] || A.R || A[Object.keys(A)[0]];
+    var m = sh.meta, A = m.anim[p.anim] || (p.anim && p.anim.indexOf('pass_') === 0 && m.anim.pass) || (p.anim && p.anim.indexOf('dr_') === 0 && m.anim.drun) || m.anim.idle, list = A[p.dir] || A.R || A[Object.keys(A)[0]];
     var n = list.length, fr = Math.floor(p.frame) || 0, fi = list[Math.min(n - 1, ((fr % n) + n) % n)], ground = X.proj(p.x, 0, p.z);   // never a negative or NaN frame
     // off: frames rendered slid over to fit the frame (a body falling backward) are slid back here
     var off = m.off && m.off[fi] || null;
@@ -253,6 +253,11 @@ window.HW = window.HW || {};
     // shadow
     var sr = 0.6 * ground.s; g.fillStyle = 'rgba(0,0,0,' + Math.max(0.15, 0.5 - p.y * 0.1) + ')'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * (1 - Math.min(0.5, p.y * 0.12)), sr * 0.26, 0, 0, 6.283); g.fill();
     if (p.onFire) { g.fillStyle = 'rgba(255,120,20,0.35)'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * 1.3, sr * 0.36, 0, 0, 6.283); g.fill(); }
+    // afterimages behind a speedster on fire
+    if (p.trail && p.trail.length) p.trail.forEach(function (t, i) {
+      var gp = { id: p.id, def: p.def, anim: t.anim, dir: t.dir, frame: t.frame, x: t.x, y: t.y, z: t.z, face: t.face }, go = frameOf(gp); if (!go) return;
+      g.save(); g.globalAlpha = 0.3 - i * 0.08; g.translate(go.ground.x, go.ground.y - go.lift); if (go.flip) g.scale(-1, 1); drawBody(g, gp, go); g.restore();
+    });
     g.save(); g.translate(ground.x, ground.y - lift); if (o.flip) g.scale(-1, 1);
     drawBody(g, p, o);
     // hit flash: the same frame again, added on top (no canvas filters - slow on phones, missing on older Safari)

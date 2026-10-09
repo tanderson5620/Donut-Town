@@ -22,7 +22,11 @@ Ratings (1-10): SPD, POWER, 3PTS, STEAL, DUNK, BLOCK and PASS. POWER wins shoves
 
 Four quarters of 1:00 (default), 1:30, 2:00 or 3:00, picked on the team card and remembered on the device; overtime is half a quarter (30-60 s).
 
-Three straight baskets by one player sets him on fire (flaming ball, unlimited turbo, near-automatic shots) until the other team scores. Goaltending is legal, shoving is encouraged.
+Three straight baskets by one player sets him on fire (flaming ball, unlimited turbo, near-automatic shots) until the other team scores.
+
+On fire, a player's best rating (his specialty) is turned up even more: speed - 30% faster with afterimages; pass - every pass is a fancy move and can't be intercepted; 3PTS - every release is green, about 99% from anywhere, and the net catches fire on a three; dunk - takes off from much farther out, longer hang time in flames, usually shatters the glass, and only a defender on fire can reject it; block - blocks almost everything with longer reach; power - every shove flattens and nobody can move him; steal - much better steals and interceptions.
+
+Ball handlers (Alan, Katelyn) change direction with a crossover or a behind-the-back dribble, which protects the ball; on fire it can put the defender on the floor. Goaltending is legal, shoving is encouraged.
 
 ## How the players are made
 
