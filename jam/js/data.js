@@ -16,11 +16,11 @@ window.HW = window.HW || {};
                // from his photo: sun-tanned freckled skin, short swept-back ash-blond/gray hair, tinted wire glasses, stocky with a belly, gray shorts, tan suede slip-ons
                freckles: true, glasses: true, belly: true, noBand: true, shorts: '#6f6b72', shoes: '#c9ad86', soles: '#ece2cf', brow: '#b5a07a', age: true,  stats: { speed: 10, tp: 5, dunk: 4, steal: 9, block: 3, str: 3 } },
     lisa:    { id: 'lisa',    name: 'Lisa Anderson',    first: 'Lisa',    team: 0, type: 'strength', num: 34, color: '#ff006e', skin: '#e9b39a', hair: '#b49766', hairStyle: 'long',  photo: true, headScale: 1.45, height: 1.80, bulk: 1.2,  stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10 } },
-    katelyn: { id: 'katelyn', name: 'Katelyn Gorman',   first: 'Katelyn', team: 1, type: 'handler',  num: 7,  color: '#06d6a0', skin: '#f1c27d', hair: '#c9a227', hairStyle: 'pony',  height: 1.70, bulk: 0.88, stats: { speed: 10, tp: 5, dunk: 3, steal: 9, block: 3, str: 3 } },
-    kameron: { id: 'kameron', name: 'Kameron Gorman',   first: 'Kameron', team: 1, type: 'dunker',   num: 1,  color: '#3a86ff', skin: '#8d5524', hair: '#101010', hairStyle: 'fade',  height: 1.96, bulk: 1.0,  stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6 } },
-    kody:    { id: 'kody',    name: 'Kody Gorman',      first: 'Kody',    team: 1, type: 'strength', num: 55, color: '#8338ec', skin: '#c68642', hair: '#2b1b0e', hairStyle: 'short', height: 1.92, bulk: 1.3,  stats: { speed: 4, tp: 3, dunk: 6, steal: 5, block: 8, str: 10 } },
-    kenny:   { id: 'kenny',   name: 'Kenny Gorman',     first: 'Kenny',   team: 1, type: 'strength', num: 44, color: '#118ab2', skin: '#f1c27d', hair: '#8a5a2b', hairStyle: 'short', height: 1.90, bulk: 1.25, stats: { speed: 5, tp: 4, dunk: 5, steal: 5, block: 9, str: 9 } },
-    karen:   { id: 'karen',   name: 'Karen Gorman',     first: 'Karen',   team: 1, type: 'shooter',  num: 30, color: '#2ec4b6', skin: '#e0ac69', hair: '#a0522d', hairStyle: 'bun',   height: 1.76, bulk: 0.9,  stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4 } }
+    katelyn: { id: 'katelyn', name: 'Katelyn Gorman',   first: 'Katelyn', team: 1, type: 'handler',  num: 7,  color: '#06d6a0', skin: '#dca592', hair: '#5c4a3e', hairStyle: 'long',  photo: true, headScale: 1.49, brow: '#5a4234', height: 1.70, bulk: 0.88, stats: { speed: 10, tp: 5, dunk: 3, steal: 9, block: 3, str: 3 } },
+    kameron: { id: 'kameron', name: 'Kameron Gorman',   first: 'Kameron', team: 1, type: 'dunker',   num: 1,  color: '#3a86ff', skin: '#e4a387', hair: '#3a3029', hairStyle: 'short', photo: true, brow: '#4e3a2c', height: 1.96, bulk: 1.0,  stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6 } },
+    kody:    { id: 'kody',    name: 'Kody Gorman',      first: 'Kody',    team: 1, type: 'strength', num: 55, color: '#8338ec', skin: '#d8a68e', hair: '#5a4232', hairStyle: 'short', photo: true, headScale: 1.15, brow: '#4a3628', height: 1.92, bulk: 1.3,  stats: { speed: 4, tp: 3, dunk: 6, steal: 5, block: 8, str: 10 } },
+    kenny:   { id: 'kenny',   name: 'Kenny Gorman',     first: 'Kenny',   team: 1, type: 'strength', num: 44, color: '#118ab2', skin: '#d8a587', hair: '#9e9a93', hairStyle: 'short', photo: true, brow: '#7f7268', height: 1.90, bulk: 1.25, stats: { speed: 5, tp: 4, dunk: 5, steal: 5, block: 9, str: 9 } },
+    karen:   { id: 'karen',   name: 'Karen Gorman',     first: 'Karen',   team: 1, type: 'shooter',  num: 30, color: '#2ec4b6', skin: '#e3a690', hair: '#4d4038', hairStyle: 'short', photo: true, headScale: 1.15, brow: '#3d322b', height: 1.76, bulk: 0.9,  stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4 } }
   };
 
   // Realistic-body extras per player: eye color, headband, and anything special (Alan: from his photo)
@@ -29,10 +29,10 @@ window.HW = window.HW || {};
     tyler:   { iris: '#4f7396' },
     alan:    { iris: '#6e8794', glasses: true, plainShorts: true, noSocks: true, shoe: { base: '#c4a57e', sole: '#efe6d4', suede: true } },
     lisa:    { iris: '#4a3018' },
-    katelyn: { iris: '#4a7aa0' },
-    kameron: { iris: '#2e1c10', band: '#3a86ff' },
+    katelyn: { iris: '#5a4234' },
+    kameron: { iris: '#4e3a2c' },
     kody:    { iris: '#3d2a18' },
-    kenny:   { iris: '#556b3e', band: '#118ab2' },
+    kenny:   { iris: '#556b3e', glasses: true },
     karen:   { iris: '#4f7a4a' }
   };
   Object.keys(LOOK).forEach(function (id) { HW.PLAYERS[id].look = LOOK[id]; });
