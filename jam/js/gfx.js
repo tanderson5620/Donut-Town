@@ -275,6 +275,13 @@ window.HW = window.HW || {};
     g.fillStyle = 'rgba(0,0,0,' + Math.max(0.1, 0.35 - b.y * 0.06) + ')'; g.beginPath(); g.ellipse(sh.x, sh.y, r * 1.1, r * 0.32, 0, 0, 6.283); g.fill();
     b.spin = ((b.spin || 0) + (b.vx || 0) * 0.02 + 6.283) % 6.283;
     if (b.fire) X.flame(b.x, b.y, b.z, 2, 0.2);
+    // swoosh: a fading white streak along the ball's path through a fancy pass
+    if (b.swoosh > 0) { (b.trail = b.trail || []).unshift({ x: p.x, y: p.y }); if (b.trail.length > 10) b.trail.pop(); } else if (b.trail && b.trail.length) b.trail.pop();
+    if (b.trail && b.trail.length > 1) {
+      g.lineCap = 'round';
+      for (var ti = 1; ti < b.trail.length; ti++) { var a0 = b.trail[ti - 1], a1 = b.trail[ti], f = 1 - ti / b.trail.length; g.strokeStyle = 'rgba(255,255,255,' + (0.7 * f) + ')'; g.lineWidth = Math.max(1, r * 1.7 * f); g.beginPath(); g.moveTo(a0.x, a0.y); g.lineTo(a1.x, a1.y); g.stroke(); }
+      g.lineCap = 'butt';
+    }
     var gr = g.createRadialGradient(p.x - r * 0.4, p.y - r * 0.45, r * 0.05, p.x, p.y, r);
     gr.addColorStop(0, '#ffc488'); gr.addColorStop(0.45, '#f07a26'); gr.addColorStop(1, '#9c3a08'); g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, r, 0, 6.283); g.fill();
     // seams turn with the spin
