@@ -97,9 +97,10 @@ var ANIMS = {
     { crouch: 0.1, lean: 0.35, rs: 1.55, ls: 1.55, re: 0.15, le: 0.15, rz: 0.05, lz: 0.05, rt: 0.35, rk: 0.4 },
     { crouch: 0.08, lean: 0.25, rs: 1.3, ls: 1.2, re: 0.5, le: 0.6, rt: 0.2, rk: 0.3 }][i]; } },
   // fancy passes (good passers). The game holds the ball in his hand (meta.hand) until the release frame, then throws it from there.
-  pass_back:   { n: 5, dirs: ['W'], f: function (t, i) { var o = { crouch: 0.1, lean: 0.2, ls: 0.45, le: 1.1, lz: 0.2, rt: 0.2, rk: 0.35 }, a = [   // behind the back, seen from behind: right hip, round the lower back, out the left side
-    { rs: 0.2, re: 0.9, rz: 0.15 }, { rs: -0.5, re: 0.3, rz: 0.25, twist: 0.3 }, { rs: -0.7, re: 1.3, rz: -0.2, ry: 0.6, twist: 0.15 },
-    { rs: -0.5, ry: 1.1, re: 1.5, rz: -0.35, twist: -0.15 }, { rs: -0.1, ry: 1.5, re: 1.4, rz: -0.4, twist: -0.35 }][i];
+  pass_back:   { n: 6, dirs: ['W'], f: function (t, i) { var o = { crouch: 0.14, lean: 0.25, ls: 0.45, le: 1.1, lz: 0.25, rt: 0.25, rk: 0.45, lt: 0.1, lk: 0.35 }, a = [   // behind the back, seen from behind:
+    { rs: 0.3, re: 0.9, rz: 0.35, twist: 0.45 }, { rs: -0.6, re: 0.15, rz: 0.55, twist: 0.55 },                                            // wind the arm way out to the side,
+    { rs: -0.8, re: 1.2, rz: -0.1, ry: 0.6, twist: 0.3 }, { rs: -0.55, ry: 1.15, re: 1.6, rz: -0.4, twist: -0.1 },                         // round the lower back,
+    { rs: -0.15, ry: 1.5, re: 1.3, rz: -0.6, twist: -0.45 }, { rs: 0.25, ry: 1.3, re: 0.35, rz: -1.05, twist: -0.6, ls: 0.3, lz: 0.6 }][i];  // and whip it out wide the other side
     for (var k in a) o[k] = a[k]; return o; } },
   pass_hike:   { n: 4, dirs: ['R'], f: function (t, i) { return [                                   // football snap back through his own legs
     { crouch: 0.3, lean: 1.0, rs: 1.15, ls: 1.15, re: 0.15, le: 0.15, rz: -0.12, lz: -0.12, rt: 0.75, lt: 0.75, rk: 0.95, lk: 0.95, ra: 0.42, la: 0.42 },
