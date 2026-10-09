@@ -4,7 +4,7 @@ window.HW = window.HW || {};
 (function (HW) {
   var X = HW.GFX, Au = HW.Audio, Fo = HW.Font;
   var UI = HW.JamUI = { screen: 'title', btns: [], st: { team: 0, picks: [], ctrl: null, diff: 'normal' }, t: 0 };
-  var In = HW.In = { mx: 0, mz: 0, turbo: false, shootHeld: false, shootDown: false, shootUp: false, passDown: false, pauseDown: false, tap: null, keys: {}, touchMove: { x: 0, y: 0 }, touchTurbo: false, nav: null };
+  var In = HW.In = { mx: 0, mz: 0, turbo: false, shootHeld: false, shootDown: false, shootUp: false, passDown: false, pauseDown: false, tap: null, keys: {}, touchMove: { x: 0, y: 0 }, stickTurbo: false, comboTurbo: false, actDown: false, nav: null };
   var CY = '#22c4f2', PB = '#262a8c', P1C = '#2fd85a';
 
   /* ---------- input ---------- */
@@ -35,29 +35,47 @@ window.HW = window.HW || {};
     try { var c = Fo.canvas(text, { scheme: 'white', shadow: 1 }); sp.style.backgroundImage = 'url(' + c.toDataURL() + ')'; sp.style.width = c.width * k + 'px'; sp.style.height = c.height * k + 'px'; sp.textContent = ''; } catch (e) { }
   }
   UI.initTouch = function () {
-    labelBtn('bShoot', 'SHOOT', 1.5); labelBtn('bPass', 'PASS', 1.5); labelBtn('bTurbo', 'TURBO', 1.5); labelBtn('bPause', 'II', 1.5);
+    labelBtn('bShoot', 'SHOOT', 1.5); labelBtn('bPass', 'PASS', 1.5); labelBtn('bPause', 'II', 1.5);
     if (!HW.TOUCH) return; document.body.classList.add('touch');
     var zone = document.getElementById('stickZone'), base = document.getElementById('stickBase'), knob = document.getElementById('stickKnob'), id = null, ox = 0, oy = 0, R = 55;
     zone.addEventListener('touchstart', function (e) { e.preventDefault(); UI.firstGesture(); if (id !== null) return; var t = e.changedTouches[0]; id = t.identifier; ox = t.clientX; oy = t.clientY; base.style.left = ox + 'px'; base.style.top = oy + 'px'; base.classList.add('on'); }, { passive: false });
     zone.addEventListener('touchmove', function (e) {
       e.preventDefault();
-      for (var i = 0; i < e.changedTouches.length; i++) { var t = e.changedTouches[i]; if (t.identifier !== id) continue; var dx = t.clientX - ox, dy = t.clientY - oy, d = Math.hypot(dx, dy), k = d > R ? R / d : 1; dx *= k; dy *= k; In.touchMove.x = dx / R; In.touchMove.y = -dy / R; knob.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))'; }
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i]; if (t.identifier !== id) continue;
+        // full speed at the ring; drag past it (and keep it there) for TURBO, so the right thumb only ever taps one button
+        var dx = t.clientX - ox, dy = t.clientY - oy, d = Math.hypot(dx, dy), turbo = d > R * (In.stickTurbo ? 1.08 : 1.25), lim = turbo ? R * 1.18 : R, k = d > lim ? lim / d : 1;
+        if (turbo !== In.stickTurbo) { In.stickTurbo = turbo; base.classList.toggle('turbo', turbo); }
+        dx *= k; dy *= k; var n = Math.min(1, Math.hypot(dx, dy) / R) / (Math.hypot(dx, dy) || 1); In.touchMove.x = dx * n; In.touchMove.y = -dy * n;
+        knob.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+      }
     }, { passive: false });
-    var end = function (e) { for (var i = 0; i < e.changedTouches.length; i++) if (e.changedTouches[i].identifier === id) { id = null; In.touchMove.x = In.touchMove.y = 0; base.classList.remove('on'); knob.style.transform = 'translate(-50%,-50%)'; } };
+    var end = function (e) { for (var i = 0; i < e.changedTouches.length; i++) if (e.changedTouches[i].identifier === id) { id = null; In.touchMove.x = In.touchMove.y = 0; In.stickTurbo = false; base.classList.remove('on', 'turbo'); knob.style.transform = 'translate(-50%,-50%)'; } };
     zone.addEventListener('touchend', end); zone.addEventListener('touchcancel', end);
     function hold(elId, down, up) { var el = document.getElementById(elId); el.addEventListener('touchstart', function (e) { e.preventDefault(); UI.firstGesture(); el.classList.add('down'); down(); }, { passive: false }); var u = function (e) { e.preventDefault(); el.classList.remove('down'); if (up) up(); }; el.addEventListener('touchend', u, { passive: false }); el.addEventListener('touchcancel', u, { passive: false }); }
     hold('bShoot', function () { In.shootHeld = true; In.shootDown = true; }, function () { In.shootHeld = false; In.shootUp = true; });
     hold('bPass', function () { In.passDown = true; });
-    hold('bTurbo', function () { In.touchTurbo = true; }, function () { In.touchTurbo = false; });
+    hold('bAct', function () { In.actDown = true; });
     hold('bPause', function () { In.pauseDown = true; });
   };
   UI.readInput = function () {
     var k = In.keys, mx = 0, mz = 0;
     if (k.ArrowRight || k.KeyD) mx += 1; if (k.ArrowLeft || k.KeyA) mx -= 1; if (k.ArrowUp || k.KeyW) mz += 1; if (k.ArrowDown || k.KeyS) mz -= 1;
     if (In.touchMove.x || In.touchMove.y) { mx = In.touchMove.x; mz = In.touchMove.y; }
-    In.mx = mx; In.mz = mz; In.turbo = !!(k.ShiftLeft || k.ShiftRight || k.KeyL || In.touchTurbo);
+    In.mx = mx; In.mz = mz; In.comboTurbo = !!(k.ShiftLeft || k.ShiftRight || k.KeyL); In.turbo = In.comboTurbo || In.stickTurbo;
   };
-  UI.endFrame = function () { In.shootDown = In.shootUp = In.passDown = In.pauseDown = In.enter = false; In.tap = null; In.nav = null; };
+  // the touch controls follow the play: the third button is DUNK with the ball (lit when you're in range) or SHOVE without it,
+  // and the ring round the stick is your turbo meter
+  var tState = '', tLevel = -1;
+  UI.syncTouch = function (G) {
+    if (!HW.TOUCH) return;
+    var h = G.human; if (!h) return;
+    var st = h.hasBall ? (G.canDunk(h) ? 'dunk' : 'dunk off') : 'shove';
+    if (st !== tState) { tState = st; var b = document.getElementById('bAct'); b.className = 'tb ' + st; b.textContent = h.hasBall ? 'DUNK' : 'SHOVE'; }
+    var lv = Math.round(h.onFire ? 100 : h.turbo);
+    if (lv !== tLevel) { tLevel = lv; var r = document.getElementById('stickRing'); r.style.setProperty('--t', lv); r.style.setProperty('--tc', h.onFire ? '#ff7a1a' : lv > 25 ? '#3df07a' : '#ff4b3a'); }
+  };
+  UI.endFrame = function () { In.shootDown = In.shootUp = In.passDown = In.actDown = In.pauseDown = In.enter = false; In.tap = null; In.nav = null; };
 
   /* ---------- safe area (notch, home bar) in canvas pixels ---------- */
   var probe, safeKey, safeV = { l: 0, r: 0, t: 0, b: 0 };
@@ -373,7 +391,9 @@ window.HW = window.HW || {};
       button(g, 'resume', cx2 - bw - 6, C2.T + 98, bw, 40, 'RESUME', { color: '#1fb04c', size: 2, fn: function () { UI.screen = null; HW.Jam.phase = UI.prevPhase || 'play'; } });
       button(g, 'quit', cx2 + 6, C2.T + 98, bw, 40, 'QUIT', { color: '#e0302a', size: 2, fn: function () { UI.show('title'); HW.Jam.players = []; } });
       var hy = C2.T + 152; bevel(g, C2.L + 6, hy, C2.W - 12, C2.B - hy - 6, '#000', CY, 3);
-      var help = [['SHOOT:', 'HOLD, LET GO AT THE TOP OF THE JUMP'], ['DUNK:', 'TURBO + SHOOT NEAR THE RIM'], ['DEFENSE:', 'PASS = STEAL  TURBO+PASS = SHOVE  SHOOT = BLOCK'], ['NO BALL:', 'PASS = CALL FOR IT  SHOOT = TEAMMATE SHOOTS'], ['ON FIRE:', '3 BUCKETS IN A ROW']];
+      var help = HW.TOUCH ?
+        [['TURBO:', 'PUSH THE STICK PAST ITS RING'], ['SHOOT:', 'HOLD, LET GO AT THE TOP OF THE JUMP'], ['DUNK:', 'DUNK BUTTON, OR TURBO + SHOOT AT THE RIM'], ['DEFENSE:', 'PASS = STEAL  SHOVE  SHOOT = BLOCK'], ['NO BALL:', 'PASS = CALL FOR IT  SHOVE  SHOOT = TEAMMATE SHOOTS']] :
+        [['SHOOT:', 'HOLD, LET GO AT THE TOP OF THE JUMP'], ['DUNK:', 'TURBO + SHOOT NEAR THE RIM'], ['DEFENSE:', 'PASS = STEAL  TURBO+PASS = SHOVE  SHOOT = BLOCK'], ['NO BALL:', 'PASS = CALL FOR IT  TURBO+PASS = SHOVE'], ['ON FIRE:', '3 BUCKETS IN A ROW']];
       var lx = C2.L + 20, sc = C2.W > 620 ? 2 : 1, lh = sc === 2 ? 0 : 0;
       var fitsBig = Fo.measure('DEFENSE: PASS = STEAL  TURBO+PASS = SHOVE  SHOOT = BLOCK', 2) < C2.W - 40; sc = fitsBig ? 2 : 1;
       help.forEach(function (r, i) { var yy = hy + 18 + i * (sc === 2 ? 30 : 22) + lh; var w1 = Fo.draw(g, r[0], lx, yy, { scale: sc, scheme: 'yellow', align: 'left' }); Fo.draw(g, r[1], lx + w1 + 4 * sc, yy, { scale: sc, scheme: 'white', align: 'left' }); });
@@ -523,6 +543,7 @@ window.HW = window.HW || {};
 
   /* ---------- in-game HUD ---------- */
   UI.drawHUD = function (g) {
+    UI.syncTouch(HW.Jam);
     var G = HW.Jam, W = X.W, S = UI.safe(), fr = Math.floor(G.t * 12);
     var P = G.players.slice().sort(function (a, b) { return a.team - b.team || (b.human - a.human) || a.slot - b.slot; });
     var l = S.l + 4, r = W - S.r - 4, span = (r - l) / 4;
