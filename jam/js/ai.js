@@ -10,7 +10,7 @@ window.HW = window.HW || {};
   function goTo(p, x, z, turbo, dt) {
     var dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz), k = d < 0.15 ? 0 : Math.min(1, d / 0.8);
     G.move(p, d > 1e-3 ? dx / d * k : 0, d > 1e-3 ? dz / d * k : 0, turbo && d > 2.5 && p.turbo > 25, dt);
-    if (Math.abs(p.vx) > 1.0) p.face = p.vx > 0 ? 1 : -1;
+    if (Math.abs(p.vx) > 1.0 && p.state !== 'pass') p.face = p.vx > 0 ? 1 : -1;
   }
 
   AI.update = function (p, dt, live) {
@@ -23,6 +23,8 @@ window.HW = window.HW || {};
       return;
     }
     a.t -= dt;
+    // a pass is on its way to him: go meet it instead of drifting off to his spot
+    if (b.state === 'pass' && b.pass && b.pass.to === p) { goTo(p, b.pass.x1, b.pass.z1, false, dt); return; }
     if (b.holder === p) withBall(p, a, dt);
     else if (b.holder && b.holder.team === p.team) offBall(p, a, dt, b.holder);
     else if (b.holder) defend(p, a, dt, b.holder);
