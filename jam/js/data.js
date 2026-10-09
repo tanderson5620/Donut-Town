@@ -54,7 +54,7 @@ window.HW = window.HW || {};
     three: ['FROM DOWNTOWN!', 'RAIN MAKER!', 'FROM THE PARKING LOT!', 'SPLASH!'],
     swish: ['SWISH!', 'NOT A TOUCH!', 'PURE BUTTER!'],
     dunk: ['KABOOM!', 'RIM WRECKER!', 'SLAM-A-LAMA!', 'HAMMER TIME!', 'THUNDER DUNK!'],
-    block: ['REJECTED!', 'DENIED!', 'GET THAT OUTTA HERE!', 'NOT IN MY HOUSE!'],
+    block: ['REJECTED!', 'DENIED!', 'GET THAT SHIT OUT OF HERE!', 'NOT IN MY HOUSE!'],
     steal: ['PICKPOCKET!', 'STOLEN!', 'SWIPED!'],
     shove: ['TIMBER!', 'WHAM!', 'FLATTENED!']
   };

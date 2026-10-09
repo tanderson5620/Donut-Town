@@ -27,6 +27,7 @@ window.HW = window.HW || {};
   Player.prototype.busy = function () { return this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
 
   G.start = function (setup) {
+    X.clearBlood();
     if (HW.TOUCH && !G.tipShown) { G.tipShown = true; G.tipT = 1.2; }   // first game on a phone: show where turbo went
     G.setup = setup; G.players = []; G.diff = HW.DIFFICULTY[setup.diff || 'normal'];
     setup.teams.forEach(function (ids, team) { ids.forEach(function (id, i) { var p = new Player(id, team, i, id === setup.human); G.players.push(p); if (p.human) G.human = p; }); });
@@ -125,6 +126,9 @@ window.HW = window.HW || {};
     if (u >= DUNK_SLAM && !k.slam) {
       k.slam = true; var b = G.ball; p.hasBall = false; b.holder = null; b.state = 'through'; b.x = rimX(p.team); b.z = K.HZ; b.y = K.RIM_H - 0.05; b.vy = -5; b.vx = b.vz = 0;
       p.stats.dunks++; G.scored(p, 2, true);
+      var poster = false;
+      G.opps(p).forEach(function (q) { if (q.y > 0.3 && q.state !== 'fall' && q.state !== 'dunk' && dist(p, q) < 1.6 && p.def.stats.str > q.def.stats.str) { q.state = 'fall'; q.st = 0; q.fallT = 1.6; q.vy = Math.min(q.vy, 0); q.face = p.x >= q.x ? 1 : -1; q.vx = -q.face * 2; poster = true; } });
+      if (poster) G.say('POSTERIZED!', '#ff8a5a', 1.6, 1.1);
       X.shake = 1.4; X.hype = 3; Au.dunk(); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
       if (p.def.stats.dunk >= 9 && Math.random() < 0.3) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
     }
@@ -143,7 +147,7 @@ window.HW = window.HW || {};
     if (p.cd.steal > 0 || p.busy()) return; p.cd.steal = 0.55; p.state = 'steal'; p.st = 0;
     var h = G.ball.holder; if (!h || h.team === p.team || dist(p, h) > 1.55) { Au.steal(); return; }
     p.face = h.x >= p.x ? 1 : -1;
-    var c = 0.03 + 0.022 * p.def.stats.steal - 0.01 * h.def.stats.speed + (Math.hypot(h.vx, h.vz) < 0.5 ? 0.06 : 0) + (p.human ? 0.1 : 0) - (h.state === 'shoot' ? 0.1 : 0);
+    var c = 0.03 + 0.022 * p.def.stats.steal - 0.01 * h.def.stats.speed + (Math.hypot(h.vx, h.vz) < 0.5 ? 0.06 : 0) + (p.human ? 0.1 : 0) - (h.state === 'shoot' ? 0.1 : 0) - 0.015 * Math.max(0, h.def.stats.str - p.def.stats.str);
     if (!p.human) c *= G.diff.steal;
     if (h.state === 'dunk') c = 0;
     if (Math.random() < c) { p.stats.steals++; G.give(p); G.say(pick(HW.PHRASES.steal), '#7ee0ff', 1); Au.steal(); }
@@ -184,9 +188,13 @@ window.HW = window.HW || {};
   // your odds on a block try: 75-95% right on him (by block rating), dropping off toward the edge of your reach
   G.humanBlock = function (q, d) { return clamp(0.66 + 0.035 * q.def.stats.block - 0.25 * Math.max(0, d - 0.7), 0.35, 0.95); };
   // a rejected dunk: the dunker crashes to the floor and the blocker comes down with the ball
+  // a stronger blocker puts him on the floor for 2 s and he leaves a little blood on the court
   G.rejectDunk = function (q, dk) {
+    var power = q.def.stats.str - dk.def.stats.str;
     dk.dk = null; dk.state = 'fall'; dk.st = 0; dk.vy = 0; dk.vx *= 0.3; dk.vz *= 0.3; dk.face = -side(dk.team);
-    G.blocked(q, dk, null, 'REJECTED!'); X.shake = 1; X.hype = Math.max(X.hype, 2.4); Au.thud();
+    dk.fallT = power > 0 ? 2.0 : 1.3;
+    if (power > 0) { dk.bleed = 1 + power * 0.12; if (dk.y < 0.05) { X.blood(X.fallHeadX(dk), dk.z, dk.bleed); dk.bleed = 0; } }
+    G.blocked(q, dk, null, 'GET THAT SHIT OUT OF HERE!'); X.shake = power > 0 ? 1.4 : 1; X.hype = Math.max(X.hype, 2.6); Au.thud();
   };
   // a block: the shot is dead and the blocker comes down with the ball
   G.blocked = function (q, shooter, info, text) {
@@ -243,9 +251,9 @@ window.HW = window.HW || {};
   function physics(p, dt) {
     p.st += dt;
     if (p.state === 'dunk') { updateDunk(p, dt); return; }
-    if (p.state === 'fall') { p.vx *= 1 - 4 * dt; p.vz *= 1 - 4 * dt; if (p.st > 1.3) { p.state = 'idle'; p.flash = 0.6; } }
+    if (p.state === 'fall') { p.vx *= 1 - 4 * dt; p.vz *= 1 - 4 * dt; if (p.st > (p.fallT || 1.3)) { p.state = 'idle'; p.flash = 0.6; p.fallT = 0; } }
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
-    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.state === 'jump') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = 'idle'; } } }
+    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.bleed) { X.blood(X.fallHeadX(p), p.z, p.bleed); p.bleed = 0; } if (p.state === 'jump') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = 'idle'; } } }
     if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * 1.7) G.releaseShot(p);
     if ((p.state === 'pass' && p.st > 0.3) || (p.state === 'steal' && p.st > 0.3) || (p.state === 'shove' && p.st > 0.35) || (p.state === 'cheer' && p.st > 1.5)) p.state = 'idle';
   }
@@ -253,7 +261,9 @@ window.HW = window.HW || {};
     var P = G.players;
     for (var i = 0; i < P.length; i++) for (var j = i + 1; j < P.length; j++) {
       var a = P[i], b = P[j]; if (a.state === 'dunk' || b.state === 'dunk' || a.state === 'fall' || b.state === 'fall') continue;
-      var dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz); if (d < 0.65 && d > 1e-4) { var push = (0.65 - d) / 2; a.x -= dx / d * push; a.z -= dz / d * push; b.x += dx / d * push; b.z += dz / d * push; }
+      // bodies bump: the stronger player holds his ground and moves the weaker one (boxing out)
+      var dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
+      if (d < 0.65 && d > 1e-4) { var gap = 0.65 - d, sa = a.def.stats.str, sb = b.def.stats.str, wa = sb / (sa + sb), wb = 1 - wa; a.x -= dx / d * gap * wa; a.z -= dz / d * gap * wa; b.x += dx / d * gap * wb; b.z += dz / d * gap * wb; }
     }
   }
 
@@ -292,7 +302,8 @@ window.HW = window.HW || {};
         var hum = q.human, d = Math.hypot(q.x - b.x, q.z - b.z);
         if (d < (hum ? 1.4 : 1.1) && b.y < q.y + q.reach + (hum ? 1.4 : 1.3)) {
           q.cd.block = 1;
-          var c = hum ? clamp(0.55 + 0.035 * q.def.stats.block - 0.025 * (dk.def.stats.dunk - 5) - 0.25 * Math.max(0, d - 0.7), 0.2, 0.9) : (0.08 + 0.025 * q.def.stats.block) * G.diff.block;
+          var bully = Math.max(0, dk.def.stats.str - q.def.stats.str);   // a stronger dunker is harder to stop
+          var c = hum ? clamp(0.55 + 0.035 * q.def.stats.block - 0.025 * (dk.def.stats.dunk - 5) - 0.03 * bully - 0.25 * Math.max(0, d - 0.7), 0.15, 0.9) : (0.08 + 0.025 * q.def.stats.block) * (1 - 0.06 * bully) * G.diff.block;
           if (Math.random() < c) G.rejectDunk(q, dk);
         }
       });
