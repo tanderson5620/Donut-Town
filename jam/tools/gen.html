@@ -47,12 +47,15 @@ var PITCH = 0.16, CY = FH / PPM / 2 - 0.07; cam.position.set(0, CY + Math.sin(PI
 function apply(A, p) {
   A.hips.position.y = 1.02 - (p.crouch || 0);
   A.hips.rotation.set((p.lean || 0) * 0.5, p.twist || 0, 0); A.spine.rotation.x = (p.lean || 0) * 0.3; A.chest.rotation.x = (p.lean || 0) * 0.2;
-  A.sh[0].rotation.set(-(p.rs || 0), 0, -0.12 - (p.rz || 0)); A.el[0].rotation.x = -(p.re || 0);   // right arm (athlete's right is -x)
-  A.sh[1].rotation.set(-(p.ls || 0), 0, 0.12 + (p.lz || 0)); A.el[1].rotation.x = -(p.le || 0);
+  A.sh[0].rotation.set(-(p.rs || 0), p.ry || 0, -0.12 - (p.rz || 0)); A.el[0].rotation.x = -(p.re || 0);   // right arm (athlete's right is -x); ry twists the arm (wrap it behind the back)
+  A.sh[1].rotation.set(-(p.ls || 0), -(p.ly || 0), 0.12 + (p.lz || 0)); A.el[1].rotation.x = -(p.le || 0);
   A.th[0].rotation.set(-(p.rt || 0), 0, -(p.ra || 0)); A.kn[0].rotation.x = p.rk || 0;
   A.th[1].rotation.set(-(p.lt || 0), 0, (p.la || 0)); A.kn[1].rotation.x = p.lk || 0;
   A.feet[0].rotation.x = ((p.rt || 0) - (p.rk || 0)) * (p.air ? 0.4 : 0.9); A.feet[1].rotation.x = ((p.lt || 0) - (p.lk || 0)) * (p.air ? 0.4 : 0.9);
   A.body.rotation.set(p.flip || 0, 0, p.roll || 0); A.body.position.set(0, p.lift || 0, p.slide || 0);
+  // somersault: turn the body round the hips instead of the feet
+  if (p.somer) { var h = 0.95; A.body.rotation.x = p.somer; A.body.position.set(0, h * (1 - Math.cos(p.somer)), -h * Math.sin(p.somer)); }
+  if (p.yaw) A.root.rotation.y += p.yaw;   // spin moves
 }
 var TAU = Math.PI * 2, S = Math.sin, Cc = Math.cos, mx = Math.max;
 var ANIMS = {
@@ -82,15 +85,22 @@ var ANIMS = {
     { crouch: 0.1, lean: 0.2, rs: 1.2, ls: 1.2, re: 1.7, le: 1.7, rz: 0.15, lz: 0.15 },
     { crouch: 0.1, lean: 0.35, rs: 1.55, ls: 1.55, re: 0.15, le: 0.15, rz: 0.05, lz: 0.05, rt: 0.35, rk: 0.4 },
     { crouch: 0.08, lean: 0.25, rs: 1.3, ls: 1.2, re: 0.5, le: 0.6, rt: 0.2, rk: 0.3 }][i]; } },
-  // fancy passes (good passers), all thrown out the back to a teammate behind him
-  pass_back:   { n: 3, dirs: ['R'], f: function (t, i) { return [                                   // behind the back
-    { crouch: 0.12, lean: 0.25, rs: -0.2, re: 1.0, rz: 0.25, ls: 0.6, le: 0.9, lz: 0.2, twist: 0.35, rt: 0.2, rk: 0.35 },
-    { crouch: 0.12, lean: 0.3, rs: -0.95, re: 1.55, rz: -0.25, ls: 0.5, le: 0.8, lz: 0.25, twist: -0.25, rt: 0.25, rk: 0.4 },
-    { crouch: 0.1, lean: 0.25, rs: -1.1, re: 1.9, rz: -0.45, ls: 0.45, le: 0.7, lz: 0.25, twist: -0.4, rt: 0.2, rk: 0.35 }][i]; } },
-  pass_legs:   { n: 3, dirs: ['R'], f: function (t, i) { return [                                   // through the legs (bounce pass)
-    { crouch: 0.32, lean: 0.6, rs: 0.25, re: 0.25, rz: -0.25, ls: 0.4, le: 0.7, lz: 0.4, rt: 0.35, lt: 0.35, rk: 0.7, lk: 0.7, ra: 0.35, la: 0.35 },
-    { crouch: 0.34, lean: 0.75, rs: -0.25, re: 0.1, rz: -0.35, ls: 0.4, le: 0.7, lz: 0.45, rt: 0.4, lt: 0.4, rk: 0.75, lk: 0.75, ra: 0.38, la: 0.38 },
-    { crouch: 0.3, lean: 0.65, rs: -0.6, re: 0.2, rz: -0.3, ls: 0.35, le: 0.6, lz: 0.45, rt: 0.35, lt: 0.35, rk: 0.7, lk: 0.7, ra: 0.35, la: 0.35 }][i]; } },
+  // fancy passes (good passers). The game holds the ball in his hand (meta.hand) until the release frame, then throws it from there.
+  pass_back:   { n: 5, dirs: ['W'], f: function (t, i) { var o = { crouch: 0.1, lean: 0.2, ls: 0.45, le: 1.1, lz: 0.2, rt: 0.2, rk: 0.35 }, a = [   // behind the back, seen from behind: right hip, round the lower back, out the left side
+    { rs: 0.2, re: 0.9, rz: 0.15 }, { rs: -0.5, re: 0.3, rz: 0.25, twist: 0.3 }, { rs: -0.7, re: 1.3, rz: -0.2, ry: 0.6, twist: 0.15 },
+    { rs: -0.5, ry: 1.1, re: 1.5, rz: -0.35, twist: -0.15 }, { rs: -0.1, ry: 1.5, re: 1.4, rz: -0.4, twist: -0.35 }][i];
+    for (var k in a) o[k] = a[k]; return o; } },
+  pass_hike:   { n: 4, dirs: ['R'], f: function (t, i) { return [                                   // football snap back through his own legs
+    { crouch: 0.3, lean: 1.0, rs: 1.15, ls: 1.15, re: 0.15, le: 0.15, rz: -0.12, lz: -0.12, rt: 0.75, lt: 0.75, rk: 0.95, lk: 0.95, ra: 0.42, la: 0.42 },
+    { crouch: 0.32, lean: 1.1, rs: 0.65, ls: 0.65, re: 0.1, le: 0.1, rz: -0.15, lz: -0.15, rt: 0.8, lt: 0.8, rk: 1.0, lk: 1.0, ra: 0.44, la: 0.44 },
+    { crouch: 0.33, lean: 1.15, rs: 0.05, ls: 0.05, re: 0.05, le: 0.05, rz: -0.15, lz: -0.15, rt: 0.8, lt: 0.8, rk: 1.0, lk: 1.0, ra: 0.44, la: 0.44 },
+    { crouch: 0.3, lean: 1.05, rs: -0.35, ls: -0.35, re: 0.1, le: 0.1, rz: -0.1, lz: -0.1, rt: 0.75, lt: 0.75, rk: 0.95, lk: 0.95, ra: 0.42, la: 0.42 }][i]; } },
+  pass_spin:   { n: 8, dirs: ['R'], f: function (t, i) { var hold = { rs: 0.95, re: 1.75, ls: 0.95, le: 1.75, rz: 0.1, lz: 0.1 }, o = { crouch: 0.1 + 0.05 * S(i / 8 * Math.PI), lean: 0.12, yaw: -TAU * i / 8, rt: 0.25 * S(i * 1.6), lt: -0.25 * S(i * 1.6), rk: 0.4, lk: 0.4 };   // a full 360 with the ball tucked in, then out of the spin into the pass
+    var arms = i < 6 ? hold : i === 6 ? { rs: 1.35, re: 0.6, ls: 1.35, le: 0.6, rz: 0.08, lz: 0.08 } : { rs: 1.45, re: 0.15, ls: 1.45, le: 0.15, rz: 0.05, lz: 0.05 };
+    for (var k in arms) o[k] = arms[k]; return o; } },
+  pass_flip:   { n: 8, dirs: ['R'], f: function (t, i) { var th = [0, 0.4, 1.35, 2.3, 3.14, 4.05, 5.0, 5.95][i], tuck = i > 0 && i < 7 ? 1 : 0;   // front flip, let it go upside down at the top
+    var o = { somer: th, air: i > 0 ? 1 : 0, crouch: i === 0 ? 0.28 : 0, rt: tuck ? 1.4 : 0.5, lt: tuck ? 1.4 : 0.5, rk: tuck ? 1.9 : 0.9, lk: tuck ? 1.9 : 0.9, rs: 0.95, re: 1.7, ls: 0.95, le: 1.7, rz: 0.1, lz: 0.1 };
+    if (i === 4 || i === 5) { o.rs = o.ls = 1.7; o.re = o.le = 0.3; } return o; } },
   pass_head:   { n: 3, dirs: ['R'], f: function (t, i) { return [                                   // backwards over the head
     { crouch: 0.15, lean: 0.05, rs: 2.5, ls: 2.5, re: 1.7, le: 1.7, rz: 0.15, lz: 0.15, rt: 0.2, lt: 0.2, rk: 0.4, lk: 0.4 },
     { crouch: 0.05, lean: -0.25, rs: 3.2, ls: 3.2, re: 0.7, le: 0.7, rz: 0.12, lz: 0.12, rk: 0.15, lk: 0.15 },
@@ -114,7 +124,7 @@ var ANIMS = {
     { flip: -1.5, lift: -0.62, slide: -0.5, rs: 2.9, ls: 3.0, re: 0.5, le: 0.4, rz: 1.3, lz: 1.3, rt: 0.6, rk: 1.0, lt: 0.3, lk: 1.2 }][i]; } },
   cheer:   { n: 4, dirs: ['F'], f: function (t) { var s = S(t * TAU); return { crouch: 0.03 - 0.03 * s, rs: 2.8 + 0.25 * s, ls: 2.8 - 0.25 * s, re: 0.4, le: 0.4, rz: 0.4, lz: 0.4, rk: 0.15, lk: 0.15, lift: 0.08 * mx(0, s) }; } }
 };
-var DIRS = { R: Math.PI / 2 - 0.42, F: Math.PI / 2 - 1.05, B: Math.PI / 2 + 0.95 };   // facing screen-right in profile, turned toward / away from the camera
+var DIRS = { R: Math.PI / 2 - 0.42, F: Math.PI / 2 - 1.05, B: Math.PI / 2 + 0.95, W: Math.PI / 2 + 1.4 };   // W: from behind, for the behind-the-back wrap   // facing screen-right in profile, turned toward / away from the camera
 
 function project(v, c, w, h) { var p = v.clone().project(c || cam); return [(p.x + 1) / 2 * (w || FW), (1 - p.y) / 2 * (h || FH)]; }
 
@@ -202,7 +212,7 @@ window.genPlayer = function (id, opt) {
   var s = d.height / 1.89; A.root.scale.setScalar(s);
   var bx = 1 + (d.bulk - 1) * 0.45, bz = bx * (d.belly ? 1.08 : 1);
   A.spine.scale.set(bx, 1, bz); A.neck.scale.set(1 / bx, 1, 1 / bz); A.sh.forEach(function (sh) { sh.scale.set(1 / bx, 1, 1 / bz); });
-  var frames = [], meta = { fw: FW, fh: FH, ppm: PPM, anim: {}, head: [], hand: [], off: {}, feet: project(new V3(0, 0, 0)) };
+  var frames = [], meta = { fw: FW, fh: FH, ppm: PPM, anim: {}, head: [], hand: [], off: {}, back: {}, hrot: {}, feet: project(new V3(0, 0, 0)) };
   var only = opt.only;
   Object.keys(ANIMS).forEach(function (name) {
     if (only && only.indexOf(name) < 0) return;
@@ -224,6 +234,10 @@ window.genPlayer = function (id, opt) {
         var hp = A.head.getWorldPosition(new V3()), np = A.neck.getWorldPosition(new V3());
         var hr = A.palm[0].getWorldPosition(new V3()), hl = A.palm[1].getWorldPosition(new V3());
         meta.head.push(project(hp).concat(project(np))); meta.hand.push(project(hr).concat(project(hl)));
+        // facing away from the camera (spins, the behind-the-back view): the game shows the back of his head
+        if (Math.cos(A.root.rotation.y) < -0.2) meta.back[frames.length - 1] = 1;
+        // head tipped over (flips, falls): the game turns the pasted head with the body
+        var ph = project(hp), pn = project(np), hrot = Math.atan2(ph[0] - pn[0], pn[1] - ph[1]); if (Math.abs(hrot) > 0.35) meta.hrot[frames.length - 1] = +hrot.toFixed(2);
         list.push(frames.length - 1);
       }
     });

@@ -225,13 +225,21 @@ window.HW = window.HW || {};
   function drawBody(g, p, o, alpha) {
     var m = o.m, k = o.k, fx = o.fx, fy = o.fy;
     g.drawImage(o.sh.img, o.sx, o.sy, m.fw, m.fh, -fx * k, -fy * k, m.fw * k, m.fh * k);
-    var hd = m.head[o.fi], f = faces[p.id], img = f && (p.dir === 'B' ? f.back : f.front);
+    // back of the head when he's turned away (the behind-the-back view, the far side of a spin)
+    var hd = m.head[o.fi], f = faces[p.id], img = f && (p.dir === 'B' || p.dir === 'W' || (m.back && m.back[o.fi]) ? f.back : f.front);
     if (img && img.naturalWidth && hd) {
       // photo cut-outs with lots of hair around the face (headScale) are drawn wider so every face comes out the same size
       var hs = img === f.front && p.def && p.def.headScale || 1, hw = HEAD_M * o.ground.s * (p.bigHead || 1) * hs, hh = hw * img.naturalHeight / img.naturalWidth;
-      g.drawImage(img, (hd[0] - fx) * k - hw / 2, (hd[1] - fy) * k - hh * 0.8, hw, hh);
+      var hx = (hd[0] - fx) * k, hy = (hd[1] - fy) * k, rot = m.hrot && m.hrot[o.fi];
+      if (rot) { g.save(); g.translate(hx, hy); g.rotate(rot); g.drawImage(img, -hw / 2, -hh * 0.8, hw, hh); g.restore(); }   // head turns with a flip or a fall
+      else g.drawImage(img, hx - hw / 2, hy - hh * 0.8, hw, hh);
     }
   }
+  // where his ball hand is right now, in court meters (the ball rides in it through a fancy pass)
+  X.handWorld = function (p) {
+    var o = frameOf(p); if (!o) return null; var hd = o.m.hand[o.fi]; if (!hd) return null;
+    return { x: p.x + (o.flip ? -1 : 1) * (hd[0] - o.fx) / o.m.ppm, y: p.y + (o.fy - hd[1]) / o.m.ppm };
+  };
   // the polished floor mirrors the players faintly, like the arcade's glossy hardwood
   X.drawReflection = function (g, p) {
     var o = frameOf(p); if (!o) return;
