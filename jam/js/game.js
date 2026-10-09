@@ -143,16 +143,17 @@ window.HW = window.HW || {};
     var air = p.state === 'shoot';
     if (air) { if (p.released) return; p.state = 'idle'; }
     var b = G.ball, d = dist(p, to), pr = p.def.stats.pass || 5, style = null;
-    if (!air && p.grounded() && (to.x - p.x) * p.face < 0.3 * d && Math.random() < clamp((pr - 4) * 0.1, 0, 0.55)) {
+    // showboat: good passers turn their back on the target and throw it out the back - about half of a 10 passer's passes, any direction
+    if (!air && p.grounded() && Math.random() < clamp((pr - 5) * 0.1, 0, 0.5)) {
       var opts = ['back', 'nolook']; if (d < 9) opts.push('legs'); if (d > 3) opts.push('head'); style = pick(opts);
     }
-    if (!style) p.face = to.x >= p.x ? 1 : -1;   // fancy passes go out the back, so he keeps facing the way he was going
+    p.face = (to.x >= p.x ? 1 : -1) * (style ? -1 : 1);
     p.state = 'pass'; p.st = 0; p.passStyle = style; p.hasBall = false; b.holder = null; b.state = 'pass'; b.last = p;
     var f = p.face, o = style === 'back' ? [-0.35, 1.0] : style === 'legs' ? [-0.15, 0.5] : style === 'head' ? [-0.1, p.def.height + 0.25] : style === 'nolook' ? [-0.25, 1.25] : [0.3, 1.3 + p.y];
     var miss = Math.max(0, 7 - pr) * 0.12, lead = 0.2 + 0.01 * pr;
     b.pass = { from: p, to: to, t: 0, T: Math.max(0.16, d / (15 + 0.8 * pr)), x0: p.x + f * o[0], y0: o[1], z0: p.z - 0.2, x1: to.x + to.vx * lead + (Math.random() - 0.5) * 2 * miss, z1: to.z + to.vz * lead + (Math.random() - 0.5) * miss, y1: 1.3,
-      arc: style === 'head' ? 1.1 : 0.5, bounce: style === 'legs', safe: clamp(1.3 - 0.08 * pr, 0.45, 1.2) };
-    if (style) { G.say(FANCY[style], '#7ee0ff', 0.9, 0.6); X.hype = Math.max(X.hype, 0.7); Au.whoosh(7); } else Au.whoosh(4);
+      arc: style === 'head' ? 1.1 : 0.5, bounce: style === 'legs', safe: clamp(1.3 - 0.08 * pr, 0.45, 1.2), style: style };
+    if (style) { G.say(FANCY[style], '#7ee0ff', 1.3, 0.85); X.hype = Math.max(X.hype, 0.7); Au.whoosh(7); } else Au.whoosh(4);
   };
   G.trySteal = function (p) {
     if (p.cd.steal > 0 || p.busy()) return; p.cd.steal = 0.55; p.state = 'steal'; p.st = 0;
@@ -283,7 +284,7 @@ window.HW = window.HW || {};
   function humanControl(p, dt, In, live) {
     if (!live) { move(p, 0, 0, false, dt); return; }
     move(p, In.mx, In.mz, In.turbo, dt);
-    if (Math.abs(p.vx) > 1.0 && p.state !== 'shoot') p.face = p.vx > 0 ? 1 : -1;   // a little sideways drift while running up or down doesn't flip him
+    if (Math.abs(p.vx) > 1.0 && p.state !== 'shoot' && p.state !== 'pass') p.face = p.vx > 0 ? 1 : -1;   // a little sideways drift while running up or down doesn't flip him
     var holder = G.ball.holder, mate = G.mates(p)[0];
     // shove: the touch SHOVE button, or TURBO + PASS on a keyboard (stick turbo never turns a pass or steal into a shove)
     var shove = In.actDown || (In.passDown && In.comboTurbo);
@@ -355,6 +356,7 @@ window.HW = window.HW || {};
     if (b.state === 'pass') {
       var ps = b.pass, v = Math.min(1, (ps.t += dt) / ps.T);
       var px = ps.x0 + (ps.x1 - ps.x0) * v, pz = ps.z0 + (ps.z1 - ps.z0) * v, py = ps.y0 + (ps.y1 - ps.y0) * v + ps.arc * 4 * v * (1 - v);
+      if (ps.style && Math.random() < 0.8) X.burst(px, py, pz, 1, ['#ffffff', '#7ee0ff', '#ffd23f'], 0.5, 0.35, 0);   // sparkle trail on a fancy pass
       if (ps.bounce) { var vb = 0.42; if (v < vb) py = ps.y0 + (0.15 - ps.y0) * (v / vb); else { var w = (v - vb) / (1 - vb); py = 0.15 + (ps.y1 - 0.15) * w + 0.35 * 4 * w * (1 - w); if (!ps.bounced) { ps.bounced = true; Au.bounce(5); } } }
       b.vx = (px - b.x) / dt; b.vz = (pz - b.z) / dt; b.vy = (py - b.y) / dt; b.x = px; b.z = pz; b.y = py;
       // interceptions
@@ -363,7 +365,9 @@ window.HW = window.HW || {};
       G.opps(ps.from).forEach(function (q) { if (!thief && v > 0.2 && v < 0.9 && q.state !== 'fall' && ps.tried.indexOf(q) < 0 && Math.hypot(q.x - b.x, q.z - b.z) < 0.55 && b.y < q.y + q.reach) thief = q; });
       if (thief) ps.tried.push(thief);
       if (thief && Math.random() < (thief.human ? 0.75 : 0.5 * G.diff.steal) * ps.safe) { thief.stats.steals++; G.give(thief); G.say('INTERCEPTED!', '#7ee0ff', 1.1); Au.steal(); return; }
-      if (v >= 1) { if (ps.to.state !== 'fall' && dist(ps.to, b) < 1.4) { G.give(ps.to); ps.to.assist = { by: ps.from, t: G.t }; Au.click(); } else { b.state = 'loose'; b.vy = 0; } }
+      // the receiver catches it as soon as it reaches him near the end of the flight
+      if (v > 0.7 && ps.to.state !== 'fall' && dist(ps.to, b) < 0.8 && b.y < ps.to.y + ps.to.reach) v = 1;
+      if (v >= 1) { if (ps.to.state !== 'fall' && dist(ps.to, b) < 1.6) { G.give(ps.to); ps.to.assist = { by: ps.from, t: G.t }; Au.click(); } else { b.state = 'loose'; b.vy = 0; } }
       return;
     }
     // loose ball physics + pickups
