@@ -39,7 +39,8 @@ window.HW = window.HW || {};
       if (G.canDunk(p) && a.hold > 0.5 && (open ? Math.random() < 0.4 + p.def.stats.dunk * 0.02 : Math.random() < 0.06 + p.def.stats.dunk * 0.01) * G.diff.shoot) { G.startDunk(p); return; }
       if (mate && a.hold > 0.7 && !late && !mate.human) {
         var mo = nearest(mate, G.opps(mate)).d, md = Math.hypot(mate.x - rx, mate.z - K.HZ);
-        if ((opp.d < 1.3 && mo > 1.8 && Math.random() < 0.5) || (mo > 2.5 && md < d - 1.5 && Math.random() < 0.2)) { G.passTo(p, mate); return; }
+        var pk = 0.6 + 0.08 * (p.def.stats.pass || 5);   // good passers look for the open man more
+        if ((opp.d < 1.3 && mo > 1.8 && Math.random() < 0.5 * pk) || (mo > 2.5 && md < d - 1.5 && Math.random() < 0.2 * pk)) { G.passTo(p, mate); return; }
       }
       if (mate && mate.human && a.hold > 2.8 && nearest(mate, G.opps(mate)).d > 2 && Math.random() < 0.25) { G.passTo(p, mate); return; }
       var rng = RANGE[type] + (p.def.stats.tp - 5) * 0.12;

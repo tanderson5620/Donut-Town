@@ -82,6 +82,23 @@ var ANIMS = {
     { crouch: 0.1, lean: 0.2, rs: 1.2, ls: 1.2, re: 1.7, le: 1.7, rz: 0.15, lz: 0.15 },
     { crouch: 0.1, lean: 0.35, rs: 1.55, ls: 1.55, re: 0.15, le: 0.15, rz: 0.05, lz: 0.05, rt: 0.35, rk: 0.4 },
     { crouch: 0.08, lean: 0.25, rs: 1.3, ls: 1.2, re: 0.5, le: 0.6, rt: 0.2, rk: 0.3 }][i]; } },
+  // fancy passes (good passers), all thrown out the back to a teammate behind him
+  pass_back:   { n: 3, dirs: ['R'], f: function (t, i) { return [                                   // behind the back
+    { crouch: 0.12, lean: 0.25, rs: -0.2, re: 1.0, rz: 0.25, ls: 0.6, le: 0.9, lz: 0.2, twist: 0.35, rt: 0.2, rk: 0.35 },
+    { crouch: 0.12, lean: 0.3, rs: -0.95, re: 1.55, rz: -0.25, ls: 0.5, le: 0.8, lz: 0.25, twist: -0.25, rt: 0.25, rk: 0.4 },
+    { crouch: 0.1, lean: 0.25, rs: -1.1, re: 1.9, rz: -0.45, ls: 0.45, le: 0.7, lz: 0.25, twist: -0.4, rt: 0.2, rk: 0.35 }][i]; } },
+  pass_legs:   { n: 3, dirs: ['R'], f: function (t, i) { return [                                   // through the legs (bounce pass)
+    { crouch: 0.32, lean: 0.6, rs: 0.25, re: 0.25, rz: -0.25, ls: 0.4, le: 0.7, lz: 0.4, rt: 0.35, lt: 0.35, rk: 0.7, lk: 0.7, ra: 0.35, la: 0.35 },
+    { crouch: 0.34, lean: 0.75, rs: -0.25, re: 0.1, rz: -0.35, ls: 0.4, le: 0.7, lz: 0.45, rt: 0.4, lt: 0.4, rk: 0.75, lk: 0.75, ra: 0.38, la: 0.38 },
+    { crouch: 0.3, lean: 0.65, rs: -0.6, re: 0.2, rz: -0.3, ls: 0.35, le: 0.6, lz: 0.45, rt: 0.35, lt: 0.35, rk: 0.7, lk: 0.7, ra: 0.35, la: 0.35 }][i]; } },
+  pass_head:   { n: 3, dirs: ['R'], f: function (t, i) { return [                                   // backwards over the head
+    { crouch: 0.15, lean: 0.05, rs: 2.5, ls: 2.5, re: 1.7, le: 1.7, rz: 0.15, lz: 0.15, rt: 0.2, lt: 0.2, rk: 0.4, lk: 0.4 },
+    { crouch: 0.05, lean: -0.25, rs: 3.2, ls: 3.2, re: 0.7, le: 0.7, rz: 0.12, lz: 0.12, rk: 0.15, lk: 0.15 },
+    { crouch: 0.03, lean: -0.32, rs: 3.5, ls: 3.5, re: 0.2, le: 0.2, rz: 0.1, lz: 0.1, rk: 0.1, lk: 0.1 }][i]; } },
+  pass_nolook: { n: 3, dirs: ['R'], f: function (t, i) { return [                                   // no-look flick out the back
+    { crouch: 0.1, lean: 0.2, rs: 1.0, re: 1.5, rz: 0.3, ls: 0.6, le: 1.0, lz: 0.25, twist: 0.25 },
+    { crouch: 0.1, lean: 0.25, rs: 0.1, re: 0.3, rz: 1.1, ls: 0.6, le: 1.0, lz: 0.25, twist: -0.3 },
+    { crouch: 0.08, lean: 0.2, rs: -0.5, re: 0.2, rz: 0.9, ls: 0.5, le: 0.9, lz: 0.25, twist: -0.45 }][i]; } },
   steal:   { n: 3, dirs: ['R', 'F'], f: function (t, i) { return [
     { crouch: 0.25, lean: 0.35, rs: 1.3, re: 0.6, rz: 0.7, ls: 0.5, le: 0.8, lz: 0.5, rt: 0.4, rk: 0.8, lt: 0.2, lk: 0.6 },
     { crouch: 0.3, lean: 0.5, rs: 1.4, re: 0.1, rz: -0.3, ls: 0.6, le: 0.8, lz: 0.5, rt: 0.6, rk: 0.9, lt: 0.1, lk: 0.6, twist: -0.3 },
