@@ -82,7 +82,9 @@ window.HW = window.HW || {};
         if (p.def.type === 'strength' && Math.random() < 0.3 * G.diff.shove) G.tryShove(p); else G.trySteal(p);
       }
       if (holder.state === 'shoot' && dh < 2.2 && p.grounded() && !a.jumped && Math.random() < (0.35 + 0.05 * p.def.stats.block) * G.diff.block) { a.jumped = true; G.jump(p); }
-      if (holder.state !== 'shoot') a.jumped = false;
+      // meet a dunker in the air: go up as he takes off if he's coming past
+      if (holder.state === 'dunk' && dh < 3.2 && p.grounded() && !a.jumped) { a.jumped = true; if (Math.random() < (0.3 + 0.05 * p.def.stats.block) * G.diff.block) G.jump(p); }
+      if (holder.state !== 'shoot' && holder.state !== 'dunk') a.jumped = false;
     } else {
       var man = G.opps(p).filter(function (o) { return o !== holder; })[0] || holder;
       var ox = rx - man.x, oz = K.HZ - man.z, od = Math.hypot(ox, oz) || 1;

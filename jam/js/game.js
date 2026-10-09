@@ -111,15 +111,18 @@ window.HW = window.HW || {};
   };
   G.startDunk = function (p) {
     var rx = rimX(p.team), s = side(p.team), dk = p.def.stats.dunk;
-    p.state = 'dunk'; p.st = 0; p.dk = { T: 0.95 + (dk >= 9 ? 0.25 : 0), x0: p.x, z0: p.z, x1: rx - s * 0.5, z1: K.HZ + 0.05, peak: 1.3 + dk * 0.13 + (p.onFire ? 0.4 : 0), slam: false, spin: dk >= 8 && Math.random() < 0.5 };
+    // big arcade hang time: the slam comes two thirds of the way through, so a defender who meets him in the air can reject it
+    p.state = 'dunk'; p.st = 0; p.dk = { T: 1.05 + (dk >= 9 ? 0.25 : 0) + (p.onFire ? 0.15 : 0), x0: p.x, z0: p.z, x1: rx - s * 0.5, z1: K.HZ + 0.05, peak: 1.0 + dk * 0.08 + (p.onFire ? 0.3 : 0), slam: false, spin: dk >= 8 && Math.random() < 0.5 };
     p.face = s; Au.jump(); Au.whoosh(9);
   };
+  var DUNK_SLAM = 0.66;
   function updateDunk(p, dt) {
-    var k = p.dk, u = (p.st += dt) / k.T, e = 1 - Math.pow(1 - Math.min(1, u / 0.62), 3);
+    // he glides to the rim (eased in and out over the first 60%), so a defender in his path has time to get up and meet him
+    var k = p.dk, u = p.st / k.T, e0 = Math.min(1, u / 0.6), e = e0 * e0 * (3 - 2 * e0);   // p.st is advanced once in physics() (it used to be counted twice, so dunks ran at double speed)
     p.x = k.x0 + (k.x1 - k.x0) * e; p.z = k.z0 + (k.z1 - k.z0) * e; p.y = Math.max(0, k.peak * Math.sin(Math.PI * Math.min(1, u)) * (u > 0.62 && u < 0.82 ? 1.02 : 1));
     if (k.spin && u > 0.18 && u < 0.5) p.face = Math.floor(u * 22) % 2 ? side(p.team) : -side(p.team); else p.face = side(p.team);
     p.anim = 'dunk'; p.dir = 'R'; p.frame = u < 0.12 ? 0 : u < 0.3 ? 1 : u < 0.5 ? 2 : u < 0.64 ? 3 : u < 0.82 ? 4 : 5;
-    if (u >= 0.6 && !k.slam) {
+    if (u >= DUNK_SLAM && !k.slam) {
       k.slam = true; var b = G.ball; p.hasBall = false; b.holder = null; b.state = 'through'; b.x = rimX(p.team); b.z = K.HZ; b.y = K.RIM_H - 0.05; b.vy = -5; b.vx = b.vz = 0;
       p.stats.dunks++; G.scored(p, 2, true);
       X.shake = 1.4; X.hype = 3; Au.dunk(); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
@@ -180,13 +183,18 @@ window.HW = window.HW || {};
   G.missed = function (info) { info.by.streak = 0; };
   // your odds on a block try: 75-95% right on him (by block rating), dropping off toward the edge of your reach
   G.humanBlock = function (q, d) { return clamp(0.66 + 0.035 * q.def.stats.block - 0.25 * Math.max(0, d - 0.7), 0.35, 0.95); };
+  // a rejected dunk: the dunker crashes to the floor and the blocker comes down with the ball
+  G.rejectDunk = function (q, dk) {
+    dk.dk = null; dk.state = 'fall'; dk.st = 0; dk.vy = 0; dk.vx *= 0.3; dk.vz *= 0.3; dk.face = -side(dk.team);
+    G.blocked(q, dk, null, 'REJECTED!'); X.shake = 1; X.hype = Math.max(X.hype, 2.4); Au.thud();
+  };
   // a block: the shot is dead and the blocker comes down with the ball
-  G.blocked = function (q, shooter, info) {
+  G.blocked = function (q, shooter, info, text) {
     var b = G.ball; q.stats.blocks++;
     if (info) G.missed(info); else { shooter.streak = 0; shooter.released = true; }
     X.burst(b.x, b.y, b.z, 14, ['#ffffff', '#ffd23f', '#ff6b6b'], 3, 0.5);
     G.give(q); q.cd.catch = 0;
-    G.say(pick(HW.PHRASES.block), '#ff6b6b', 1.3); Au.board(); X.shake = 0.6; X.hype = Math.max(X.hype, 1.6);
+    G.say(text || pick(HW.PHRASES.block), '#ff6b6b', 1.3, text ? 1.2 : 1); Au.board(); X.shake = 0.6; X.hype = Math.max(X.hype, 1.6);
   };
 
   /* ---------- per frame ---------- */
@@ -277,6 +285,17 @@ window.HW = window.HW || {};
     b.fire = !!((b.holder && b.holder.onFire) || (b.shotInfo && b.shotInfo.by.onFire && b.state === 'shot'));
     if (b.state === 'held') {
       ballAtHolder(b.holder, dt);
+      // reject a dunk: anyone in the air who gets to the ball after take-off and before the slam (one try per jump)
+      var dk = b.holder;
+      if (dk.state === 'dunk' && dk.dk && !dk.dk.slam && dk.st / dk.dk.T > 0.1) G.opps(dk).forEach(function (q) {
+        if (b.holder !== dk || dk.state !== 'dunk' || q.y < 0.2 || q.cd.block) return;
+        var hum = q.human, d = Math.hypot(q.x - b.x, q.z - b.z);
+        if (d < (hum ? 1.4 : 1.1) && b.y < q.y + q.reach + (hum ? 1.4 : 1.3)) {
+          q.cd.block = 1;
+          var c = hum ? clamp(0.55 + 0.035 * q.def.stats.block - 0.025 * (dk.def.stats.dunk - 5) - 0.25 * Math.max(0, d - 0.7), 0.2, 0.9) : (0.08 + 0.025 * q.def.stats.block) * G.diff.block;
+          if (Math.random() < c) G.rejectDunk(q, dk);
+        }
+      });
       // swat it out of a shooter's hands on the way up: you, in the air, close enough to reach the ball
       var sh = b.holder;
       if (sh.state === 'shoot' && !sh.released && sh.y > 0.1) G.opps(sh).forEach(function (q) {
