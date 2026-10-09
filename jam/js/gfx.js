@@ -283,6 +283,31 @@ window.HW = window.HW || {};
   X.flame = function (x, y, z, n, spread) {
     for (var i = 0; i < n; i++) { var w = spread || 0.1, l = 0.25 + Math.random() * 0.2; parts.push({ x: x + (Math.random() - 0.5) * w, y: y + (Math.random() - 0.5) * w, z: z + (Math.random() - 0.5) * w * 0.5, vx: (Math.random() - 0.5) * 0.5, vy: 0.9 + Math.random() * 1.1, vz: 0, life: l, max: l, g: -1.5, sz: 0.045 + Math.random() * 0.04, flame: true }); }
   };
+  // a little blood on the court: a few drops and a small pool that spreads, darkens and fades
+  var pools = [];
+  X.blood = function (x, z, amt) {
+    for (var i = 0; i < 10 * amt; i++) { var a = Math.random() * 6.283, s = 0.6 + Math.random() * 1.6; parts.push({ x: x, y: 0.35, z: z, vx: Math.cos(a) * s, vy: 1 + Math.random() * 2.5, vz: Math.sin(a) * s * 0.5, c: ['#8f0b0b', '#b31212', '#6e0707'][i % 3], life: 0.5 + Math.random() * 0.4, g: 9, sz: 0.035 + Math.random() * 0.03 }); }
+    pools.push({ x: x, z: z, r: 0, max: 0.2 + 0.1 * amt, t: 0, life: 14, sx: 1 + Math.random() * 0.4 });
+    if (pools.length > 6) pools.shift();
+  };
+  X.clearBlood = function () { pools = []; };
+  // where a knocked-down player's head ends up on the floor (court x), from the last frame of his fall animation
+  X.fallHeadX = function (p) {
+    var sh = sheets[p.id], m = sh && sh.meta; if (!m || !m.anim.fall) return p.x - p.face * 1.4;
+    var list = m.anim.fall.R, fi = list[list.length - 1], hd = m.head[fi], off = m.off && m.off[fi], fx = m.feet[0] + (off ? off[0] : 0);
+    return p.x + (p.face < 0 ? -1 : 1) * (hd[0] - fx) / m.ppm;
+  };
+  X.pools = function () { return pools; };
+  function drawPools(g, dt) {
+    for (var i = pools.length - 1; i >= 0; i--) {
+      var q = pools[i]; q.t += dt; if (q.t > q.life) { pools.splice(i, 1); continue; }
+      q.r = q.max * Math.min(1, q.t / 1.6); var p = X.proj(q.x, 0, q.z), rx = q.r * p.s * q.sx, ry = q.r * p.s * 0.24, a = Math.min(1, (q.life - q.t) / 3);
+      g.globalAlpha = 0.85 * a; g.fillStyle = '#5e0606'; g.beginPath(); g.ellipse(p.x, p.y, rx, ry, 0, 0, 6.283); g.fill();
+      g.fillStyle = '#8a0c0c'; g.beginPath(); g.ellipse(p.x - rx * 0.15, p.y - ry * 0.2, rx * 0.6, ry * 0.55, 0, 0, 6.283); g.fill();
+      g.fillStyle = 'rgba(255,200,200,0.35)'; g.fillRect(p.x - rx * 0.35, p.y - ry * 0.45, Math.max(1, rx * 0.18), 1);
+      g.globalAlpha = 1;
+    }
+  }
   X.drawParts = function (g, dt) {
     for (var i = parts.length - 1; i >= 0; i--) {
       var q = parts[i]; q.life -= dt; if (q.life <= 0) { parts.splice(i, 1); continue; }
@@ -304,7 +329,7 @@ window.HW = window.HW || {};
   X.drawScene = function (g, t, dt, players, ball, hoopFx) {
     X.shake = Math.max(0, X.shake - dt * 3); X.shakeX = (Math.random() - 0.5) * X.shake * 10; X.shakeY = (Math.random() - 0.5) * X.shake * 8;
     X.hype = Math.max(0, X.hype - dt * 0.7);
-    drawCrowd(g, t, dt); drawFloor(g);
+    drawCrowd(g, t, dt); drawFloor(g); drawPools(g, dt);
     players.forEach(function (p) { X.drawReflection(g, p); if (p.onFire && dt > 0 && Math.random() < 0.5) X.flame(p.x + (Math.random() - 0.5) * 0.5, p.y + 0.05, p.z - 0.1, 1, 0.3); });
     var items = players.map(function (p) { return { z: p.z, draw: function () { X.drawPlayer(g, p); } }; });
     [-1, 1].forEach(function (side) {
