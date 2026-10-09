@@ -306,8 +306,9 @@ window.HW = window.HW || {};
   // a little blood on the court: a few drops and a small pool that spreads, darkens and fades
   var pools = [];
   X.blood = function (x, z, amt) {
-    for (var i = 0; i < 10 * amt; i++) { var a = Math.random() * 6.283, s = 0.6 + Math.random() * 1.6; parts.push({ x: x, y: 0.35, z: z, vx: Math.cos(a) * s, vy: 1 + Math.random() * 2.5, vz: Math.sin(a) * s * 0.5, c: ['#8f0b0b', '#b31212', '#6e0707'][i % 3], life: 0.5 + Math.random() * 0.4, g: 9, sz: 0.035 + Math.random() * 0.03 }); }
-    pools.push({ x: x, z: z, r: 0, max: 0.2 + 0.1 * amt, t: 0, life: 14, sx: 1 + Math.random() * 0.4 });
+    for (var i = 0; i < 16 * amt; i++) { var a = Math.random() * 6.283, s = 0.6 + Math.random() * 1.8; parts.push({ x: x, y: 0.35, z: z - 0.2, vx: Math.cos(a) * s, vy: 1 + Math.random() * 2.5, vz: Math.sin(a) * s * 0.5, c: ['#8f0b0b', '#b31212', '#6e0707'][i % 3], life: 0.5 + Math.random() * 0.4, g: 9, sz: 0.04 + Math.random() * 0.035 }); }
+    // the pool spreads out from under his head toward the camera, so the head doesn't hide it
+    pools.push({ x: x, z: z - 0.35, r: 0, max: 0.32 + 0.12 * amt, t: 0, life: 14, sx: 1.2 + Math.random() * 0.4 });
     if (pools.length > 6) pools.shift();
   };
   X.clearBlood = function () { pools = []; };
@@ -321,7 +322,7 @@ window.HW = window.HW || {};
   function drawPools(g, dt) {
     for (var i = pools.length - 1; i >= 0; i--) {
       var q = pools[i]; q.t += dt; if (q.t > q.life) { pools.splice(i, 1); continue; }
-      q.r = q.max * Math.min(1, q.t / 1.6); var p = X.proj(q.x, 0, q.z), rx = q.r * p.s * q.sx, ry = q.r * p.s * 0.24, a = Math.min(1, (q.life - q.t) / 3);
+      q.r = q.max * Math.min(1, q.t / 1.1); var p = X.proj(q.x, 0, q.z), rx = q.r * p.s * q.sx, ry = q.r * p.s * 0.3, a = Math.min(1, (q.life - q.t) / 3);
       g.globalAlpha = 0.85 * a; g.fillStyle = '#5e0606'; g.beginPath(); g.ellipse(p.x, p.y, rx, ry, 0, 0, 6.283); g.fill();
       g.fillStyle = '#8a0c0c'; g.beginPath(); g.ellipse(p.x - rx * 0.15, p.y - ry * 0.2, rx * 0.6, ry * 0.55, 0, 0, 6.283); g.fill();
       g.fillStyle = 'rgba(255,200,200,0.35)'; g.fillRect(p.x - rx * 0.35, p.y - ry * 0.45, Math.max(1, rx * 0.18), 1);
