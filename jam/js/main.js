@@ -18,7 +18,7 @@ window.HW = window.HW || {};
     try { document.fonts.load('16px "Press Start 2P"').then(function () { X.rebuild(); }); } catch (e) { }
     Object.keys(HW.PLAYERS).forEach(function (id) { X.loadFace(id); });
     G.phase = 'menu'; UI.screen = 'title';
-    if (/[?&]quick/.test(location.search)) { UI.st = { team: 0, picks: ['alan', 'carl'], ctrl: 'alan', diff: 'normal' }; UI.matchup(); }
+    if (/[?&]quick/.test(location.search)) { UI.st = { team: 0, picks: ['alan', 'carl'], ctrl: 'alan', diff: 'normal', qlen: UI.st.qlen || 60 }; UI.matchup(); }
     requestAnimationFrame(loop);
   }
   var idleT = 0;

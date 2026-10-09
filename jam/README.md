@@ -20,6 +20,8 @@ Play: `https://<your-user>.github.io/<repo>/jam/`. On iPhone, Share > Add to Hom
 
 Ratings (1-10): SPD, POWER, 3PTS, STEAL, DUNK, BLOCK and PASS. POWER wins shoves, dunk rejections (a stronger blocker flattens the dunker for 2 s), posterizes and box-outs. PASS makes passes faster, truer and harder to intercept, and good passers throw fancy ones (behind the back, through the legs, no-look, over the head) to a teammate behind them.
 
+Four quarters of 1:00 (default), 1:30, 2:00 or 3:00, picked on the team card and remembered on the device; overtime is half a quarter (30-60 s).
+
 Three straight baskets by one player sets him on fire (flaming ball, unlimited turbo, near-automatic shots) until the other team scores. Goaltending is legal, shoving is encouraged.
 
 ## How the players are made

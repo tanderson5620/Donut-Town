@@ -3,7 +3,7 @@ window.HW = window.HW || {};
 (function (HW) {
   var X = HW.GFX, K = X.K, Au = HW.Audio;
   var G = HW.Jam = { players: [], phase: 'menu', score: [0, 0], q: 1, clock: 0, shot: 24, t: 0, poss: 0, callouts: [], hoopFx: [0, 0] };
-  var GRAV = 13, QUARTER = 180, OT = 60;
+  var GRAV = 13, QUARTER = 60, OT = 30;   // quarter length is picked on the team card (1:00, 1:30, 2:00 or 3:00); overtime is half a quarter, 30-60 s
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function rand(a, b) { return a + Math.random() * (b - a); }
   function pick(a) { return a[(Math.random() * a.length) | 0]; }
@@ -30,6 +30,7 @@ window.HW = window.HW || {};
     X.clearBlood();
     if (HW.TOUCH && !G.tipShown) { G.tipShown = true; G.tipT = 1.2; }   // first game on a phone: show where turbo went
     G.setup = setup; G.players = []; G.diff = HW.DIFFICULTY[setup.diff || 'normal'];
+    QUARTER = setup.qlen || 60; OT = clamp(Math.round(QUARTER / 2), 30, 60);
     setup.teams.forEach(function (ids, team) { ids.forEach(function (id, i) { var p = new Player(id, team, i, id === setup.human); G.players.push(p); if (p.human) G.human = p; }); });
     G.humanTeam = G.human.team; G.score = [0, 0]; G.q = 1; G.callouts = []; G.ball = { x: 0, y: 1, z: 7, vx: 0, vy: 0, vz: 0, state: 'loose', holder: null, visible: true, fire: false };
     G.beginQuarter();

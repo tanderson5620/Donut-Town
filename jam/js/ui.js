@@ -3,7 +3,11 @@
 window.HW = window.HW || {};
 (function (HW) {
   var X = HW.GFX, Au = HW.Audio, Fo = HW.Font;
-  var UI = HW.JamUI = { screen: 'title', btns: [], st: { team: 0, picks: [], ctrl: null, diff: 'normal' }, t: 0 };
+  var UI = HW.JamUI = { screen: 'title', btns: [], st: { team: 0, picks: [], ctrl: null, diff: 'normal', qlen: 60 }, t: 0 };
+  // quarter length is remembered on this device
+  var QLENS = [60, 90, 120, 180];
+  try { var ql = +localStorage.getItem('hoopsjam.qlen'); if (QLENS.indexOf(ql) >= 0) UI.st.qlen = ql; } catch (e) { }
+  function clockText(s) { return Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60); }
   var In = HW.In = { mx: 0, mz: 0, turbo: false, shootHeld: false, shootDown: false, shootUp: false, passDown: false, pauseDown: false, tap: null, keys: {}, touchMove: { x: 0, y: 0 }, stickTurbo: false, comboTurbo: false, actDown: false, nav: null };
   var CY = '#22c4f2', PB = '#262a8c', P1C = '#2fd85a';
 
@@ -460,11 +464,15 @@ window.HW = window.HW || {};
       tab(g, cxp, divY - 8, me ? 'P1' : 'CPU', me ? '#ffd23f' : '#5a5e7a', me);
       UI.btns.push({ id: 'ctrl' + slot, x: x, y: pTop, w: PWd, h: pH, fn: function () { if (st.ctrl !== id) { st.ctrl = id; Au.click(); } } });
     });
-    if (blink(1.2)) Fo.draw(g, 'TAP A NAME TO PLAY AS', mid, pTop + 14, { scale: 1, scheme: 'cyan', shadow: 0 });
+    if (blink(1.2)) Fo.draw(g, 'TAP A NAME TO PLAY AS', mid, pTop + 12, { scale: 1, scheme: 'cyan', shadow: 0 });
     var bw = Math.floor((ccw - 8) / 3);
-    DIFFS.forEach(function (dk, i) { button(g, 'd' + dk, ccx + i * (bw + 4), pTop + 26, bw, 22, dk.toUpperCase(), { on: st.diff === dk, size: 1, color: ['#1fb04c', '#ffc61a', '#e0302a'][i], fn: function () { st.diff = dk; } }); });
-    button(g, 'go', ccx, pTop + 56, ccw, 46, 'PLAY', { size: 3, fn: function () { UI.matchup(); } });
-    button(g, 'back', ccx + ccw / 2 - 40, pTop + 110, 80, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show('title'); } });
+    DIFFS.forEach(function (dk, i) { button(g, 'd' + dk, ccx + i * (bw + 4), pTop + 22, bw, 20, dk.toUpperCase(), { on: st.diff === dk, size: 1, color: ['#1fb04c', '#ffc61a', '#e0302a'][i], fn: function () { st.diff = dk; } }); });
+    // quarter length
+    Fo.draw(g, 'QUARTER LENGTH', mid, pTop + 52, { scale: 1, scheme: 'gray', shadow: 0 });
+    var qw = Math.floor((ccw - 12) / 4);
+    QLENS.forEach(function (q, i) { button(g, 'q' + q, ccx + i * (qw + 4), pTop + 60, qw, 20, clockText(q), { on: st.qlen === q, size: 1, color: '#22c4f2', fn: function () { st.qlen = q; try { localStorage.setItem('hoopsjam.qlen', q); } catch (e) { } } }); });
+    button(g, 'go', ccx, pTop + 88, ccw, 38, 'PLAY', { size: 3, fn: function () { UI.matchup(); } });
+    button(g, 'back', ccx + ccw / 2 - 40, pTop + 132, 80, 22, 'BACK', { on: false, size: 1, fn: function () { UI.show('title'); } });
     if (In.nav === 'ArrowLeft') switchTeam(-1); else if (In.nav === 'ArrowRight') switchTeam(1);
     else if (In.nav === 'ArrowUp' || In.nav === 'ArrowDown') cycle(st.picks.indexOf(st.ctrl), In.nav === 'ArrowUp' ? -1 : 1);
     if (In.enter) UI.matchup();
@@ -495,7 +503,7 @@ window.HW = window.HW || {};
     flaming(g, 'VS', mid, py + PH / 2, { scale: 4, scheme: 'fire', outline: 2, shadow: 3 }, fr);
     var e0 = emblem(order[0], 1), e1 = emblem(order[1], 1);
     if (vsW >= 64) { g.drawImage(e0, mid - 32, pTop + 4, 32, 32); g.drawImage(e1, mid, pTop + 50, 32, 32); }
-    Fo.draw(g, (HW.DIFFICULTY[m.diff] || { label: 'NORMAL' }).label, C.L + 14, stripY + 18, { scale: 1, scheme: 'gray', align: 'left', shadow: 0 });
+    Fo.draw(g, (HW.DIFFICULTY[m.diff] || { label: 'NORMAL' }).label + '   ' + clockText(m.qlen || 60) + ' QUARTERS', C.L + 14, stripY + 18, { scale: 1, scheme: 'gray', align: 'left', shadow: 0 });
     if (UI.loading) Fo.draw(g, 'LOADING...', mid, stripY + 18, { scale: 2, scheme: 'white' });
     else {
       if (blink()) Fo.draw(g, HW.TOUCH ? 'TAP TO TIP OFF' : 'CLICK TO TIP OFF', mid, stripY + 18, { scale: 2, scheme: 'yellow' });
@@ -507,7 +515,7 @@ window.HW = window.HW || {};
     var st = UI.st, T = HW.TEAMS, mate = st.picks.filter(function (id) { return id !== st.ctrl; })[0], teams = [null, null];
     var opp = T[1 - st.team].roster.slice().sort(function () { return Math.random() - 0.5; }).slice(0, 2);
     teams[st.team] = [st.ctrl, mate]; teams[1 - st.team] = opp;
-    UI.mu = { teams: teams, human: st.ctrl, diff: st.diff }; UI.screen = 'matchup'; UI.loading = true;
+    UI.mu = { teams: teams, human: st.ctrl, diff: st.diff, qlen: st.qlen || 60 }; UI.screen = 'matchup'; UI.loading = true;
     Promise.all(teams[0].concat(teams[1]).map(X.loadPlayer)).then(function () { UI.loading = false; });
   };
 
