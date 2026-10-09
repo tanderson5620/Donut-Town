@@ -329,16 +329,16 @@ window.HW = window.HW || {};
   UI.txt = function (g, s, x, y, size, col, align) { Fo.draw(g, s, x, y, { scale: Math.max(1, Math.round((size || 9) / 9)), color: col || '#fff', align: align || 'center' }); };
 
   /* ---------- stat panel (name, type, stats) like the arcade select screen ---------- */
-  var STATS = [['SPD', 'speed', 'POWER', 'str'], ['3PTS', 'tp', 'STEAL', 'steal'], ['DUNK', 'dunk', 'BLOCK', 'block']];
+  var STATS = [['SPD', 'speed', 'POWER', 'str'], ['3PTS', 'tp', 'STEAL', 'steal'], ['DUNK', 'dunk', 'BLOCK', 'block'], ['PASS', 'pass']];
   function statLines(g, d, x, y, w, sc, rowH) {
     var colon = true, lw1 = 0, lw2 = 0, vw = Fo.measure('10', sc);
-    function fit() { lw1 = 0; lw2 = 0; STATS.forEach(function (r) { lw1 = Math.max(lw1, Fo.measure(r[0] + (colon ? ':' : ''), sc)); lw2 = Math.max(lw2, Fo.measure(r[2] + (colon ? ':' : ''), sc)); }); return lw1 + lw2 + 2 * vw + 6 * sc + 4; }
+    function fit() { lw1 = 0; lw2 = 0; STATS.forEach(function (r) { lw1 = Math.max(lw1, Fo.measure(r[0] + (colon ? ':' : ''), sc)); if (r[2]) lw2 = Math.max(lw2, Fo.measure(r[2] + (colon ? ':' : ''), sc)); }); return lw1 + lw2 + 2 * vw + 6 * sc + 4; }
     if (fit() > w) { colon = false; if (fit() > w && sc > 1) { sc = 1; colon = true; vw = Fo.measure('10', 1); fit(); } }
     var tot = lw1 + lw2 + 2 * vw + 6 * sc, x0 = Math.round(x + (w - tot) / 2);
     STATS.forEach(function (r, i) {
       var yy = y + i * rowH, a = d.stats[r[1]], b = d.stats[r[3]], c1 = x0 + lw1, c2 = c1 + 2 * sc + vw + 4 * sc + lw2;
       Fo.draw(g, r[0] + (colon ? ':' : ''), c1, yy, { scale: sc, scheme: 'yellow', align: 'right' }); Fo.draw(g, String(a), c1 + 2 * sc, yy, { scale: sc, scheme: a >= 8 ? 'cyan' : 'white', align: 'left' });
-      Fo.draw(g, r[2] + (colon ? ':' : ''), c2, yy, { scale: sc, scheme: 'yellow', align: 'right' }); Fo.draw(g, String(b), c2 + 2 * sc, yy, { scale: sc, scheme: b >= 8 ? 'cyan' : 'white', align: 'left' });
+      if (r[2]) { Fo.draw(g, r[2] + (colon ? ':' : ''), c2, yy, { scale: sc, scheme: 'yellow', align: 'right' }); Fo.draw(g, String(b), c2 + 2 * sc, yy, { scale: sc, scheme: b >= 8 ? 'cyan' : 'white', align: 'left' }); }
     });
   }
 
@@ -455,7 +455,7 @@ window.HW = window.HW || {};
       var id = st.picks[slot], d = HW.PLAYERS[id], x = slot ? colR : colL, cxp = x + PWd / 2, me = st.ctrl === id;
       Fo.draw(g, d.first, cxp, pTop + 22, { scale: 2, scheme: 'white', shadowColor: Fo.shade(d.color, -0.4) });
       Fo.draw(g, HW.TYPES[d.type].label, cxp, pTop + 40, { scale: 1, color: d.color });
-      statLines(g, d, x + 2, pTop + 60, PWd - 4, 2, 22);
+      statLines(g, d, x + 2, pTop + 58, PWd - 4, 2, 20);
       Fo.draw(g, HW.TYPES[d.type].blurb, cxp, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
       tab(g, cxp, divY - 8, me ? 'P1' : 'CPU', me ? '#ffd23f' : '#5a5e7a', me);
       UI.btns.push({ id: 'ctrl' + slot, x: x, y: pTop, w: PWd, h: pH, fn: function () { if (st.ctrl !== id) { st.ctrl = id; Au.click(); } } });
@@ -487,7 +487,7 @@ window.HW = window.HW || {};
         if (k === 0) { g.fillStyle = CY; g.fillRect(x + PWm + 1, pTop, 2, stripY - pTop); }
         Fo.draw(g, d.first, cxp, pTop + 16, { scale: 2, scheme: 'white', shadowColor: Fo.shade(d.color, -0.4) });
         Fo.draw(g, HW.TYPES[d.type].label, cxp, pTop + 33, { scale: 1, color: d.color });
-        statLines(g, d, x + 2, pTop + 50, PWm - 4, 1, 13);
+        statLines(g, d, x + 2, pTop + 48, PWm - 4, 1, 12);
         tab(g, cxp, divY - 8, me ? 'P1' : 'CPU', me ? '#ffd23f' : '#5a5e7a', me);
       });
     });
@@ -525,7 +525,7 @@ window.HW = window.HW || {};
     flaming(g, T[w].name + ' WIN!', cx, C.T + 30, { scale: C.W > 560 ? 4 : 3, color: T[w].color, outline: 2, shadow: 2 }, fr);
     Fo.draw(g, G.score[0] + ' - ' + G.score[1], cx, C.T + 70, { scale: 3, scheme: 'white' });
     var px = C.L + 6, pw = C.W - 12, py = C.T + 90, ph = 160; bevel(g, px, py, pw, ph, '#000', CY, 3);
-    var cols = [['PTS', 0.47], ['FG', 0.56], ['3PT', 0.65], ['DNK', 0.74], ['STL', 0.83], ['BLK', 0.92]];
+    var cols = [['PTS', 0.44], ['FG', 0.52], ['3PT', 0.6], ['AST', 0.68], ['DNK', 0.76], ['STL', 0.84], ['BLK', 0.92]];
     Fo.draw(g, 'PLAYER', px + 46, py + 14, { scale: 1, scheme: 'cyan', align: 'left' });
     cols.forEach(function (c) { Fo.draw(g, c[0], px + pw * c[1], py + 14, { scale: 1, scheme: 'cyan' }); });
     G.players.slice().sort(function (a, b) { return a.team - b.team || a.slot - b.slot; }).forEach(function (p, i) {
@@ -534,7 +534,7 @@ window.HW = window.HW || {};
       g.drawImage(f, px + 12, y - 15);
       Fo.draw(g, p.def.first, px + 46, y, { scale: 2, color: p.def.color, align: 'left' });
       if (p.human) tab(g, px + 52 + Fo.measure(p.def.first, 2) + 16, y - 7, 'P1', '#ffd23f', true);
-      [sv.pts, sv.fgm + '/' + sv.fga, sv.tpm + '/' + sv.tpa, sv.dunks, sv.steals, sv.blocks].forEach(function (v, k) { Fo.draw(g, String(v), px + pw * cols[k][1], y, { scale: k === 1 || k === 2 ? 1 : 2, scheme: k ? 'white' : 'yellow' }); });
+      [sv.pts, sv.fgm + '/' + sv.fga, sv.tpm + '/' + sv.tpa, sv.ast, sv.dunks, sv.steals, sv.blocks].forEach(function (v, k) { Fo.draw(g, String(v), px + pw * cols[k][1], y, { scale: k === 1 || k === 2 ? 1 : 2, scheme: k ? 'white' : 'yellow' }); });
     });
     var bw = Math.min(220, (C.W - 30) / 2), by = py + ph + 10;
     button(g, 'again', cx - bw - 6, by, bw, Math.min(40, C.B - by - 2), 'REMATCH', { size: 2, fn: function () { UI.screen = null; HW.Jam.start(G.setup); } });

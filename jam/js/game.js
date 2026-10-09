@@ -20,7 +20,7 @@ window.HW = window.HW || {};
     this.x = 0; this.z = 7; this.y = 0; this.vx = 0; this.vz = 0; this.vy = 0; this.face = 1; this.dir = 'R';
     this.anim = 'idle'; this.frame = 0; this.state = 'idle'; this.st = 0; this.turbo = 100; this.turboOn = false;
     this.onFire = false; this.streak = 0; this.cd = { steal: 0, shove: 0, jump: 0, catch: 0, block: 0 }; this.flash = 0;
-    this.stats = { pts: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, dunks: 0, steals: 0, blocks: 0, shoves: 0 };
+    this.stats = { pts: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ast: 0, dunks: 0, steals: 0, blocks: 0, shoves: 0 };
     this.ai = { t: 0, spot: null, spotT: 0, hold: 0 };
   }
   Player.prototype.grounded = function () { return this.y <= 0.001 && this.vy === 0; };
@@ -57,7 +57,7 @@ window.HW = window.HW || {};
   G.give = function (p) {
     var b = G.ball, prev = G.poss;
     if (b.holder && b.holder !== p) b.holder.hasBall = false;
-    b.holder = p; p.hasBall = true; b.state = 'held'; b.shotInfo = null; b.pass = null; b.vx = b.vy = b.vz = 0;
+    b.holder = p; p.hasBall = true; b.state = 'held'; b.shotInfo = null; b.pass = null; b.vx = b.vy = b.vz = 0; p.assist = null;
     if (prev !== p.team) { G.poss = p.team; G.shot = 24; }
     p.ai.hold = 0; p.dribT = 0;
   };
@@ -114,7 +114,7 @@ window.HW = window.HW || {};
     var rx = rimX(p.team), s = side(p.team), dk = p.def.stats.dunk;
     // big arcade hang time: the slam comes two thirds of the way through, so a defender who meets him in the air can reject it
     p.state = 'dunk'; p.st = 0; p.dk = { T: 1.05 + (dk >= 9 ? 0.25 : 0) + (p.onFire ? 0.15 : 0), x0: p.x, z0: p.z, x1: rx - s * 0.5, z1: K.HZ + 0.05, peak: 1.0 + dk * 0.08 + (p.onFire ? 0.3 : 0), slam: false, spin: dk >= 8 && Math.random() < 0.5 };
-    p.face = s; Au.jump(); Au.whoosh(9);
+    p.face = s; p.stats.fga++; Au.jump(); Au.whoosh(9);   // a dunk is a field goal attempt (made ones already count in fgm)
   };
   var DUNK_SLAM = 0.66;
   function updateDunk(p, dt) {
@@ -135,13 +135,23 @@ window.HW = window.HW || {};
     if (u >= 1) { p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; }
   }
 
+  // PASS rating: faster, truer passes that are harder to pick off; good passers throw fancy ones to a teammate behind them
+  var FANCY = { back: 'BEHIND THE BACK!', legs: 'THROUGH THE LEGS!', head: 'OVER THE HEAD!', nolook: 'NO LOOK!' };
   G.passTo = function (p, to) {
     if (!p.hasBall || !to || p.state === 'dunk') return;
-    if (p.state === 'shoot') { if (p.released) return; p.state = 'idle'; }
-    var b = G.ball, d = dist(p, to);
-    p.state = 'pass'; p.st = 0; p.face = to.x >= p.x ? 1 : -1; p.hasBall = false; b.holder = null; b.state = 'pass'; b.last = p;
-    var lead = 0.25; b.pass = { from: p, to: to, t: 0, T: Math.max(0.18, d / 17), x0: p.x + p.face * 0.3, y0: 1.3 + p.y, z0: p.z - 0.2, x1: to.x + to.vx * lead, z1: to.z + to.vz * lead, y1: 1.3 };
-    Au.whoosh(4);
+    var air = p.state === 'shoot';
+    if (air) { if (p.released) return; p.state = 'idle'; }
+    var b = G.ball, d = dist(p, to), pr = p.def.stats.pass || 5, style = null;
+    if (!air && p.grounded() && (to.x - p.x) * p.face < 0.3 * d && Math.random() < clamp((pr - 4) * 0.1, 0, 0.55)) {
+      var opts = ['back', 'nolook']; if (d < 9) opts.push('legs'); if (d > 3) opts.push('head'); style = pick(opts);
+    }
+    if (!style) p.face = to.x >= p.x ? 1 : -1;   // fancy passes go out the back, so he keeps facing the way he was going
+    p.state = 'pass'; p.st = 0; p.passStyle = style; p.hasBall = false; b.holder = null; b.state = 'pass'; b.last = p;
+    var f = p.face, o = style === 'back' ? [-0.35, 1.0] : style === 'legs' ? [-0.15, 0.5] : style === 'head' ? [-0.1, p.def.height + 0.25] : style === 'nolook' ? [-0.25, 1.25] : [0.3, 1.3 + p.y];
+    var miss = Math.max(0, 7 - pr) * 0.12, lead = 0.2 + 0.01 * pr;
+    b.pass = { from: p, to: to, t: 0, T: Math.max(0.16, d / (15 + 0.8 * pr)), x0: p.x + f * o[0], y0: o[1], z0: p.z - 0.2, x1: to.x + to.vx * lead + (Math.random() - 0.5) * 2 * miss, z1: to.z + to.vz * lead + (Math.random() - 0.5) * miss, y1: 1.3,
+      arc: style === 'head' ? 1.1 : 0.5, bounce: style === 'legs', safe: clamp(1.3 - 0.08 * pr, 0.45, 1.2) };
+    if (style) { G.say(FANCY[style], '#7ee0ff', 0.9, 0.6); X.hype = Math.max(X.hype, 0.7); Au.whoosh(7); } else Au.whoosh(4);
   };
   G.trySteal = function (p) {
     if (p.cd.steal > 0 || p.busy()) return; p.cd.steal = 0.55; p.state = 'steal'; p.st = 0;
@@ -175,6 +185,8 @@ window.HW = window.HW || {};
   G.scored = function (p, pts, dunk) {
     var team = p.team, info = G.ball.shotInfo;
     G.score[team] += pts; p.stats.pts += pts; p.stats.fgm++; if (pts === 3) p.stats.tpm++;
+    if (p.assist && p.assist.by.team === team && G.t - p.assist.t < 5) p.assist.by.stats.ast++;   // a basket within 5 s of catching a teammate's pass
+    G.players.forEach(function (q) { q.assist = null; });
     p.streak++; if (!p.onFire && p.streak >= 3) { p.onFire = true; G.say(p.def.first.toUpperCase() + " IS ON FIRE!", '#ff6a1a', 2.2, 1.25); Au.fire(); }
     G.players.forEach(function (q) { if (q.team !== team) { if (q.onFire) G.say(q.def.first.toUpperCase() + ' COOLS OFF', '#9ad0ff', 1.2, 0.7); q.onFire = false; q.streak = 0; } });
     var txt = dunk ? pick(HW.PHRASES.dunk) : pts === 3 ? pick(HW.PHRASES.three) : info && info.quality === 'green' ? pick(HW.PHRASES.swish) : pick(HW.PHRASES.two);
@@ -291,6 +303,7 @@ window.HW = window.HW || {};
   function towardRim(p, In) { var rx = rimX(p.team), dx = rx - p.x, dz = K.HZ - p.z, d = Math.hypot(dx, dz) || 1, m = Math.hypot(In.mx, In.mz); return m < 0.2 || (In.mx * dx + In.mz * dz) / (d * m) > 0.3; }
 
   function updateBall(dt) {
+    if (!(dt > 0)) return;   // velocities below divide by dt
     var b = G.ball; b.noCatch = Math.max(0, (b.noCatch || 0) - dt); b.inFront = false;
     b.fire = !!((b.holder && b.holder.onFire) || (b.shotInfo && b.shotInfo.by.onFire && b.state === 'shot'));
     if (b.state === 'held') {
@@ -340,12 +353,16 @@ window.HW = window.HW || {};
     if (b.state === 'through') { b.y += b.vy * dt; b.vy -= GRAV * 0.5 * dt; b.inFront = true; if (b.y < 0.15) { b.y = 0.15; b.vy = 0; } return; }
     if (b.state === 'pass') {
       var ps = b.pass, v = Math.min(1, (ps.t += dt) / ps.T);
-      var px = ps.x0 + (ps.x1 - ps.x0) * v, pz = ps.z0 + (ps.z1 - ps.z0) * v, py = ps.y0 + (ps.y1 - ps.y0) * v + 0.5 * 4 * v * (1 - v);
+      var px = ps.x0 + (ps.x1 - ps.x0) * v, pz = ps.z0 + (ps.z1 - ps.z0) * v, py = ps.y0 + (ps.y1 - ps.y0) * v + ps.arc * 4 * v * (1 - v);
+      if (ps.bounce) { var vb = 0.42; if (v < vb) py = ps.y0 + (0.15 - ps.y0) * (v / vb); else { var w = (v - vb) / (1 - vb); py = 0.15 + (ps.y1 - 0.15) * w + 0.35 * 4 * w * (1 - w); if (!ps.bounced) { ps.bounced = true; Au.bounce(5); } } }
       b.vx = (px - b.x) / dt; b.vz = (pz - b.z) / dt; b.vy = (py - b.y) / dt; b.x = px; b.z = pz; b.y = py;
       // interceptions
-      var thief = null; G.opps(ps.from).forEach(function (q) { if (!thief && v > 0.2 && v < 0.9 && q.state !== 'fall' && Math.hypot(q.x - b.x, q.z - b.z) < 0.55 && b.y < q.y + q.reach) thief = q; });
-      if (thief && Math.random() < (thief.human ? 0.7 : 0.45 * G.diff.steal)) { thief.stats.steals++; G.give(thief); G.say('INTERCEPTED!', '#7ee0ff', 1.1); Au.steal(); return; }
-      if (v >= 1) { if (ps.to.state !== 'fall' && dist(ps.to, b) < 1.4) { G.give(ps.to); Au.click(); } else { b.state = 'loose'; b.vy = 0; } }
+      // one try per defender per pass (it used to roll every frame the ball was in reach, so a defender in the lane almost always got it)
+      var thief = null; ps.tried = ps.tried || [];
+      G.opps(ps.from).forEach(function (q) { if (!thief && v > 0.2 && v < 0.9 && q.state !== 'fall' && ps.tried.indexOf(q) < 0 && Math.hypot(q.x - b.x, q.z - b.z) < 0.55 && b.y < q.y + q.reach) thief = q; });
+      if (thief) ps.tried.push(thief);
+      if (thief && Math.random() < (thief.human ? 0.75 : 0.5 * G.diff.steal) * ps.safe) { thief.stats.steals++; G.give(thief); G.say('INTERCEPTED!', '#7ee0ff', 1.1); Au.steal(); return; }
+      if (v >= 1) { if (ps.to.state !== 'fall' && dist(ps.to, b) < 1.4) { G.give(ps.to); ps.to.assist = { by: ps.from, t: G.t }; Au.click(); } else { b.state = 'loose'; b.vy = 0; } }
       return;
     }
     // loose ball physics + pickups
@@ -377,10 +394,10 @@ window.HW = window.HW || {};
       case 'fall': p.anim = 'fall'; p.dir = 'R'; p.frame = Math.min(3, p.st / 0.12); return;
       case 'shoot': p.anim = 'shoot'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
       case 'jump': p.anim = 'jump'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.vy > 2 ? 1 : 2; return;
-      case 'pass': p.anim = 'pass'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); return;
+      case 'pass': p.anim = p.passStyle ? 'pass_' + p.passStyle : 'pass'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); return;
       case 'steal': p.anim = 'steal'; if (p.dir === 'B') p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); return;
       case 'shove': p.anim = 'shove'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); return;
-      case 'cheer': p.anim = 'cheer'; p.dir = 'F'; p.frame = (p.st * 8) % 4; return;
+      case 'cheer': p.anim = 'cheer'; p.dir = 'F'; p.frame = (G.t * 8) % 4; return;   // st is parked at -99 for the end-of-game cheer
     }
     var defending = b.holder && b.holder.team !== p.team && dist(p, b.holder) < 3;
     // stride rate follows the ground speed (depth speed counted at its true length), in real time so 120 Hz phones don't double it

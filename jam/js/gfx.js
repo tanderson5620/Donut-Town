@@ -216,8 +216,8 @@ window.HW = window.HW || {};
   var HEAD_M = 0.56;   // big digitized head width in meters (arcade proportions)
   function frameOf(p) {
     var sh = sheets[p.id]; if (!sh || !sh.meta) return null;
-    var m = sh.meta, A = m.anim[p.anim] || m.anim.idle, list = A[p.dir] || A.R || A[Object.keys(A)[0]];
-    var fi = list[Math.min(list.length - 1, Math.floor(p.frame) % list.length)], ground = X.proj(p.x, 0, p.z);
+    var m = sh.meta, A = m.anim[p.anim] || (p.anim && p.anim.indexOf('pass_') === 0 && m.anim.pass) || m.anim.idle, list = A[p.dir] || A.R || A[Object.keys(A)[0]];
+    var n = list.length, fr = Math.floor(p.frame) || 0, fi = list[Math.min(n - 1, ((fr % n) + n) % n)], ground = X.proj(p.x, 0, p.z);   // never a negative or NaN frame
     // off: frames rendered slid over to fit the frame (a body falling backward) are slid back here
     var off = m.off && m.off[fi] || null;
     return { sh: sh, m: m, fi: fi, ground: ground, k: ground.s / m.ppm, flip: p.face < 0, lift: p.y * ground.s, sx: (fi % m.cols) * m.fw, sy: Math.floor(fi / m.cols) * m.fh, fx: m.feet[0] + (off ? off[0] : 0), fy: m.feet[1] + (off ? off[1] : 0) };
