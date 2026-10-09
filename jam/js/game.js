@@ -16,6 +16,8 @@ window.HW = window.HW || {};
   function sig(p, k) { return !!(p && p.onFire && top(p).indexOf(k) >= 0); }
   G.sig = sig;
   function fireBurst(x, y, z, n) { X.flame(x, y, z, n, 0.6); }
+  // knocked down by a stronger player: he bleeds a little where his head hits the floor
+  function bleed(p, amt) { p.bleed = Math.max(p.bleed || 0, amt); p.bleedT = 0.35; }
 
   /* ---------- players ---------- */
   function Player(id, team, slot, human) {
@@ -51,7 +53,7 @@ window.HW = window.HW || {};
   // set everyone up with `team` bringing the ball up from its own end
   G.lineup = function (team, center) {
     var s = side(team), off = G.players.filter(function (p) { return p.team === team; }), def = G.players.filter(function (p) { return p.team !== team; });
-    G.players.forEach(function (p) { p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; });
+    G.players.forEach(function (p) { p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.bleed = 0; });
     var hand = off.slice().sort(function (a, b) { return (b.human - a.human) || (b.def.type === 'handler') - (a.def.type === 'handler'); })[0];
     var bx = center ? -s * 1.5 : -s * 8.5;
     hand.x = bx; hand.z = 7; off.forEach(function (p) { if (p !== hand) { p.x = bx + s * 3.5; p.z = 3; } });
@@ -146,7 +148,7 @@ window.HW = window.HW || {};
       k.slam = true; var b = G.ball; p.hasBall = false; b.holder = null; b.state = 'through'; b.x = rimX(p.team); b.z = K.HZ; b.y = K.RIM_H - 0.05; b.vy = -5; b.vx = b.vz = 0;
       p.stats.dunks++; G.scored(p, 2, true);
       var poster = false;
-      G.opps(p).forEach(function (q) { if (q.y > 0.3 && q.state !== 'fall' && q.state !== 'dunk' && dist(p, q) < 1.6 && p.def.stats.str > q.def.stats.str) { q.state = 'fall'; q.st = 0; q.fallT = 1.6; q.vy = Math.min(q.vy, 0); q.face = p.x >= q.x ? 1 : -1; q.vx = -q.face * 2; poster = true; } });
+      G.opps(p).forEach(function (q) { if (q.y > 0.3 && q.state !== 'fall' && q.state !== 'dunk' && dist(p, q) < 1.6 && p.def.stats.str > q.def.stats.str) { q.state = 'fall'; q.st = 0; q.fallT = 1.6; q.vy = Math.min(q.vy, 0); q.face = p.x >= q.x ? 1 : -1; q.vx = -q.face * 2; poster = true; bleed(q, 0.8 + (p.def.stats.str - q.def.stats.str) * 0.1); } });
       if (poster) G.say('POSTERIZED!', '#ff8a5a', 1.6, 1.1);
       X.shake = 1.4; X.hype = 3; Au.dunk(); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
       if (p.def.stats.dunk >= 9 && Math.random() < (sig(p, 'dunk') ? 0.85 : 0.3)) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
@@ -220,6 +222,7 @@ window.HW = window.HW || {};
     if (Math.random() < kd) {
       if (tgt.hasBall) G.drop(tgt, dx * 3, 3, dz * 3);
       tgt.state = 'fall'; tgt.st = 0; tgt.face = dx > 0 ? -1 : 1; tgt.vy = 0; tgt.y = 0; Au.thud(); X.shake = Math.max(X.shake, 0.5);
+      var gap = str - tgt.def.stats.str + (fs ? 5 : 0); if (gap > 0) bleed(tgt, 0.8 + gap * 0.1);
       G.say(pick(HW.PHRASES.shove), '#ff8a5a', 1);
     } else if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5);
   };
@@ -252,7 +255,7 @@ window.HW = window.HW || {};
     var power = q.def.stats.str - dk.def.stats.str + (sig(q, 'str') ? 5 : 0);
     dk.dk = null; dk.state = 'fall'; dk.st = 0; dk.vy = 0; dk.vx *= 0.3; dk.vz *= 0.3; dk.face = -side(dk.team);
     dk.fallT = power > 0 ? 2.0 : 1.3;
-    if (power > 0) { dk.bleed = 1 + power * 0.12; if (dk.y < 0.05) { X.blood(X.fallHeadX(dk), dk.z, dk.bleed); dk.bleed = 0; } }
+    if (power > 0) bleed(dk, 1 + power * 0.12);
     G.blocked(q, dk, null, 'GET THAT SHIT OUT OF HERE!'); X.shake = power > 0 ? 1.4 : 1; X.hype = Math.max(X.hype, 2.6); Au.thud();
   };
   // a block: the shot is dead and the blocker comes down with the ball
@@ -309,6 +312,7 @@ window.HW = window.HW || {};
   G.move = move;
   function physics(p, dt) {
     p.st += dt;
+    if (p.bleed && p.y <= 0.001 && (p.bleedT -= dt) <= 0) { X.blood(X.fallHeadX(p), p.z, p.bleed); p.bleed = 0; }
     if (p.pending && p.state !== 'pass') p.pending = null;   // knocked out of a fancy pass (shoved, fell, new possession): the move is off
     // ball handlers change direction with a crossover or a behind-the-back dribble
     if (p.dm) { p.dm.t += dt; if (p.dm.t >= p.dm.dur || !p.hasBall || p.state !== 'idle') { p.dm = null; p.dribT = Math.floor(p.dribT || 0) + 0.5; } }
@@ -324,7 +328,7 @@ window.HW = window.HW || {};
     if (p.state === 'dunk') { updateDunk(p, dt); return; }
     if (p.state === 'fall') { p.vx *= 1 - 4 * dt; p.vz *= 1 - 4 * dt; if (p.st > (p.fallT || 1.3)) { p.state = 'idle'; p.flash = 0.6; p.fallT = 0; } }
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
-    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.bleed) { X.blood(X.fallHeadX(p), p.z, p.bleed); p.bleed = 0; } if (p.state === 'jump') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = 'idle'; } } }
+    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.state === 'jump') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = 'idle'; } } }
     if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * 1.7) G.releaseShot(p);
     if (p.state === 'pass') updatePending(p);
     if ((p.state === 'pass' && p.st > (p.passStyle ? FANCY[p.passStyle].dur : 0.3) && p.grounded()) || (p.state === 'steal' && p.st > 0.3) || (p.state === 'shove' && p.st > 0.35) || (p.state === 'cheer' && p.st > 1.5)) p.state = 'idle';
