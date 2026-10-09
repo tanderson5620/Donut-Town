@@ -9,11 +9,18 @@ body.touch.inmenu #touchui { display: none; }
   left: calc(max(16px, env(safe-area-inset-left)) + 80px); top: calc(100% - 100px); opacity: .4; pointer-events: none; }
 #stickBase.on { opacity: 1; }
 #stickKnob { position: absolute; left: 50%; top: 50%; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.85); transform: translate(-50%,-50%); }
+/* turbo lives on the stick: the ring is the turbo meter, and pushing past it lights the flames */
+#stickRing { position: absolute; inset: -9px; border-radius: 50%; background: conic-gradient(var(--tc, #3df07a) calc(var(--t, 100) * 1%), rgba(255,255,255,.12) 0);
+  -webkit-mask: radial-gradient(circle, transparent 61%, #000 63%); mask: radial-gradient(circle, transparent 61%, #000 63%); }
+#stickBase.turbo { border-color: #ffb02e; box-shadow: 0 0 18px 4px rgba(255,110,0,.75), inset 0 0 14px rgba(255,140,0,.5); }
+#stickBase.turbo #stickKnob { background: radial-gradient(circle at 40% 35%, #fff6b0, #ffb02e 45%, #ff5a10); box-shadow: 0 0 14px #ff7a00; }
 .tb { position: fixed; z-index: 9; border-radius: 50%; border: 3px solid #fff; color: #fff; font: 11px "Press Start 2P", monospace; box-shadow: 0 4px 12px rgba(0,0,0,.6); -webkit-tap-highlight-color: transparent; padding: 0; opacity: .88; }
 .tb.down { transform: scale(.9); filter: brightness(1.35); }
 #bShoot { width: 86px; height: 86px; right: calc(max(14px, env(safe-area-inset-right)) + 4px); bottom: 18px; background: #e8501a; }
 #bPass { width: 70px; height: 70px; right: calc(max(14px, env(safe-area-inset-right)) + 104px); bottom: 12px; background: #2a6fe0; }
-#bTurbo { width: 70px; height: 70px; right: calc(max(14px, env(safe-area-inset-right)) + 54px); bottom: 112px; background: #1c9c58; }
+#bAct { width: 70px; height: 70px; right: calc(max(14px, env(safe-area-inset-right)) + 54px); bottom: 112px; background: #8e2bd6; transition: opacity .15s; }
+#bAct.dunk { background: #e89a10; }
+#bAct.off { opacity: .35; }
 .small { position: fixed; z-index: 9; top: max(40px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); width: 40px; height: 32px; border-radius: 8px; border: 2px solid rgba(255,255,255,.7); background: rgba(10,12,30,.6); color: #fff; font: 10px "Press Start 2P", monospace; }
 @media (orientation: portrait) {
   body.touch #rotate { display: flex; position: fixed; inset: 0; z-index: 50; background: #05050c; color: #ffe14d; flex-direction: column; align-items: center; justify-content: center; font: 14px "Press Start 2P", monospace; text-align: center; padding: 30px; gap: 22px; line-height: 1.6; }

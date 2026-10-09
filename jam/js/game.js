@@ -27,6 +27,7 @@ window.HW = window.HW || {};
   Player.prototype.busy = function () { return this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
 
   G.start = function (setup) {
+    if (HW.TOUCH && !G.tipShown) { G.tipShown = true; G.tipT = 1.2; }   // first game on a phone: show where turbo went
     G.setup = setup; G.players = []; G.diff = HW.DIFFICULTY[setup.diff || 'normal'];
     setup.teams.forEach(function (ids, team) { ids.forEach(function (id, i) { var p = new Player(id, team, i, id === setup.human); G.players.push(p); if (p.human) G.human = p; }); });
     G.humanTeam = G.human.team; G.score = [0, 0]; G.q = 1; G.callouts = []; G.ball = { x: 0, y: 1, z: 7, vx: 0, vy: 0, vz: 0, state: 'loose', holder: null, visible: true, fire: false };
@@ -193,6 +194,7 @@ window.HW = window.HW || {};
     G.t += dt; G.hoopFx = G.hoopFx.map(function (v) { return Math.max(0, v - dt * 2); });
     G.callouts.forEach(function (c) { c.t += dt; }); G.callouts = G.callouts.filter(function (c) { return c.t < c.life; });
     if (G.phase === 'menu' || G.phase === 'paused') return;
+    if (G.tipT > 0 && (G.tipT -= dt) <= 0) G.say('STICK PAST THE RING = TURBO!', '#5cff7a', 3.5, 0.55);
     var live = G.phase === 'play';
     if (G.phase === 'tip') { G.phaseT -= dt; if (G.phaseT <= 0) { G.phase = 'play'; G.say('GO!', '#5cff7a', 0.8, 1.3); Au.whistle(); } }
     else if (G.phase === 'scored') { G.phaseT -= dt; if (G.phaseT <= 0) { G.lineup(G.nextPoss, false); G.phase = 'play'; } }
@@ -252,17 +254,20 @@ window.HW = window.HW || {};
     move(p, In.mx, In.mz, In.turbo, dt);
     if (Math.abs(p.vx) > 1.0 && p.state !== 'shoot') p.face = p.vx > 0 ? 1 : -1;   // a little sideways drift while running up or down doesn't flip him
     var holder = G.ball.holder, mate = G.mates(p)[0];
+    // shove: the touch SHOVE button, or TURBO + PASS on a keyboard (stick turbo never turns a pass or steal into a shove)
+    var shove = In.actDown || (In.passDown && In.comboTurbo);
     if (p.hasBall) {
       if (In.shootDown) { if (In.turbo && G.canDunk(p) && towardRim(p, In)) G.startDunk(p); else G.startShot(p); }
+      if (In.actDown && G.canDunk(p)) G.startDunk(p);   // the touch DUNK button
       if (In.shootUp) G.releaseShot(p);
       if (In.passDown) G.passTo(p, mate);
     } else if (holder && holder.team === p.team) {
-      // arcade teamwork: PASS calls for the ball, SHOOT tells your teammate to shoot
-      if (In.passDown) G.passTo(holder, p);
+      // arcade teamwork: PASS calls for the ball, SHOOT tells your teammate to shoot; you can shove a defender off him
+      if (shove) G.tryShove(p); else if (In.passDown) G.passTo(holder, p);
       if (In.shootDown) { if (G.canDunk(holder)) G.startDunk(holder); else G.startShot(holder); holder.ai.autoRelease = true; }
     } else {
       if (In.shootDown) G.jump(p);
-      if (In.passDown) { if (In.turbo) G.tryShove(p); else G.trySteal(p); }
+      if (shove) G.tryShove(p); else if (In.passDown) G.trySteal(p);
     }
   }
   function towardRim(p, In) { var rx = rimX(p.team), dx = rx - p.x, dz = K.HZ - p.z, d = Math.hypot(dx, dz) || 1, m = Math.hypot(In.mx, In.mz); return m < 0.2 || (In.mx * dx + In.mz * dz) / (d * m) > 0.3; }

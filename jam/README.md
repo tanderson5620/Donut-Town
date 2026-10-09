@@ -10,10 +10,11 @@ Play: `https://<your-user>.github.io/<repo>/jam/`. On iPhone, Share > Add to Hom
 |---|---|---|
 | Move | Left thumb (joystick appears where you touch) | Arrows / WASD |
 | Shoot | Hold SHOOT, release at the top of the jump (green on the meter) | Hold J or Space |
-| Dunk | TURBO + SHOOT near the rim | Shift/L + J |
+| Turbo | Push the stick past its ring (the ring is your turbo meter and lights up) | Shift or L |
+| Dunk | DUNK button (lit when you're in range), or turbo + SHOOT running at the rim | Shift/L + J |
 | Pass | PASS | K |
-| Turbo | Hold TURBO | Shift or L |
-| Defense | SHOOT = jump/block, PASS = steal, TURBO + PASS = shove | same keys |
+| Shove | SHOVE button (the third button whenever you don't have the ball, offense or defense) | Shift/L + K |
+| Defense | SHOOT = jump/block, PASS = steal | same keys |
 | Teamwork | PASS with no ball = call for it; SHOOT = tell your teammate to shoot | same keys |
 | Pause | II | Esc / P |
 
