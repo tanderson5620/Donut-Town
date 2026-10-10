@@ -475,7 +475,8 @@ window.HW = window.HW || {};
       items.push({ z: K.HZ + 0.75, draw: function () { drawHoopBack(g, side); drawRim(g, side, false); } });
       items.push({ z: K.HZ - 0.35, draw: function () { drawRim(g, side, true, hoopFx[side > 0 ? 1 : 0]); } });
     });
-    if (ball && ball.visible) items.push({ z: ball.z - 0.01 - (ball.inFront ? 0.6 : 0), draw: function () { X.drawBall(g, ball, t); } });
+    // (behind: going under his leg or round his back in a dunk - drawn before him, so his body covers it)
+    if (ball && ball.visible) items.push({ z: ball.z - 0.01 - (ball.inFront ? 0.6 : 0) + (ball.behind ? 0.4 : 0), draw: function () { X.drawBall(g, ball, t); } });
     items.sort(function (a, b) { return b.z - a.z; });
     items.forEach(function (it) { it.draw(); });
     X.drawParts(g, dt);

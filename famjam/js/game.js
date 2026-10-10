@@ -123,7 +123,7 @@ window.HW = window.HW || {};
     var b = G.ball;
     if (p.state === 'dunk' && p.dk && p.dk.style) {
       var k = p.dk, u = p.st / k.T, rx = rimX(p.team), sd = side(p.team), hand = null, lerp = function (a, c, f) { f = Math.max(0, Math.min(1, f)); f = f * f * (3 - 2 * f); return { x: a.x + (c.x - a.x) * f, y: a.y + (c.y - a.y) * f }; };
-      var left = (k.style === 'legs' || k.style === 'btb') && u > 0.42;   // passed to the other hand under the leg / behind the back
+      var swap = k.style === 'legs' || k.style === 'btb', left = swap && u > 0.42;   // passed to the other hand under the leg / behind the back
       if (k.style === 'jam' && p.jamArm) { b.x = p.jamArm.x; b.y = p.jamArm.y; b.z = p.jamArm.z; return; }
       if (k.style === 'board' && u > 0.14 && u < 0.5) {   // tossed off the glass and back to himself
         var bd = { x: rx + sd * 0.45, y: 3.5 }; hand = X.handWorld(p) || { x: p.x, y: p.y + 2 };
@@ -132,6 +132,12 @@ window.HW = window.HW || {};
       if (k.style === 'bounce' && u < 0.46) {   // slammed into the floor ahead and caught on the way up
         var fl = { x: k.x0 + (k.x1 - k.x0) * 0.45, y: 0.12 }, h0 = { x: k.x0 + sd * 0.4, y: 1.1 }; hand = X.handWorld(p) || { x: p.x, y: p.y + 2 };
         var pb = u < 0.14 ? lerp(h0, fl, u / 0.14) : lerp(fl, hand, (u - 0.14) / 0.32); b.x = pb.x; b.y = pb.y; b.z = p.z - 0.2; return;
+      }
+      if (swap && u > 0.2 && u < 0.46) {
+        // under the leg / behind the back: his far hand takes it down round the back of him and hands it to the near one, so the ball
+        // goes behind his body - showing through between his legs, hidden by them - until the near hand brings it out the other side
+        var rh = X.handWorld(p, false), lh = X.handWorld(p, true), f = Math.max(0, Math.min(1, (u - 0.36) / 0.08)); f = f * f * (3 - 2 * f);
+        if (rh && lh) { b.x = rh.x + (lh.x - rh.x) * f; b.y = Math.max(0.2, rh.y + (lh.y - rh.y) * f); b.z = p.z - 0.2; b.behind = true; return; }
       }
       hand = X.handWorld(p, left); if (hand) { b.x = hand.x; b.y = Math.max(0.2, hand.y); b.z = p.z - 0.2; return; }
     }
@@ -493,7 +499,7 @@ window.HW = window.HW || {};
 
   function updateBall(dt) {
     if (!(dt > 0)) return;   // velocities below divide by dt
-    var b = G.ball; if (b.swoosh > 0) b.swoosh -= dt; b.noCatch = Math.max(0, (b.noCatch || 0) - dt); b.inFront = false;
+    var b = G.ball; if (b.swoosh > 0) b.swoosh -= dt; b.noCatch = Math.max(0, (b.noCatch || 0) - dt); b.inFront = false; b.behind = false;
     b.fire = !!((b.holder && b.holder.onFire && !(G.cine && G.cine.p === b.holder)) || (b.shotInfo && b.shotInfo.by.onFire && b.state === 'shot') || (b.state === 'pass' && b.pass && b.pass.from.onFire));   // not in the slow-motion dunk: the ball stays in plain view
     if (b.state === 'held') {
       ballAtHolder(b.holder, dt);
