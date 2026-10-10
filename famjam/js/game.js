@@ -202,7 +202,8 @@ window.HW = window.HW || {};
   // on the release frame. n: frames of the move, dur: seconds, rel: release frame, away: he faces away from the target
   // w: how long each frame is held (the behind-the-back hangs on the moment the ball is behind him)
   var FANCY = { back: { n: 6, dur: 0.62, rel: 5, away: true, w: [0.8, 1, 1.2, 1.7, 1.2, 1.1] }, spin: { n: 8, dur: 0.56, rel: 6 }, flip: { n: 8, dur: 0.8, rel: 4 },
-    hike: { n: 4, dur: 0.42, rel: 2, away: true, stop: true }, head: { n: 3, dur: 0.33, rel: 2, away: true }, nolook: { n: 3, dur: 0.3, rel: 1, away: true } };
+    hike: { n: 4, dur: 0.42, rel: 2, away: true, stop: true }, head: { n: 3, dur: 0.33, rel: 2, away: true }, nolook: { n: 3, dur: 0.3, rel: 1, away: true },
+    moon: { n: 8, dur: 1.0, rel: 7, away: true } };   // moonwalk: glides backward toward his man, then flicks it back to him
   G.FANCY = FANCY;
   function frameStart(F, i) { if (!F.w) return F.dur * i / F.n; var a = 0, t = 0; F.w.forEach(function (w, k) { t += w; if (k < i) a += w; }); return F.dur * a / t; }
   function frameAt(F, st) { for (var i = F.n - 1; i > 0; i--) if (st >= frameStart(F, i)) return i; return 0; }
@@ -214,7 +215,7 @@ window.HW = window.HW || {};
     if (!air && p.grounded() && Math.random() < (sig(p, 'pass') ? 1 : clamp((pr - 5) * 0.2, 0, 1))) {   // every pass at PASS 10, 1 in 5 at 6   // a passer on fire shows off every time
       // teammate behind him: snap it back through his legs (or over the head / no-look); otherwise behind the back, a spin or a flip
       var behind = (to.x - p.x) * p.face < -0.5;
-      style = pick(behind ? ['hike', 'hike', 'head', 'nolook'] : d > 4 ? ['back', 'back', 'spin', 'spin', 'flip'] : ['back', 'back', 'spin']);
+      style = pick(behind ? ['hike', 'hike', 'head', 'nolook', 'moon', 'moon'] : d > 2.5 ? ['back', 'spin', 'flip', 'flip', 'moon'] : ['back', 'spin', 'flip', 'moon']);
     }
     if (!style) { p.face = dirTo; launchPass(p, to, null); return; }
     var F = FANCY[style];
@@ -397,6 +398,7 @@ window.HW = window.HW || {};
     else if (p.trail && p.trail.length) p.trail.pop();
     if (p.state === 'dunk') { updateDunk(p, dt); return; }
     if (p.state === 'fall') { var fr = p.y > 0 ? 1.2 : 6; p.vx *= Math.max(0, 1 - fr * dt); p.vz *= Math.max(0, 1 - fr * dt); if (p.st > (p.fallT || 1.3)) { p.state = 'idle'; p.flash = 0.6; p.fallT = 0; } }
+    if (p.state === 'pass' && p.passStyle === 'moon' && p.st < 0.75) { p.vx = -p.face * 1.8; p.vz *= 0.85; }   // moonwalking backward toward his man
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
     if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = 'idle'; } } }
     if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * 1.7) G.releaseShot(p);
