@@ -84,10 +84,13 @@ window.HW = window.HW || {};
     shove: ['TIMBER!', 'WHAM!', 'FLATTENED!'],
     // knockdown trash talk by who flattened whom (HW.FAMILY)
     girlBeatsGuy: ['WIMP!', 'GET UP, WIMP!', 'BEAT BY A GIRL!', 'SIT DOWN, BOY!', 'TOO WEAK!'],
-    uncle: ["WHO'S YOUR UNCLE?", 'RESPECT YOUR UNCLE!'],
-    aunt: ["WHO'S YOUR AUNT?", 'AUNTIE SAYS SIT DOWN!'],
+    uncle: ["WHO'S YOUR UNCLE?!?!", 'SIT DOWN JUNIOR!!!', "KIDDIE TABLE'S OVER THERE!"],
+    aunt: ["WHO'S YOUR AUNTIE?!?!", 'SIT DOWN JUNIOR!!!', "KIDDIE TABLE'S OVER THERE!"],
     cousin: ['WEAKEST COUSIN I KNOW!', 'SEE YOU AT THANKSGIVING!']
   };
+
+  // lines that come with a 2 s taunt over normal play: the crotch chop (twice) or pointing off at the kiddie table
+  HW.TAUNTS = { "WHO'S YOUR UNCLE?!?!": 'chop', "WHO'S YOUR AUNTIE?!?!": 'chop', "KIDDIE TABLE'S OVER THERE!": 'point' };
 
   // the family tree: Alan + Lisa Anderson -> Tyler, Carl; Karen (Alan's sister) + Kenny Gorman -> Katelyn (Katie), Kody, Kameron.
   // gen 1 = the parents (uncles and aunts to the other family's kids), gen 2 = the kids (cousins across the families)

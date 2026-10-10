@@ -43,6 +43,7 @@ window.HW = window.HW || {};
     if (a && b && a.sex === 'f' && b.sex === 'm') fam = fam.concat(P.girlBeatsGuy);
     var pool = fam.length && Math.random() < 0.75 ? fam : P.shove.concat(fam), line;
     for (var i = 0; i < 4; i++) { line = pick(pool); if (line !== lastLine) break; }
+    var tk = HW.TAUNTS && HW.TAUNTS[line]; if (tk) p.taunt = { k: tk, t: 0 };   // and he lets them know it
     return (lastLine = line);
   }
   G.knockLine = knockLine;
@@ -376,6 +377,7 @@ window.HW = window.HW || {};
   function physics(p, dt) {
     p.st += dt;
     if (p.hitT > 0) p.hitT -= dt;
+    if (p.taunt && (p.taunt.t += dt) > 2) p.taunt = null;
     if (p.pending && p.state !== 'pass') p.pending = null;   // knocked out of a fancy pass (shoved, fell, new possession): the move is off
     // ball handlers change direction with a crossover or a behind-the-back dribble
     if (p.dm) { p.dm.t += dt; if (p.dm.t >= p.dm.dur || !p.hasBall || p.state !== 'idle') { p.dm = null; p.dribT = Math.floor(p.dribT || 0) + 0.5; } }
@@ -540,6 +542,13 @@ window.HW = window.HW || {};
     var stride = Math.hypot(p.vx, p.vz / G.ZS);
     if (sp > 0.6) { p.anim = p.hasBall ? 'drun' : (defending && sp < 4 ? 'defend' : 'run'); p.frame = (p.frame + Math.min(stride, 9) * dt * 1.7) % 8; }
     else { p.anim = p.hasBall ? 'dribble' : defending ? 'defend' : 'idle'; p.frame = (p.frame + dt * (p.hasBall ? 9 : 4)) % 6; }
+    // a taunt rides on top of normal play for 2 s: same legs, taunting arms (with the ball, shooting, blocking... he plays it straight).
+    // The chop slams down twice: up, down, up, down and hold
+    if (p.taunt && !p.hasBall) {
+      var tk = p.taunt.k, tt = p.taunt.t;
+      if (tk === 'chop') tk = tt < 0.3 || (tt > 0.75 && tt < 1.05) ? 'chopU' : 'chopD';
+      p.anim = (sp > 0.6 ? 'run_' : 'idle_') + tk; if (p.dir === 'B') p.dir = 'R';   // taunts are drawn side-on or facing the camera
+    }
   }
 
   G.endQuarter = function () {
