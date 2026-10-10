@@ -68,7 +68,7 @@ window.HW = window.HW || {};
   };
   A.musicPlaying = function () { return Object.keys(mus).filter(function (k) { return !mus[k].el.paused && (!mus[k].g || mus[k].g.gain.value > 0.05); }).join(',') || 'none'; };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'woohoo', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'steal_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
+  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'yell_f0', 'shout0', 'shout1', 'shout2', 'shout3', 'land', 'hit0', 'hit1', 'hit2', 'hit3', 'scream', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'steal_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'game_over', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (f) {   // .mp3 unless named (the dribbles are .wav: no encoder delay, so the thump lands on the frame)
@@ -114,11 +114,12 @@ window.HW = window.HW || {};
   };
   // a recorded take out of a numbered set, never the same one twice running
   var lastTake = {};
-  function take(n, k, vol) { var i; do { i = Math.floor(Math.random() * k); } while (k > 1 && i === lastTake[n]); lastTake[n] = i; A.sfx(n + i, vol); }
+  function take(n, k, vol, delay) { var i; do { i = Math.floor(Math.random() * k); } while (k > 1 && i === lastTake[n]); lastTake[n] = i; A.sfx(n + i, vol, delay); }
   // hands on the ball: a pass or a rebound lands in someone's hands (2 recorded taps)
   A.catch = function () { if (bufs.catch0) take('catch', 2, 0.75); else A.click(); };
-  // a guy powering up: an anime battle yell (7 takes), each cut so its loudest moment lands on the blast at 0.9 s
-  A.yell = function () { if (bufs.yell0) take('yell', 7, 1.6); };
+  // powering up: a guy lets out an anime battle yell (7 takes, each cut so its loudest moment lands on the blast at 0.9 s); a woman
+  // a warrior's battle scream that carries through the whole 2 s transformation
+  A.yell = function (female) { if (female) A.sfx('yell_f0', 1.3); else if (bufs.yell0) take('yell', 7, 1.6); };
   // anyone powering up: a recorded fireball whoosh (2 takes) that swells into the blast, its loudest moment also at 0.88 s
   A.fireball = function () { if (bufs.fireball0) take('fireball', 2, 0.9); };
   // a jump shot drops through: the ball through the net (recorded: 3 goal-in-basket takes and 9 net rustles, never the same twice running)
@@ -129,7 +130,12 @@ window.HW = window.HW || {};
     if (!bufs[female ? 'shove_f0' : 'shove_m0'] || !throttle('sy', 250)) return;
     if (female) take('shove_f', 3, 0.85); else take('shove_m', 8, 0.85);
   };
-  A.punch = function () { A.sfx('punch' + Math.floor(Math.random() * 3), 0.9); };
+  // a shove or a hit that lands: a recorded punch to the face (4 takes)
+  A.punch = function () { if (bufs.hit0) take('hit', 4, 0.9); else A.thud(); };
+  // a knocked-down player hits the floor: a recorded body landing on boards
+  A.land = function () { if (bufs.land) A.sfx('land', 0.9); else A.thud(); };
+  // a guy sent flying a long way by a hit: he screams on the way (one at a time)
+  A.scream = function () { if (throttle('scr', 900)) A.sfx('scream', 1); };
   ['touchend', 'pointerup', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, A.init, true); });
   document.addEventListener('visibilitychange', function () { if (document.hidden) { Object.keys(mus).forEach(function (k) { mus[k].el.pause(); }); } else if (A.ctx) A.init(); });
   A.setVolume = function (v) { A.vol = v; if (A.master) A.master.gain.value = 0.5 * v; };
@@ -168,11 +174,11 @@ window.HW = window.HW || {};
   // a basket: the recorded arena cheer (Epidemic Sound), louder for a three or a dunk; nothing synthesized
   A.cheer = function (big) { A.sfx('cheer_made', big ? 1 : 0.8); };
   A.groan = function () { noise(0.8, 0.12, 300, 0.5); tone(160, 0.7, 'sawtooth', 0.04, 90); };
-  // the slam: a recorded hand-and-ball rim hit with the rim ringing after (5 takes), then the crowd, and (woo) a guy's "woo-hoo!"
-  // a beat after the slam - the dunker, or his teammate when a woman dunks
+  // the slam: a recorded hand-and-ball rim hit with the rim ringing after (5 takes), then the crowd, and (woo) a beat after the slam
+  // a guy's shout - "woo-hoo!" or one of three "yeah!"s - from the dunker, or his teammate when a woman dunks
   A.dunk = function (woo) {
     if (bufs.dunk0) take('dunk', 5, 1); else { tone(70, 0.5, 'sine', 0.5, 30); noise(0.3, 0.3, 200, 0.6); }
-    A.cheer(true); if (woo) A.sfx('woohoo', 0.9, 0.35);
+    A.cheer(true); if (woo) take('shout', 4, 0.9, 0.35);
   };
   A.shatter = function () { noise(0.7, 0.35, 5000, 0.4, 0, 'highpass'); noise(0.5, 0.25, 2500, 1); };
   A.fire = function () { noise(0.8, 0.2, 500, 0.5, 0, 'lowpass'); tone(110, 0.6, 'sawtooth', 0.12, 330); tone(220, 0.6, 'sawtooth', 0.08, 660, 0.1); };
