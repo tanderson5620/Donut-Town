@@ -15,7 +15,12 @@ window.HW = window.HW || {};
     try {
       var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
       A.ctx = new AC(); if (A.ctx.state !== 'running') A.ctx.resume(); setTimeout(loadSfx, 0);
-      var s0 = A.ctx.createBufferSource(); s0.buffer = A.ctx.createBuffer(1, 1, 22050); s0.connect(A.ctx.destination); s0.start(0); A.master = A.ctx.createGain(); A.master.gain.value = 0.5 * A.vol; A.master.connect(A.ctx.destination);
+      var s0 = A.ctx.createBufferSource(); s0.buffer = A.ctx.createBuffer(1, 1, 22050); s0.connect(A.ctx.destination); s0.start(0); A.master = A.ctx.createGain(); A.master.gain.value = 0.5 * A.vol;
+      // a soft clipper on the way out: untouched below 0.8, peaks above it rounded off toward 1.0 instead of crackling (only the loudest
+      // pile-ups, like a power-up yell over the blast and the crowd, get there). The shaper sees half the signal so it covers -2..2
+      var pre = A.ctx.createGain(), clip = A.ctx.createWaveShaper(), cv = new Float32Array(2049); pre.gain.value = 0.5;
+      for (var k = 0; k < cv.length; k++) { var x = (k / 1024 - 1) * 2, ax = Math.abs(x); cv[k] = ax <= 0.8 ? x : Math.sign(x) * (0.8 + 0.2 * Math.tanh((ax - 0.8) / 0.2)); }
+      clip.curve = cv; clip.oversample = '2x'; A.master.connect(pre); pre.connect(clip); clip.connect(A.ctx.destination); A.out = clip;
       var n = A.ctx.sampleRate, b = A.ctx.createBuffer(1, n, n), d = b.getChannelData(0);
       for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
       noiseBuf = b;
@@ -63,7 +68,7 @@ window.HW = window.HW || {};
   };
   A.musicPlaying = function () { return Object.keys(mus).filter(function (k) { return !mus[k].el.paused && (!mus[k].g || mus[k].g.gain.value > 0.05); }).join(',') || 'none'; };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'steal_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
+  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'steal_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (f) {   // .mp3 unless named (the dribbles are .wav: no encoder delay, so the thump lands on the frame)
@@ -113,7 +118,9 @@ window.HW = window.HW || {};
   // hands on the ball: a pass or a rebound lands in someone's hands (2 recorded taps)
   A.catch = function () { if (bufs.catch0) take('catch', 2, 0.75); else A.click(); };
   // a guy powering up: an anime battle yell (7 takes), each cut so its loudest moment lands on the blast at 0.9 s
-  A.yell = function () { if (bufs.yell0) take('yell', 7, 0.9); };
+  A.yell = function () { if (bufs.yell0) take('yell', 7, 1.6); };
+  // anyone powering up: a recorded fireball whoosh (2 takes) that swells into the blast, its loudest moment also at 0.88 s
+  A.fireball = function () { if (bufs.fireball0) take('fireball', 2, 0.9); };
   // a jump shot drops through: the ball through the net (recorded: 3 goal-in-basket takes and 9 net rustles, never the same twice running)
   A.net = function () { if (bufs.net0) take('net', 12, 0.9); };
   // a shove: the shover lets out an attack yell (recorded: 3 women's takes, 8 men's, never the same one twice running); one at a
