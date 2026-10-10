@@ -20,7 +20,7 @@ window.HW = window.HW || {};
     } catch (e) { A.ctx = null; }
   };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'rim_slam', 'glass'], bufs = {}, loading = false;
+  var SFX = ['crowd_loop', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'rim_slam', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (n) {
@@ -32,6 +32,13 @@ window.HW = window.HW || {};
   A.sfx = function (n, vol) {
     if (!A.ctx || !bufs[n]) return; var s = A.ctx.createBufferSource(), g = A.ctx.createGain();
     s.buffer = bufs[n]; g.gain.value = vol === undefined ? 1 : vol; s.connect(g); g.connect(A.master); s.start();
+  };
+  // the arena murmur under the whole game, swelling with the hype
+  var amb = null;
+  A.ambient = function (level) {
+    if (!A.ctx || !bufs.crowd_loop) return;
+    if (!amb) { var s = A.ctx.createBufferSource(), g = A.ctx.createGain(); s.buffer = bufs.crowd_loop; s.loop = true; g.gain.value = 0; s.connect(g); g.connect(A.master); s.start(); amb = g; }
+    amb.gain.setTargetAtTime(level, A.ctx.currentTime, 0.4);
   };
   A.loaded = function () { return Object.keys(bufs).length; };
   A.punch = function () { A.sfx('punch' + Math.floor(Math.random() * 3), 0.9); };
@@ -73,6 +80,7 @@ window.HW = window.HW || {};
   A.steal = function () { noise(0.1, 0.22, 1500, 2); tone(700, 0.08, 'triangle', 0.1, 1200); };
   A.thud = function () { noise(0.25, 0.35, 160, 0.7); tone(60, 0.3, 'sine', 0.4, 40); };
   A.cheer = function (big) {
+    if (bufs.crowd_cheer) { A.sfx('crowd_cheer', big ? 0.9 : 0.55); return; }   // the recorded roar once it's loaded
     var n = big ? 1.3 : 0.7;
     noise(n, 0.18 * (big ? 1.5 : 1), 700, 0.5); noise(n, 0.12, 1400, 0.6, 0.05);
     if (big) { tone(330, 0.3, 'triangle', 0.05, 440, 0.1); tone(440, 0.4, 'triangle', 0.05, 660, 0.3); }

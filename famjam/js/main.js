@@ -34,6 +34,7 @@ window.HW = window.HW || {};
     else { idleT += dt; X.camX = Math.sin(idleT * 0.15) * X.camMax(); X.drawScene(g, idleT, dt, [], null, [0, 0]); }
     if (UI.screen) UI.drawMenu(g, dt);
     var inMenu = !!UI.screen; if (inMenu !== UI.wasMenu) { document.body.classList.toggle('inmenu', inMenu); UI.wasMenu = inMenu; }
+    if (HW.Audio.ambient) HW.Audio.ambient(G.players.length && G.phase !== 'menu' && UI.screen !== 'paused' ? 0.18 + Math.min(0.25, X.hype * 0.08) : 0);
     UI.endFrame();
     requestAnimationFrame(loop);
   }
