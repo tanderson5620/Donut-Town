@@ -75,3 +75,5 @@ famjam/tools                sprite factory
 ```
 
 `?quick` in the URL jumps straight to a matchup.
+
+Recorded sounds in `sfx/` (announcer voice and impacts) are from Kenney.nl, CC0 public domain (see `sfx/LICENSE-kenney-CC0.txt`).

@@ -12,13 +12,29 @@ window.HW = window.HW || {};
     if (A.ctx) { if (A.ctx.state !== 'running') A.ctx.resume(); return; }
     try {
       var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-      A.ctx = new AC(); if (A.ctx.state !== 'running') A.ctx.resume();
+      A.ctx = new AC(); if (A.ctx.state !== 'running') A.ctx.resume(); setTimeout(loadSfx, 0);
       var s0 = A.ctx.createBufferSource(); s0.buffer = A.ctx.createBuffer(1, 1, 22050); s0.connect(A.ctx.destination); s0.start(0); A.master = A.ctx.createGain(); A.master.gain.value = 0.5 * A.vol; A.master.connect(A.ctx.destination);
       var n = A.ctx.sampleRate, b = A.ctx.createBuffer(1, n, n), d = b.getChannelData(0);
       for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
       noiseBuf = b;
     } catch (e) { A.ctx = null; }
   };
+  // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
+  var SFX = ['go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'rim_slam', 'glass'], bufs = {}, loading = false;
+  function loadSfx() {
+    if (loading || !A.ctx) return; loading = true;
+    SFX.forEach(function (n) {
+      fetch('sfx/' + n + '.mp3').then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
+        return new Promise(function (res, rej) { var pr = A.ctx.decodeAudioData(ab, res, rej); if (pr && pr.catch) pr.catch(function () { }); });
+      }).then(function (b) { bufs[n] = b; }).catch(function () { });
+    });
+  }
+  A.sfx = function (n, vol) {
+    if (!A.ctx || !bufs[n]) return; var s = A.ctx.createBufferSource(), g = A.ctx.createGain();
+    s.buffer = bufs[n]; g.gain.value = vol === undefined ? 1 : vol; s.connect(g); g.connect(A.master); s.start();
+  };
+  A.loaded = function () { return Object.keys(bufs).length; };
+  A.punch = function () { A.sfx('punch' + Math.floor(Math.random() * 3), 0.9); };
   ['touchend', 'pointerup', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, A.init, true); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden && A.ctx) A.init(); });
   A.setVolume = function (v) { A.vol = v; if (A.master) A.master.gain.value = 0.5 * v; };
