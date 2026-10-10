@@ -286,8 +286,8 @@ var DUNKS = {
     [0.3, { rs: 1.6, re: 0.8, ls: 1.6, le: 0.8, rt: 0.7, rk: 1.4, lt: 0.2, lk: 0.7 }], [0.46, { lean: -0.05, rs: 2.9, re: 0.3, ls: 2.9, le: 0.3, rt: 0.6, rk: 1.4, lt: 0.2, lk: 0.8 }],
     [0.66, { lean: 0.35, rs: 2.1, re: 0.05, ls: 2.1, le: 0.05, rt: 0.5, rk: 1.2, lt: 0.2, lk: 0.6 }], [0.9, { lean: 0.2, rs: 2.7, re: 0.3, ls: 2.7, le: 0.3, rt: 0.2, rk: 0.6, lk: 0.4 }]]
 };
-// the free-throw-line dunk plays in 2.5 s of slow motion, so it gets 30 frames (the rest 12)
-var DK_N = { mj: 30 };
+// the under-the-legs dunk plays in 2.5 s of slow motion, so it gets 30 frames (the rest 12)
+var DK_N = { legs: 30 };
 Object.keys(DUNKS).forEach(function (k) { var n = DK_N[k] || 12; ANIMS['dk_' + k] = { n: n, dirs: [k === 'flex' ? 'C' : 'R'], f: keyed(DUNKS[k], n) }; });
 // moonwalk pass: facing away from his man he glides backward - one knee bent with the heel up, the other leg straight and sliding,
 // swapping each step - ball on his hip, then he flicks it back over his shoulder without looking

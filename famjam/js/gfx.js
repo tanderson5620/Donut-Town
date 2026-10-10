@@ -185,18 +185,20 @@ window.HW = window.HW || {};
   }
 
   /* ---------- sprites ---------- */
+  // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
+  var SHEET_V = '?v=2';
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
     var s = sheets[id] = { img: new Image(), meta: null }, x = s.x = { img: new Image(), meta: null };
     // extras (sprites/<id>_x.*): the on-fire power-up, the pumped-up play anims and the taunts, in a sheet of their own
     var extras = Promise.all([
-      fetch('sprites/' + id + '_x.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (m) { x.meta = m; }),
-      new Promise(function (res) { x.img.onload = res; x.img.onerror = res; x.img.src = 'sprites/' + id + '_x.png'; })
+      fetch('sprites/' + id + '_x.json' + SHEET_V).then(function (r) { return r.ok ? r.json() : null; }).then(function (m) { x.meta = m; }),
+      new Promise(function (res) { x.img.onload = res; x.img.onerror = res; x.img.src = 'sprites/' + id + '_x.png' + SHEET_V; })
     ]).catch(function () { x.meta = null; });
     s.ready = Promise.all([
-      fetch('sprites/' + id + '.json').then(function (r) { return r.json(); }).then(function (m) { s.meta = m; }),
-      new Promise(function (res) { s.img.onload = res; s.img.onerror = res; s.img.src = 'sprites/' + id + '.png'; }),
+      fetch('sprites/' + id + '.json' + SHEET_V).then(function (r) { return r.json(); }).then(function (m) { s.meta = m; }),
+      new Promise(function (res) { s.img.onload = res; s.img.onerror = res; s.img.src = 'sprites/' + id + '.png' + SHEET_V; }),
       X.loadFace(id).then(function () { loadGold(id); }), extras
     ]).then(function () { if (s.meta && !s.meta.outline && s.img.naturalWidth) s.img = outlined(s.img); });
     return s.ready;
@@ -252,7 +254,8 @@ window.HW = window.HW || {};
         var gx = (hd[0] - fx) * k, gy = (hd[1] - fy) * k - hh * 0.45, gr = hw * (0.9 + 0.08 * Math.sin((X.t || 0) * 23));
         g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.55 * Math.min(1, p.ssj); g.drawImage(glowDot(), gx - gr, gy - gr * 1.15, gr * 2, gr * 2.3); g.restore();
       }
-      var hx = (hd[0] - fx) * k, hy = (hd[1] - fy) * k, rot = p.tongue ? 0 : m.hrot && m.hrot[o.fi] || 0;   // the slow-motion dunk keeps his face upright to the camera
+      var cineP = HW.Jam && HW.Jam.cine && HW.Jam.cine.p === p;   // the slow-motion dunk (and the tongue-out one) keep his face upright to the camera
+      var hx = (hd[0] - fx) * k, hy = (hd[1] - fy) * k, rot = p.tongue || cineP ? 0 : m.hrot && m.hrot[o.fi] || 0;
       // a hard hit snaps his head back
       if (p.hitT > 0) { var jk = Math.min(1, p.hitT / 0.45); rot -= 0.9 * jk * jk; hx -= hw * 0.22 * jk; }
       var dx0 = -hw / 2, dy0 = -hh * 0.8, dw = hw, dh = hh;
@@ -443,10 +446,11 @@ window.HW = window.HW || {};
       var D = cine ? pu.dur : HW.Jam.PU.dur, u = pu.t, e = function (v) { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
       // zoom so he fills about 3/4 of the screen from his shoes to the tips of the hair, never showing past the edge of the scene
       var pp = pu.p, gd = X.proj(pp.x, 0, pp.z), top = pp.headTop !== undefined ? pp.headTop - X.shakeY : gd.y - 2.3 * gd.s, fig = Math.max(40, gd.y - X.shakeY - top + 0.35 * gd.s);
-      var zmax = cine ? 1.75 : Math.max(1.5, Math.min(2.6, 0.92 * H / fig));
-      if (cine) { fig = 0; top = top + 0.35 * gd.s; }   // a dunk close-up: on his face
+      // the slow-motion dunk: the whole of him in the air, from his sneakers to his hair, so the ball going under his leg is plain
+      var feet = cine ? X.proj(pp.x, pp.y, pp.z).y - X.shakeY : 0, body = Math.max(40, feet - top + 0.1 * gd.s);
+      var zmax = cine ? Math.max(1.3, Math.min(1.6, 0.75 * H / body)) : Math.max(1.5, Math.min(2.6, 0.92 * H / fig));
       za = u < 0.25 ? e(u / 0.25) : u > D - 0.3 ? e((D - u) / 0.3) : 1; zk = 1 + (zmax - 1) * za;
-      zf = cine ? { x: gd.x - X.shakeX, y: top + 0.3 * HEAD_M * gd.s } : { x: gd.x - X.shakeX, y: (gd.y - X.shakeY + top - 0.35 * gd.s) / 2 };
+      zf = cine ? { x: gd.x - X.shakeX, y: (feet + top) / 2 } : { x: gd.x - X.shakeX, y: (gd.y - X.shakeY + top - 0.35 * gd.s) / 2 };
       var tx = zf.x + (W / 2 - zf.x) * za, ty = zf.y + (H * 0.5 - zf.y) * za;
       tx = Math.max(W - zk * (W - zf.x), Math.min(zk * zf.x, tx)); ty = Math.max(H - zk * (H - zf.y), Math.min(zk * zf.y, ty));
       g.save(); g.translate(tx, ty); g.scale(zk, zk); g.translate(-zf.x, -zf.y);

@@ -196,20 +196,24 @@ window.HW = window.HW || {};
     p.state = 'dunk'; p.st = 0; var fd = sig(p, 'dunk');
     p.dk = { T: 1.05 + (dk >= 9 ? 0.25 : 0) + (p.onFire ? 0.15 : 0) + (fd ? 0.25 : 0), x0: p.x, z0: p.z, x1: rx - s * 0.5, z1: K.HZ + 0.05, peak: 1.0 + dk * 0.08 + (p.onFire ? 0.3 : 0) + (fd ? 0.2 : 0), slam: false, spin: fd || (dk >= 8 && Math.random() < 0.5) };
     // DUNK 9+ (on fire counts): a signature dunk, same timing and block window as any dunk. From way out: the free-throw-line dunk
-    // (slow motion, close-up on the tongue) or the stretched arm; closer: under the legs, behind the back, off the backboard,
-    // a front flip, the double-biceps flex or a bounce to himself
+    // (tongue out) or the stretched arm; closer: off the backboard, the double-biceps flex or a bounce to himself; from anywhere:
+    // under the legs (in slow motion, the camera in close on the whole move so you see the ball go under), behind the back, a flip
     if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
-      if (p.dk.style === 'mj') { p.tongue = true; G.cine = { p: p, t: 0, dur: p.dk.T, slow: DUNK_SLAM * p.dk.T / 2.5 }; } }   // 2.5 s of slow motion up to the slam
+      if (p.dk.style === 'mj') p.tongue = true;
+      if (p.dk.style === 'legs') G.cine = { p: p, t: 0, dur: p.dk.T, slow: DUNK_SLAM * p.dk.T / 2.5 }; }   // 2.5 s of slow motion up to the slam
     p.face = s; p.stats.fga++; Au.jump(); Au.whoosh(9);   // a dunk is a field goal attempt (made ones already count in fgm)
   };
-  var DUNK_SLAM = 0.66;
+  var DUNK_SLAM = 0.66, DK_FRAMES = { legs: 30 };   // frames per signature dunk in the extras sheet (the slow-motion one gets more)
   function updateDunk(p, dt) {
     // he glides to the rim (eased in and out over the first 60%), so a defender in his path has time to get up and meet him
     var k = p.dk, u = p.st / k.T, e0 = Math.min(1, u / 0.6), e = e0 * e0 * (3 - 2 * e0);   // p.st is advanced once in physics() (it used to be counted twice, so dunks ran at double speed)
     p.x = k.x0 + (k.x1 - k.x0) * e; p.z = k.z0 + (k.z1 - k.z0) * e; p.y = Math.max(0, k.peak * Math.sin(Math.PI * Math.min(1, u)) * (u > 0.62 && u < 0.82 ? 1.02 : 1));
     if (k.spin && u > 0.18 && u < 0.5) p.face = Math.floor(u * 22) % 2 ? side(p.team) : -side(p.team); else p.face = side(p.team);
-    if (sig(p, 'dunk')) fireBurst(p.x, p.y + 1.0, p.z - 0.1, 2);   // wrapped in flames all the way up
-    if (k.style) { var nf = k.style === 'mj' ? 30 : 12; p.anim = 'dk_' + k.style; p.dir = k.style === 'flex' ? 'C' : 'R'; p.frame = Math.min(nf - 1, Math.round(Math.min(u, 0.9) / 0.9 * (nf - 1))); p.jamArm = k.style === 'jam' && u > 0.25 && u < DUNK_SLAM ? { x: k.x1, y: K.RIM_H + 0.25, z: k.z1 - 0.1 } : null; }
+    if (sig(p, 'dunk')) {   // wrapped in flames all the way up; in the slow-motion dunk only a trail off his sneakers, so the move stays in plain view
+      if (G.cine && G.cine.p === p) { if (Math.random() < 0.3) fireBurst(p.x - side(p.team) * 0.35, p.y + 0.1, p.z - 0.1, 1); }
+      else fireBurst(p.x, p.y + 1.0, p.z - 0.1, 2);
+    }
+    if (k.style) { var nf = DK_FRAMES[k.style] || 12; p.anim = 'dk_' + k.style; p.dir = k.style === 'flex' ? 'C' : 'R'; p.frame = Math.min(nf - 1, Math.round(Math.min(u, 0.9) / 0.9 * (nf - 1))); p.jamArm = k.style === 'jam' && u > 0.25 && u < DUNK_SLAM ? { x: k.x1, y: K.RIM_H + 0.25, z: k.z1 - 0.1 } : null; }
     else { p.anim = 'dunk'; p.dir = 'R'; p.frame = u < 0.12 ? 0 : u < 0.3 ? 1 : u < 0.5 ? 2 : u < 0.64 ? 3 : u < 0.82 ? 4 : 5; }
     if (u >= DUNK_SLAM && !k.slam) {
       k.slam = true; if (G.cine && G.cine.p === p) G.cine = null; p.tongue = false;   // the slow-motion close-up ends on the slam
@@ -218,7 +222,8 @@ window.HW = window.HW || {};
       var poster = false;
       G.opps(p).forEach(function (q) { if (q.y > 0.3 && q.state !== 'fall' && q.state !== 'dunk' && dist(p, q) < 1.6 && p.def.stats.str > q.def.stats.str) { q.vy = Math.min(q.vy, 0); G.knockDown(q, p, { hard: 1.3, fallT: 1.6, blood: 0.7 + (p.def.stats.str - q.def.stats.str) * 0.1, y: q.y + 1.4 }); poster = true; } });
       if (poster) G.say('POSTERIZED!', '#ff8a5a', 1.6, 1.1);
-      X.shake = 1.4; X.hype = 3; Au.dunk(); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
+      var fam = HW.FAMILY || {}, guy = function (q) { return q && (fam[q.id] || {}).sex === 'm'; };
+      X.shake = 1.4; X.hype = 3; Au.dunk(guy(p) || G.mates(p).some(guy)); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
       if (p.def.stats.dunk >= 9 && Math.random() < (sig(p, 'dunk') ? 0.85 : 0.3)) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); Au.sfx && Au.sfx('glass'); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
     }
     if (u >= 1) { p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; p.tongue = false; p.jamArm = null; }
@@ -377,8 +382,8 @@ window.HW = window.HW || {};
     if (G.hitstop > 0) { G.hitstop -= dt; return; }   // freeze-frame on a hard hit
     // going on fire: a 2 s golden power-up with the camera zoomed in on him while everything else waits
     if (G.pu) { updatePowerup(dt); return; }
-    if (G.cine) {   // the free-throw-line dunk in slow motion (everything slows equally, so nobody gets a better chance at it)
-      var cp = G.cine.p; if (!cp.dk || cp.dk.style !== 'mj') G.cine = null; else { dt *= G.cine.slow || 0.4; G.cine.t = cp.st; }
+    if (G.cine) {   // the under-the-legs dunk in slow motion (everything slows equally, so nobody gets a better chance at it)
+      var cp = G.cine.p; if (!cp.dk || cp.dk.style !== 'legs') G.cine = null; else { dt *= G.cine.slow || 0.4; G.cine.t = cp.st; }
     }
     if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall') { G.puQueue = null; startPowerup(pq); return; } }
     if (G.tipT > 0 && (G.tipT -= dt) <= 0) G.say('STICK PAST THE RING = TURBO!', '#5cff7a', 3.5, 0.55);
@@ -482,7 +487,7 @@ window.HW = window.HW || {};
   function updateBall(dt) {
     if (!(dt > 0)) return;   // velocities below divide by dt
     var b = G.ball; if (b.swoosh > 0) b.swoosh -= dt; b.noCatch = Math.max(0, (b.noCatch || 0) - dt); b.inFront = false;
-    b.fire = !!((b.holder && b.holder.onFire) || (b.shotInfo && b.shotInfo.by.onFire && b.state === 'shot') || (b.state === 'pass' && b.pass && b.pass.from.onFire));
+    b.fire = !!((b.holder && b.holder.onFire && !(G.cine && G.cine.p === b.holder)) || (b.shotInfo && b.shotInfo.by.onFire && b.state === 'shot') || (b.state === 'pass' && b.pass && b.pass.from.onFire));   // not in the slow-motion dunk: the ball stays in plain view
     if (b.state === 'held') {
       ballAtHolder(b.holder, dt);
       // reject a dunk: anyone in the air who gets to the ball after take-off and before the slam (one try per jump)
