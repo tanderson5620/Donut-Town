@@ -72,7 +72,7 @@ window.HW = window.HW || {};
     this.ai = { t: 0, spot: null, spotT: 0, hold: 0 };
   }
   Player.prototype.grounded = function () { return this.y <= 0.001 && this.vy === 0; };
-  Player.prototype.busy = function () { return this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
+  Player.prototype.busy = function () { return this.state === 'hammer' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
 
   G.start = function (setup) {
     X.clearBlood();
@@ -217,6 +217,7 @@ window.HW = window.HW || {};
       var behind = (to.x - p.x) * p.face < -0.5;
       style = pick(behind ? ['hike', 'hike', 'head', 'nolook', 'moon', 'moon'] : d > 2.5 ? ['back', 'spin', 'flip', 'flip', 'moon'] : ['back', 'spin', 'flip', 'moon']);
     }
+    if (style === 'moon' && pr < 9) style = behind ? 'nolook' : 'spin';   // the moonwalk is for the real passers (PASS 9+, on fire counts)
     if (!style) { p.face = dirTo; launchPass(p, to, null); return; }
     var F = FANCY[style];
     p.face = F.away ? -dirTo : dirTo; p.state = 'pass'; p.st = 0; p.passStyle = style; p.pending = { to: to, at: frameStart(F, F.rel) }; G.ball.swoosh = F.dur + 0.3;   // motion streak on the ball through the move
@@ -253,6 +254,8 @@ window.HW = window.HW || {};
   };
   G.tryShove = function (p) {
     if (p.cd.shove > 0 || p.busy()) return; p.cd.shove = 0.9; p.state = 'shove'; p.st = 0;
+    // bruisers (strength players) don't just push: a roundhouse kick, a Superman punch or a kick to the shins
+    p.shoveStyle = p.def.type === 'strength' ? pick(['kick', 'punch', 'shin']) : null;
     var tgt = null, bd = 1.6; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < bd && q.state !== 'fall') { bd = d; tgt = q; } });
     Au.shove(); if (!tgt) return;
     p.face = tgt.x >= p.x ? 1 : -1; p.stats.shoves++;
@@ -264,7 +267,8 @@ window.HW = window.HW || {};
     if (Math.random() < kd) {
       if (tgt.hasBall) G.drop(tgt, dx * 3, 3, dz * 3);
       var gap = str - tgt.def.stats.str + (fs ? 5 : 0);
-      G.knockDown(tgt, p, { hard: fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6), blood: 0.7 + Math.max(0, gap) * 0.1, y: 1.2 });
+      var sty = p.shoveStyle, hk = sty === 'kick' ? 0.4 : sty === 'punch' ? 0.5 : sty === 'shin' ? -0.3 : 0;
+      G.knockDown(tgt, p, { hard: (fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6)) + hk, blood: 0.7 + Math.max(0, gap) * 0.1, y: sty === 'kick' ? 1.6 : sty === 'shin' ? 0.35 : 1.2 });
       G.say(knockLine(p, tgt), '#ff8a5a', 1.2);
     } else if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5);
   };
@@ -298,6 +302,13 @@ window.HW = window.HW || {};
     dk.dk = null; dk.vy = 0;
     G.blocked(q, dk, null, 'GET THAT SHIT OUT OF HERE!');
     G.knockDown(dk, q, { hard: power > 0 ? clamp(1.2 + power * 0.06, 1.2, 2) : 1, fallT: power > 0 ? 2.0 : 1.3, blood: 0.7 + Math.max(0, power) * 0.12, y: dk.y + 1.6 });
+    if (q.def.type === 'strength') {
+      // a bruiser hammers it: airborne, bent back into a C with both fists clasped behind his head, then down through the dunker,
+      // who gets launched all the way out to midcourt
+      q.state = 'hammer'; q.st = 0; q.face = dk.x >= q.x ? 1 : -1; q.vy = Math.max(q.vy, 3.5); if (q.y < 0.01) q.y = 0.01;
+      var vy = 6.5, hy = dk.y, T = (vy + Math.sqrt(vy * vy + 2 * GRAV * hy)) / GRAV, ex = 1 - Math.exp(-1.2 * T);
+      dk.vy = vy; dk.vx = (0 - dk.x) * 1.2 / ex; dk.vz *= 0.3; dk.face = dk.vx > 0 ? -1 : 1; X.shake = Math.max(X.shake, 1.4);
+    }
     X.hype = Math.max(X.hype, 2.6);
   };
   // a block: the shot is dead and the blocker comes down with the ball
@@ -400,7 +411,7 @@ window.HW = window.HW || {};
     if (p.state === 'fall') { var fr = p.y > 0 ? 1.2 : 6; p.vx *= Math.max(0, 1 - fr * dt); p.vz *= Math.max(0, 1 - fr * dt); if (p.st > (p.fallT || 1.3)) { p.state = 'idle'; p.flash = 0.6; p.fallT = 0; } }
     if (p.state === 'pass' && p.passStyle === 'moon' && p.st < 0.75) { p.vx = -p.face * 1.8; p.vz *= 0.85; }   // moonwalking backward toward his man
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
-    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = 'idle'; } } }
+    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump' || p.state === 'hammer') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = 'idle'; } } }
     if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * 1.7) G.releaseShot(p);
     if (p.state === 'pass') updatePending(p);
     if ((p.state === 'pass' && p.st > (p.passStyle ? FANCY[p.passStyle].dur : 0.3) && p.grounded()) || (p.state === 'steal' && p.st > 0.3) || (p.state === 'shove' && p.st > 0.35) || (p.state === 'cheer' && p.st > 1.5)) p.state = 'idle';
@@ -540,7 +551,8 @@ window.HW = window.HW || {};
       case 'pass': if (p.passStyle) { var F = FANCY[p.passStyle]; p.anim = 'pass_' + p.passStyle; p.dir = p.passStyle === 'back' ? 'W' : 'R'; p.frame = frameAt(F, p.st); }
         else { p.anim = 'pass'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); } return;
       case 'steal': p.anim = 'steal'; if (p.dir === 'B') p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); return;
-      case 'shove': p.anim = 'shove'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); return;
+      case 'shove': if (p.shoveStyle) { p.anim = 'shove_' + p.shoveStyle; p.frame = Math.min(3, p.st / 0.09); } else { p.anim = 'shove'; p.frame = Math.min(2, p.st / 0.1); } p.dir = 'R'; return;
+      case 'hammer': p.anim = 'block_hammer'; p.dir = 'R'; p.frame = p.st < 0.12 ? 0 : p.st < 0.24 ? 1 : p.st < 0.36 ? 2 : 3; return;
       case 'cheer': p.anim = 'cheer'; p.dir = 'F'; p.frame = (G.t * 8) % 4; return;   // st is parked at -99 for the end-of-game cheer
     }
     if (p.dm) { p.anim = 'dr_' + p.dm.type; p.dir = 'R'; p.frame = Math.min(3, Math.floor(p.dm.t / p.dm.dur * 4)); return; }
