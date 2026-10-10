@@ -243,10 +243,10 @@ window.HW = window.HW || {};
   }
   G.trySteal = function (p) {
     if (p.cd.steal > 0 || p.busy()) return; p.cd.steal = 0.55; p.state = 'steal'; p.st = 0;
-    var h = G.ball.holder; if (!h || h.team === p.team || dist(p, h) > 1.55) { Au.steal(); return; }
+    var h = G.ball.holder; if (!h || h.team === p.team || dist(p, h) > 1.8) { Au.steal(); return; }
     p.face = h.x >= p.x ? 1 : -1;
-    var c = 0.03 + 0.022 * p.def.stats.steal - 0.01 * h.def.stats.speed + (Math.hypot(h.vx, h.vz) < 0.5 ? 0.06 : 0) + (p.human ? 0.1 : 0) - (h.state === 'shoot' ? 0.1 : 0) - 0.015 * Math.max(0, h.def.stats.str - p.def.stats.str) + (sig(p, 'steal') ? 0.3 : 0);
-    if (!p.human) c *= G.diff.steal;
+    var c = 0.03 + 0.03 * p.def.stats.steal - 0.01 * h.def.stats.speed + (Math.hypot(h.vx, h.vz) < 0.5 ? 0.2 : 0) + (p.human ? 0.1 : 0) - (h.state === 'shoot' ? 0.1 : 0) - 0.015 * Math.max(0, h.def.stats.str - p.def.stats.str) + (sig(p, 'steal') ? 0.3 : 0);
+    if (!p.human) c *= G.diff.steal * 0.75;   // the computer gets less of the boost
     if (h.dm) c *= 0.3;   // a crossover / behind-the-back dribble protects the ball
     if (h.state === 'dunk') c = 0;
     if (Math.random() < c) { if (sig(p, 'steal')) fireBurst(h.x, 1.0, h.z, 12); p.stats.steals++; G.give(p); G.say(pick(HW.PHRASES.steal), '#7ee0ff', 1); Au.steal(); }
@@ -254,8 +254,8 @@ window.HW = window.HW || {};
   };
   G.tryShove = function (p) {
     if (p.cd.shove > 0 || p.busy()) return; p.cd.shove = 0.9; p.state = 'shove'; p.st = 0;
-    // bruisers (strength players) don't just push: a roundhouse kick, a Superman punch or a kick to the shins
-    p.shoveStyle = p.def.type === 'strength' ? pick(['kick', 'punch', 'shin']) : null;
+    // bruisers (STR 9+, on fire counts) don't just push: a roundhouse kick, a Superman punch or a kick to the shins
+    p.shoveStyle = p.def.stats.str >= 9 ? pick(['kick', 'punch', 'shin']) : null;
     var tgt = null, bd = 1.6; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < bd && q.state !== 'fall') { bd = d; tgt = q; } });
     Au.shove(); if (!tgt) return;
     p.face = tgt.x >= p.x ? 1 : -1; p.stats.shoves++;
@@ -302,7 +302,7 @@ window.HW = window.HW || {};
     dk.dk = null; dk.vy = 0;
     G.blocked(q, dk, null, 'GET THAT SHIT OUT OF HERE!');
     G.knockDown(dk, q, { hard: power > 0 ? clamp(1.2 + power * 0.06, 1.2, 2) : 1, fallT: power > 0 ? 2.0 : 1.3, blood: 0.7 + Math.max(0, power) * 0.12, y: dk.y + 1.6 });
-    if (q.def.type === 'strength') {
+    if (q.def.stats.str >= 9) {
       // a bruiser hammers it: airborne, bent back into a C with both fists clasped behind his head, then down through the dunker,
       // who gets launched all the way out to midcourt
       q.state = 'hammer'; q.st = 0; q.face = dk.x >= q.x ? 1 : -1; q.vy = Math.max(q.vy, 3.5); if (q.y < 0.01) q.y = 0.01;
