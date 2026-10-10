@@ -4,16 +4,23 @@ window.HW = window.HW || {};
   var A = HW.Audio = { ctx: null, master: null, vol: 1, voice: false };
   var noiseBuf = null, last = {};
 
+  // iPhone: sound only unlocks inside a finished tap (touchend / click), not touchstart, and the ring/silent switch mutes web
+  // audio unless the page asks for a 'playback' session (iOS 17+). So: ask for playback, unlock on every kind of tap, play a
+  // silent blip to open the output, and resume whenever the context gets suspended (tab switch, phone call)
   A.init = function () {
-    if (A.ctx) { if (A.ctx.state === 'suspended') A.ctx.resume(); return; }
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { }
+    if (A.ctx) { if (A.ctx.state !== 'running') A.ctx.resume(); return; }
     try {
       var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-      A.ctx = new AC(); A.master = A.ctx.createGain(); A.master.gain.value = 0.5 * A.vol; A.master.connect(A.ctx.destination);
+      A.ctx = new AC(); if (A.ctx.state !== 'running') A.ctx.resume();
+      var s0 = A.ctx.createBufferSource(); s0.buffer = A.ctx.createBuffer(1, 1, 22050); s0.connect(A.ctx.destination); s0.start(0); A.master = A.ctx.createGain(); A.master.gain.value = 0.5 * A.vol; A.master.connect(A.ctx.destination);
       var n = A.ctx.sampleRate, b = A.ctx.createBuffer(1, n, n), d = b.getChannelData(0);
       for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
       noiseBuf = b;
     } catch (e) { A.ctx = null; }
   };
+  ['touchend', 'pointerup', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, A.init, true); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && A.ctx) A.init(); });
   A.setVolume = function (v) { A.vol = v; if (A.master) A.master.gain.value = 0.5 * v; };
 
   function throttle(k, ms) { var t = performance.now(); if (last[k] && t - last[k] < ms) return false; last[k] = t; return true; }
