@@ -13,6 +13,7 @@ window.HW = window.HW || {};
   // on fire, a player's best rating (his specialty; ties count) gets turned up even more
   var STATK = ['speed', 'tp', 'dunk', 'steal', 'block', 'str', 'pass'];
   function top(p) { if (!p.topK) { var s = p.def.base || p.def.stats, m = 0; STATK.forEach(function (k) { m = Math.max(m, s[k] || 0); }); p.topK = STATK.filter(function (k) { return (s[k] || 0) >= m; }); } return p.topK; }
+  function isGuy(p) { return !!(p && ((HW.FAMILY || {})[p.id] || {}).sex === 'm'); }
   function sig(p, k) { return !!(p && p.onFire && top(p).indexOf(k) >= 0); }
   G.sig = sig;
   function fireBurst(x, y, z, n) { X.flame(x, y, z, n, 0.6); }
@@ -29,7 +30,8 @@ window.HW = window.HW || {};
     q.hitT = 0.45; q.flash = 0.12; q.impact = { blood: o.blood || 0.7, hard: hard };
     var hx = src ? (src.x + q.x) / 2 : q.x, hz = (src ? Math.min(src.z, q.z) : q.z) - 0.15, hy = o.y || q.y + 1.3;
     X.ring(hx, hy, hz, 0.7 + 0.35 * hard); X.burst(hx, hy, hz, Math.round(10 + 8 * hard), ['#ffffff', '#ffe14d', '#ffb000'], 3 + 2 * hard, 0.35, 3);
-    G.hitstop = Math.max(G.hitstop || 0, 0.05 + 0.035 * hard); X.shake = Math.max(X.shake, 0.5 + 0.3 * hard); Au.thud(); Au.punch && Au.punch();
+    G.hitstop = Math.max(G.hitstop || 0, 0.05 + 0.035 * hard); X.shake = Math.max(X.shake, 0.5 + 0.3 * hard); Au.punch && Au.punch();
+    if (hard >= 1.8 && isGuy(q)) Au.scream && Au.scream();   // sent flying 3+ m: he screams on the way
   };
   // what the crowd yells when p flattens q: family trash talk when it fits (aunt/uncle on a niece/nephew, cousin on cousin, a woman
   // dropping a guy), mixed in with the plain knockdown calls; never the same line twice in a row
@@ -51,7 +53,7 @@ window.HW = window.HW || {};
     var im = p.impact, hx = X.fallHeadX(p), cx = (p.x + hx) / 2; p.impact = null; p.st = Math.min(p.st, 0.36);   // his time on the floor starts now
     p.vx *= 0.15; p.vz *= 0.15;   // the slam kills his momentum: he stays on his crater
     X.crater(cx, p.z + 0.1, 0.5 + 0.2 * im.hard); X.burst(cx, 0.05, p.z - 0.1, 16, ['#c8a27a', '#a8845e', '#e6d2b0'], 2.5, 0.5, 6);
-    X.blood(hx, p.z, im.blood); X.shake = Math.max(X.shake, 0.3 + 0.15 * im.hard); Au.thud();
+    X.blood(hx, p.z, im.blood); X.shake = Math.max(X.shake, 0.3 + 0.15 * im.hard); Au.land ? Au.land() : Au.thud();
   }
 
   /* ---------- players ---------- */
@@ -222,8 +224,7 @@ window.HW = window.HW || {};
       var poster = false;
       G.opps(p).forEach(function (q) { if (q.y > 0.3 && q.state !== 'fall' && q.state !== 'dunk' && dist(p, q) < 1.6 && p.def.stats.str > q.def.stats.str) { q.vy = Math.min(q.vy, 0); G.knockDown(q, p, { hard: 1.3, fallT: 1.6, blood: 0.7 + (p.def.stats.str - q.def.stats.str) * 0.1, y: q.y + 1.4 }); poster = true; } });
       if (poster) G.say('POSTERIZED!', '#ff8a5a', 1.6, 1.1);
-      var fam = HW.FAMILY || {}, guy = function (q) { return q && (fam[q.id] || {}).sex === 'm'; };
-      X.shake = 1.4; X.hype = 3; Au.dunk(guy(p) || G.mates(p).some(guy)); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
+      X.shake = 1.4; X.hype = 3; Au.dunk(isGuy(p) || G.mates(p).some(isGuy)); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
       if (p.def.stats.dunk >= 9 && Math.random() < (sig(p, 'dunk') ? 0.85 : 0.3)) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); Au.sfx && Au.sfx('glass'); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
     }
     if (u >= 1) { p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; p.tongue = false; p.jamArm = null; }
@@ -301,7 +302,7 @@ window.HW = window.HW || {};
       var sty = p.shoveStyle, hk = sty === 'kick' ? 0.4 : sty === 'punch' ? 0.5 : sty === 'shin' ? -0.3 : 0;
       G.knockDown(tgt, p, { hard: (fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6)) + hk, blood: 0.7 + Math.max(0, gap) * 0.1, y: sty === 'kick' ? 1.6 : sty === 'shin' ? 0.35 : 1.2 });
       G.say(knockLine(p, tgt), '#ff8a5a', 1.2);
-    } else if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5);
+    } else { if (!wall) Au.punch && Au.punch(); if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); }   // it lands but he stays up
   };
   G.jump = function (p) {
     if (!p.grounded() || p.busy() || p.cd.jump > 0) return; p.state = 'jump'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH); p.y = 0.001; p.cd.jump = 0.35; Au.jump();
@@ -339,6 +340,7 @@ window.HW = window.HW || {};
       q.state = 'hammer'; q.st = 0; q.face = dk.x >= q.x ? 1 : -1; q.vy = Math.max(q.vy, 3.5); if (q.y < 0.01) q.y = 0.01;
       var vy = 6.5, hy = dk.y, T = (vy + Math.sqrt(vy * vy + 2 * GRAV * hy)) / GRAV, ex = 1 - Math.exp(-1.2 * T);
       dk.vy = vy; dk.vx = (0 - dk.x) * 1.2 / ex; dk.vz *= 0.3; dk.face = dk.vx > 0 ? -1 : 1; X.shake = Math.max(X.shake, 1.4);
+      if (isGuy(dk)) Au.scream && Au.scream();
     }
     X.hype = Math.max(X.hype, 2.6);
   };
@@ -359,13 +361,13 @@ window.HW = window.HW || {};
   G.PU = PU;
   function startPowerup(p) {
     G.pu = { p: p, t: 0, boom: false }; G.callouts = []; p.state = 'powerup'; p.st = 0; p.vx = p.vz = 0; p.dm = null; p.pending = null; p.trail = null;
-    Au.charge && Au.charge(); Au.fireball && Au.fireball(); if (((HW.FAMILY || {})[p.id] || {}).sex === 'm') Au.yell && Au.yell();
+    Au.charge && Au.charge(); Au.fireball && Au.fireball(); Au.yell && Au.yell(!isGuy(p));
   }
   function updatePowerup(dt) {
     var pu = G.pu, p = pu.p; pu.t += dt; p.st = pu.t; animate(p, dt);
     X.camX += (X.camClamp(p.x) - X.camX) * (1 - Math.exp(-9 * dt));   // the camera slides over to him while it zooms in
     if (!pu.boom && pu.t >= PU.boom) {
-      pu.boom = true; p.ssj = 1; Au.sfx && Au.sfx('combo'); X.powerFlash(p); X.shake = Math.max(X.shake, 1.3); Au.powerup ? Au.powerup() : Au.fire();
+      pu.boom = true; p.ssj = 1; X.powerFlash(p); X.shake = Math.max(X.shake, 1.3); Au.powerup ? Au.powerup() : Au.fire();
       G.players.forEach(function (q) { if (q !== p && q.grounded() && dist(p, q) < 2.6 && q.team !== p.team) { q.vx += (q.x > p.x ? 1 : -1) * 2; } });   // the blast nudges anyone close
     }
     if (pu.t >= PU.dur) {
@@ -608,7 +610,8 @@ window.HW = window.HW || {};
 
   G.endQuarter = function () {
     Au.buzzer();
-    if (G.q >= 4 && G.score[0] !== G.score[1]) { G.phase = 'over'; G.phaseT = 4; var w = G.score[0] > G.score[1] ? 0 : 1; Au.sfx && Au.sfx(w === G.humanTeam ? 'you_win' : 'you_lose'); G.say(HW.TEAMS[w].name.toUpperCase() + ' WIN!', HW.TEAMS[w].color, 4, 1.2); G.players.forEach(function (p) { if (p.team === w) { p.state = 'cheer'; p.st = -99; } }); Au.cheer(true); return; }
+    // the final buzzer: the announcer, and a guy on the winning team whoops "yeah!" over it
+    if (G.q >= 4 && G.score[0] !== G.score[1]) { G.phase = 'over'; G.phaseT = 4; var w = G.score[0] > G.score[1] ? 0 : 1; Au.sfx && Au.sfx(w === G.humanTeam ? 'you_win' : 'you_lose'); if (G.players.some(function (p) { return p.team === w && isGuy(p); })) Au.sfx && Au.sfx('shout1', 0.9, 0.7); G.say(HW.TEAMS[w].name.toUpperCase() + ' WIN!', HW.TEAMS[w].color, 4, 1.2); G.players.forEach(function (p) { if (p.team === w) { p.state = 'cheer'; p.st = -99; } }); Au.cheer(true); return; }
     G.phase = 'break'; G.phaseT = 3.2; G.say(G.q >= 4 ? 'TIED! OVERTIME' : 'END OF ' + ['1ST', '2ND', '3RD', '4TH'][G.q - 1], '#fff', 3);
   };
 
