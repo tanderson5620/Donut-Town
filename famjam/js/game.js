@@ -51,7 +51,7 @@ window.HW = window.HW || {};
     this.ai = { t: 0, spot: null, spotT: 0, hold: 0 };
   }
   Player.prototype.grounded = function () { return this.y <= 0.001 && this.vy === 0; };
-  Player.prototype.busy = function () { return this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
+  Player.prototype.busy = function () { return this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
 
   G.start = function (setup) {
     X.clearBlood();
@@ -59,6 +59,7 @@ window.HW = window.HW || {};
     G.setup = setup; G.players = []; G.diff = HW.DIFFICULTY[setup.diff || 'normal'];
     QUARTER = setup.qlen || 60; OT = clamp(Math.round(QUARTER / 2), 30, 60);
     setup.teams.forEach(function (ids, team) { ids.forEach(function (id, i) { var p = new Player(id, team, i, id === setup.human); G.players.push(p); if (p.human) G.human = p; }); });
+    G.pu = null; G.puQueue = null;
     G.humanTeam = G.human.team; G.score = [0, 0]; G.q = 1; G.callouts = []; G.ball = { x: 0, y: 1, z: 7, vx: 0, vy: 0, vz: 0, state: 'loose', holder: null, visible: true, fire: false };
     G.beginQuarter();
   };
@@ -72,7 +73,7 @@ window.HW = window.HW || {};
   // set everyone up with `team` bringing the ball up from its own end
   G.lineup = function (team, center) {
     var s = side(team), off = G.players.filter(function (p) { return p.team === team; }), def = G.players.filter(function (p) { return p.team !== team; });
-    G.players.forEach(function (p) { p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.impact = null; p.hitT = 0; });
+    G.players.forEach(function (p) { p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.impact = null; p.hitT = 0; if (!p.onFire) p.ssj = 0; });
     var hand = off.slice().sort(function (a, b) { return (b.human - a.human) || (b.def.type === 'handler') - (a.def.type === 'handler'); })[0];
     var bx = center ? -s * 1.5 : -s * 8.5;
     hand.x = bx; hand.z = 7; off.forEach(function (p) { if (p !== hand) { p.x = bx + s * 3.5; p.z = 3; } });
@@ -256,8 +257,8 @@ window.HW = window.HW || {};
     if (p.assist && p.assist.by.team === team && G.t - p.assist.t < 5) p.assist.by.stats.ast++;   // a basket within 5 s of catching a teammate's pass
     G.players.forEach(function (q) { q.assist = null; });
     if (pts === 3 && sig(p, 'tp')) for (var fi = 0; fi < 6; fi++) X.flame(rimX(team) + (Math.random() - 0.5) * 0.5, K.RIM_H - 0.3, K.HZ, 4, 0.5);
-    p.streak++; if (!p.onFire && p.streak >= 3) { p.onFire = true; G.say(p.def.first.toUpperCase() + " IS ON FIRE!", '#ff6a1a', 2.2, 1.25); Au.fire(); }
-    G.players.forEach(function (q) { if (q.team !== team) { if (q.onFire) G.say(q.def.first.toUpperCase() + ' COOLS OFF', '#9ad0ff', 1.2, 0.7); q.onFire = false; q.streak = 0; } });
+    p.streak++; if (!p.onFire && p.streak >= 3) { p.onFire = true; G.puQueue = p; Au.fire(); }   // he powers up as soon as he's back on his feet
+    G.players.forEach(function (q) { if (q.team !== team) { if (q.onFire) { G.say(q.def.first.toUpperCase() + ' COOLS OFF', '#9ad0ff', 1.2, 0.7); if (q.ssj) X.powerDown(q); } q.onFire = false; q.ssj = 0; q.streak = 0; if (G.puQueue === q) G.puQueue = null; } });
     var txt = dunk ? pick(HW.PHRASES.dunk) : pts === 3 ? pick(HW.PHRASES.three) : info && info.quality === 'green' ? pick(HW.PHRASES.swish) : pick(HW.PHRASES.two);
     G.say(txt, dunk ? '#ff7a1a' : pts === 3 ? '#ffb347' : '#ffe14d', 1.5, dunk ? 1.3 : 1);
     Au.swish(); Au.cheer(pts === 3 || dunk); X.hype = Math.max(X.hype, dunk || pts === 3 ? 3 : 1.5);
@@ -286,16 +287,42 @@ window.HW = window.HW || {};
     G.say(text || pick(HW.PHRASES.block), '#ff6b6b', 1.3, text ? 1.2 : 1); Au.board(); X.shake = 0.6; X.hype = Math.max(X.hype, 1.6);
   };
 
+  /* ---------- the on-fire power-up ---------- */
+  // 0-0.25 s the camera zooms in, he squares up to the camera; 0.25-0.85 arms crossed over his chest, charging; 0.85 he throws
+  // both arms down by his legs: flash, shockwave, the hair goes gold and stands up, the aura ignites, the muscles pump; he holds
+  // the pose in the aura, then the camera eases back out at 1.7-2.0 s and play goes on with him powered up (p.ssj) until he cools off
+  var PU = { dur: 2.0, boom: 0.85 };
+  G.PU = PU;
+  function startPowerup(p) {
+    G.pu = { p: p, t: 0, boom: false }; G.callouts = []; p.state = 'powerup'; p.st = 0; p.vx = p.vz = 0; p.dm = null; p.pending = null; p.trail = null;
+    Au.charge && Au.charge();
+  }
+  function updatePowerup(dt) {
+    var pu = G.pu, p = pu.p; pu.t += dt; p.st = pu.t; animate(p, dt);
+    X.camX += (X.camClamp(p.x) - X.camX) * (1 - Math.exp(-9 * dt));   // the camera slides over to him while it zooms in
+    if (!pu.boom && pu.t >= PU.boom) {
+      pu.boom = true; p.ssj = 1; X.powerFlash(p); X.shake = Math.max(X.shake, 1.3); Au.powerup ? Au.powerup() : Au.fire();
+      G.players.forEach(function (q) { if (q !== p && q.grounded() && dist(p, q) < 2.6 && q.team !== p.team) { q.vx += (q.x > p.x ? 1 : -1) * 2; } });   // the blast nudges anyone close
+    }
+    if (pu.t >= PU.dur) {
+      G.pu = null; p.state = 'idle'; p.st = 0; p.dir = 'R';
+      G.say(p.def.first.toUpperCase() + ' IS ON FIRE!', '#ffd23a', 2.2, 1.25); X.hype = Math.max(X.hype, 3);
+    }
+  }
+
   /* ---------- per frame ---------- */
   G.update = function (dt, In) {
     G.t += dt; G.hoopFx = G.hoopFx.map(function (v) { return Math.max(0, v - dt * 2); });
     G.callouts.forEach(function (c) { c.t += dt; }); G.callouts = G.callouts.filter(function (c) { return c.t < c.life; });
     if (G.phase === 'menu' || G.phase === 'paused') return;
     if (G.hitstop > 0) { G.hitstop -= dt; return; }   // freeze-frame on a hard hit
+    // going on fire: a 2 s golden power-up with the camera zoomed in on him while everything else waits
+    if (G.pu) { updatePowerup(dt); return; }
+    if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall') { G.puQueue = null; startPowerup(pq); return; } }
     if (G.tipT > 0 && (G.tipT -= dt) <= 0) G.say('STICK PAST THE RING = TURBO!', '#5cff7a', 3.5, 0.55);
     var live = G.phase === 'play';
     if (G.phase === 'tip') { G.phaseT -= dt; if (G.phaseT <= 0) { G.phase = 'play'; G.say('GO!', '#5cff7a', 0.8, 1.3); Au.whistle(); } }
-    else if (G.phase === 'scored') { G.phaseT -= dt; if (G.phaseT <= 0) { G.lineup(G.nextPoss, false); G.phase = 'play'; } }
+    else if (G.phase === 'scored') { G.phaseT -= dt; if (G.phaseT <= 0 && !(G.puQueue && G.phaseT > -2)) { G.lineup(G.nextPoss, false); G.phase = 'play'; } }   // a power-up still to come holds the restart
     else if (G.phase === 'break') { G.phaseT -= dt; if (G.phaseT <= 0) { G.q++; G.beginQuarter(); } }
     else if (G.phase === 'over') { G.phaseT -= dt; }
     if (live) {
@@ -479,6 +506,10 @@ window.HW = window.HW || {};
     }
     switch (p.state) {
       case 'dunk': return;
+      case 'powerup': {   // stance, arms crossed (charging), the down-thrust, then the held power stance trembling in the aura
+        var t = p.st; p.anim = 'powerup'; p.dir = 'C';
+        p.frame = t < 0.2 ? 0 : t < 0.35 ? 1 : t < PU.boom ? 2 : t < PU.boom + 0.12 ? 3 : 4 + Math.floor((t - PU.boom - 0.12) / 0.08) % 4; return;
+      }
       case 'fall': p.anim = 'fall'; p.dir = 'R'; p.frame = Math.min(3, p.st / 0.12); return;
       case 'shoot': p.anim = 'shoot'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
       case 'jump': p.anim = 'jump'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.vy > 2 ? 1 : 2; return;

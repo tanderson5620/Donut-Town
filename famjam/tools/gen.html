@@ -49,13 +49,66 @@ function apply(A, p) {
   A.hips.rotation.set((p.lean || 0) * 0.5, p.twist || 0, 0); A.spine.rotation.x = (p.lean || 0) * 0.3; A.chest.rotation.x = (p.lean || 0) * 0.2;
   A.sh[0].rotation.set(-(p.rs || 0), p.ry || 0, -0.12 - (p.rz || 0)); A.el[0].rotation.x = -(p.re || 0);   // right arm (athlete's right is -x); ry twists the arm (wrap it behind the back)
   A.sh[1].rotation.set(-(p.ls || 0), -(p.ly || 0), 0.12 + (p.lz || 0)); A.el[1].rotation.x = -(p.le || 0);
-  A.th[0].rotation.set(-(p.rt || 0), 0, -(p.ra || 0)); A.kn[0].rotation.x = p.rk || 0;
-  A.th[1].rotation.set(-(p.lt || 0), 0, (p.la || 0)); A.kn[1].rotation.x = p.lk || 0;
+  A.th[0].rotation.set(-(p.rt || 0), -(p.rto || 0), -(p.ra || 0)); A.kn[0].rotation.x = p.rk || 0;   // rto/lto: turn the thigh out (knees over the toes in a wide stance)
+  A.th[1].rotation.set(-(p.lt || 0), (p.lto || 0), (p.la || 0)); A.kn[1].rotation.x = p.lk || 0;
   A.feet[0].rotation.x = ((p.rt || 0) - (p.rk || 0)) * (p.air ? 0.4 : 0.9); A.feet[1].rotation.x = ((p.lt || 0) - (p.lk || 0)) * (p.air ? 0.4 : 0.9);
+  // power-up extras (all 0 by default, so the older anims are unchanged): neck nods the head down (+) or throws it back (-),
+  // chx tips the chest (- = chest out, shoulders back), plant rolls the soles flat under spread legs
+  A.neck.rotation.x = p.neck || 0; A.chest.rotation.x += p.chx || 0;
+  A.feet[0].rotation.z = p.plant ? (p.ra || 0) : 0; A.feet[1].rotation.z = p.plant ? -(p.la || 0) : 0;
   A.body.rotation.set(p.flip || 0, 0, p.roll || 0); A.body.position.set(0, p.lift || 0, p.slide || 0);
   // somersault: turn the body round the hips instead of the feet
   if (p.somer) { var h = 0.95; A.body.rotation.x = p.somer; A.body.position.set(0, h * (1 - Math.cos(p.somer)), -h * Math.sin(p.somer)); }
   if (p.yaw) A.root.rotation.y += p.yaw;   // spin moves
+}
+// ---------- muscle pump (the on-fire power-up) ----------
+// An extra scale per bone, in the bone's own rest frame round its joint (y runs along the limb), that is NOT passed on to its
+// children: it is multiplied onto the bone's world matrix only while the skeleton uploads its matrices (skeleton.update), so a
+// bent elbow or knee never shears and the hands, feet and head keep their size without compensating scales. Bigger delts and
+// arms, a wider chest and lats, thicker thighs and calves; the shoulder joints move out (and up a touch, traps) with the chest.
+var BUFF = { chest: [1.22, 1.0, 1.16], spine: [1.05, 1, 1.03], neck: [1.25, 1, 1.15], sh: [1.45, 1, 1.42], el: [1.3, 1, 1.3], th: [1.22, 1, 1.22], kn: [1.2, 1, 1.2] };
+var BUFF_SH = [0.035, 0.01];   // shoulder joints out / up at full pump (m, before the player's height scale)
+var FIST = [0.95, 0.58, 0.85];   // the hand bone squashed toward the wrist (fingers and thumb pulled in): a compact fist at sprite size
+function buffRig(A) {
+  if (A.buffRig) return;
+  var list = [], sk = A.skeleton, upd = sk.update, m = new THREE.Matrix4();
+  sk.bones.forEach(function (b) { var k = b.name.replace(/-?1$/, ''); if (BUFF[k] || k === 'hand') list.push({ b: b, k: k, save: new THREE.Matrix4(), on: 0 }); });
+  sk.update = function () {
+    list.forEach(function (e) {
+      var w = e.k === 'hand' ? A.fist || 0 : A.buff || 0, s = e.k === 'hand' ? FIST : BUFF[e.k]; e.on = w > 0; if (!e.on) return;
+      e.save.copy(e.b.matrixWorld); e.b.matrixWorld.multiply(m.makeScale(1 + (s[0] - 1) * w, 1 + (s[1] - 1) * w, 1 + (s[2] - 1) * w));
+    });
+    upd.call(this);
+    list.forEach(function (e) { if (e.on) e.b.matrixWorld.copy(e.save); });
+  };
+  // a tucked copy of the body: the skin the shorts and jersey cover (hips, belly, upper thighs) pulled in along its normals, so
+  // pumped thighs and splayed legs never poke through the shorts' hip-weighted top (used on pumped / planted frames only)
+  var body = A.meshes.filter(function (q) { return q.name === 'body'; })[0];
+  if (body) { A.bodyGeo = body.geometry; A.bodyTuck = tuckGeo(body.geometry); A.bodyMesh = body; }
+  A.shRest = A.sh.map(function (b) { return b.position.clone(); });
+  A.socks = A.kn.map(function (k) { return k.children.filter(function (c) { return c.isMesh; }); });   // rigid socks swell with the calves
+  A.buffRig = 1;
+}
+var TUCK = null, TUCK_D = 0.018;
+function tuckGeo(g) {
+  if (TUCK) return TUCK;
+  var t = g.clone(), p = t.attributes.position, n = g.attributes.normal, si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+  var cov = { 0: 1, 1: 1, 2: 1, 9: 1, 15: 1 };   // hips, spine, chest, both thighs (not the arms: the hands hang beside the shorts)
+  for (var i = 0; i < p.count; i++) {
+    var y = p.getY(i), r = sm(0.62, 0.7, y) * sm(1.3, 1.22, y); if (r <= 0) continue;
+    var w = (cov[si.getX(i)] ? sw.getX(i) : 0) + (cov[si.getY(i)] ? sw.getY(i) : 0) + (cov[si.getZ(i)] ? sw.getZ(i) : 0) + (cov[si.getW(i)] ? sw.getW(i) : 0);
+    w = sm(0.85, 1, w / (sw.getX(i) + sw.getY(i) + sw.getZ(i) + sw.getW(i) || 1)); if (w <= 0) continue;
+    var nx = n.getX(i) / 127, ny = n.getY(i) / 127, nz = n.getZ(i) / 127, L = Math.hypot(nx, ny, nz) || 1, d = TUCK_D * r * w / L;
+    p.setXYZ(i, p.getX(i) - nx * d, y - ny * d, p.getZ(i) - nz * d);
+  }
+  p.needsUpdate = true;
+  return (TUCK = t);
+}
+function setBuff(A, a, fist, tuck) {
+  A.buff = a; A.fist = fist || 0;
+  if (A.bodyMesh) A.bodyMesh.geometry = a > 0 || tuck ? A.bodyTuck : A.bodyGeo;
+  A.sh.forEach(function (b, i) { b.position.copy(A.shRest[i]); b.position.x += (i ? 1 : -1) * BUFF_SH[0] * a; b.position.y += BUFF_SH[1] * a; });
+  var k = 1 + (BUFF.kn[0] - 1) * a; A.socks.forEach(function (l) { l.forEach(function (c) { c.scale.set(k, 1, k); }); });
 }
 var TAU = Math.PI * 2, S = Math.sin, Cc = Math.cos, mx = Math.max;
 var ANIMS = {
@@ -136,7 +189,49 @@ var ANIMS = {
     { flip: -1.5, lift: -0.62, slide: -0.5, rs: 2.9, ls: 3.0, re: 0.5, le: 0.4, rz: 1.3, lz: 1.3, rt: 0.6, rk: 1.0, lt: 0.3, lk: 1.2 }][i]; } },
   cheer:   { n: 4, dirs: ['F'], f: function (t) { var s = S(t * TAU); return { crouch: 0.03 - 0.03 * s, rs: 2.8 + 0.25 * s, ls: 2.8 - 0.25 * s, re: 0.4, le: 0.4, rz: 0.4, lz: 0.4, rk: 0.15, lk: 0.15, lift: 0.08 * mx(0, s) }; } }
 };
-var DIRS = { R: Math.PI / 2 - 0.42, F: Math.PI / 2 - 1.05, B: Math.PI / 2 + 0.95, W: Math.PI / 2 + 1.4 };   // W: from behind, for the behind-the-back wrap   // facing screen-right in profile, turned toward / away from the camera
+// on fire: the power-up, straight at the camera. Ready stance, crouch with the forearms crossed in an X in front of the chest
+// (fists by the opposite shoulders, head down: charging), then the explosion - both arms thrust down and out by their own legs,
+// chest out, head back, stance wider - and the muscles pump up on that frame (buff); 4-7 hold it with a tremble so it loops
+var PU_LEGS = [
+  { rt: 0.1, lt: 0.1, rk: 0.22, lk: 0.22, ra: 0.16, la: 0.16, rto: 0.2, lto: 0.2 },
+  { rt: 0.24, lt: 0.24, rk: 0.5, lk: 0.5, ra: 0.22, la: 0.22, rto: 0.3, lto: 0.3 },
+  { rt: 0.36, lt: 0.36, rk: 0.74, lk: 0.74, ra: 0.28, la: 0.28, rto: 0.35, lto: 0.35 },
+  { rt: 0.24, lt: 0.24, rk: 0.48, lk: 0.48, ra: 0.36, la: 0.36, rto: 0.35, lto: 0.35 }];
+var PU_ARMS = [
+  { rs: 0.1, ls: 0.1, rz: 0.2, lz: 0.2, re: 0.45, le: 0.45, fist: 0.7 },
+  { rs: 0.55, ls: 0.5, rz: -0.24, lz: -0.3, ry: 0.6, ly: 0.68, re: 1.5, le: 1.6, fist: 1, neck: 0.12, lean: 0.05 },
+  { rs: 0.845, ls: 0.817, rz: -0.406, lz: -0.513, ry: 0.937, ly: 1.052, re: 1.944, le: 2.072, fist: 1, neck: 0.25, lean: 0.1 },
+  { rs: -0.12, ls: -0.12, rz: 0.27, lz: 0.27, re: 0.08, le: 0.08, fist: 1, chx: -0.22, neck: -0.35, buff: 1 }];
+function powerup(i) {
+  var k = Math.min(i, 3), o = { plant: 1, buff: 0 }, a, q;
+  for (q in PU_LEGS[k]) o[q] = PU_LEGS[k][q];
+  a = PU_ARMS[k]; for (q in a) o[q] = a[q];
+  if (i > 3) {   // hold the power stance with a tremble (tiny shoulder and knee shakes, alternating sides)
+    var tr = [[0.03, -0.02, 0.04], [-0.02, 0.03, -0.03], [0.02, 0.03, 0.03], [-0.03, -0.02, -0.04]][i - 4];
+    o.rz += tr[0] - 0.05; o.lz += tr[1] - 0.05; o.chx += 0.04 + tr[0] * 0.5; o.neck += 0.1;   // settle a touch from the snap of f3
+    o.rk += tr[2]; o.lk -= tr[2]; o.rt += tr[2] * 0.5; o.lt -= tr[2] * 0.5;
+  }
+  return o;
+}
+ANIMS.powerup = { n: 8, dirs: ['C'], f: function (t, i) { return powerup(i); } };
+// the on-fire play anims with the muscles pumped up (the game swaps these in while he's powered up)
+['idle', 'run', 'drun', 'dribble'].forEach(function (n) { var a = ANIMS[n]; ANIMS[n + '_buff'] = { n: a.n, dirs: a.dirs, f: a.f, buff: 1 }; });
+// taunts after a knockdown, layered over normal play for 2 s (the game swaps them in for idle and run): the same legs, other arms.
+// point - the right arm straight out at the far end of the court, left hand on the hip ("KIDDIE TABLE'S OVER!");
+// chopU / chopD - the crotch chop ("WHO'S YOUR UNCLE?!"): fists up by the head like a double biceps, then both forearms slammed down
+// crossed in an X low in front (arm angles solved for the elbow and fist spots, right forearm in front)
+var TAUNT_ARMS = {
+  point: { rs: 1.85, rz: 0.12, ry: 0, re: 0.02, ls: -1.13, lz: 0.99, ly: 0.68, le: 1.55, fist: 0.6 },
+  chopU: { rs: 1.51, rz: 1.1, ry: -0.05, re: 1.7, ls: 1.51, lz: 1.1, ly: -0.05, le: 1.7, fist: 1 },
+  chopD: { rs: 0.21, rz: 0.05, ry: 1.26, re: 0.8, ls: 0.04, lz: 0.21, ly: 1.32, le: 0.9, fist: 1, chx: 0.08, neck: -0.12 }
+};
+Object.keys(TAUNT_ARMS).forEach(function (k) {
+  ['idle', 'run'].forEach(function (n) {
+    var a = ANIMS[n], arms = TAUNT_ARMS[k];
+    ANIMS[n + '_' + k] = { n: a.n, dirs: ['R', 'F'], f: function (t, i) { var o = a.f(t, i), q; for (q in arms) o[q] = arms[q]; return o; } };
+  });
+});
+var DIRS = { R: Math.PI / 2 - 0.42, F: Math.PI / 2 - 1.05, B: Math.PI / 2 + 0.95, W: Math.PI / 2 + 1.4, C: 0 };   // W: from behind, for the behind-the-back wrap; C: straight at the camera (the power-up)   // facing screen-right in profile, turned toward / away from the camera
 
 function project(v, c, w, h) { var p = v.clone().project(c || cam); return [(p.x + 1) / 2 * (w || FW), (1 - p.y) / 2 * (h || FH)]; }
 
@@ -224,6 +319,7 @@ window.genPlayer = function (id, opt) {
   var s = d.height / 1.89; A.root.scale.setScalar(s);
   var bx = 1 + (d.bulk - 1) * 0.45, bz = bx * (d.belly ? 1.08 : 1);
   A.spine.scale.set(bx, 1, bz); A.neck.scale.set(1 / bx, 1, 1 / bz); A.sh.forEach(function (sh) { sh.scale.set(1 / bx, 1, 1 / bz); });
+  buffRig(A);
   var frames = [], meta = { fw: FW, fh: FH, ppm: PPM, anim: {}, head: [], hand: [], off: {}, back: {}, hrot: {}, feet: project(new V3(0, 0, 0)) };
   var only = opt.only;
   Object.keys(ANIMS).forEach(function (name) {
@@ -232,7 +328,14 @@ window.genPlayer = function (id, opt) {
     an.dirs.forEach(function (dir) {
       var list = meta.anim[name][dir] = [];
       for (var i = 0; i < an.n; i++) {
-        A.root.position.set(0, 0, 0); A.root.rotation.y = DIRS[dir]; apply(A, an.f(i / an.n, i)); A.root.updateMatrixWorld(true);
+        var pz = an.f(i / an.n, i);
+        // muscle pump: per frame (pose.buff), per anim (the *_buff copies) or for the whole sheet (opt.buff)
+        setBuff(A, pz.buff !== undefined ? pz.buff : an.buff !== undefined ? an.buff : opt.buff || 0, pz.fist, pz.plant);
+        A.root.position.set(0, 0, 0); A.root.rotation.y = DIRS[dir]; apply(A, pz); A.root.updateMatrixWorld(true);
+        if (pz.plant) {   // stand the ankles at their rest height whatever the legs do (crouch comes from the knee bend)
+          var fy = Math.min(A.feet[0].getWorldPosition(new V3()).y, A.feet[1].getWorldPosition(new V3()).y);
+          A.root.position.y = 0.08 * s - fy; A.root.updateMatrixWorld(true);
+        }
         if (name === 'fall') {
           // a body falling backward tips out of the frame and through the floor: rest its lowest joint just above the floor, centre it in
           // the frame, and tell the game to slide it back by the same amount sideways (meta.off) so it lands behind where he stood

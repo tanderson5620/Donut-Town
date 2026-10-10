@@ -58,6 +58,9 @@ window.HW = window.HW || {};
   A.dunk = function () { tone(70, 0.5, 'sine', 0.5, 30); noise(0.3, 0.3, 200, 0.6); A.cheer(true); };
   A.shatter = function () { noise(0.7, 0.35, 5000, 0.4, 0, 'highpass'); noise(0.5, 0.25, 2500, 1); };
   A.fire = function () { noise(0.8, 0.2, 500, 0.5, 0, 'lowpass'); tone(110, 0.6, 'sawtooth', 0.12, 330); tone(220, 0.6, 'sawtooth', 0.08, 660, 0.1); };
+  // the power-up: a rising hum while he charges with his arms crossed, then a boom and a sizzle when they come down
+  A.charge = function () { tone(70, 0.85, 'sawtooth', 0.1, 260); tone(140, 0.85, 'square', 0.04, 520); noise(0.85, 0.08, 900, 0.6); };
+  A.powerup = function () { tone(55, 0.9, 'sine', 0.55, 28); noise(0.6, 0.4, 260, 0.6); noise(1.1, 0.16, 4200, 0.9, 0.05, 'highpass'); tone(330, 0.9, 'sawtooth', 0.07, 990, 0.05); tone(495, 0.9, 'triangle', 0.05, 1480, 0.05); };
   A.turbo = function () { if (throttle('t', 200)) noise(0.12, 0.05, 2500, 1); };
   A.jump = function () { tone(260, 0.1, 'sine', 0.08, 420); };
   A.whoosh = function (v) { if (!throttle('w', 100)) return; noise(0.15, Math.min(0.2, 0.04 + v * 0.01), 1200, 0.6); };
