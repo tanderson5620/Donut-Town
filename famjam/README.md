@@ -76,4 +76,4 @@ famjam/tools                sprite factory
 
 `?quick` in the URL jumps straight to a matchup.
 
-The crowd (`sfx/crowd_*.mp3`) is synthesized offline (hundreds of formant voices, claps, arena reverb). The steal whoosh (`sfx/steal_whoosh.mp3`) is from Epidemic Sound, supplied by the owner. The other recorded sounds in `sfx/` (announcer voice and impacts) are from Kenney.nl, CC0 public domain (see `sfx/LICENSE-kenney-CC0.txt`).
+The background crowd alternates two Epidemic Sound arena clips (`sfx/crowd_a.mp3`, `sfx/crowd_b.mp3`, supplied by the owner) with a 1 s crossfade; the basket roar (`sfx/crowd_cheer.mp3`) is synthesized offline. The steal whoosh (`sfx/steal_whoosh.mp3`) is from Epidemic Sound, supplied by the owner. The other recorded sounds in `sfx/` (announcer voice and impacts) are from Kenney.nl, CC0 public domain (see `sfx/LICENSE-kenney-CC0.txt`).

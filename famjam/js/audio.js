@@ -20,7 +20,7 @@ window.HW = window.HW || {};
     } catch (e) { A.ctx = null; }
   };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['steal_whoosh', 'crowd_loop', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'rim_slam', 'glass'], bufs = {}, loading = false;
+  var SFX = ['steal_whoosh', 'crowd_a', 'crowd_b', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'rim_slam', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (n) {
@@ -34,11 +34,18 @@ window.HW = window.HW || {};
     s.buffer = bufs[n]; g.gain.value = vol === undefined ? 1 : vol; s.connect(g); g.connect(A.master); s.start();
   };
   // the arena murmur under the whole game, swelling with the hype
-  var amb = null;
+  // two recorded arena crowds (Epidemic Sound) taking turns back to back with a 1 s crossfade, under one level control
+  var amb = null, ambNext = 0, ambI = 0, XF = 1.0;
   A.ambient = function (level) {
-    if (!A.ctx || !bufs.crowd_loop) return;
-    if (!amb) { var s = A.ctx.createBufferSource(), g = A.ctx.createGain(); s.buffer = bufs.crowd_loop; s.loop = true; g.gain.value = 0; s.connect(g); g.connect(A.master); s.start(); amb = g; }
+    if (!A.ctx || !bufs.crowd_a || !bufs.crowd_b) return;
+    if (!amb) { amb = A.ctx.createGain(); amb.gain.value = 0; amb.connect(A.master); ambNext = A.ctx.currentTime + 0.05; }
     amb.gain.setTargetAtTime(level, A.ctx.currentTime, 0.4);
+    if (A.ctx.currentTime > ambNext - 1.5) {   // queue the next clip a little ahead so it starts on time
+      var b = ambI ? bufs.crowd_b : bufs.crowd_a, s = A.ctx.createBufferSource(), g = A.ctx.createGain(), t0 = Math.max(ambNext, A.ctx.currentTime + 0.02), d = b.duration;
+      s.buffer = b; s.connect(g); g.connect(amb);
+      g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(1, t0 + XF); g.gain.setValueAtTime(1, t0 + d - XF); g.gain.linearRampToValueAtTime(0, t0 + d);
+      s.start(t0); ambNext = t0 + d - XF; ambI = 1 - ambI;
+    }
   };
   // a steal swipe: the recorded whoosh (falls back to the synth one until it loads)
   A.swipe = function () { if (bufs.steal_whoosh) A.sfx('steal_whoosh', 0.8); else A.whoosh(3); };
