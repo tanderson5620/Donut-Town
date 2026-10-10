@@ -119,7 +119,7 @@ window.HW = window.HW || {};
     if (++count > 500) { cache = {}; count = 0; }
     var pad = p.ol, fw = F.measure(text, p.sx), fh = ROWS * p.sy;
     c = document.createElement('canvas'); c.width = Math.max(1, fw + pad * 2 + p.sh); c.height = fh + pad * 2 + p.sh;
-    var g = c.getContext('2d'), list = [], x = 0;
+    var g = c.getContext('2d', { willReadFrequently: true }), list = [], x = 0;   // read back for the flames: keep it on the CPU
     for (var i = 0; i < text.length; i++) { var gph = glyph(text.charAt(i)); if (gph) list.push([gph, x]); x += ((gph ? gph.w : SPACE) + GAP) * p.sx; }
     function pass(dx, dy, grow, col) {
       list.forEach(function (e) {

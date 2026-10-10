@@ -85,7 +85,10 @@ window.HW = window.HW || {};
 
   C.init = function () { calm = cheer = null; built = ''; };
   C.draw = function (g, v) {
-    if (built !== Math.round(v.wallTop) + ':' + Math.round(v.s)) build(v);
+    // rebuild the stands only when the camera really changes: screen shake moves wallTop every frame and used to rebuild the whole crowd
+    // each frame of every shake (big stalls after dunks and hard hits); the shake just offsets the drawing below
+    var wt = Math.round(v.wallTop - (v.shakeY || 0));
+    if (built !== wt + ':' + Math.round(v.s)) { var bv = {}; for (var kk in v) bv[kk] = v[kk]; bv.wallTop = wt; build(bv); }
     var off = Math.round((CW - v.W) / 2 + v.camX * v.s * 0.85 + v.shakeX), ox = Math.max(0, Math.min(CW - v.W, off)), H = calm.height, top = Math.round(v.wallTop) + 6 - H;
     g.fillStyle = '#05050b'; if (top > 0) g.fillRect(0, 0, v.W, top + 1);
     if (v.hype > 0.6) {

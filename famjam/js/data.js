@@ -50,6 +50,8 @@ window.HW = window.HW || {};
 
   // powered-up heads: faces/<id>_ssj.png (front) and faces/<id>_ssj_back.png (back of the head).
   // [x, y] = where the original image's top-left corner sits inside the bigger powered-up canvas, in original-image pixels
+  // where each photo's mouth is (fraction of the photo across, down): the tongue on the free-throw-line dunk comes out here
+  HW.MOUTH = { carl: [0.50, 0.80], tyler: [0.50, 0.76], alan: [0.52, 0.74], lisa: [0.60, 0.82], katelyn: [0.58, 0.83], kameron: [0.47, 0.81], kody: [0.55, 0.77], kenny: [0.50, 0.79], karen: [0.60, 0.81] };
   HW.SSJ_PAD = {
     carl: [64, 180],
     tyler: [63, 176],
