@@ -30,6 +30,8 @@ On fire, a player's best rating (his specialty) is turned up even more: speed - 
 
 Ball handlers (Alan, Katelyn) change direction with a crossover or a behind-the-back dribble, which protects the ball; on fire it can put the defender on the floor. Goaltending is legal, shoving is encouraged.
 
+Knockdown trash talk follows the family tree (Alan + Lisa Anderson with Tyler and Carl; Karen, Alan's sister, + Kenny Gorman with Katelyn, Kody and Kameron): an uncle or aunt flattening a niece or nephew gets WHO'S YOUR UNCLE?!?! / WHO'S YOUR AUNTIE?!?! (with a double crotch chop), SIT DOWN JUNIOR!!! or KIDDIE TABLE'S OVER THERE! (pointing off at it); cousin on cousin, WEAKEST COUSIN I KNOW!; a woman dropping a guy, WIMP! and friends. The taunts last 2 s on top of normal play: he keeps running, catching and blocking as usual.
+
 Every knockdown (shove, dunk rejection, posterize, ankle-breaker) is a hard hit: a freeze-frame with a comic impact star, his head snaps back, the screen shakes and he's launched backwards; he slams into the floor with a cracked crater, dust and blood where his head lands (more when a stronger player did it).
 
 ## How the players are made

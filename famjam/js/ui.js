@@ -295,12 +295,13 @@ window.HW = window.HW || {};
     var c = Fo.canvas(text, o), p = Math.max(1, (o.scale || 1) - 1), fl = flamesFor(c, fr % 3, p), x0 = Math.round(x - c.width / 2), y0 = Math.round(y - c.height / 2);
     g.drawImage(fl, x0, y0 - (fl.height - c.height)); g.drawImage(c, x0, y0);
   }
-  function marker(col, label) {
-    var key = 'mk' + col + label; if (spr[key]) return spr[key];
-    var t = Fo.canvas(label, { scheme: 'white', shadow: 0 }), w = t.width + 4, c = canvas(w + 2, t.height + 9), g = c.getContext('2d');
-    g.fillStyle = '#000'; g.fillRect(0, 0, w + 2, t.height + 3); g.beginPath(); g.moveTo(w / 2 - 5, t.height + 2); g.lineTo(w / 2 + 7, t.height + 2); g.lineTo(w / 2 + 1, t.height + 9); g.fill();
-    g.fillStyle = col; g.fillRect(1, 1, w, t.height + 1); g.beginPath(); g.moveTo(w / 2 - 3, t.height + 2); g.lineTo(w / 2 + 5, t.height + 2); g.lineTo(w / 2 + 1, t.height + 6); g.fill();
-    g.drawImage(t, 3, 1); return spr[key] = c;
+  function marker(col, label, sc) {
+    sc = sc || 1; var key = 'mk' + col + label + sc; if (spr[key]) return spr[key];
+    var t = Fo.canvas(label, { scheme: 'white', shadow: 0, scale: sc }), w = t.width + 4 * sc, a = 4 * sc, c = canvas(w + 2, t.height + 2 * sc + a + 3), g = c.getContext('2d'), th = t.height + 2 * sc;
+    g.fillStyle = '#000'; g.fillRect(0, 0, w + 2, th + 2); g.beginPath(); g.moveTo(w / 2 - a - 1, th + 1); g.lineTo(w / 2 + a + 3, th + 1); g.lineTo(w / 2 + 1, th + a + 3); g.fill();
+    g.fillStyle = col; g.fillRect(1, 1, w, th); g.beginPath(); g.moveTo(w / 2 - a + 1, th + 1); g.lineTo(w / 2 + a + 1, th + 1); g.lineTo(w / 2 + 1, th + a); g.fill();
+    g.fillStyle = Fo.shade(col, 0.45); g.fillRect(1, 1, w, sc);
+    g.drawImage(t, 1 + 2 * sc, 1 + sc); return spr[key] = c;
   }
 
   /* ---------- buttons ---------- */
@@ -324,7 +325,13 @@ window.HW = window.HW || {};
     var bob = Math.floor(UI.t * 3) % 2, dx = dir === 'l' ? -bob : dir === 'r' ? bob : 0, dy = dir === 'u' ? -bob : dir === 'd' ? bob : 0;
     g.drawImage(c, Math.round(x + w / 2 - c.width / 2 + dx), Math.round(y + h / 2 - c.height / 2 + dy));
   }
-  function tab(g, x, y, label, col, dark) {   // small label tab (P1 / CPU)
+  function bigTab(g, x, y, label, col) {   // the YOU tab on the player you control
+    var t = Fo.canvas(label, { scheme: 'black', shadow: 0, outline: 0, scale: 2 }), w = t.width + 14, h = t.height + 8;
+    x = Math.round(x - w / 2); y = Math.round(y);
+    g.fillStyle = '#000'; g.fillRect(x - 2, y - 2, w + 4, h + 4); g.fillStyle = col; g.fillRect(x, y, w, h); g.fillStyle = Fo.shade(col, 0.5); g.fillRect(x, y, w, 2); g.fillStyle = Fo.shade(col, -0.3); g.fillRect(x, y + h - 2, w, 2);
+    g.drawImage(t, x + 7, y + 4); return w;
+  }
+  function tab(g, x, y, label, col, dark) {   // small label tab (CPU)
     var t = Fo.canvas(label, { scheme: dark ? 'black' : 'white', shadow: 0, outline: dark ? 0 : 1 }), w = t.width + 8, h = t.height + 4;
     x = Math.round(x - w / 2); y = Math.round(y);
     g.fillStyle = '#000'; g.fillRect(x - 1, y - 1, w + 2, h + 2); g.fillStyle = col; g.fillRect(x, y, w, h); g.fillStyle = Fo.shade(col, 0.5); g.fillRect(x, y, w, 1);
@@ -441,13 +448,23 @@ window.HW = window.HW || {};
     [0, 1].forEach(function (slot) {
       var id = st.picks[slot], x = slot ? cR - PWd : cL, pc = portrait(id, PWd, PH);
       g.drawImage(pc, x, py);
+      // the player you control gets a glowing yellow frame; the computer's teammate is dimmed
+      if (st.ctrl === id) { var gl = blink(2) ? '#ffe14d' : '#ffb000'; g.fillStyle = gl; g.fillRect(x, py, PWd, 3); g.fillRect(x, py + PH - 3, PWd, 3); g.fillRect(x, py, 3, PH); g.fillRect(x + PWd - 3, py, 3, PH); }
+      else { g.fillStyle = 'rgba(5,6,20,0.45)'; g.fillRect(x, py, PWd, PH); }
       UI.btns.push({ id: 'slot' + slot, x: x, y: py, w: PWd, h: PH, fn: function () { cycle(slot, 1); } });
       var ax = slot ? x - 2 : x + PWd - 36;
       arrowBtn(g, 'up' + slot, ax, py + 6, 38, 40, 'u', function () { cycle(slot, -1); });
       arrowBtn(g, 'dn' + slot, ax, py + 50, 38, 40, 'd', function () { cycle(slot, 1); });
     });
-    Fo.draw(g, t.name, mid, py + 16, { scale: 2, scheme: 'white', shadowColor: t.dark });
-    var e = emblem(st.team, CW >= 136 ? 2 : 1); g.drawImage(e, Math.round(mid - e.width / 2), Math.round(py + 30 + (PH - 40 - e.height) / 2));
+    // pick a team: one big button per family, the chosen one lit in its colors
+    Fo.draw(g, 'PICK YOUR TEAM', mid, py + 9, { scale: 1, scheme: 'cyan', shadow: 0 });
+    var tbw = Math.min(CW, 200), tbx = Math.round(mid - tbw / 2);
+    T.forEach(function (tt, i) {
+      var on = st.team === i, by = py + 17 + i * 30;
+      button(g, 'team' + i, tbx, by, tbw, 26, tt.name.toUpperCase(), { on: on, size: 2, color: tt.color, fn: function () { if (st.team !== i) switchTeam(i - st.team); } });
+      if (on) { var ar = tri('r', 6, '#ffe14d'); g.drawImage(ar, tbx - ar.width - 3 - (Math.floor(UI.t * 3) % 2), by + 13 - (ar.height >> 1)); }
+    });
+    var eTop = py + 80, e = emblem(st.team, PH - 84 >= 112 && CW >= 136 ? 2 : 1); g.drawImage(e, Math.round(mid - e.width / 2), Math.round(eTop + (PH - 84 - e.height) / 2));
     // big arrows on the card edges switch team
     arrowBtn(g, 'tprev', C.oL - 6, C.T + 58, aw + 8, 90, 'l', function () { switchTeam(-1); }, true);
     arrowBtn(g, 'tnext', C.oR - aw - 2, C.T + 58, aw + 8, 90, 'r', function () { switchTeam(1); }, true);
@@ -461,11 +478,11 @@ window.HW = window.HW || {};
       Fo.draw(g, d.first, cxp, pTop + 22, { scale: 2, scheme: 'white', shadowColor: Fo.shade(d.color, -0.4) });
       Fo.draw(g, HW.TYPES[d.type].label, cxp, pTop + 40, { scale: 1, color: d.color });
       statLines(g, d, x + 2, pTop + 58, PWd - 4, 2, 20);
-      Fo.draw(g, HW.TYPES[d.type].blurb, cxp, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
-      tab(g, cxp, divY - 8, me ? 'P1' : 'CPU', me ? '#ffd23f' : '#5a5e7a', me);
+      if (me) Fo.draw(g, HW.TYPES[d.type].blurb, cxp, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
+      else button(g, 'as' + slot, x + 8, C.B - 22, PWd - 16, 18, 'PLAY AS ' + d.first.toUpperCase(), { size: 1, color: '#22c4f2', fn: function () { if (st.ctrl !== id) { st.ctrl = id; Au.click(); } } });
+      if (me) bigTab(g, slot ? x + PWd - 34 : x + 34, py + 8, 'YOU', '#ffd23f'); else tab(g, cxp, divY - 8, 'CPU', '#5a5e7a', false);   // YOU in the portrait's free top corner (the arrows sit in the other one)
       UI.btns.push({ id: 'ctrl' + slot, x: x, y: pTop, w: PWd, h: pH, fn: function () { if (st.ctrl !== id) { st.ctrl = id; Au.click(); } } });
     });
-    if (blink(1.2)) Fo.draw(g, 'TAP A NAME TO PLAY AS', mid, pTop + 12, { scale: 1, scheme: 'cyan', shadow: 0 });
     var bw = Math.floor((ccw - 8) / 3);
     DIFFS.forEach(function (dk, i) { button(g, 'd' + dk, ccx + i * (bw + 4), pTop + 22, bw, 20, dk.toUpperCase(), { on: st.diff === dk, size: 1, color: ['#1fb04c', '#ffc61a', '#e0302a'][i], fn: function () { st.diff = dk; } }); });
     // quarter length
@@ -497,7 +514,7 @@ window.HW = window.HW || {};
         Fo.draw(g, d.first, cxp, pTop + 16, { scale: 2, scheme: 'white', shadowColor: Fo.shade(d.color, -0.4) });
         Fo.draw(g, HW.TYPES[d.type].label, cxp, pTop + 33, { scale: 1, color: d.color });
         statLines(g, d, x + 2, pTop + 48, PWm - 4, 1, 12);
-        tab(g, cxp, divY - 8, me ? 'P1' : 'CPU', me ? '#ffd23f' : '#5a5e7a', me);
+        tab(g, cxp, divY - 8, me ? 'YOU' : 'CPU', me ? '#ffd23f' : '#5a5e7a', me);
       });
     });
     g.fillStyle = CY; g.fillRect(mid - vsW / 2 - 2, pTop, 3, stripY - pTop); g.fillRect(mid + vsW / 2, pTop, 3, stripY - pTop);
@@ -542,7 +559,7 @@ window.HW = window.HW || {};
       if (i === 2) { g.fillStyle = '#20245a'; g.fillRect(px + 6, y - 19, pw - 12, 1); }
       g.drawImage(f, px + 12, y - 15);
       Fo.draw(g, p.def.first, px + 46, y, { scale: 2, color: p.def.color, align: 'left' });
-      if (p.human) tab(g, px + 52 + Fo.measure(p.def.first, 2) + 16, y - 7, 'P1', '#ffd23f', true);
+      if (p.human) tab(g, px + 52 + Fo.measure(p.def.first, 2) + 18, y - 7, 'YOU', '#ffd23f', true);
       [sv.pts, sv.fgm + '/' + sv.fga, sv.tpm + '/' + sv.tpa, sv.ast, sv.dunks, sv.steals, sv.blocks].forEach(function (v, k) { Fo.draw(g, String(v), px + pw * cols[k][1], y, { scale: k === 1 || k === 2 ? 1 : 2, scheme: k ? 'white' : 'yellow' }); });
     });
     var bw = Math.min(220, (C.W - 30) / 2), by = py + ph + 10;
@@ -562,7 +579,7 @@ window.HW = window.HW || {};
       if (p.hasBall) { var bi = ballIcon(p.onFire, fr % 3); g.drawImage(bi, Math.round(cx - nw / 2 - 6), 15 - bi.height); }
       var fire = p.onFire && blink(6);
       Fo.draw(g, name, cx, 9, { scheme: fire ? 'fire' : 'yellow' });
-      if (p.human) { var m1 = marker(P1C, 'P1'); g.drawImage(m1, Math.round(cx - nw / 2 - m1.width - 3), 2, m1.width, m1.height - 6); }
+      if (p.human) { var m1 = marker(P1C, 'YOU'); g.drawImage(m1, Math.round(cx - nw / 2 - m1.width - 3), 2, m1.width, m1.height - 6); }
       var tw = 40, tx = cx - tw / 2, ty = 17, tv = Math.max(0, Math.min(1, p.turbo / 100));
       g.fillStyle = '#000'; g.fillRect(tx - 1, ty - 1, tw + 2, 6); g.fillStyle = '#26284a'; g.fillRect(tx, ty, tw, 4);
       g.fillStyle = p.onFire ? (blink(8) ? '#ff5a10' : '#ffd23f') : tv > 0.5 ? '#3df07a' : tv > 0.25 ? '#ffd23f' : '#ff4b3a'; g.fillRect(tx, ty, Math.round(tw * (p.onFire ? 1 : tv)), 4);
@@ -582,7 +599,7 @@ window.HW = window.HW || {};
     // P1 marker over your player, shot meter above it while you are in the air with the ball
     var h = G.human;
     if (h && h.screen && h.headTop !== undefined && h.screen.x > -20 && h.screen.x < W + 20) {
-      var mk = marker(P1C, '1'), my = Math.max(64, Math.round(h.headTop - mk.height - 2));
+      var mk = marker(P1C, 'YOU', 2), my = Math.max(64, Math.round(h.headTop - mk.height - 3 - (Math.floor(G.t * 4) % 2)));   // big bobbing YOU over your player
       g.drawImage(mk, Math.round(h.screen.x - mk.width / 2 + 1), my);
       if (h.state === 'shoot' && !h.released && h.hasBall) {
         var mw = 44, mx = Math.round(h.screen.x - mw / 2), yy = my - 10, prog = Math.min(1.6, h.st / h.tApex) / 1.6, win = 0.16 * (1 + (h.def.stats.tp - 5) * 0.06);
@@ -596,7 +613,7 @@ window.HW = window.HW || {};
       if (!p.screen) return; var off = p.screen.x < S.l - 6 ? -1 : p.screen.x > W - S.r + 6 ? 1 : 0; if (!off) return;
       var ay = Math.max(74, Math.min(176, Math.round(p.screen.y - 90))), a = tri(off < 0 ? 'l' : 'r', 7, p.def.color), ax = off < 0 ? S.l + 2 : W - S.r - 2 - a.width;
       g.drawImage(a, ax, ay - a.height / 2 | 0);
-      Fo.draw(g, p.human ? 'P1' : String(p.def.num), off < 0 ? ax + a.width + 2 : ax - 2, ay, { scale: 1, scheme: p.human ? 'green' : 'white', align: off < 0 ? 'left' : 'right', shadow: 0 });
+      Fo.draw(g, p.human ? 'YOU' : String(p.def.num), off < 0 ? ax + a.width + 2 : ax - 2, ay, { scale: 1, scheme: p.human ? 'green' : 'white', align: off < 0 ? 'left' : 'right', shadow: 0 });
     });
     // callouts: big flaming arcade text that pops in
     var maxW = W - S.l - S.r - 30, cy = 112;
