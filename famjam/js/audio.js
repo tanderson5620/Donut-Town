@@ -20,28 +20,43 @@ window.HW = window.HW || {};
     } catch (e) { A.ctx = null; }
     musKick();
   };
-  // menu music: "Bang Bang" by Matt Large (Epidemic Sound), streamed by an <audio> element and fed into the mix so it follows the
-  // master volume and can fade. It plays while the menus are up before a game and fades out at tip-off. An iPhone only lets a
-  // media element start inside a tap, so A.init (every tap) starts it; once it has played it may restart on its own
-  var mus = null, musG = null, musOn = false, musStop = 0, MUS_VOL = 0.8;
-  function musKick() {
-    if (!A.ctx || !musOn) return;
-    if (!mus) {
-      mus = new Audio('sfx/menu_music.mp3'); mus.loop = true; mus.preload = 'auto'; mus.setAttribute('playsinline', '');
-      try { musG = A.ctx.createGain(); musG.gain.value = 0; A.ctx.createMediaElementSource(mus).connect(musG); musG.connect(A.master); } catch (e) { musG = null; }
-    }
-    clearTimeout(musStop);
-    if (musG) musG.gain.setTargetAtTime(MUS_VOL, A.ctx.currentTime, 0.08); else mus.volume = Math.min(1, 0.5 * A.vol);
-    if (mus.paused) { var pr = mus.play(); if (pr && pr.catch) pr.catch(function () { }); }
+  // music, streamed by <audio> elements fed into the mix so it follows the master volume and can fade (both tracks from Epidemic
+  // Sound, supplied by the owner): "Bang Bang" by Matt Large on the menus before a game, "Plenty Bands" (instrumental) by Enophi
+  // from the final buzzer through the stats screen. An iPhone only lets a media element start inside a tap, so every tap (A.init)
+  // starts the wanted track and primes the others once (play, then pause) so they can start on their own later, like at the buzzer
+  var TRACKS = { menu: 'sfx/menu_music.mp3', post: 'sfx/post_music.mp3' }, mus = {}, musWant = null, MUS_VOL = 0.8;
+  function track(n) {
+    if (mus[n]) return mus[n];
+    var el = new Audio(TRACKS[n]), t = mus[n] = { el: el, g: null, stop: 0, primed: false };
+    el.loop = true; el.preload = 'auto'; el.setAttribute('playsinline', '');
+    try { t.g = A.ctx.createGain(); t.g.gain.value = 0; A.ctx.createMediaElementSource(el).connect(t.g); t.g.connect(A.master); } catch (e) { t.g = null; }
+    return t;
   }
-  A.music = function (on) {   // every frame: true while the pre-game menus are up
-    if (on === musOn) return; musOn = on;
-    if (on) { musKick(); return; }
-    if (!mus) return;
-    if (musG) musG.gain.setTargetAtTime(0, A.ctx.currentTime, 0.3); else mus.volume = 0;
-    musStop = setTimeout(function () { if (!musOn) { mus.pause(); mus.currentTime = 0; } }, 1600);   // back to the top for next time
+  function musPlay(el) { var pr = el.play(); if (pr && pr.catch) pr.catch(function () { }); return pr; }
+  function musKick() {
+    if (!A.ctx) return;
+    Object.keys(TRACKS).forEach(function (n) {
+      var t = track(n);
+      if (n === musWant) {
+        clearTimeout(t.stop); t.primed = true;
+        if (t.g) t.g.gain.setTargetAtTime(MUS_VOL, A.ctx.currentTime, 0.12); else t.el.volume = Math.min(1, 0.5 * A.vol);
+        if (t.el.paused) musPlay(t.el);
+      } else if (!t.primed && t.g) {   // silent (its gain is 0) and paused again as soon as it starts
+        t.primed = true; var pr = musPlay(t.el), park = function () { if (musWant !== n) { t.el.pause(); t.el.currentTime = 0; } };
+        if (pr && pr.then) pr.then(park, function () { t.primed = false; }); else park();
+      }
+    });
+  }
+  A.music = function (n) {   // every frame: the track this screen wants ('menu', 'post') or null
+    n = n || null; if (n === musWant) return; musWant = n;
+    Object.keys(mus).forEach(function (k) {   // the others fade out and go back to the top for next time
+      var t = mus[k]; if (k === n) return;
+      if (t.g) t.g.gain.setTargetAtTime(0, A.ctx.currentTime, 0.3); else t.el.volume = 0;
+      clearTimeout(t.stop); t.stop = setTimeout(function () { if (musWant !== k) { t.el.pause(); t.el.currentTime = 0; } }, 1600);
+    });
+    musKick();
   };
-  A.musicPlaying = function () { return !!(mus && !mus.paused); };
+  A.musicPlaying = function () { return Object.keys(mus).filter(function (k) { return !mus[k].el.paused && (!mus[k].g || mus[k].g.gain.value > 0.05); }).join(',') || 'none'; };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
   var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'steal_whoosh', 'crowd_a', 'crowd_b', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
@@ -90,7 +105,7 @@ window.HW = window.HW || {};
   A.yell = function () { if (bufs.yell0) take('yell', 7, 0.9); };
   A.punch = function () { A.sfx('punch' + Math.floor(Math.random() * 3), 0.9); };
   ['touchend', 'pointerup', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, A.init, true); });
-  document.addEventListener('visibilitychange', function () { if (document.hidden) { if (mus) mus.pause(); } else if (A.ctx) A.init(); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) { Object.keys(mus).forEach(function (k) { mus[k].el.pause(); }); } else if (A.ctx) A.init(); });
   A.setVolume = function (v) { A.vol = v; if (A.master) A.master.gain.value = 0.5 * v; };
 
   function throttle(k, ms) { var t = performance.now(); if (last[k] && t - last[k] < ms) return false; last[k] = t; return true; }
