@@ -230,7 +230,9 @@ window.HW = window.HW || {};
     if (img && img.naturalWidth && hd) {
       // photo cut-outs with lots of hair around the face (headScale) are drawn wider so every face comes out the same size
       var hs = img === f.front && p.def && p.def.headScale || 1, hw = HEAD_M * o.ground.s * (p.bigHead || 1) * hs, hh = hw * img.naturalHeight / img.naturalWidth;
-      var hx = (hd[0] - fx) * k, hy = (hd[1] - fy) * k, rot = m.hrot && m.hrot[o.fi];
+      var hx = (hd[0] - fx) * k, hy = (hd[1] - fy) * k, rot = m.hrot && m.hrot[o.fi] || 0;
+      // a hard hit snaps his head back
+      if (p.hitT > 0) { var jk = Math.min(1, p.hitT / 0.45); rot -= 0.9 * jk * jk; hx -= hw * 0.22 * jk; }
       if (rot) { g.save(); g.translate(hx, hy); g.rotate(rot); g.drawImage(img, -hw / 2, -hh * 0.8, hw, hh); g.restore(); }   // head turns with a flip or a fall
       else g.drawImage(img, hx - hw / 2, hy - hh * 0.8, hw, hh);
     }
@@ -311,7 +313,15 @@ window.HW = window.HW || {};
     pools.push({ x: x, z: z - 0.35, r: 0, max: 0.32 + 0.12 * amt, t: 0, life: 14, sx: 1.2 + Math.random() * 0.4 });
     if (pools.length > 6) pools.shift();
   };
-  X.clearBlood = function () { pools = []; };
+  X.clearBlood = function () { pools = []; craters = []; rings = []; };
+  // impact crater where a body slams into the floor: a dark dent with cracks running out of it
+  var craters = [], rings = [];
+  X.crater = function (x, z, r) {
+    var cr = []; for (var i = 0; i < 7; i++) cr.push([i / 7 * 6.283 + Math.random() * 0.6, 0.8 + Math.random() * 0.9, Math.random() * 0.5 - 0.25]);
+    craters.push({ x: x, z: z, r: r, t: 0, life: 12, cr: cr }); if (craters.length > 5) craters.shift();
+  };
+  // shockwave at the point of a hard hit
+  X.ring = function (x, y, z, size) { rings.push({ x: x, y: y, z: z, size: size, t: 0, life: 0.34, rot: Math.random() }); };
   // where a knocked-down player's head ends up on the floor (court x), from the last frame of his fall animation
   X.fallHeadX = function (p) {
     var sh = sheets[p.id], m = sh && sh.meta; if (!m || !m.anim.fall) return p.x - p.face * 1.4;
@@ -319,7 +329,40 @@ window.HW = window.HW || {};
     return p.x + (p.face < 0 ? -1 : 1) * (hd[0] - fx) / m.ppm;
   };
   X.pools = function () { return pools; };
+  function drawCraters(g, dt) {
+    for (var i = craters.length - 1; i >= 0; i--) {
+      var c = craters[i]; c.t += dt; if (c.t > c.life) { craters.splice(i, 1); continue; }
+      var p = X.proj(c.x, 0, c.z), rx = c.r * p.s, ry = rx * 0.3, a = Math.min(1, (c.life - c.t) / 3);
+      g.globalAlpha = a;
+      g.fillStyle = 'rgba(45,25,10,0.55)'; g.beginPath(); g.ellipse(p.x, p.y, rx, ry, 0, 0, 6.283); g.fill();
+      g.fillStyle = 'rgba(20,10,4,0.6)'; g.beginPath(); g.ellipse(p.x, p.y + ry * 0.1, rx * 0.55, ry * 0.5, 0, 0, 6.283); g.fill();
+      g.strokeStyle = 'rgba(255,225,180,0.35)'; g.lineWidth = 1; g.beginPath(); g.ellipse(p.x, p.y - ry * 0.12, rx * 0.98, ry * 0.9, 0, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+      g.strokeStyle = 'rgba(30,15,6,0.8)'; g.lineWidth = Math.max(1, c.r * p.s * 0.04);
+      c.cr.forEach(function (k) {
+        var x0 = p.x + Math.cos(k[0]) * rx * 0.5, y0 = p.y + Math.sin(k[0]) * ry * 0.5, x1 = p.x + Math.cos(k[0] + k[2]) * rx * k[1], y1 = p.y + Math.sin(k[0] + k[2]) * ry * k[1];
+        g.beginPath(); g.moveTo(x0, y0); g.lineTo((x0 + x1) / 2 + Math.sin(k[0] * 7) * 2, (y0 + y1) / 2); g.lineTo(x1, y1); g.stroke();
+      });
+      g.globalAlpha = 1;
+    }
+  }
+  function drawRings(g, dt) {
+    for (var i = rings.length - 1; i >= 0; i--) {
+      var r = rings[i]; r.t += dt; if (r.t > r.life) { rings.splice(i, 1); continue; }
+      var u = r.t / r.life, p = X.proj(r.x, r.y, r.z), rx = r.size * p.s * (0.45 + 0.75 * u), a = 1 - u;
+      // comic-book impact star for the first instant
+      if (u < 0.6) {
+        var sa = 1 - u / 0.6, R = r.size * p.s * (0.55 + 0.25 * u), n = 10;
+        g.globalAlpha = sa; g.fillStyle = '#ffd23a'; g.beginPath();
+        for (var j = 0; j < n * 2; j++) { var an = j / (n * 2) * 6.283 + r.rot, rr = j % 2 ? R * 0.42 : R * (j % 4 ? 0.85 : 1.1); g.lineTo(p.x + Math.cos(an) * rr, p.y + Math.sin(an) * rr * 0.8); }
+        g.closePath(); g.fill(); g.strokeStyle = '#ff7a00'; g.lineWidth = 1.5; g.stroke();
+        g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(p.x, p.y, R * 0.3, R * 0.24, 0, 0, 6.283); g.fill(); g.globalAlpha = 1;
+      }
+      g.strokeStyle = 'rgba(255,255,255,' + a + ')'; g.lineWidth = Math.max(1, 4 * a); g.beginPath(); g.ellipse(p.x, p.y, rx, rx * 0.75, 0, 0, 6.283); g.stroke();
+      g.strokeStyle = 'rgba(255,220,90,' + (a * 0.8) + ')'; g.lineWidth = Math.max(1, 2 * a); g.beginPath(); g.ellipse(p.x, p.y, rx * 0.7, rx * 0.52, 0, 0, 6.283); g.stroke();
+    }
+  }
   function drawPools(g, dt) {
+    drawCraters(g, dt);
     for (var i = pools.length - 1; i >= 0; i--) {
       var q = pools[i]; q.t += dt; if (q.t > q.life) { pools.splice(i, 1); continue; }
       q.r = q.max * Math.min(1, q.t / 1.1); var p = X.proj(q.x, 0, q.z), rx = q.r * p.s * q.sx, ry = q.r * p.s * 0.3, a = Math.min(1, (q.life - q.t) / 3);
@@ -330,6 +373,7 @@ window.HW = window.HW || {};
     }
   }
   X.drawParts = function (g, dt) {
+    drawRings(g, dt);
     for (var i = parts.length - 1; i >= 0; i--) {
       var q = parts[i]; q.life -= dt; if (q.life <= 0) { parts.splice(i, 1); continue; }
       q.vy -= q.g * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; if (q.y < 0) { q.y = 0; q.vy *= -0.4; }

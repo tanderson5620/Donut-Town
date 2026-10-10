@@ -28,6 +28,8 @@ On fire, a player's best rating (his specialty) is turned up even more: speed - 
 
 Ball handlers (Alan, Katelyn) change direction with a crossover or a behind-the-back dribble, which protects the ball; on fire it can put the defender on the floor. Goaltending is legal, shoving is encouraged.
 
+Every knockdown (shove, dunk rejection, posterize, ankle-breaker) is a hard hit: a freeze-frame with a comic impact star, his head snaps back, the screen shakes and he's launched backwards; he slams into the floor with a cracked crater, dust and blood where his head lands (more when a stronger player did it).
+
 ## How the players are made
 
 Like the arcade originals, players are flat sprites (digitized frames) with a big head pasted on top.
