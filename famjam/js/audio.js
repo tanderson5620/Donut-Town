@@ -68,7 +68,7 @@ window.HW = window.HW || {};
   };
   A.musicPlaying = function () { return Object.keys(mus).filter(function (k) { return !mus[k].el.paused && (!mus[k].g || mus[k].g.gain.value > 0.05); }).join(',') || 'none'; };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'steal_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
+  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'woohoo', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'steal_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (f) {   // .mp3 unless named (the dribbles are .wav: no encoder delay, so the thump lands on the frame)
@@ -78,9 +78,9 @@ window.HW = window.HW || {};
       }).then(function (b) { bufs[n] = b; }).catch(function () { });
     });
   }
-  A.sfx = function (n, vol) {
+  A.sfx = function (n, vol, delay) {
     if (!A.ctx || !bufs[n]) return; var s = A.ctx.createBufferSource(), g = A.ctx.createGain();
-    s.buffer = bufs[n]; g.gain.value = vol === undefined ? 1 : vol; s.connect(g); g.connect(A.master); s.start();
+    s.buffer = bufs[n]; g.gain.value = vol === undefined ? 1 : vol; s.connect(g); g.connect(A.master); s.start(A.ctx.currentTime + (delay || 0));
   };
   // the arena murmur under the whole game, swelling with the hype
   // two recorded arena crowds (Epidemic Sound) taking turns back to back with a 1 s crossfade, under one level control
@@ -168,10 +168,11 @@ window.HW = window.HW || {};
   // a basket: the recorded arena cheer (Epidemic Sound), louder for a three or a dunk; nothing synthesized
   A.cheer = function (big) { A.sfx('cheer_made', big ? 1 : 0.8); };
   A.groan = function () { noise(0.8, 0.12, 300, 0.5); tone(160, 0.7, 'sawtooth', 0.04, 90); };
-  // the slam: a recorded hand-and-ball rim hit with the rim ringing after (5 takes), then the crowd
-  A.dunk = function () {
+  // the slam: a recorded hand-and-ball rim hit with the rim ringing after (5 takes), then the crowd, and (woo) a guy's "woo-hoo!"
+  // a beat after the slam - the dunker, or his teammate when a woman dunks
+  A.dunk = function (woo) {
     if (bufs.dunk0) take('dunk', 5, 1); else { tone(70, 0.5, 'sine', 0.5, 30); noise(0.3, 0.3, 200, 0.6); }
-    A.cheer(true);
+    A.cheer(true); if (woo) A.sfx('woohoo', 0.9, 0.35);
   };
   A.shatter = function () { noise(0.7, 0.35, 5000, 0.4, 0, 'highpass'); noise(0.5, 0.25, 2500, 1); };
   A.fire = function () { noise(0.8, 0.2, 500, 0.5, 0, 'lowpass'); tone(110, 0.6, 'sawtooth', 0.12, 330); tone(220, 0.6, 'sawtooth', 0.08, 660, 0.1); };
