@@ -16,8 +16,27 @@ window.HW = window.HW || {};
   function sig(p, k) { return !!(p && p.onFire && top(p).indexOf(k) >= 0); }
   G.sig = sig;
   function fireBurst(x, y, z, n) { X.flame(x, y, z, n, 0.6); }
-  // knocked down by a stronger player: he bleeds a little where his head hits the floor
-  function bleed(p, amt) { p.bleed = Math.max(p.bleed || 0, amt); p.bleedT = 0.35; }
+  // every knockdown is a hard hit: a freeze-frame, a white impact ring and sparks, his head snaps back, the screen shakes and he's
+  // launched backwards; when he slams into the floor: a cracked crater, dust, a second shake and blood where his head lands (more
+  // when a stronger player did it). o: { hard (0.5 light .. 2 huge), fallT, blood, y (height of the hit) }
+  G.knockDown = function (q, src, o) {
+    o = o || {}; var hard = o.hard || 1;
+    var dx = src ? q.x - src.x : -q.face, dz = src ? q.z - src.z : 0, d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+    if (Math.abs(dx) < 0.35) dx = (dx < 0 ? -1 : 1) * 0.35;   // always some fling along the court so the fall reads
+    q.state = 'fall'; q.st = 0; q.fallT = o.fallT || 1.3; q.dk = null; q.pending = null; q.dm = null;
+    q.face = dx > 0 ? -1 : 1;                                   // he faces the hit and goes over backwards
+    q.vx = dx * (3 + 2 * hard); q.vz = dz * (1.2 + hard); q.vy = Math.max(q.vy || 0, 1.2 + 2.2 * hard); if (q.y < 0.001) q.y = 0.001;
+    q.hitT = 0.45; q.flash = 0.12; q.impact = { blood: o.blood || 0.7, hard: hard };
+    var hx = src ? (src.x + q.x) / 2 : q.x, hz = (src ? Math.min(src.z, q.z) : q.z) - 0.15, hy = o.y || q.y + 1.3;
+    X.ring(hx, hy, hz, 0.7 + 0.35 * hard); X.burst(hx, hy, hz, Math.round(10 + 8 * hard), ['#ffffff', '#ffe14d', '#ffb000'], 3 + 2 * hard, 0.35, 3);
+    G.hitstop = Math.max(G.hitstop || 0, 0.05 + 0.035 * hard); X.shake = Math.max(X.shake, 0.5 + 0.3 * hard); Au.thud();
+  };
+  function slam(p) {   // he hits the floor
+    var im = p.impact, hx = X.fallHeadX(p), cx = (p.x + hx) / 2; p.impact = null; p.st = Math.min(p.st, 0.36);   // his time on the floor starts now
+    p.vx *= 0.15; p.vz *= 0.15;   // the slam kills his momentum: he stays on his crater
+    X.crater(cx, p.z + 0.1, 0.5 + 0.2 * im.hard); X.burst(cx, 0.05, p.z - 0.1, 16, ['#c8a27a', '#a8845e', '#e6d2b0'], 2.5, 0.5, 6);
+    X.blood(hx, p.z, im.blood); X.shake = Math.max(X.shake, 0.3 + 0.15 * im.hard); Au.thud();
+  }
 
   /* ---------- players ---------- */
   function Player(id, team, slot, human) {
@@ -53,7 +72,7 @@ window.HW = window.HW || {};
   // set everyone up with `team` bringing the ball up from its own end
   G.lineup = function (team, center) {
     var s = side(team), off = G.players.filter(function (p) { return p.team === team; }), def = G.players.filter(function (p) { return p.team !== team; });
-    G.players.forEach(function (p) { p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.bleed = 0; });
+    G.players.forEach(function (p) { p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.impact = null; p.hitT = 0; });
     var hand = off.slice().sort(function (a, b) { return (b.human - a.human) || (b.def.type === 'handler') - (a.def.type === 'handler'); })[0];
     var bx = center ? -s * 1.5 : -s * 8.5;
     hand.x = bx; hand.z = 7; off.forEach(function (p) { if (p !== hand) { p.x = bx + s * 3.5; p.z = 3; } });
@@ -148,7 +167,7 @@ window.HW = window.HW || {};
       k.slam = true; var b = G.ball; p.hasBall = false; b.holder = null; b.state = 'through'; b.x = rimX(p.team); b.z = K.HZ; b.y = K.RIM_H - 0.05; b.vy = -5; b.vx = b.vz = 0;
       p.stats.dunks++; G.scored(p, 2, true);
       var poster = false;
-      G.opps(p).forEach(function (q) { if (q.y > 0.3 && q.state !== 'fall' && q.state !== 'dunk' && dist(p, q) < 1.6 && p.def.stats.str > q.def.stats.str) { q.state = 'fall'; q.st = 0; q.fallT = 1.6; q.vy = Math.min(q.vy, 0); q.face = p.x >= q.x ? 1 : -1; q.vx = -q.face * 2; poster = true; bleed(q, 0.8 + (p.def.stats.str - q.def.stats.str) * 0.1); } });
+      G.opps(p).forEach(function (q) { if (q.y > 0.3 && q.state !== 'fall' && q.state !== 'dunk' && dist(p, q) < 1.6 && p.def.stats.str > q.def.stats.str) { q.vy = Math.min(q.vy, 0); G.knockDown(q, p, { hard: 1.3, fallT: 1.6, blood: 0.7 + (p.def.stats.str - q.def.stats.str) * 0.1, y: q.y + 1.4 }); poster = true; } });
       if (poster) G.say('POSTERIZED!', '#ff8a5a', 1.6, 1.1);
       X.shake = 1.4; X.hype = 3; Au.dunk(); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
       if (p.def.stats.dunk >= 9 && Math.random() < (sig(p, 'dunk') ? 0.85 : 0.3)) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
@@ -221,8 +240,8 @@ window.HW = window.HW || {};
     if (fs) fireBurst((p.x + tgt.x) / 2, 1.2, (p.z + tgt.z) / 2, 14);
     if (Math.random() < kd) {
       if (tgt.hasBall) G.drop(tgt, dx * 3, 3, dz * 3);
-      tgt.state = 'fall'; tgt.st = 0; tgt.face = dx > 0 ? -1 : 1; tgt.vy = 0; tgt.y = 0; Au.thud(); X.shake = Math.max(X.shake, 0.5);
-      var gap = str - tgt.def.stats.str + (fs ? 5 : 0); if (gap > 0) bleed(tgt, 0.8 + gap * 0.1);
+      var gap = str - tgt.def.stats.str + (fs ? 5 : 0);
+      G.knockDown(tgt, p, { hard: fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6), blood: 0.7 + Math.max(0, gap) * 0.1, y: 1.2 });
       G.say(pick(HW.PHRASES.shove), '#ff8a5a', 1);
     } else if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5);
   };
@@ -253,10 +272,10 @@ window.HW = window.HW || {};
   // a stronger blocker puts him on the floor for 2 s and he leaves a little blood on the court
   G.rejectDunk = function (q, dk) {
     var power = q.def.stats.str - dk.def.stats.str + (sig(q, 'str') ? 5 : 0);
-    dk.dk = null; dk.state = 'fall'; dk.st = 0; dk.vy = 0; dk.vx *= 0.3; dk.vz *= 0.3; dk.face = -side(dk.team);
-    dk.fallT = power > 0 ? 2.0 : 1.3;
-    if (power > 0) bleed(dk, 1 + power * 0.12);
-    G.blocked(q, dk, null, 'GET THAT SHIT OUT OF HERE!'); X.shake = power > 0 ? 1.4 : 1; X.hype = Math.max(X.hype, 2.6); Au.thud();
+    dk.dk = null; dk.vy = 0;
+    G.blocked(q, dk, null, 'GET THAT SHIT OUT OF HERE!');
+    G.knockDown(dk, q, { hard: power > 0 ? clamp(1.2 + power * 0.06, 1.2, 2) : 1, fallT: power > 0 ? 2.0 : 1.3, blood: 0.7 + Math.max(0, power) * 0.12, y: dk.y + 1.6 });
+    X.hype = Math.max(X.hype, 2.6);
   };
   // a block: the shot is dead and the blocker comes down with the ball
   G.blocked = function (q, shooter, info, text) {
@@ -272,6 +291,7 @@ window.HW = window.HW || {};
     G.t += dt; G.hoopFx = G.hoopFx.map(function (v) { return Math.max(0, v - dt * 2); });
     G.callouts.forEach(function (c) { c.t += dt; }); G.callouts = G.callouts.filter(function (c) { return c.t < c.life; });
     if (G.phase === 'menu' || G.phase === 'paused') return;
+    if (G.hitstop > 0) { G.hitstop -= dt; return; }   // freeze-frame on a hard hit
     if (G.tipT > 0 && (G.tipT -= dt) <= 0) G.say('STICK PAST THE RING = TURBO!', '#5cff7a', 3.5, 0.55);
     var live = G.phase === 'play';
     if (G.phase === 'tip') { G.phaseT -= dt; if (G.phaseT <= 0) { G.phase = 'play'; G.say('GO!', '#5cff7a', 0.8, 1.3); Au.whistle(); } }
@@ -307,28 +327,29 @@ window.HW = window.HW || {};
     else p.turbo = Math.min(100, p.turbo + (p.hasBall ? 9 : 14) * dt);
     var sp = p.run * (p.turboOn ? p.turboMult : 1) * (p.hasBall ? 0.93 : 1) * (p.onFire ? (sig(p, 'speed') ? 1.3 : 1.1) : 1) * (p.human ? 1 : G.diff.speed) * (can ? 1 : 0) * (p.y > 0.05 ? 0.7 : 1);
     var k = 1 - Math.exp(-(m > 0.1 ? 10 : 12) * dt);
+    if (p.state === 'fall') return;   // knocked flying: physics carries him, nobody steers
     p.vx += (mx * sp - p.vx) * k; p.vz += (mz * sp * G.ZS - p.vz) * k;
   }
   G.move = move;
   function physics(p, dt) {
     p.st += dt;
-    if (p.bleed && p.y <= 0.001 && (p.bleedT -= dt) <= 0) { X.blood(X.fallHeadX(p), p.z, p.bleed); p.bleed = 0; }
+    if (p.hitT > 0) p.hitT -= dt;
     if (p.pending && p.state !== 'pass') p.pending = null;   // knocked out of a fancy pass (shoved, fell, new possession): the move is off
     // ball handlers change direction with a crossover or a behind-the-back dribble
     if (p.dm) { p.dm.t += dt; if (p.dm.t >= p.dm.dur || !p.hasBall || p.state !== 'idle') { p.dm = null; p.dribT = Math.floor(p.dribT || 0) + 0.5; } }
     else if (p.hasBall && p.def.type === 'handler' && p.state === 'idle' && p.grounded() && p.prevFace && p.face !== p.prevFace && Math.abs(p.vx) > 0.9) {
       p.dm = { type: Math.random() < 0.6 ? 'cross' : 'btb', t: 0, dur: 0.34, from: p.prevFace };
       // on fire, the crossover can put his man on the floor
-      if (p.onFire) G.opps(p).forEach(function (q) { if (q.state !== 'fall' && q.grounded() && dist(p, q) < 1.8 && Math.random() < 0.65) { q.state = 'fall'; q.st = 0; q.fallT = 1.0; q.face = p.x >= q.x ? -1 : 1; q.vx = p.face * 1.5; Au.thud(); fireBurst(q.x, 0.4, q.z, 8); } });
+      if (p.onFire) G.opps(p).forEach(function (q) { if (q.state !== 'fall' && q.grounded() && dist(p, q) < 1.8 && Math.random() < 0.65) { G.knockDown(q, p, { hard: 0.5, fallT: 1.0, blood: 0.5, y: 0.5 }); fireBurst(q.x, 0.4, q.z, 8); } });
     }
     p.prevFace = p.face;
     // speed on fire leaves afterimages
     if (sig(p, 'speed') && Math.hypot(p.vx, p.vz) > 4) { p.trailT = (p.trailT || 0) - dt; if (p.trailT <= 0) { p.trailT = 0.045; (p.trail = p.trail || []).unshift({ x: p.x, y: p.y, z: p.z, anim: p.anim, dir: p.dir, frame: p.frame, face: p.face }); if (p.trail.length > 3) p.trail.pop(); } }
     else if (p.trail && p.trail.length) p.trail.pop();
     if (p.state === 'dunk') { updateDunk(p, dt); return; }
-    if (p.state === 'fall') { p.vx *= 1 - 4 * dt; p.vz *= 1 - 4 * dt; if (p.st > (p.fallT || 1.3)) { p.state = 'idle'; p.flash = 0.6; p.fallT = 0; } }
+    if (p.state === 'fall') { var fr = p.y > 0 ? 1.2 : 6; p.vx *= Math.max(0, 1 - fr * dt); p.vz *= Math.max(0, 1 - fr * dt); if (p.st > (p.fallT || 1.3)) { p.state = 'idle'; p.flash = 0.6; p.fallT = 0; } }
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
-    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.state === 'jump') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = 'idle'; } } }
+    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = 'idle'; } } }
     if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * 1.7) G.releaseShot(p);
     if (p.state === 'pass') updatePending(p);
     if ((p.state === 'pass' && p.st > (p.passStyle ? FANCY[p.passStyle].dur : 0.3) && p.grounded()) || (p.state === 'steal' && p.st > 0.3) || (p.state === 'shove' && p.st > 0.35) || (p.state === 'cheer' && p.st > 1.5)) p.state = 'idle';
