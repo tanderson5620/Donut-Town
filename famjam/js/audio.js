@@ -22,11 +22,12 @@ window.HW = window.HW || {};
     } catch (e) { A.ctx = null; }
     musKick();
   };
-  // music, streamed by <audio> elements fed into the mix so it follows the master volume and can fade (both tracks from Epidemic
-  // Sound, supplied by the owner): "Bang Bang" by Matt Large on the menus before a game, "Plenty Bands" (instrumental) by Enophi
-  // from the final buzzer through the stats screen. An iPhone only lets a media element start inside a tap, so every tap (A.init)
+  // music, streamed by <audio> elements fed into the mix so it follows the master volume and can fade (all from Epidemic Sound,
+  // supplied by the owner): on the menus before a game, a coin flip each time between "Bang Bang" by Matt Large and "Talk About
+  // It" (instrumental) by Ira Moon; from the final buzzer through the stats screen, "Plenty Bands" (instrumental) by Enophi.
+  // An iPhone only lets a media element start inside a tap, so every tap (A.init)
   // starts the wanted track and primes the others once (play, then pause) so they can start on their own later, like at the buzzer
-  var TRACKS = { menu: 'sfx/menu_music.mp3' + SFX_V, post: 'sfx/post_music.mp3' + SFX_V }, mus = {}, musWant = null, MUS_VOL = 0.8;
+  var TRACKS = { menu: 'sfx/menu_music.mp3' + SFX_V, menu2: 'sfx/menu_music2.mp3' + SFX_V, post: 'sfx/post_music.mp3' + SFX_V }, mus = {}, musAsk = null, musWant = null, MUS_VOL = 0.8;
   function track(n) {
     if (mus[n]) return mus[n];
     var el = new Audio(TRACKS[n]), t = mus[n] = { el: el, g: null, stop: 0, primed: false };
@@ -49,8 +50,10 @@ window.HW = window.HW || {};
       }
     });
   }
-  A.music = function (n) {   // every frame: the track this screen wants ('menu', 'post') or null
-    n = n || null; if (n === musWant) return; musWant = n;
+  A.music = function (n) {   // every frame: what this screen wants ('menu', 'post') or null
+    n = n || null; if (n === musAsk) return; musAsk = n;
+    if (n === 'menu' && Math.random() < 0.5) n = 'menu2';   // 50/50 which menu song, rolled each time the menus come up
+    musWant = n;
     Object.keys(mus).forEach(function (k) {   // the others fade out and go back to the top for next time
       var t = mus[k]; if (k === n) return;
       if (t.g) t.g.gain.setTargetAtTime(0, A.ctx.currentTime, 0.3); else t.el.volume = 0;
