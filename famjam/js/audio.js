@@ -7,6 +7,8 @@ window.HW = window.HW || {};
   // iPhone: sound only unlocks inside a finished tap (touchend / click), not touchstart, and the ring/silent switch mutes web
   // audio unless the page asks for a 'playback' session (iOS 17+). So: ask for playback, unlock on every kind of tap, play a
   // silent blip to open the output, and resume whenever the context gets suspended (tab switch, phone call)
+  // bump when a sound file is replaced under the same name, so phones fetch the new one instead of a saved copy
+  var SFX_V = '?v=2';
   A.init = function () {
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { }
     if (A.ctx) { if (A.ctx.state !== 'running') A.ctx.resume(); musKick(); return; }
@@ -24,7 +26,7 @@ window.HW = window.HW || {};
   // Sound, supplied by the owner): "Bang Bang" by Matt Large on the menus before a game, "Plenty Bands" (instrumental) by Enophi
   // from the final buzzer through the stats screen. An iPhone only lets a media element start inside a tap, so every tap (A.init)
   // starts the wanted track and primes the others once (play, then pause) so they can start on their own later, like at the buzzer
-  var TRACKS = { menu: 'sfx/menu_music.mp3', post: 'sfx/post_music.mp3' }, mus = {}, musWant = null, MUS_VOL = 0.8;
+  var TRACKS = { menu: 'sfx/menu_music.mp3' + SFX_V, post: 'sfx/post_music.mp3' + SFX_V }, mus = {}, musWant = null, MUS_VOL = 0.8;
   function track(n) {
     if (mus[n]) return mus[n];
     var el = new Audio(TRACKS[n]), t = mus[n] = { el: el, g: null, stop: 0, primed: false };
@@ -58,12 +60,12 @@ window.HW = window.HW || {};
   };
   A.musicPlaying = function () { return Object.keys(mus).filter(function (k) { return !mus[k].el.paused && (!mus[k].g || mus[k].g.gain.value > 0.05); }).join(',') || 'none'; };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'steal_whoosh', 'crowd_a', 'crowd_b', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
+  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'steal_whoosh', 'crowd_a', 'crowd_b', 'cheer_made', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (f) {   // .mp3 unless named (the dribbles are .wav: no encoder delay, so the thump lands on the frame)
       var n = f.replace(/\.\w+$/, '');
-      fetch('sfx/' + (f === n ? f + '.mp3' : f)).then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
+      fetch('sfx/' + (f === n ? f + '.mp3' : f) + SFX_V).then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
         return new Promise(function (res, rej) { var pr = A.ctx.decodeAudioData(ab, res, rej); if (pr && pr.catch) pr.catch(function () { }); });
       }).then(function (b) { bufs[n] = b; }).catch(function () { });
     });
@@ -130,7 +132,6 @@ window.HW = window.HW || {};
   A.tone = tone; A.noise = noise;
 
   A.bounce = function (v) { if (!throttle('b', 60)) return; v = Math.min(1, v / 7); tone(95 + v * 40, 0.12, 'sine', 0.12 + v * 0.35, 55); noise(0.05, 0.05 + v * 0.1, 400, 1); };
-  A.swish = function () { noise(0.45, 0.28, 3800, 0.7, 0, 'highpass'); noise(0.3, 0.12, 1800, 0.8); };
   A.rim = function (v) { if (!throttle('r', 70)) return; v = Math.min(1, (v || 4) / 8); tone(520, 0.4, 'triangle', 0.1 + 0.2 * v, 480); tone(1040, 0.3, 'sine', 0.06 + 0.1 * v, 990); noise(0.06, 0.1, 2200, 2); };
   A.board = function () { if (!throttle('bd', 80)) return; tone(160, 0.2, 'square', 0.12, 120); noise(0.1, 0.18, 700, 1); };
   A.buzzer = function () { tone(220, 0.9, 'sawtooth', 0.22); tone(233, 0.9, 'sawtooth', 0.18); };
@@ -141,12 +142,8 @@ window.HW = window.HW || {};
   A.shove = function () { noise(0.14, 0.3, 300, 0.8); tone(80, 0.15, 'sine', 0.25, 50); };
   A.steal = function () { noise(0.1, 0.22, 1500, 2); tone(700, 0.08, 'triangle', 0.1, 1200); };
   A.thud = function () { noise(0.25, 0.35, 160, 0.7); tone(60, 0.3, 'sine', 0.4, 40); };
-  A.cheer = function (big) {
-    if (bufs.crowd_cheer) { A.sfx('crowd_cheer', big ? 0.9 : 0.55); return; }   // the recorded roar once it's loaded
-    var n = big ? 1.3 : 0.7;
-    noise(n, 0.18 * (big ? 1.5 : 1), 700, 0.5); noise(n, 0.12, 1400, 0.6, 0.05);
-    if (big) { tone(330, 0.3, 'triangle', 0.05, 440, 0.1); tone(440, 0.4, 'triangle', 0.05, 660, 0.3); }
-  };
+  // a basket: the recorded arena cheer (Epidemic Sound), louder for a three or a dunk; nothing synthesized
+  A.cheer = function (big) { A.sfx('cheer_made', big ? 1 : 0.8); };
   A.groan = function () { noise(0.8, 0.12, 300, 0.5); tone(160, 0.7, 'sawtooth', 0.04, 90); };
   // the slam: a recorded hand-and-ball rim hit with the rim ringing after (5 takes), then the crowd
   A.dunk = function () {
