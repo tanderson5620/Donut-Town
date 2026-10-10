@@ -76,6 +76,9 @@ window.HW = window.HW || {};
     var h = G.human; if (!h) return;
     var st = h.hasBall ? (G.canDunk(h) ? 'dunk' : 'dunk off') : 'shove';
     if (st !== tState) { tState = st; var b = document.getElementById('bAct'); b.className = 'tb ' + st; b.textContent = h.hasBall ? 'DUNK' : 'SHOVE'; }
+    // the pass button steals on defense
+    var bh = HW.Jam.ball && HW.Jam.ball.holder, pl = bh && bh.team !== h.team ? 'STEAL' : 'PASS';
+    if (pl !== UI.passLbl) { UI.passLbl = pl; labelBtn('bPass', pl, 1.5); }
     var lv = Math.round(h.onFire ? 100 : h.turbo);
     if (lv !== tLevel) { tLevel = lv; var r = document.getElementById('stickRing'); r.style.setProperty('--t', lv); r.style.setProperty('--tc', h.onFire ? '#ff7a1a' : lv > 25 ? '#3df07a' : '#ff4b3a'); }
   };
