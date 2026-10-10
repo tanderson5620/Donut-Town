@@ -29,7 +29,7 @@ window.HW = window.HW || {};
     q.hitT = 0.45; q.flash = 0.12; q.impact = { blood: o.blood || 0.7, hard: hard };
     var hx = src ? (src.x + q.x) / 2 : q.x, hz = (src ? Math.min(src.z, q.z) : q.z) - 0.15, hy = o.y || q.y + 1.3;
     X.ring(hx, hy, hz, 0.7 + 0.35 * hard); X.burst(hx, hy, hz, Math.round(10 + 8 * hard), ['#ffffff', '#ffe14d', '#ffb000'], 3 + 2 * hard, 0.35, 3);
-    G.hitstop = Math.max(G.hitstop || 0, 0.05 + 0.035 * hard); X.shake = Math.max(X.shake, 0.5 + 0.3 * hard); Au.thud();
+    G.hitstop = Math.max(G.hitstop || 0, 0.05 + 0.035 * hard); X.shake = Math.max(X.shake, 0.5 + 0.3 * hard); Au.thud(); Au.punch && Au.punch();
   };
   // what the crowd yells when p flattens q: family trash talk when it fits (aunt/uncle on a niece/nephew, cousin on cousin, a woman
   // dropping a guy), mixed in with the plain knockdown calls; never the same line twice in a row
@@ -89,7 +89,7 @@ window.HW = window.HW || {};
 
   G.beginQuarter = function () {
     G.clock = G.q > 4 ? OT : QUARTER; G.lineup(G.q % 2 === 1 ? G.humanTeam : 1 - G.humanTeam, true);
-    G.phase = 'tip'; G.phaseT = 2.4; G.say(G.q > 4 ? 'OVERTIME!' : ['1ST QUARTER', '2ND QUARTER', '3RD QUARTER', '4TH QUARTER'][G.q - 1], '#fff', 2);
+    G.phase = 'tip'; G.phaseT = 2.4; Au.sfx && Au.sfx(G.q > 4 ? 'overtime' : G.q === 4 ? 'final_round' : 'ready'); G.say(G.q > 4 ? 'OVERTIME!' : ['1ST QUARTER', '2ND QUARTER', '3RD QUARTER', '4TH QUARTER'][G.q - 1], '#fff', 2);
   };
   // set everyone up with `team` bringing the ball up from its own end
   G.lineup = function (team, center) {
@@ -211,8 +211,8 @@ window.HW = window.HW || {};
       var poster = false;
       G.opps(p).forEach(function (q) { if (q.y > 0.3 && q.state !== 'fall' && q.state !== 'dunk' && dist(p, q) < 1.6 && p.def.stats.str > q.def.stats.str) { q.vy = Math.min(q.vy, 0); G.knockDown(q, p, { hard: 1.3, fallT: 1.6, blood: 0.7 + (p.def.stats.str - q.def.stats.str) * 0.1, y: q.y + 1.4 }); poster = true; } });
       if (poster) G.say('POSTERIZED!', '#ff8a5a', 1.6, 1.1);
-      X.shake = 1.4; X.hype = 3; Au.dunk(); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
-      if (p.def.stats.dunk >= 9 && Math.random() < (sig(p, 'dunk') ? 0.85 : 0.3)) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
+      X.shake = 1.4; X.hype = 3; Au.dunk(); Au.sfx && Au.sfx('rim_slam', 0.8); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
+      if (p.def.stats.dunk >= 9 && Math.random() < (sig(p, 'dunk') ? 0.85 : 0.3)) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); Au.sfx && Au.sfx('glass'); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
     }
     if (u >= 1) { p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; p.tongue = false; p.jamArm = null; }
   }
@@ -354,7 +354,7 @@ window.HW = window.HW || {};
     var pu = G.pu, p = pu.p; pu.t += dt; p.st = pu.t; animate(p, dt);
     X.camX += (X.camClamp(p.x) - X.camX) * (1 - Math.exp(-9 * dt));   // the camera slides over to him while it zooms in
     if (!pu.boom && pu.t >= PU.boom) {
-      pu.boom = true; p.ssj = 1; X.powerFlash(p); X.shake = Math.max(X.shake, 1.3); Au.powerup ? Au.powerup() : Au.fire();
+      pu.boom = true; p.ssj = 1; Au.sfx && Au.sfx('combo'); X.powerFlash(p); X.shake = Math.max(X.shake, 1.3); Au.powerup ? Au.powerup() : Au.fire();
       G.players.forEach(function (q) { if (q !== p && q.grounded() && dist(p, q) < 2.6 && q.team !== p.team) { q.vx += (q.x > p.x ? 1 : -1) * 2; } });   // the blast nudges anyone close
     }
     if (pu.t >= PU.dur) {
@@ -377,7 +377,7 @@ window.HW = window.HW || {};
     if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall') { G.puQueue = null; startPowerup(pq); return; } }
     if (G.tipT > 0 && (G.tipT -= dt) <= 0) G.say('STICK PAST THE RING = TURBO!', '#5cff7a', 3.5, 0.55);
     var live = G.phase === 'play';
-    if (G.phase === 'tip') { G.phaseT -= dt; if (G.phaseT <= 0) { G.phase = 'play'; G.say('GO!', '#5cff7a', 0.8, 1.3); Au.whistle(); } }
+    if (G.phase === 'tip') { G.phaseT -= dt; if (G.phaseT <= 0) { G.phase = 'play'; G.say('GO!', '#5cff7a', 0.8, 1.3); Au.whistle(); Au.sfx && Au.sfx('go'); } }
     else if (G.phase === 'scored') { G.phaseT -= dt; if (G.phaseT <= 0 && !(G.puQueue && G.phaseT > -2)) { G.lineup(G.nextPoss, false); G.phase = 'play'; } }   // a power-up still to come holds the restart
     else if (G.phase === 'break') { G.phaseT -= dt; if (G.phaseT <= 0) { G.q++; G.beginQuarter(); } }
     else if (G.phase === 'over') { G.phaseT -= dt; }
@@ -595,7 +595,7 @@ window.HW = window.HW || {};
 
   G.endQuarter = function () {
     Au.buzzer();
-    if (G.q >= 4 && G.score[0] !== G.score[1]) { G.phase = 'over'; G.phaseT = 4; var w = G.score[0] > G.score[1] ? 0 : 1; G.say(HW.TEAMS[w].name.toUpperCase() + ' WIN!', HW.TEAMS[w].color, 4, 1.2); G.players.forEach(function (p) { if (p.team === w) { p.state = 'cheer'; p.st = -99; } }); Au.cheer(true); return; }
+    if (G.q >= 4 && G.score[0] !== G.score[1]) { G.phase = 'over'; G.phaseT = 4; var w = G.score[0] > G.score[1] ? 0 : 1; Au.sfx && Au.sfx(w === G.humanTeam ? 'you_win' : 'you_lose'); G.say(HW.TEAMS[w].name.toUpperCase() + ' WIN!', HW.TEAMS[w].color, 4, 1.2); G.players.forEach(function (p) { if (p.team === w) { p.state = 'cheer'; p.st = -99; } }); Au.cheer(true); return; }
     G.phase = 'break'; G.phaseT = 3.2; G.say(G.q >= 4 ? 'TIED! OVERTIME' : 'END OF ' + ['1ST', '2ND', '3RD', '4TH'][G.q - 1], '#fff', 3);
   };
 
