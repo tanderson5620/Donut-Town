@@ -35,7 +35,7 @@ window.HW = window.HW || {};
     if (UI.screen) UI.drawMenu(g, dt);
     var inMenu = !!UI.screen; if (inMenu !== UI.wasMenu) { document.body.classList.toggle('inmenu', inMenu); UI.wasMenu = inMenu; }
     if (HW.Audio.ambient) HW.Audio.ambient(G.players.length && G.phase !== 'menu' && UI.screen !== 'paused' ? 0.18 + Math.min(0.25, X.hype * 0.08) : 0);
-    if (HW.Audio.music) HW.Audio.music(G.phase === 'menu');   // the menu music, until tip-off
+    if (HW.Audio.music) HW.Audio.music(G.phase === 'menu' ? 'menu' : G.phase === 'over' ? 'post' : null);   // menu music until tip-off, post-game music from the buzzer through the stats
     UI.endFrame();
     requestAnimationFrame(loop);
   }
