@@ -32,6 +32,7 @@ window.HW = window.HW || {};
     X.ring(hx, hy, hz, 0.7 + 0.35 * hard); X.burst(hx, hy, hz, Math.round(10 + 8 * hard), ['#ffffff', '#ffe14d', '#ffb000'], 3 + 2 * hard, 0.35, 3);
     G.hitstop = Math.max(G.hitstop || 0, 0.05 + 0.035 * hard); X.shake = Math.max(X.shake, 0.5 + 0.3 * hard); Au.punch && Au.punch();
     if (hard >= 1.8 && isGuy(q)) Au.scream && Au.scream();   // sent flying 3+ m: he screams on the way
+    if (isGuy(src)) Au.trash && Au.trash();   // and the guy who did it talks trash (now and then)
   };
   // what the crowd yells when p flattens q: family trash talk when it fits (aunt/uncle on a niece/nephew, cousin on cousin, a woman
   // dropping a guy), mixed in with the plain knockdown calls; never the same line twice in a row
@@ -54,6 +55,7 @@ window.HW = window.HW || {};
     p.vx *= 0.15; p.vz *= 0.15;   // the slam kills his momentum: he stays on his crater
     X.crater(cx, p.z + 0.1, 0.5 + 0.2 * im.hard); X.burst(cx, 0.05, p.z - 0.1, 16, ['#c8a27a', '#a8845e', '#e6d2b0'], 2.5, 0.5, 6);
     X.blood(hx, p.z, im.blood); X.shake = Math.max(X.shake, 0.3 + 0.15 * im.hard); Au.land ? Au.land() : Au.thud();
+    if (isGuy(p) && im.hard >= 1.3 && Math.random() < 0.4) Au.help && Au.help();   // flattened hard, he calls for help
   }
 
   /* ---------- players ---------- */
@@ -203,6 +205,8 @@ window.HW = window.HW || {};
     if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
       if (p.dk.style === 'mj') p.tongue = true;
       if (p.dk.style === 'legs') G.cine = { p: p, t: 0, dur: p.dk.T, slow: DUNK_SLAM * p.dk.T / 2.5 }; }   // 2.5 s of slow motion up to the slam
+    // from way out (a dunker on fire every time, otherwise now and then) a guy on defense yells "incoming!"
+    if (Math.hypot(p.x - rx, p.z - K.HZ) > 4.5 && (fd || Math.random() < 0.3) && G.opps(p).some(isGuy)) Au.incoming && Au.incoming();
     p.face = s; p.stats.fga++; Au.jump(); Au.whoosh(9);   // a dunk is a field goal attempt (made ones already count in fgm)
   };
   var DUNK_SLAM = 0.66, DK_FRAMES = { legs: 30 };   // frames per signature dunk in the extras sheet (the slow-motion one gets more)
@@ -341,6 +345,7 @@ window.HW = window.HW || {};
       var vy = 6.5, hy = dk.y, T = (vy + Math.sqrt(vy * vy + 2 * GRAV * hy)) / GRAV, ex = 1 - Math.exp(-1.2 * T);
       dk.vy = vy; dk.vx = (0 - dk.x) * 1.2 / ex; dk.vz *= 0.3; dk.face = dk.vx > 0 ? -1 : 1; X.shake = Math.max(X.shake, 1.4);
       if (isGuy(dk)) Au.scream && Au.scream();
+      if (isGuy(q)) Au.trash && Au.trash(true);
     }
     X.hype = Math.max(X.hype, 2.6);
   };

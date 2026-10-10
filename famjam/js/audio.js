@@ -68,7 +68,7 @@ window.HW = window.HW || {};
   };
   A.musicPlaying = function () { return Object.keys(mus).filter(function (k) { return !mus[k].el.paused && (!mus[k].g || mus[k].g.gain.value > 0.05); }).join(',') || 'none'; };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'yell_f0', 'shout0', 'shout1', 'block0', 'block1', 'block2', 'block3', 'land', 'hit0', 'hit1', 'hit2', 'hit3', 'scream', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'pass_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'game_over', 'glass'], bufs = {}, loading = false;
+  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'yell_f0', 'shout0', 'shout1', 'block0', 'block1', 'block2', 'block3', 'trash0', 'trash1', 'incoming0', 'incoming1', 'incoming2', 'incoming3', 'incoming4', 'incoming5', 'incoming6', 'help0', 'help1', 'help2', 'help3', 'help4', 'help5', 'help6', 'help7', 'help8', 'land', 'hit0', 'hit1', 'hit2', 'hit3', 'scream', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'pass_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'game_over', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (f) {   // .mp3 unless named (the dribbles are .wav: no encoder delay, so the thump lands on the frame)
@@ -136,6 +136,24 @@ window.HW = window.HW || {};
   A.punch = function () { if (bufs.hit0) take('hit', 4, 0.9); else A.thud(); };
   // a guy blocks a shot or rejects a dunk: "no!" / "not interested!" (4 recorded takes, never the same one twice running)
   A.blockNo = function () { if (bufs.block0) take('block', 4, 0.9); };
+  // spoken lines (trash talk, "incoming!", "help!") take turns: one at a time, and a line that would talk over another is dropped
+  var voiceUntil = 0;
+  function line(n, k, vol, delay) {
+    if (!A.ctx || !bufs[n + '0']) return false; var t0 = A.ctx.currentTime + (delay || 0); if (t0 < voiceUntil) return false;
+    var i; do { i = Math.floor(Math.random() * k); } while (k > 1 && i === lastTake[n]); lastTake[n] = i;
+    A.sfx(n + i, vol, delay); voiceUntil = t0 + bufs[n + i].duration + 0.15; return true;
+  }
+  // a guy who flattens someone talks trash (explicit, 2 takes): about half the time, no more than once every 6 s; always (big) after
+  // the hammer block
+  var trashT = -99;
+  A.trash = function (big) {
+    if (!A.ctx || (!big && (A.ctx.currentTime - trashT < 6 || Math.random() < 0.5))) return;
+    if (line('trash', 2, 1.3, 0.45)) trashT = A.ctx.currentTime;
+  };
+  // a defender sees a dunker take off from way out: "incoming!" (7 takes, at most once every 10 s)
+  A.incoming = function () { if (throttle('inc', 10000)) line('incoming', 7, 1.2, 0.05); };
+  // a guy left on the floor by a hard hit calls for help (9 takes)
+  A.help = function () { line('help', 9, 1.2, 0.35); };
   // a knocked-down player hits the floor: a recorded body landing on boards
   A.land = function () { if (bufs.land) A.sfx('land', 0.9); else A.thud(); };
   // a guy sent flying a long way by a hit: he screams on the way (one at a time)
