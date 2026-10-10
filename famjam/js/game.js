@@ -215,7 +215,7 @@ window.HW = window.HW || {};
       var poster = false;
       G.opps(p).forEach(function (q) { if (q.y > 0.3 && q.state !== 'fall' && q.state !== 'dunk' && dist(p, q) < 1.6 && p.def.stats.str > q.def.stats.str) { q.vy = Math.min(q.vy, 0); G.knockDown(q, p, { hard: 1.3, fallT: 1.6, blood: 0.7 + (p.def.stats.str - q.def.stats.str) * 0.1, y: q.y + 1.4 }); poster = true; } });
       if (poster) G.say('POSTERIZED!', '#ff8a5a', 1.6, 1.1);
-      X.shake = 1.4; X.hype = 3; Au.dunk(); Au.sfx && Au.sfx('rim_slam', 0.8); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
+      X.shake = 1.4; X.hype = 3; Au.dunk(); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
       if (p.def.stats.dunk >= 9 && Math.random() < (sig(p, 'dunk') ? 0.85 : 0.3)) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); Au.sfx && Au.sfx('glass'); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
     }
     if (u >= 1) { p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; p.tongue = false; p.jamArm = null; }
@@ -535,10 +535,10 @@ window.HW = window.HW || {};
       var thief = null; ps.tried = ps.tried || [];
       G.opps(ps.from).forEach(function (q) { if (!thief && v > 0.2 && v < 0.9 && q.state !== 'fall' && ps.tried.indexOf(q) < 0 && Math.hypot(q.x - b.x, q.z - b.z) < (sig(q, 'steal') ? 0.95 : 0.55) && b.y < q.y + q.reach) thief = q; });
       if (thief) ps.tried.push(thief);
-      if (thief && Math.random() < (thief.human ? 0.75 : 0.5 * G.diff.steal) * ps.safe * (sig(thief, 'steal') ? 1.6 : 1)) { thief.stats.steals++; G.give(thief); G.say('INTERCEPTED!', '#7ee0ff', 1.1); Au.steal(); return; }
+      if (thief && Math.random() < (thief.human ? 0.75 : 0.5 * G.diff.steal) * ps.safe * (sig(thief, 'steal') ? 1.6 : 1)) { thief.stats.steals++; G.give(thief); G.say('INTERCEPTED!', '#7ee0ff', 1.1); Au.steal(); Au.catch(); return; }
       // the receiver catches it as soon as it reaches him near the end of the flight
       if (v > 0.7 && ps.to.state !== 'fall' && dist(ps.to, b) < 0.8 && b.y < ps.to.y + ps.to.reach) v = 1;
-      if (v >= 1) { if (ps.to.state !== 'fall' && dist(ps.to, b) < 1.6) { G.give(ps.to); ps.to.assist = { by: ps.from, t: G.t }; Au.click(); } else { b.state = 'loose'; b.vy = 0; } }
+      if (v >= 1) { if (ps.to.state !== 'fall' && dist(ps.to, b) < 1.6) { G.give(ps.to); ps.to.assist = { by: ps.from, t: G.t }; Au.catch(); } else { b.state = 'loose'; b.vy = 0; } }
       return;
     }
     // loose ball physics + pickups
@@ -549,7 +549,7 @@ window.HW = window.HW || {};
     if (b.noCatch > 0 || G.phase !== 'play') return;
     var best = null, bd = 0.85;
     G.players.forEach(function (p) { if (p.state === 'fall' || p.state === 'dunk' || p.cd.catch > 0) return; var d = Math.hypot(p.x - b.x, p.z - b.z); if (d < bd && b.y < p.y + p.reach && b.y > p.y - 0.2) { bd = d; best = p; } });
-    if (best) G.give(best);
+    if (best) { G.give(best); Au.catch(); }
   }
 
   function animate(p, dt) {
