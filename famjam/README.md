@@ -76,4 +76,4 @@ famjam/tools                sprite factory
 
 `?quick` in the URL jumps straight to a matchup.
 
-Recorded sounds in `sfx/` (announcer voice and impacts) are from Kenney.nl, CC0 public domain (see `sfx/LICENSE-kenney-CC0.txt`).
+The crowd (`sfx/crowd_*.mp3`) is synthesized offline (hundreds of formant voices, claps, arena reverb). The other recorded sounds in `sfx/` (announcer voice and impacts) are from Kenney.nl, CC0 public domain (see `sfx/LICENSE-kenney-CC0.txt`).
