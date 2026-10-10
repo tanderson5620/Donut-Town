@@ -522,7 +522,7 @@ window.HW = window.HW || {};
         }
       });
       if (b.state === 'shot' && u >= 1) {
-        if (s.make) { b.state = 'through'; b.vy = -3; b.vx = b.vz = 0; G.scored(s.by, s.three ? 3 : 2, false); }
+        if (s.make) { b.state = 'through'; b.vy = -3; b.vx = b.vz = 0; Au.net && Au.net(); G.scored(s.by, s.three ? 3 : 2, false); }
         else { b.state = 'loose'; Au.rim(6); G.missed(s); var sd = s.rx > 0 ? -1 : 1; b.vx = sd * rand(1.5, 4.5); b.vy = rand(2.5, 5); b.vz = rand(-2.5, 2.5); b.noCatch = 0.15; G.shot = 24; }
       }
       return;
