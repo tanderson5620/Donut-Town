@@ -349,7 +349,7 @@ window.HW = window.HW || {};
     var b = G.ball; q.stats.blocks++;
     if (info) G.missed(info); else { shooter.streak = 0; shooter.released = true; }
     X.burst(b.x, b.y, b.z, 14, ['#ffffff', '#ffd23f', '#ff6b6b'], 3, 0.5); if (sig(q, 'block')) fireBurst(b.x, b.y, b.z, 18);
-    G.give(q); q.cd.catch = 0;
+    G.give(q); q.cd.catch = 0; if (isGuy(q)) Au.blockNo && Au.blockNo();   // "no!" - "not interested!"
     G.say(text || pick(HW.PHRASES.block), '#ff6b6b', 1.3, text ? 1.2 : 1); Au.board(); X.shake = 0.6; X.hype = Math.max(X.hype, 1.6);
   };
 
