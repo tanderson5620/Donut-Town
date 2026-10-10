@@ -1,8 +1,8 @@
-# Hoops Jam (2D arcade)
+# FAM JAM: Andersons vs Gormans (2D arcade)
 
 A 2-on-2 arcade basketball game in the style of the classic 90s arcade cabinets: side-on camera that slides along the court, a packed crowd, digitized-looking players with big heads, SHOOT / PASS / TURBO, monster dunks and "on fire" streaks. Andersons vs Gormans. Made for phones (landscape) and desktop browsers. Plain HTML + JavaScript on a 2D canvas, no build step and no 3D at runtime.
 
-Play: `https://<your-user>.github.io/<repo>/jam/`. On iPhone, Share > Add to Home Screen runs it fullscreen.
+Play: https://tanderson5620.github.io/Donut-Town/famjam/ (the old `/jam/` link redirects here). On iPhone, Share > Add to Home Screen runs it fullscreen.
 
 ## Controls
 
@@ -40,23 +40,23 @@ Like the arcade originals, players are flat sprites (digitized frames) with a bi
 Rebuild the sprites after changing a player's look in `../hoops/js/config.js` (needs Playwright):
 
 ```bash
-node jam/tools/gen.js
+node famjam/tools/gen.js
 ```
 
 ## Files
 
 ```
-jam/index.html        canvas, touch buttons, rotate-your-phone card
-jam/css/jam.css       layout, touch controls
-jam/js/data.js        roster, teams, types, difficulty, announcer lines
-jam/js/audio.js       synthesized sound effects
-jam/js/gfx.js         camera, scanline floor, crowd, hoops, sprites + big heads, ball, particles
-jam/js/game.js        rules: turbo, timed jump shots, dunks, passes, steals, shoves, blocks, rebounds, on fire, clock
-jam/js/ai.js          computer players
-jam/js/ui.js          input, menus (team select, player cards, matchup), HUD, callouts
-jam/js/main.js        boot and main loop
-jam/sprites, faces    generated art
-jam/tools             sprite factory
+famjam/index.html           canvas, touch buttons, rotate-your-phone card
+famjam/css/jam.css          layout, touch controls
+famjam/js/data.js           roster, teams, types, difficulty, announcer lines
+famjam/js/audio.js          synthesized sound effects
+famjam/js/gfx.js            camera, scanline floor, crowd, hoops, sprites + big heads, ball, particles
+famjam/js/game.js           rules: turbo, timed jump shots, dunks, passes, steals, shoves, blocks, rebounds, on fire, clock
+famjam/js/ai.js             computer players
+famjam/js/ui.js             input, menus (team select, player cards, matchup), HUD, callouts
+famjam/js/main.js           boot and main loop
+famjam/sprites, faces       generated art
+famjam/tools                sprite factory
 ```
 
 `?quick` in the URL jumps straight to a matchup.
