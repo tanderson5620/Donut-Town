@@ -281,7 +281,7 @@ window.HW = window.HW || {};
     // bruisers (STR 9+, on fire counts) don't just push: a roundhouse kick, a Superman punch or a kick to the shins
     p.shoveStyle = p.def.stats.str >= 9 ? pick(['kick', 'punch', 'shin']) : null;
     var tgt = null, bd = 1.6; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < bd && q.state !== 'fall') { bd = d; tgt = q; } });
-    Au.shove(); if (!tgt) return;
+    Au.shove(); Au.shoveYell && Au.shoveYell(((HW.FAMILY || {})[p.id] || {}).sex === 'f'); if (!tgt) return;
     p.face = tgt.x >= p.x ? 1 : -1; p.stats.shoves++;
     var dx = (tgt.x - p.x) / (bd || 1), dz = (tgt.z - p.z) / (bd || 1), str = p.def.stats.str, fs = sig(p, 'str'), wall = sig(tgt, 'str') && !fs;
     var kd = 0.18 + 0.065 * str - 0.03 * tgt.def.stats.str + (p.turboOn ? 0.12 : 0) + (p.def.type === 'strength' ? 0.12 : 0) - (tgt.y > 0.2 ? 0.15 : 0);
