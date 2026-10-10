@@ -12,7 +12,7 @@ window.HW = window.HW || {};
   function side(team) { return team === 0 ? 1 : -1; }
   // on fire, a player's best rating (his specialty; ties count) gets turned up even more
   var STATK = ['speed', 'tp', 'dunk', 'steal', 'block', 'str', 'pass'];
-  function top(p) { if (!p.topK) { var s = p.def.stats, m = 0; STATK.forEach(function (k) { m = Math.max(m, s[k] || 0); }); p.topK = STATK.filter(function (k) { return (s[k] || 0) >= m; }); } return p.topK; }
+  function top(p) { if (!p.topK) { var s = p.def.base || p.def.stats, m = 0; STATK.forEach(function (k) { m = Math.max(m, s[k] || 0); }); p.topK = STATK.filter(function (k) { return (s[k] || 0) >= m; }); } return p.topK; }
   function sig(p, k) { return !!(p && p.onFire && top(p).indexOf(k) >= 0); }
   G.sig = sig;
   function fireBurst(x, y, z, n) { X.flame(x, y, z, n, 0.6); }
@@ -57,9 +57,14 @@ window.HW = window.HW || {};
   /* ---------- players ---------- */
   function Player(id, team, slot, human) {
     var d = HW.PLAYERS[id], t = HW.TYPES[d.type], s = d.stats;
-    this.id = id; this.def = d; this.team = team; this.slot = slot; this.human = !!human;
-    this.run = 4.4 + 0.32 * s.speed; this.turboMult = t.turboMult + 0.05; this.drain = 30 * t.turboDrain;
-    this.jumpH = 0.85 + 0.05 * s.dunk + t.jumpBonus; this.reach = d.height + 0.45;
+    this.id = id;
+    // on fire his best 3 ratings jump to 10 (def.stats reads the boosted set while he's on fire, the real one otherwise)
+    var self = this, base = d.stats, hot = {}, best = Object.keys(base).sort(function (a, b) { return base[b] - base[a]; }).slice(0, 3);
+    Object.keys(base).forEach(function (k) { hot[k] = best.indexOf(k) >= 0 ? 10 : base[k]; });
+    this.def = Object.create(d); this.def.base = base; this.def.hot = hot;
+    Object.defineProperty(this.def, 'stats', { get: function () { return self.onFire ? hot : base; } }); this.team = team; this.slot = slot; this.human = !!human;
+    Object.defineProperty(this, 'run', { get: function () { return 4.4 + 0.32 * self.def.stats.speed; } }); this.turboMult = t.turboMult + 0.05; this.drain = 30 * t.turboDrain;
+    Object.defineProperty(this, 'jumpH', { get: function () { return 0.85 + 0.05 * self.def.stats.dunk + t.jumpBonus; } }); this.reach = d.height + 0.45;
     this.x = 0; this.z = 7; this.y = 0; this.vx = 0; this.vz = 0; this.vy = 0; this.face = 1; this.dir = 'R';
     this.anim = 'idle'; this.frame = 0; this.state = 'idle'; this.st = 0; this.turbo = 100; this.turboOn = false;
     this.onFire = false; this.streak = 0; this.cd = { steal: 0, shove: 0, jump: 0, catch: 0, block: 0 }; this.flash = 0;
