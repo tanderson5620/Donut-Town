@@ -68,7 +68,7 @@ window.HW = window.HW || {};
   };
   A.musicPlaying = function () { return Object.keys(mus).filter(function (k) { return !mus[k].el.paused && (!mus[k].g || mus[k].g.gain.value > 0.05); }).join(',') || 'none'; };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'yell_f0', 'shout0', 'shout1', 'shout2', 'shout3', 'land', 'hit0', 'hit1', 'hit2', 'hit3', 'scream', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'steal_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'game_over', 'glass'], bufs = {}, loading = false;
+  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'yell_f0', 'shout0', 'shout1', 'shout2', 'shout3', 'land', 'hit0', 'hit1', 'hit2', 'hit3', 'scream', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'pass_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'game_over', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (f) {   // .mp3 unless named (the dribbles are .wav: no encoder delay, so the thump lands on the frame)
@@ -96,14 +96,16 @@ window.HW = window.HW || {};
       s.start(t0); ambNext = t0 + d - XF; ambI = 1 - ambI;
     }
   };
-  // a steal swipe: one of three recorded whooshes (never the same twice running), each at a gain that evens out how loud they
-  // sound (the two short swishes are thinner than the long whoosh); falls back to the synth one until they load
-  var SWIPES = [['steal_whoosh', 1.3], ['steal1', 1.45], ['steal2', 1.65]], lastSw = -1;
+  // a steal swipe: one of the two recorded stick swishes, taking turns, each at a gain that evens out how loud they sound; falls
+  // back to the synth one until they load
+  var SWIPES = [['steal1', 1.45], ['steal2', 1.65]], lastSw = -1;
   A.swipe = function () {
     var ok = SWIPES.filter(function (w, i) { return bufs[w[0]] && i !== lastSw; });
-    if (!ok.length) { if (bufs.steal_whoosh) A.sfx('steal_whoosh', 1.3); else A.whoosh(3); return; }
+    if (!ok.length) { A.whoosh(3); return; }
     var w = ok[Math.floor(Math.random() * ok.length)]; lastSw = SWIPES.indexOf(w); A.sfx(w[0], w[1]);
   };
+  // a fancy pass (flip, behind the back, moonwalk...): the big recorded whoosh as the ball leaves his hand, loudest 0.2 s into its flight
+  A.passWhoosh = function () { if (bufs.pass_whoosh) A.sfx('pass_whoosh', 1.2); else A.whoosh(6); };
   A.loaded = function () { return Object.keys(bufs).length; };
   // the ball hits the floor: a recorded bounce (4 takes, never the same twice running), louder for a harder bounce
   var lastDr = -1;
