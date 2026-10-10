@@ -259,12 +259,18 @@ window.HW = window.HW || {};
       if (gold) { var P = img === f.front ? f.ssjPad : f.ssjPadBack, sx = hw / img.naturalWidth; img = img === f.front ? f.ssj : f.ssjBack; dx0 -= P[0] * sx; dy0 -= P[1] * sx; dw = img.naturalWidth * sx; dh = img.naturalHeight * sx; }
       if (rot) { g.save(); g.translate(hx, hy); g.rotate(rot); g.drawImage(img, dx0, dy0, dw, dh); g.restore(); }   // head turns with a flip or a fall
       else g.drawImage(img, hx + dx0, hy + dy0, dw, dh);
+      if (p.tongue && img !== f.back && img !== f.ssjBack) {   // tongue hanging out (the free-throw-line dunk)
+        var tx = hx + hw * 0.03, ty = hy - hh * 0.8 + hh * 0.8, tw = hw * 0.13, th = hh * 0.13;
+        g.fillStyle = '#7a1d2a'; g.beginPath(); g.ellipse(tx, ty + th * 0.35, tw * 0.6, th * 0.7, 0, 0, 6.283); g.fill();
+        g.fillStyle = '#e8607a'; g.beginPath(); g.ellipse(tx, ty + th * 0.4, tw * 0.5, th * 0.62, 0, 0, 6.283); g.fill();
+        g.strokeStyle = '#b8304a'; g.lineWidth = Math.max(1, tw * 0.08); g.beginPath(); g.moveTo(tx, ty + th * 0.05); g.lineTo(tx, ty + th * 0.6); g.stroke();
+      }
     }
   }
   // where his ball hand is right now, in court meters (the ball rides in it through a fancy pass)
-  X.handWorld = function (p) {
-    var o = frameOf(p); if (!o) return null; var hd = o.m.hand[o.fi]; if (!hd) return null;
-    return { x: p.x + (o.flip ? -1 : 1) * (hd[0] - o.fx) / o.m.ppm, y: p.y + (o.fy - hd[1]) / o.m.ppm };
+  X.handWorld = function (p, left) {
+    var o = frameOf(p); if (!o) return null; var hd = o.m.hand[o.fi]; if (!hd) return null; var j = left && hd.length > 3 ? 2 : 0;
+    return { x: p.x + (o.flip ? -1 : 1) * (hd[j] - o.fx) / o.m.ppm, y: p.y + (o.fy - hd[j + 1]) / o.m.ppm };
   };
   // the polished floor mirrors the players faintly, like the arcade's glossy hardwood
   X.drawReflection = function (g, p) {
@@ -292,6 +298,12 @@ window.HW = window.HW || {};
     if (aur) drawAura(g, p, o, X.t || 0, aur);
     drawBody(g, p, o);
     if (aur) auraFront(g, p, o, X.t || 0, aur);
+    if (p.jamArm) {   // the arm stretches all the way to the rim (cartoon dunk)
+      var hdj = m.head[o.fi], sx0 = (hdj ? hdj[2] - fx : 0) * k + 0.12 * ground.s, sy0 = (hdj ? hdj[3] - fy : -1.6 * ground.s) * k + 0.08 * ground.s, jb = X.proj(p.jamArm.x, p.jamArm.y, p.jamArm.z);
+      var ex = (jb.x - ground.x) * (o.flip ? -1 : 1), ey = jb.y - (ground.y - lift), aw = 0.11 * ground.s;
+      g.lineCap = 'round'; g.strokeStyle = '#120c18'; g.lineWidth = aw + 2; g.beginPath(); g.moveTo(sx0, sy0); g.lineTo(ex, ey); g.stroke();
+      g.strokeStyle = p.def.skin || '#e0a68c'; g.lineWidth = aw; g.beginPath(); g.moveTo(sx0, sy0); g.lineTo(ex, ey); g.stroke(); g.lineCap = 'butt';
+    }
     // hit flash: the same frame again, added on top (no canvas filters - slow on phones, missing on older Safari)
     if (p.flash > 0 && Math.floor(p.flash * 16) % 2) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.6; drawBody(g, p, o); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
     g.restore();
@@ -427,14 +439,15 @@ window.HW = window.HW || {};
   // full scene, back to front; `things` are players + ball, each with x,z
   X.drawScene = function (g, t, dt, players, ball, hoopFx) {
     X.t = t;
-    var pu = HW.Jam && HW.Jam.pu, zk = 1, za = 0, zf = null;
+    var pu = HW.Jam && (HW.Jam.pu || HW.Jam.cine), zk = 1, za = 0, zf = null, cine = pu && !HW.Jam.pu;
     if (pu) {   // the power-up camera: zoom in on him, hold, ease back out
-      var D = HW.Jam.PU.dur, u = pu.t, e = function (v) { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+      var D = cine ? pu.dur : HW.Jam.PU.dur, u = pu.t, e = function (v) { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
       // zoom so he fills about 3/4 of the screen from his shoes to the tips of the hair, never showing past the edge of the scene
       var pp = pu.p, gd = X.proj(pp.x, 0, pp.z), top = pp.headTop !== undefined ? pp.headTop - X.shakeY : gd.y - 2.3 * gd.s, fig = Math.max(40, gd.y - X.shakeY - top + 0.35 * gd.s);
-      var zmax = Math.max(1.5, Math.min(2.6, 0.92 * H / fig));
+      var zmax = cine ? 1.75 : Math.max(1.5, Math.min(2.6, 0.92 * H / fig));
+      if (cine) { fig = 0; top = top + 0.35 * gd.s; }   // a dunk close-up: on his face
       za = u < 0.25 ? e(u / 0.25) : u > D - 0.3 ? e((D - u) / 0.3) : 1; zk = 1 + (zmax - 1) * za;
-      zf = { x: gd.x - X.shakeX, y: (gd.y - X.shakeY + top - 0.35 * gd.s) / 2 };
+      zf = cine ? { x: gd.x - X.shakeX, y: top + 0.3 * HEAD_M * gd.s } : { x: gd.x - X.shakeX, y: (gd.y - X.shakeY + top - 0.35 * gd.s) / 2 };
       var tx = zf.x + (W / 2 - zf.x) * za, ty = zf.y + (H * 0.5 - zf.y) * za;
       tx = Math.max(W - zk * (W - zf.x), Math.min(zk * zf.x, tx)); ty = Math.max(H - zk * (H - zf.y), Math.min(zk * zf.y, ty));
       g.save(); g.translate(tx, ty); g.scale(zk, zk); g.translate(-zf.x, -zf.y);
@@ -444,7 +457,7 @@ window.HW = window.HW || {};
     if (pu) {
       g.restore(); g.imageSmoothingEnabled = true;
       // dim the edges so he owns the screen, darker while he charges
-      var vg = g.createRadialGradient(W / 2, H * 0.52, H * 0.25, W / 2, H * 0.52, W * 0.62), dark = (pu.boom ? 0.5 : 0.7) * za;
+      var vg = g.createRadialGradient(W / 2, H * 0.52, H * 0.25, W / 2, H * 0.52, W * 0.62), dark = (cine ? 0.35 : pu.boom ? 0.5 : 0.7) * za;
       vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,8,' + dark + ')'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
     }
     if (X.white > 0) { g.fillStyle = 'rgba(255,248,214,' + Math.min(1, X.white) + ')'; g.fillRect(0, 0, W, H); X.white = Math.max(0, X.white - dt * 3.2); }
