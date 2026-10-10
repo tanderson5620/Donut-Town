@@ -20,7 +20,7 @@ window.HW = window.HW || {};
     } catch (e) { A.ctx = null; }
   };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'steal_whoosh', 'crowd_a', 'crowd_b', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
+  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'steal_whoosh', 'crowd_a', 'crowd_b', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (f) {   // .mp3 unless named (the dribbles are .wav: no encoder delay, so the thump lands on the frame)
@@ -63,6 +63,8 @@ window.HW = window.HW || {};
   function take(n, k, vol) { var i; do { i = Math.floor(Math.random() * k); } while (k > 1 && i === lastTake[n]); lastTake[n] = i; A.sfx(n + i, vol); }
   // hands on the ball: a pass or a rebound lands in someone's hands (2 recorded taps)
   A.catch = function () { if (bufs.catch0) take('catch', 2, 0.75); else A.click(); };
+  // a guy powering up: an anime battle yell (7 takes), each cut so its loudest moment lands on the blast at 0.9 s
+  A.yell = function () { if (bufs.yell0) take('yell', 7, 0.9); };
   A.punch = function () { A.sfx('punch' + Math.floor(Math.random() * 3), 0.9); };
   ['touchend', 'pointerup', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, A.init, true); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden && A.ctx) A.init(); });
