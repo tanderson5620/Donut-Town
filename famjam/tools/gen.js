@@ -2,7 +2,7 @@
 // Usage (from the repo root, Playwright installed):  THREE_JS=/path/to/three.min.js node famjam/tools/gen.js [ids...]
 // THREE_JS is optional; without it the page loads three.js r128 from the CDN. Env: OUT=dir writes elsewhere (for previews),
 // HEADS=1 only the heads, BODIES=1 only the sheets, REDO_FACES=1 also redoes existing front heads.
-// Front heads of players with a real photo cut-out (PHOTO in gen.html: alan) are never written.
+// Front heads of players with a real photo cut-out (photo: true in famjam/js/data.js) are never written.
 const http = require('http'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 let chromium; try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = require('/opt/node-tools/node_modules/playwright')); }
 const ROOT = path.resolve(__dirname, '..', '..'), OUT = process.env.OUT ? path.resolve(process.env.OUT) : path.resolve(__dirname, '..');
