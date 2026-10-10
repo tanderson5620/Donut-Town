@@ -28,6 +28,8 @@ Going on fire is a 2-second golden power-up: the game freezes and the camera zoo
 
 On fire, his best 3 ratings jump to 10 for as long as he stays on fire. On top of that, his best rating (his specialty) is turned up even more: speed - 30% faster with afterimages; pass - every pass is a fancy move and can't be intercepted; 3PTS - every release is green, about 99% from anywhere, and the net catches fire on a three; dunk - takes off from much farther out, longer hang time in flames, usually shatters the glass, and only a defender on fire can reject it; block - blocks almost everything with longer reach; power - every shove flattens and nobody can move him; steal - much better steals and interceptions.
 
+Bruisers (strength players) shove with a roundhouse kick, a Superman punch or a kick to the shins, and a bruiser rejecting a dunk hammers it with both fists from a bent-back C in the air, launching the dunker out to midcourt. The moonwalk pass is only for PASS 9+ (on fire counts).
+
 Ball handlers (Alan, Katelyn) change direction with a crossover or a behind-the-back dribble, which protects the ball; on fire it can put the defender on the floor. Goaltending is legal, shoving is encouraged.
 
 Knockdown trash talk follows the family tree (Alan + Lisa Anderson with Tyler and Carl; Karen, Alan's sister, + Kenny Gorman with Katelyn, Kody and Kameron): an uncle or aunt flattening a niece or nephew gets WHO'S YOUR UNCLE?!?! / WHO'S YOUR AUNTIE?!?! (with a double crotch chop), SIT DOWN JUNIOR!!! or KIDDIE TABLE'S OVER THERE! (pointing off at it); cousin on cousin, WEAKEST COUSIN I KNOW!; a woman dropping a guy, WIMP! and friends. The taunts last 2 s on top of normal play: he keeps running, catching and blocking as usual.
