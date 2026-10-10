@@ -20,7 +20,7 @@ window.HW = window.HW || {};
     } catch (e) { A.ctx = null; }
   };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['crowd_loop', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'rim_slam', 'glass'], bufs = {}, loading = false;
+  var SFX = ['steal_whoosh', 'crowd_loop', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'rim_slam', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (n) {
@@ -40,6 +40,8 @@ window.HW = window.HW || {};
     if (!amb) { var s = A.ctx.createBufferSource(), g = A.ctx.createGain(); s.buffer = bufs.crowd_loop; s.loop = true; g.gain.value = 0; s.connect(g); g.connect(A.master); s.start(); amb = g; }
     amb.gain.setTargetAtTime(level, A.ctx.currentTime, 0.4);
   };
+  // a steal swipe: the recorded whoosh (falls back to the synth one until it loads)
+  A.swipe = function () { if (bufs.steal_whoosh) A.sfx('steal_whoosh', 0.8); else A.whoosh(3); };
   A.loaded = function () { return Object.keys(bufs).length; };
   A.punch = function () { A.sfx('punch' + Math.floor(Math.random() * 3), 0.9); };
   ['touchend', 'pointerup', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, A.init, true); });

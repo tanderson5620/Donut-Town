@@ -193,7 +193,7 @@ window.HW = window.HW || {};
     // (slow motion, close-up on the tongue) or the stretched arm; closer: under the legs, behind the back, off the backboard,
     // a front flip, the double-biceps flex or a bounce to himself
     if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
-      if (p.dk.style === 'mj') { p.tongue = true; G.cine = { p: p, t: 0, dur: p.dk.T }; } }
+      if (p.dk.style === 'mj') { p.tongue = true; G.cine = { p: p, t: 0, dur: p.dk.T, slow: DUNK_SLAM * p.dk.T / 2.5 }; } }   // 2.5 s of slow motion up to the slam
     p.face = s; p.stats.fga++; Au.jump(); Au.whoosh(9);   // a dunk is a field goal attempt (made ones already count in fgm)
   };
   var DUNK_SLAM = 0.66;
@@ -203,7 +203,7 @@ window.HW = window.HW || {};
     p.x = k.x0 + (k.x1 - k.x0) * e; p.z = k.z0 + (k.z1 - k.z0) * e; p.y = Math.max(0, k.peak * Math.sin(Math.PI * Math.min(1, u)) * (u > 0.62 && u < 0.82 ? 1.02 : 1));
     if (k.spin && u > 0.18 && u < 0.5) p.face = Math.floor(u * 22) % 2 ? side(p.team) : -side(p.team); else p.face = side(p.team);
     if (sig(p, 'dunk')) fireBurst(p.x, p.y + 1.0, p.z - 0.1, 2);   // wrapped in flames all the way up
-    if (k.style) { p.anim = 'dk_' + k.style; p.dir = k.style === 'flex' ? 'C' : 'R'; p.frame = Math.min(11, Math.round(Math.min(u, 0.9) / 0.9 * 11)); p.jamArm = k.style === 'jam' && u > 0.25 && u < DUNK_SLAM ? { x: k.x1, y: K.RIM_H + 0.25, z: k.z1 - 0.1 } : null; }
+    if (k.style) { var nf = k.style === 'mj' ? 30 : 12; p.anim = 'dk_' + k.style; p.dir = k.style === 'flex' ? 'C' : 'R'; p.frame = Math.min(nf - 1, Math.round(Math.min(u, 0.9) / 0.9 * (nf - 1))); p.jamArm = k.style === 'jam' && u > 0.25 && u < DUNK_SLAM ? { x: k.x1, y: K.RIM_H + 0.25, z: k.z1 - 0.1 } : null; }
     else { p.anim = 'dunk'; p.dir = 'R'; p.frame = u < 0.12 ? 0 : u < 0.3 ? 1 : u < 0.5 ? 2 : u < 0.64 ? 3 : u < 0.82 ? 4 : 5; }
     if (u >= DUNK_SLAM && !k.slam) {
       k.slam = true; if (G.cine && G.cine.p === p) G.cine = null; p.tongue = false;   // the slow-motion close-up ends on the slam
@@ -263,15 +263,14 @@ window.HW = window.HW || {};
     if (p.st >= pd.at) launchPass(p, pd.to, p.passStyle);
   }
   G.trySteal = function (p) {
-    if (p.cd.steal > 0 || p.busy()) return; p.cd.steal = 0.55; p.state = 'steal'; p.st = 0;
-    var h = G.ball.holder; if (!h || h.team === p.team || dist(p, h) > 1.8) { Au.steal(); return; }
+    if (p.cd.steal > 0 || p.busy()) return; p.cd.steal = 0.55; p.state = 'steal'; p.st = 0; Au.swipe ? Au.swipe() : Au.whoosh(3);   // every swipe whooshes
+    var h = G.ball.holder; if (!h || h.team === p.team || dist(p, h) > 1.8) return;
     p.face = h.x >= p.x ? 1 : -1;
     var c = 0.03 + 0.03 * p.def.stats.steal - 0.01 * h.def.stats.speed + (Math.hypot(h.vx, h.vz) < 0.5 ? 0.2 : 0) + (p.human ? 0.1 : 0) - (h.state === 'shoot' ? 0.1 : 0) - 0.015 * Math.max(0, h.def.stats.str - p.def.stats.str) + (sig(p, 'steal') ? 0.3 : 0);
     if (!p.human) c *= G.diff.steal * 0.75;   // the computer gets less of the boost
     if (h.dm) c *= 0.3;   // a crossover / behind-the-back dribble protects the ball
     if (h.state === 'dunk') c = 0;
     if (Math.random() < c) { if (sig(p, 'steal')) fireBurst(h.x, 1.0, h.z, 12); p.stats.steals++; G.give(p); G.say(pick(HW.PHRASES.steal), '#7ee0ff', 1); Au.steal(); }
-    else Au.whoosh(3);
   };
   G.tryShove = function (p) {
     if (p.cd.shove > 0 || p.busy()) return; p.cd.shove = 0.9; p.state = 'shove'; p.st = 0;
@@ -373,7 +372,7 @@ window.HW = window.HW || {};
     // going on fire: a 2 s golden power-up with the camera zoomed in on him while everything else waits
     if (G.pu) { updatePowerup(dt); return; }
     if (G.cine) {   // the free-throw-line dunk in slow motion (everything slows equally, so nobody gets a better chance at it)
-      var cp = G.cine.p; if (!cp.dk || cp.dk.style !== 'mj') G.cine = null; else { dt *= 0.4; G.cine.t = cp.st; }
+      var cp = G.cine.p; if (!cp.dk || cp.dk.style !== 'mj') G.cine = null; else { dt *= G.cine.slow || 0.4; G.cine.t = cp.st; }
     }
     if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall') { G.puQueue = null; startPowerup(pq); return; } }
     if (G.tipT > 0 && (G.tipT -= dt) <= 0) G.say('STICK PAST THE RING = TURBO!', '#5cff7a', 3.5, 0.55);

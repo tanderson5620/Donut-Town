@@ -28,7 +28,7 @@ Going on fire is a 2-second golden power-up: the game freezes and the camera zoo
 
 On fire, his best 3 ratings jump to 10 for as long as he stays on fire. On top of that, his best rating (his specialty) is turned up even more: speed - 30% faster with afterimages; pass - every pass is a fancy move and can't be intercepted; 3PTS - every release is green, about 99% from anywhere, and the net catches fire on a three; dunk - takes off from much farther out, longer hang time in flames, usually shatters the glass, and only a defender on fire can reject it; block - blocks almost everything with longer reach; power - every shove flattens and nobody can move him; steal - much better steals and interceptions.
 
-Dunkers with DUNK 9+ (on fire counts) throw signature dunks, 12 smooth frames each, same timing and block window as any dunk: under the legs, behind the back, off the backboard to himself, a front flip, a mid-air double-biceps flex to the camera, a bounce to himself, and from way out the stretched-arm cartoon dunk or the free-throw-line dunk (slow motion, close-up, tongue out).
+Dunkers with DUNK 9+ (on fire counts) throw signature dunks, 12 smooth frames each, same timing and block window as any dunk: under the legs, behind the back, off the backboard to himself, a front flip, a mid-air double-biceps flex to the camera, a bounce to himself, and from way out the stretched-arm cartoon dunk or the free-throw-line dunk (2.5 s of slow motion up to the slam, 30 frames, close-up, face kept upright to the camera with the tongue out).
 
 Bruisers (STR 9+, on fire counts) shove with a roundhouse kick, a Superman punch or a kick to the shins, and a bruiser rejecting a dunk hammers it with both fists from a bent-back C in the air, launching the dunker out to midcourt. The moonwalk pass is only for PASS 9+ (on fire counts).
 
@@ -76,4 +76,4 @@ famjam/tools                sprite factory
 
 `?quick` in the URL jumps straight to a matchup.
 
-The crowd (`sfx/crowd_*.mp3`) is synthesized offline (hundreds of formant voices, claps, arena reverb). The other recorded sounds in `sfx/` (announcer voice and impacts) are from Kenney.nl, CC0 public domain (see `sfx/LICENSE-kenney-CC0.txt`).
+The crowd (`sfx/crowd_*.mp3`) is synthesized offline (hundreds of formant voices, claps, arena reverb). The steal whoosh (`sfx/steal_whoosh.mp3`) is from Epidemic Sound, supplied by the owner. The other recorded sounds in `sfx/` (announcer voice and impacts) are from Kenney.nl, CC0 public domain (see `sfx/LICENSE-kenney-CC0.txt`).

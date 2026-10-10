@@ -252,7 +252,7 @@ window.HW = window.HW || {};
         var gx = (hd[0] - fx) * k, gy = (hd[1] - fy) * k - hh * 0.45, gr = hw * (0.9 + 0.08 * Math.sin((X.t || 0) * 23));
         g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.55 * Math.min(1, p.ssj); g.drawImage(glowDot(), gx - gr, gy - gr * 1.15, gr * 2, gr * 2.3); g.restore();
       }
-      var hx = (hd[0] - fx) * k, hy = (hd[1] - fy) * k, rot = m.hrot && m.hrot[o.fi] || 0;
+      var hx = (hd[0] - fx) * k, hy = (hd[1] - fy) * k, rot = p.tongue ? 0 : m.hrot && m.hrot[o.fi] || 0;   // the slow-motion dunk keeps his face upright to the camera
       // a hard hit snaps his head back
       if (p.hitT > 0) { var jk = Math.min(1, p.hitT / 0.45); rot -= 0.9 * jk * jk; hx -= hw * 0.22 * jk; }
       var dx0 = -hw / 2, dy0 = -hh * 0.8, dw = hw, dh = hh;

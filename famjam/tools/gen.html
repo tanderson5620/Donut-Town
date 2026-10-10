@@ -239,11 +239,12 @@ ANIMS.block_hammer = { n: 4, dirs: ['R'], f: function (t, i) { return [
   { lean: -0.75, rs: 3.75, re: 0.1, rz: -0.12, ls: 3.75, le: 0.1, lz: -0.12, rt: -0.6, rk: 1.8, lt: -0.5, lk: 1.7, air: 1, fist: 1, neck: -0.3 },
   { lean: 0.35, rs: 2.0, re: 0.05, rz: -0.12, ls: 2.0, le: 0.05, lz: -0.12, rt: 0.4, rk: 0.9, lt: 0.3, lk: 0.8, air: 1, fist: 1, neck: 0.1 },
   { lean: 0.55, rs: 0.8, re: 0.1, rz: -0.15, ls: 0.8, le: 0.1, lz: -0.15, rt: 0.5, rk: 0.7, lt: 0.4, lk: 0.6, air: 1, fist: 1, neck: 0.15 }][i]; } };
-// signature dunks (DUNK 9+): 12 frames each, blended between key poses so the motion is smooth and small step to step.
-// u runs over the whole dunk (the slam lands at u = 0.66 in the game); frame i shows u = i / 11 * 0.9
-function keyed(keys) {
+// signature dunks (DUNK 9+): 12 frames each (30 for the slow-motion one), blended between key poses so the motion is smooth and
+// small step to step. u runs over the whole dunk (the slam lands at u = 0.66 in the game); frame i of n shows u = i / (n - 1) * 0.9
+function keyed(keys, n) {
+  n = n || 12;
   return function (t, i) {
-    var u = i / 11 * 0.9, a = keys[0], b = keys[keys.length - 1];
+    var u = i / (n - 1) * 0.9, a = keys[0], b = keys[keys.length - 1];
     for (var k = 0; k < keys.length - 1; k++) if (u >= keys[k][0] && u <= keys[k + 1][0]) { a = keys[k]; b = keys[k + 1]; break; }
     var f = b[0] > a[0] ? Math.min(1, Math.max(0, (u - a[0]) / (b[0] - a[0]))) : 0; f = f * f * (3 - 2 * f);
     var o = {}, q; for (q in a[1]) o[q] = a[1][q] * (1 - f); for (q in b[1]) o[q] = (o[q] || 0) + b[1][q] * f;
@@ -285,7 +286,9 @@ var DUNKS = {
     [0.3, { rs: 1.6, re: 0.8, ls: 1.6, le: 0.8, rt: 0.7, rk: 1.4, lt: 0.2, lk: 0.7 }], [0.46, { lean: -0.05, rs: 2.9, re: 0.3, ls: 2.9, le: 0.3, rt: 0.6, rk: 1.4, lt: 0.2, lk: 0.8 }],
     [0.66, { lean: 0.35, rs: 2.1, re: 0.05, ls: 2.1, le: 0.05, rt: 0.5, rk: 1.2, lt: 0.2, lk: 0.6 }], [0.9, { lean: 0.2, rs: 2.7, re: 0.3, ls: 2.7, le: 0.3, rt: 0.2, rk: 0.6, lk: 0.4 }]]
 };
-Object.keys(DUNKS).forEach(function (k) { ANIMS['dk_' + k] = { n: 12, dirs: [k === 'flex' ? 'C' : 'R'], f: keyed(DUNKS[k]) }; });
+// the free-throw-line dunk plays in 2.5 s of slow motion, so it gets 30 frames (the rest 12)
+var DK_N = { mj: 30 };
+Object.keys(DUNKS).forEach(function (k) { var n = DK_N[k] || 12; ANIMS['dk_' + k] = { n: n, dirs: [k === 'flex' ? 'C' : 'R'], f: keyed(DUNKS[k], n) }; });
 // moonwalk pass: facing away from his man he glides backward - one knee bent with the heel up, the other leg straight and sliding,
 // swapping each step - ball on his hip, then he flicks it back over his shoulder without looking
 ANIMS.pass_moon = { n: 8, dirs: ['R'], f: function (t, i) {
