@@ -1,4 +1,4 @@
-/* audio.js - everything is synthesized with WebAudio; no sound files */
+/* audio.js - synthesized WebAudio effects plus recorded clips from sfx/ */
 window.HW = window.HW || {};
 (function (HW) {
   var A = HW.Audio = { ctx: null, master: null, vol: 1, voice: false };
@@ -20,7 +20,7 @@ window.HW = window.HW || {};
     } catch (e) { A.ctx = null; }
   };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'steal_whoosh', 'crowd_a', 'crowd_b', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'rim_slam', 'glass'], bufs = {}, loading = false;
+  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'steal_whoosh', 'crowd_a', 'crowd_b', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (f) {   // .mp3 unless named (the dribbles are .wav: no encoder delay, so the thump lands on the frame)
@@ -58,6 +58,11 @@ window.HW = window.HW || {};
     var i; do { i = Math.floor(Math.random() * 4); } while (i === lastDr); lastDr = i;
     A.sfx('dribble' + i, Math.min(1, 0.45 + (v || 3) * 0.08));
   };
+  // a recorded take out of a numbered set, never the same one twice running
+  var lastTake = {};
+  function take(n, k, vol) { var i; do { i = Math.floor(Math.random() * k); } while (k > 1 && i === lastTake[n]); lastTake[n] = i; A.sfx(n + i, vol); }
+  // hands on the ball: a pass or a rebound lands in someone's hands (2 recorded taps)
+  A.catch = function () { if (bufs.catch0) take('catch', 2, 0.75); else A.click(); };
   A.punch = function () { A.sfx('punch' + Math.floor(Math.random() * 3), 0.9); };
   ['touchend', 'pointerup', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, A.init, true); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden && A.ctx) A.init(); });
@@ -103,7 +108,11 @@ window.HW = window.HW || {};
     if (big) { tone(330, 0.3, 'triangle', 0.05, 440, 0.1); tone(440, 0.4, 'triangle', 0.05, 660, 0.3); }
   };
   A.groan = function () { noise(0.8, 0.12, 300, 0.5); tone(160, 0.7, 'sawtooth', 0.04, 90); };
-  A.dunk = function () { tone(70, 0.5, 'sine', 0.5, 30); noise(0.3, 0.3, 200, 0.6); A.cheer(true); };
+  // the slam: a recorded hand-and-ball rim hit with the rim ringing after (5 takes), then the crowd
+  A.dunk = function () {
+    if (bufs.dunk0) take('dunk', 5, 1); else { tone(70, 0.5, 'sine', 0.5, 30); noise(0.3, 0.3, 200, 0.6); }
+    A.cheer(true);
+  };
   A.shatter = function () { noise(0.7, 0.35, 5000, 0.4, 0, 'highpass'); noise(0.5, 0.25, 2500, 1); };
   A.fire = function () { noise(0.8, 0.2, 500, 0.5, 0, 'lowpass'); tone(110, 0.6, 'sawtooth', 0.12, 330); tone(220, 0.6, 'sawtooth', 0.08, 660, 0.1); };
   // the power-up: a rising hum while he charges with his arms crossed, then a boom and a sizzle when they come down
