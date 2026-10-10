@@ -35,9 +35,9 @@ Every knockdown (shove, dunk rejection, posterize, ankle-breaker) is a hard hit:
 Like the arcade originals, players are flat sprites (digitized frames) with a big head pasted on top.
 
 - **Bodies**: `tools/gen.html` poses the realistic athlete body from `../hoops` through every move (run, dribble, jump shot, dunk, pass, steal, shove, fall, celebrate) in three facings and saves sprite sheets to `sprites/<id>.png` + `<id>.json` (frame anchors for the feet, head and hands).
-- **Heads**: `faces/<id>_front.png` and `faces/<id>_back.png`. Alan's front face is cut out of a real photo; the others are rendered from their 3D heads. Drop a cut-out photo face (transparent PNG, about 96 x 123) into `faces/<id>_front.png` to give anyone a real face.
+- **Heads**: every player's face is cut out of a real photo (`faces/<id>_photo.png`, used for players with `photo: true` in `js/data.js`); the back of the head (`faces/<id>_back.png`) is rendered from the 3D head. A player without `photo: true` gets a rendered `faces/<id>_front.png` instead.
 
-Rebuild the sprites after changing a player's look in `../hoops/js/config.js` (needs Playwright):
+Rebuild the sprites after changing a player's look in `js/data.js` (`HW.PLAYERS` and `LOOK`; the athlete body itself comes from `../hoops/js/`). Needs Playwright:
 
 ```bash
 node famjam/tools/gen.js
@@ -49,6 +49,8 @@ node famjam/tools/gen.js
 famjam/index.html           canvas, touch buttons, rotate-your-phone card
 famjam/css/jam.css          layout, touch controls
 famjam/js/data.js           roster, teams, types, difficulty, announcer lines
+famjam/js/font.js           arcade bitmap font
+famjam/js/crowd.js          packed pixel crowd in the stands
 famjam/js/audio.js          synthesized sound effects
 famjam/js/gfx.js            camera, scanline floor, crowd, hoops, sprites + big heads, ball, particles
 famjam/js/game.js           rules: turbo, timed jump shots, dunks, passes, steals, shoves, blocks, rebounds, on fire, clock
@@ -56,6 +58,9 @@ famjam/js/ai.js             computer players
 famjam/js/ui.js             input, menus (team select, player cards, matchup), HUD, callouts
 famjam/js/main.js           boot and main loop
 famjam/sprites, faces       generated art
+famjam/img                  link-preview image (share.png, 1200x630) and home-screen icon (icon.png, 512x512)
+famjam/manifest.webmanifest home-screen app name, icon, fullscreen landscape
+jam/index.html              redirect from the old /jam/ link
 famjam/tools                sprite factory
 ```
 
