@@ -259,11 +259,10 @@ window.HW = window.HW || {};
       if (gold) { var P = img === f.front ? f.ssjPad : f.ssjPadBack, sx = hw / img.naturalWidth; img = img === f.front ? f.ssj : f.ssjBack; dx0 -= P[0] * sx; dy0 -= P[1] * sx; dw = img.naturalWidth * sx; dh = img.naturalHeight * sx; }
       if (rot) { g.save(); g.translate(hx, hy); g.rotate(rot); g.drawImage(img, dx0, dy0, dw, dh); g.restore(); }   // head turns with a flip or a fall
       else g.drawImage(img, hx + dx0, hy + dy0, dw, dh);
-      if (p.tongue && img !== f.back && img !== f.ssjBack) {   // tongue hanging out (the free-throw-line dunk)
-        var tx = hx + hw * 0.03, ty = hy - hh * 0.8 + hh * 0.8, tw = hw * 0.13, th = hh * 0.13;
-        g.fillStyle = '#7a1d2a'; g.beginPath(); g.ellipse(tx, ty + th * 0.35, tw * 0.6, th * 0.7, 0, 0, 6.283); g.fill();
-        g.fillStyle = '#e8607a'; g.beginPath(); g.ellipse(tx, ty + th * 0.4, tw * 0.5, th * 0.62, 0, 0, 6.283); g.fill();
-        g.strokeStyle = '#b8304a'; g.lineWidth = Math.max(1, tw * 0.08); g.beginPath(); g.moveTo(tx, ty + th * 0.05); g.lineTo(tx, ty + th * 0.6); g.stroke();
+      if (p.tongue && !rot && f && (img === f.front || img === f.ssj)) {   // tongue hanging out of his mouth (the free-throw-line dunk), pixel art like the sprites
+        var mo = HW.MOUTH && HW.MOUTH[p.id] || [0.5, 0.8], fw0 = hw / hs, ts = tongueSprite(), tw = fw0 * 0.2, th = tw * ts.height / ts.width;
+        var smooth = g.imageSmoothingEnabled; g.imageSmoothingEnabled = false;
+        g.drawImage(ts, hx - hw / 2 + mo[0] * hw - tw / 2, hy - hh * 0.8 + mo[1] * hh - th * 0.12, tw, th); g.imageSmoothingEnabled = smooth;
       }
     }
   }
@@ -478,6 +477,15 @@ window.HW = window.HW || {};
     X.drawParts(g, dt);
   }
 
+  // a little pixel-art tongue: comes out of a dark mouth gap, outlined, shaded, with the groove down the middle
+  var tongueC = null;
+  function tongueSprite() {
+    if (tongueC) return tongueC;
+    var rows = ['..MMMM..', '.oPPPPo.', 'oPHPPPPo', 'oPHPLPPo', 'oPPPLPPo', 'oPPPLPSo', 'oPPPLPSo', 'oPPPPSSo', '.oPPSSo.', '..oSSo..', '...oo...'];
+    var col = { M: '#3a0a14', o: '#4a0f1e', P: '#e05a74', H: '#ff9fb2', L: '#b23250', S: '#b8405a' }, c = tongueC = canvas(8, rows.length), g = c.getContext('2d');
+    rows.forEach(function (r, y) { for (var x = 0; x < 8; x++) if (col[r[x]]) { g.fillStyle = col[r[x]]; g.fillRect(x, y, 1, 1); } });
+    return c;
+  }
   /* ---------- the golden power-up: aura, flash, sparks ---------- */
   var glowDotC = null;
   function glowDot() {   // a soft round light, white-gold in the middle
