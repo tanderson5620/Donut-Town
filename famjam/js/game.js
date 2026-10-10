@@ -138,12 +138,15 @@ window.HW = window.HW || {};
       // crossover (low across the front) or behind-the-back (behind him): one bounce from the old side to the new one
       var u = Math.min(1, dm.t / dm.dur), e = u * u * (3 - 2 * u), sd = dm.from + (p.face - dm.from) * e;
       b.x = p.x + sd * 0.42 + p.vx * 0.05; b.y = 0.15 + 0.78 * Math.abs(Math.cos(Math.PI * u)); b.z = dm.type === 'btb' ? p.z + 0.28 : p.z - 0.42 + p.vz * 0.05;
-      if (u >= 0.5 && !dm.hit) { dm.hit = true; Au.bounce(4); }
+      if (u >= 0.5 && !dm.hit) { dm.hit = true; (Au.dribble || Au.bounce)(4); }
       return;
     }
     p.dribT = (p.dribT || 0) + dt * (2.3 + Math.hypot(p.vx, p.vz) * 0.12);
-    var ph = p.dribT % 1, h = 0.95 * Math.abs(Math.sin(Math.PI * ph));
-    if (ph < (p.prevPh || 0)) Au.bounce(3);
+    // the bounce follows his dribbling hand: ball at the top when the hand is up, on the floor (and the thump) when it's pushed down.
+    // dribble: one bounce per loop, hand highest at a quarter; drun: two bounces per stride loop, hand highest at 1/8 and 5/8
+    var an = (p.anim || '').replace('_buff', ''), ph = an === 'dribble' ? (p.frame / 6 + 0.325) % 1 : an === 'drun' ? (p.frame / 8 * 2 + 0.25) % 1 : p.dribT % 1;
+    var h = 0.95 * Math.abs(Math.sin(Math.PI * ph));
+    if (ph < (p.prevPh || 0) && (p.prevPh || 0) - ph > 0.5) (Au.dribble || Au.bounce)(3 + Math.hypot(p.vx, p.vz) * 0.2);
     p.prevPh = ph;
     b.x = p.x + p.face * 0.42 + p.vx * 0.05; b.z = p.z - 0.3 + p.vz * 0.05; b.y = 0.14 + h;
   }
@@ -393,8 +396,8 @@ window.HW = window.HW || {};
       physics(p, dt);
     });
     separate();
-    updateBall(dt);
     G.players.forEach(function (p) { animate(p, dt); });
+    updateBall(dt);   // after the anims, so the dribble follows this frame's hand
     // the camera rides with the ball, leading toward the basket its team is attacking
     var b = G.ball, bx = b.holder ? b.holder.x : b.x + b.vx * 0.3, lead = b.holder ? side(b.holder.team) * 1.6 : 0;
     X.follow(bx + lead, dt);
@@ -540,7 +543,7 @@ window.HW = window.HW || {};
     }
     // loose ball physics + pickups
     b.vy -= GRAV * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
-    if (b.y < 0.15) { b.y = 0.15; if (b.vy < -1.2) { Au.bounce(Math.abs(b.vy)); b.vy = -b.vy * 0.6; } else b.vy = 0; b.vx *= 0.97; b.vz *= 0.97; }
+    if (b.y < 0.15) { b.y = 0.15; if (b.vy < -1.2) { (Au.dribble || Au.bounce)(Math.abs(b.vy)); b.vy = -b.vy * 0.6; } else b.vy = 0; b.vx *= 0.97; b.vz *= 0.97; }
     if (Math.abs(b.x) > K.HL + 0.8) { b.x = Math.sign(b.x) * (K.HL + 0.8); b.vx *= -0.5; }
     if (b.z < 0.1 || b.z > K.CD + 0.5) { b.z = clamp(b.z, 0.1, K.CD + 0.5); b.vz *= -0.5; }
     if (b.noCatch > 0 || G.phase !== 'play') return;

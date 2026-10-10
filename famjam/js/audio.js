@@ -20,11 +20,12 @@ window.HW = window.HW || {};
     } catch (e) { A.ctx = null; }
   };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['steal_whoosh', 'crowd_a', 'crowd_b', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'rim_slam', 'glass'], bufs = {}, loading = false;
+  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'steal_whoosh', 'crowd_a', 'crowd_b', 'crowd_cheer', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'rim_slam', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
-    SFX.forEach(function (n) {
-      fetch('sfx/' + n + '.mp3').then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
+    SFX.forEach(function (f) {   // .mp3 unless named (the dribbles are .wav: no encoder delay, so the thump lands on the frame)
+      var n = f.replace(/\.\w+$/, '');
+      fetch('sfx/' + (f === n ? f + '.mp3' : f)).then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
         return new Promise(function (res, rej) { var pr = A.ctx.decodeAudioData(ab, res, rej); if (pr && pr.catch) pr.catch(function () { }); });
       }).then(function (b) { bufs[n] = b; }).catch(function () { });
     });
@@ -50,6 +51,13 @@ window.HW = window.HW || {};
   // a steal swipe: the recorded whoosh (falls back to the synth one until it loads)
   A.swipe = function () { if (bufs.steal_whoosh) A.sfx('steal_whoosh', 0.8); else A.whoosh(3); };
   A.loaded = function () { return Object.keys(bufs).length; };
+  // the ball hits the floor: a recorded bounce (4 takes, never the same twice running), louder for a harder bounce
+  var lastDr = -1;
+  A.dribble = function (v) {
+    if (!bufs.dribble0) { A.bounce(v); return; }
+    var i; do { i = Math.floor(Math.random() * 4); } while (i === lastDr); lastDr = i;
+    A.sfx('dribble' + i, Math.min(1, 0.45 + (v || 3) * 0.08));
+  };
   A.punch = function () { A.sfx('punch' + Math.floor(Math.random() * 3), 0.9); };
   ['touchend', 'pointerup', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, A.init, true); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden && A.ctx) A.init(); });
