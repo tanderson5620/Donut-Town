@@ -267,7 +267,7 @@ window.HW = window.HW || {};
     b.pass = { from: p, to: to, t: 0, T: Math.max(0.16, d / (15 + 0.8 * pr)), x0: hw ? hw.x : p.x + f * 0.3, y0: hw ? hw.y : 1.3 + p.y, z0: p.z - 0.2,
       x1: to.x + to.vx * lead + (Math.random() - 0.5) * 2 * miss, z1: to.z + to.vz * lead + (Math.random() - 0.5) * miss, y1: 1.3,
       arc: style === 'head' ? 1.1 : style === 'hike' || style === 'flip' ? 0.25 : 0.5, safe: sig(p, 'pass') ? 0 : clamp(1.3 - 0.08 * pr, 0.45, 1.2) };   // nobody picks off a passer on fire
-    Au.whoosh(style ? 6 : 4);
+    if (style && Au.passWhoosh) Au.passWhoosh(); else Au.whoosh(style ? 6 : 4);   // a trick pass gets the big recorded whoosh
   }
   function updatePending(p) {
     var pd = p.pending; if (!pd) return;
