@@ -48,6 +48,31 @@ window.HW = window.HW || {};
     hard:   { label: 'Hard',   speed: 1.08, shoot: 1.15, steal: 1.45, react: 1.6,  shove: 1.2, block: 1.5 }
   };
 
+  // powered-up heads: faces/<id>_ssj.png (front) and faces/<id>_ssj_back.png (back of the head).
+  // [x, y] = where the original image's top-left corner sits inside the bigger powered-up canvas, in original-image pixels
+  HW.SSJ_PAD = {
+    carl: [64, 180],
+    tyler: [63, 176],
+    alan: [57, 165],
+    lisa: [21, 161],
+    katelyn: [21, 141],
+    kameron: [67, 171],
+    kody: [67, 146],
+    kenny: [56, 156],
+    karen: [75, 170]
+  };
+  HW.SSJ_PAD_BACK = {
+    carl: [49, 78],
+    tyler: [49, 75],
+    alan: [46, 75],
+    lisa: [47, 79],
+    katelyn: [52, 76],
+    kameron: [50, 68],
+    kody: [48, 76],
+    kenny: [48, 79],
+    karen: [50, 72]
+  };
+
   // Derived physical numbers for a player definition.
   HW.PHRASES = {
     two: ['BUCKET!', 'COUNT IT!', 'MONEY!', 'NOTHING BUT NET!', 'IN YOUR FACE!'],

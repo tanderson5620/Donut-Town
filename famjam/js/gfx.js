@@ -188,11 +188,16 @@ window.HW = window.HW || {};
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
-    var s = sheets[id] = { img: new Image(), meta: null };
+    var s = sheets[id] = { img: new Image(), meta: null }, x = s.x = { img: new Image(), meta: null };
+    // extras (sprites/<id>_x.*): the on-fire power-up, the pumped-up play anims and the taunts, in a sheet of their own
+    var extras = Promise.all([
+      fetch('sprites/' + id + '_x.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (m) { x.meta = m; }),
+      new Promise(function (res) { x.img.onload = res; x.img.onerror = res; x.img.src = 'sprites/' + id + '_x.png'; })
+    ]).catch(function () { x.meta = null; });
     s.ready = Promise.all([
       fetch('sprites/' + id + '.json').then(function (r) { return r.json(); }).then(function (m) { s.meta = m; }),
       new Promise(function (res) { s.img.onload = res; s.img.onerror = res; s.img.src = 'sprites/' + id + '.png'; }),
-      X.loadFace(id)
+      X.loadFace(id).then(function () { loadGold(id); }), extras
     ]).then(function () { if (s.meta && !s.meta.outline && s.img.naturalWidth) s.img = outlined(s.img); });
     return s.ready;
   };
@@ -212,11 +217,22 @@ window.HW = window.HW || {};
     return f.ready;
   };
   X.face = function (id) { return faces[id]; };
+  // the powered-up heads with the gold hair standing up (faces/<id>_ssj*.png), only for the players in a game, in the background;
+  // HW.SSJ_PAD[_BACK] say where the photo's top-left corner sits in the bigger canvas
+  function loadGold(id) {
+    var f = faces[id]; if (!f || f.ssj) return;
+    if (HW.PLAYERS[id].photo && HW.SSJ_PAD && HW.SSJ_PAD[id]) { f.ssj = new Image(); f.ssjPad = HW.SSJ_PAD[id]; f.ssj.src = 'faces/' + id + '_ssj.png'; }
+    if (HW.SSJ_PAD_BACK && HW.SSJ_PAD_BACK[id]) { f.ssjBack = new Image(); f.ssjPadBack = HW.SSJ_PAD_BACK[id]; f.ssjBack.src = 'faces/' + id + '_ssj_back.png'; }
+  }
 
   var HEAD_M = 0.56;   // big digitized head width in meters (arcade proportions)
   function frameOf(p) {
     var sh = sheets[p.id]; if (!sh || !sh.meta) return null;
-    var m = sh.meta, A = m.anim[p.anim] || (p.anim && p.anim.indexOf('pass_') === 0 && m.anim.pass) || (p.anim && p.anim.indexOf('dr_') === 0 && m.anim.drun) || m.anim.idle, list = A[p.dir] || A.R || A[Object.keys(A)[0]];
+    // powered up: the pumped-up version of the anim if there is one; anims the main sheet doesn't have come from the extras sheet
+    var name = p.anim, X2 = sh.x && sh.x.meta && sh.x.img.naturalWidth ? sh.x : null;
+    if (p.ssj && X2 && X2.meta.anim[name + '_buff']) name += '_buff';
+    if (!sh.meta.anim[name] && X2 && X2.meta.anim[name]) sh = X2;
+    var m = sh.meta, A = m.anim[name] || (p.anim && p.anim.indexOf('pass_') === 0 && m.anim.pass) || (p.anim && p.anim.indexOf('dr_') === 0 && m.anim.drun) || m.anim.idle, list = A[p.dir] || A.R || A[Object.keys(A)[0]];
     var n = list.length, fr = Math.floor(p.frame) || 0, fi = list[Math.min(n - 1, ((fr % n) + n) % n)], ground = X.proj(p.x, 0, p.z);   // never a negative or NaN frame
     // off: frames rendered slid over to fit the frame (a body falling backward) are slid back here
     var off = m.off && m.off[fi] || null;
@@ -227,14 +243,22 @@ window.HW = window.HW || {};
     g.drawImage(o.sh.img, o.sx, o.sy, m.fw, m.fh, -fx * k, -fy * k, m.fw * k, m.fh * k);
     // back of the head when he's turned away (the behind-the-back view, the far side of a spin)
     var hd = m.head[o.fi], f = faces[p.id], img = f && (p.dir === 'B' || p.dir === 'W' || (m.back && m.back[o.fi]) ? f.back : f.front);
+    // powered up: the face with the gold hair standing up (same face position as the photo, extra room round it: f.ssjPad)
+    var gold = p.ssj && f && (img === f.front ? f.ssj && f.ssj.naturalWidth && f.ssjPad : f.ssjBack && f.ssjBack.naturalWidth && f.ssjPadBack);
     if (img && img.naturalWidth && hd) {
       // photo cut-outs with lots of hair around the face (headScale) are drawn wider so every face comes out the same size
       var hs = img === f.front && p.def && p.def.headScale || 1, hw = HEAD_M * o.ground.s * (p.bigHead || 1) * hs, hh = hw * img.naturalHeight / img.naturalWidth;
+      if (p.ssj) {   // a hot glow behind the head
+        var gx = (hd[0] - fx) * k, gy = (hd[1] - fy) * k - hh * 0.45, gr = hw * (0.9 + 0.08 * Math.sin((X.t || 0) * 23));
+        g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.55 * Math.min(1, p.ssj); g.drawImage(glowDot(), gx - gr, gy - gr * 1.15, gr * 2, gr * 2.3); g.restore();
+      }
       var hx = (hd[0] - fx) * k, hy = (hd[1] - fy) * k, rot = m.hrot && m.hrot[o.fi] || 0;
       // a hard hit snaps his head back
       if (p.hitT > 0) { var jk = Math.min(1, p.hitT / 0.45); rot -= 0.9 * jk * jk; hx -= hw * 0.22 * jk; }
-      if (rot) { g.save(); g.translate(hx, hy); g.rotate(rot); g.drawImage(img, -hw / 2, -hh * 0.8, hw, hh); g.restore(); }   // head turns with a flip or a fall
-      else g.drawImage(img, hx - hw / 2, hy - hh * 0.8, hw, hh);
+      var dx0 = -hw / 2, dy0 = -hh * 0.8, dw = hw, dh = hh;
+      if (gold) { var P = img === f.front ? f.ssjPad : f.ssjPadBack, sx = hw / img.naturalWidth; img = img === f.front ? f.ssj : f.ssjBack; dx0 -= P[0] * sx; dy0 -= P[1] * sx; dw = img.naturalWidth * sx; dh = img.naturalHeight * sx; }
+      if (rot) { g.save(); g.translate(hx, hy); g.rotate(rot); g.drawImage(img, dx0, dy0, dw, dh); g.restore(); }   // head turns with a flip or a fall
+      else g.drawImage(img, hx + dx0, hy + dy0, dw, dh);
     }
   }
   // where his ball hand is right now, in court meters (the ball rides in it through a fancy pass)
@@ -254,14 +278,18 @@ window.HW = window.HW || {};
     p.screen = ground;
     // shadow
     var sr = 0.6 * ground.s; g.fillStyle = 'rgba(0,0,0,' + Math.max(0.15, 0.5 - p.y * 0.1) + ')'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * (1 - Math.min(0.5, p.y * 0.12)), sr * 0.26, 0, 0, 6.283); g.fill();
-    if (p.onFire) { g.fillStyle = 'rgba(255,120,20,0.35)'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * 1.3, sr * 0.36, 0, 0, 6.283); g.fill(); }
+    if (p.ssj) { g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = 'rgba(255,200,40,' + (0.3 + 0.1 * Math.sin((X.t || 0) * 17)) + ')'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * 1.6, sr * 0.45, 0, 0, 6.283); g.fill(); g.restore(); }
+    else if (p.onFire) { g.fillStyle = 'rgba(255,120,20,0.35)'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * 1.3, sr * 0.36, 0, 0, 6.283); g.fill(); }
     // afterimages behind a speedster on fire
     if (p.trail && p.trail.length) p.trail.forEach(function (t, i) {
       var gp = { id: p.id, def: p.def, anim: t.anim, dir: t.dir, frame: t.frame, x: t.x, y: t.y, z: t.z, face: t.face }, go = frameOf(gp); if (!go) return;
       g.save(); g.globalAlpha = 0.3 - i * 0.08; g.translate(go.ground.x, go.ground.y - go.lift); if (go.flip) g.scale(-1, 1); drawBody(g, gp, go); g.restore();
     });
     g.save(); g.translate(ground.x, ground.y - lift); if (o.flip) g.scale(-1, 1);
+    var aur = p.ssj ? (p.state === 'powerup' ? 1.35 : 0.85) * Math.min(1, p.ssj) : 0;
+    if (aur) drawAura(g, p, o, X.t || 0, aur);
     drawBody(g, p, o);
+    if (aur) auraFront(g, p, o, X.t || 0, aur);
     // hit flash: the same frame again, added on top (no canvas filters - slow on phones, missing on older Safari)
     if (p.flash > 0 && Math.floor(p.flash * 16) % 2) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.6; drawBody(g, p, o); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
     g.restore();
@@ -349,6 +377,10 @@ window.HW = window.HW || {};
     for (var i = rings.length - 1; i >= 0; i--) {
       var r = rings[i]; r.t += dt; if (r.t > r.life) { rings.splice(i, 1); continue; }
       var u = r.t / r.life, p = X.proj(r.x, r.y, r.z), rx = r.size * p.s * (0.45 + 0.75 * u), a = 1 - u;
+      if (r.flat) {   // shockwave rolling out across the floor
+        g.strokeStyle = 'rgba(255,240,170,' + a + ')'; g.lineWidth = Math.max(1, 5 * a); g.beginPath(); g.ellipse(p.x, p.y, rx, rx * 0.22, 0, 0, 6.283); g.stroke();
+        g.strokeStyle = 'rgba(255,200,40,' + a * 0.7 + ')'; g.lineWidth = Math.max(1, 2 * a); g.beginPath(); g.ellipse(p.x, p.y, rx * 0.8, rx * 0.17, 0, 0, 6.283); g.stroke(); continue;
+      }
       // comic-book impact star for the first instant
       if (u < 0.6) {
         var sa = 1 - u / 0.6, R = r.size * p.s * (0.55 + 0.25 * u), n = 10;
@@ -373,7 +405,7 @@ window.HW = window.HW || {};
     }
   }
   X.drawParts = function (g, dt) {
-    drawRings(g, dt);
+    drawRays(g, dt); drawRings(g, dt);
     for (var i = parts.length - 1; i >= 0; i--) {
       var q = parts[i]; q.life -= dt; if (q.life <= 0) { parts.splice(i, 1); continue; }
       q.vy -= q.g * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; if (q.y < 0) { q.y = 0; q.vy *= -0.4; }
@@ -392,10 +424,34 @@ window.HW = window.HW || {};
 
   // full scene, back to front; `things` are players + ball, each with x,z
   X.drawScene = function (g, t, dt, players, ball, hoopFx) {
+    X.t = t;
+    var pu = HW.Jam && HW.Jam.pu, zk = 1, za = 0, zf = null;
+    if (pu) {   // the power-up camera: zoom in on him, hold, ease back out
+      var D = HW.Jam.PU.dur, u = pu.t, e = function (v) { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+      // zoom so he fills about 3/4 of the screen from his shoes to the tips of the hair, never showing past the edge of the scene
+      var pp = pu.p, gd = X.proj(pp.x, 0, pp.z), top = pp.headTop !== undefined ? pp.headTop - X.shakeY : gd.y - 2.3 * gd.s, fig = Math.max(40, gd.y - X.shakeY - top + 0.35 * gd.s);
+      var zmax = Math.max(1.5, Math.min(2.6, 0.92 * H / fig));
+      za = u < 0.25 ? e(u / 0.25) : u > D - 0.3 ? e((D - u) / 0.3) : 1; zk = 1 + (zmax - 1) * za;
+      zf = { x: gd.x - X.shakeX, y: (gd.y - X.shakeY + top - 0.35 * gd.s) / 2 };
+      var tx = zf.x + (W / 2 - zf.x) * za, ty = zf.y + (H * 0.5 - zf.y) * za;
+      tx = Math.max(W - zk * (W - zf.x), Math.min(zk * zf.x, tx)); ty = Math.max(H - zk * (H - zf.y), Math.min(zk * zf.y, ty));
+      g.save(); g.translate(tx, ty); g.scale(zk, zk); g.translate(-zf.x, -zf.y);
+      if (za > 0.3) g.imageSmoothingEnabled = false;
+    }
+    drawSceneInner(g, t, dt, players, ball, hoopFx);
+    if (pu) {
+      g.restore(); g.imageSmoothingEnabled = true;
+      // dim the edges so he owns the screen, darker while he charges
+      var vg = g.createRadialGradient(W / 2, H * 0.52, H * 0.25, W / 2, H * 0.52, W * 0.62), dark = (pu.boom ? 0.5 : 0.7) * za;
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,8,' + dark + ')'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    }
+    if (X.white > 0) { g.fillStyle = 'rgba(255,248,214,' + Math.min(1, X.white) + ')'; g.fillRect(0, 0, W, H); X.white = Math.max(0, X.white - dt * 3.2); }
+  };
+  function drawSceneInner(g, t, dt, players, ball, hoopFx) {
     X.shake = Math.max(0, X.shake - dt * 3); X.shakeX = (Math.random() - 0.5) * X.shake * 10; X.shakeY = (Math.random() - 0.5) * X.shake * 8;
     X.hype = Math.max(0, X.hype - dt * 0.7);
     drawCrowd(g, t, dt); drawFloor(g); drawPools(g, dt);
-    players.forEach(function (p) { X.drawReflection(g, p); if (p.onFire && dt > 0 && Math.random() < 0.5) X.flame(p.x + (Math.random() - 0.5) * 0.5, p.y + 0.05, p.z - 0.1, 1, 0.3); });
+    players.forEach(function (p) { X.drawReflection(g, p); if (p.onFire && dt > 0 && Math.random() < 0.5) { if (p.ssj) X.goldSpark(p); else X.flame(p.x + (Math.random() - 0.5) * 0.5, p.y + 0.05, p.z - 0.1, 1, 0.3); } });
     var items = players.map(function (p) { return { z: p.z, draw: function () { X.drawPlayer(g, p); } }; });
     [-1, 1].forEach(function (side) {
       items.push({ z: K.HZ + 0.75, draw: function () { drawHoopBack(g, side); drawRim(g, side, false); } });
@@ -405,5 +461,83 @@ window.HW = window.HW || {};
     items.sort(function (a, b) { return b.z - a.z; });
     items.forEach(function (it) { it.draw(); });
     X.drawParts(g, dt);
+  }
+
+  /* ---------- the golden power-up: aura, flash, sparks ---------- */
+  var glowDotC = null;
+  function glowDot() {   // a soft round light, white-gold in the middle
+    if (glowDotC) return glowDotC;
+    var c = glowDotC = canvas(64, 64), gg = c.getContext('2d'), gr = gg.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,250,215,1)'); gr.addColorStop(0.35, 'rgba(255,215,70,0.7)'); gr.addColorStop(1, 'rgba(255,170,0,0)');
+    gg.fillStyle = gr; gg.fillRect(0, 0, 64, 64); return c;
+  }
+  // per sprite frame: his silhouette in gold, spread out a few pixels into a soft halo (built once per frame, no canvas filters)
+  var GR = 7;
+  function goldHalo(o) {
+    var sh = o.sh, cache = sh.halo || (sh.halo = {}); if (cache[o.fi]) return cache[o.fi];
+    var m = o.m, sil = canvas(m.fw, m.fh), sg = sil.getContext('2d');
+    sg.drawImage(sh.img, o.sx, o.sy, m.fw, m.fh, 0, 0, m.fw, m.fh); sg.globalCompositeOperation = 'source-in'; sg.fillStyle = '#ffc928'; sg.fillRect(0, 0, m.fw, m.fh);
+    var c = canvas(m.fw + GR * 2, m.fh + GR * 2), cg = c.getContext('2d');
+    [[GR, 0.07], [GR * 0.65, 0.12], [GR * 0.33, 0.2]].forEach(function (L) { for (var i = 0; i < 12; i++) { var a = i / 12 * 6.283; cg.globalAlpha = L[1]; cg.drawImage(sil, GR + Math.cos(a) * L[0], GR + Math.sin(a) * L[0]); } });
+    return (cache[o.fi] = c);
+  }
+  // the flame-shaped shell round him: wide at the feet, licking up past his head in flickering tongues
+  function auraShell(g, w, top, t, seed, sc, alpha, fill, edge) {
+    var N = 9, pts = [], i;
+    for (i = 0; i <= N; i++) {   // left side, feet to shoulders
+      var v = i / N, y = -v * top * 0.78, hw = w * (0.62 + 0.38 * Math.sin(v * 2.6)) * sc;
+      pts.push([-hw - Math.sin(t * 19 + i * 1.7 + seed) * w * 0.07, y]);
+    }
+    var T = 5; for (i = 0; i < T; i++) {   // tongues over the head
+      var fx = (i + 0.5) / T * 2 - 1, len = top * (0.25 + 0.2 * Math.abs(Math.sin(t * 11 + i * 2.3 + seed))) * (1 - Math.abs(fx) * 0.35);
+      pts.push([fx * w * 0.55 * sc - w * 0.1 * sc, -top * 0.82 - len * 0.35]); pts.push([fx * w * 0.5 * sc + Math.sin(t * 13 + i + seed) * w * 0.12, -top * 0.82 - len * sc]);
+    }
+    for (i = N; i >= 0; i--) { var v2 = i / N, y2 = -v2 * top * 0.78, hw2 = w * (0.62 + 0.38 * Math.sin(v2 * 2.6)) * sc; pts.push([hw2 + Math.sin(t * 17 + i * 2.1 + seed) * w * 0.07, y2]); }
+    g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+    for (i = 1; i < pts.length; i++) { var a = pts[i - 1], b = pts[i]; g.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); }
+    g.closePath(); g.globalAlpha = alpha; g.fillStyle = fill; g.fill(); g.strokeStyle = edge; g.lineWidth = Math.max(1, w * 0.06); g.stroke();
+  }
+  function drawAura(g, p, o, t, I) {
+    var m = o.m, k = o.k, s = o.ground.s, hd = m.head[o.fi], top = hd ? (o.fy - hd[1]) * k + HEAD_M * s * 0.75 : 2.2 * s, w = 0.62 * s;
+    g.save(); g.globalCompositeOperation = 'lighter';
+    var gr = g.createLinearGradient(0, 0, 0, -top * 1.25); gr.addColorStop(0, 'rgba(255,190,30,0.15)'); gr.addColorStop(0.5, 'rgba(255,210,60,0.32)'); gr.addColorStop(1, 'rgba(255,245,170,0.55)');
+    auraShell(g, w, top, t, 0, 1.12, 0.55 * I, gr, 'rgba(255,225,90,0.9)');
+    auraShell(g, w, top, t * 1.3, 3.1, 0.78, 0.45 * I, 'rgba(255,240,150,0.35)', 'rgba(255,255,220,0.8)');
+    var h = goldHalo(o); g.globalAlpha = Math.min(1, 0.9 * I); g.drawImage(h, (-o.fx - GR) * k, (-o.fy - GR) * k, h.width * k, h.height * k);
+    g.restore();
+  }
+  function auraFront(g, p, o, t, I) {   // light streaks shooting up through him
+    var s = o.ground.s, n = 5;
+    g.save(); g.globalCompositeOperation = 'lighter'; g.strokeStyle = 'rgba(255,240,160,0.8)'; g.lineWidth = Math.max(1, s * 0.025);
+    for (var i = 0; i < n; i++) {
+      var ph = (t * 1.6 + i / n + (p.id.length * 0.13)) % 1, x = Math.sin(i * 7.3 + Math.floor(t * 1.6 + i / n) * 3.1) * 0.42 * s, y = -ph * 2.3 * s, L = 0.25 * s;
+      g.globalAlpha = I * Math.sin(ph * Math.PI) * 0.8; g.beginPath(); g.moveTo(x, y); g.lineTo(x, y - L); g.stroke();
+    }
+    g.restore();
+  }
+  // the moment the arms come down: white-out, a shockwave across the floor, rays, gold sparks and chunks of floor flying
+  var rays = [];
+  X.powerFlash = function (p) {
+    X.white = 0.85; rays.push({ p: p, t: 0, life: 0.7 });
+    rings.push({ x: p.x, y: 0.02, z: p.z, size: 3.2, t: 0, life: 0.55, rot: 0, flat: true });
+    rings.push({ x: p.x, y: 1.1, z: p.z - 0.2, size: 1.6, t: 0, life: 0.35, rot: Math.random() });
+    X.burst(p.x, 1.0, p.z - 0.2, 40, ['#ffffff', '#fff3a0', '#ffd23f', '#ffb000'], 6, 0.6, 2);
+    X.burst(p.x, 0.05, p.z - 0.1, 22, ['#8a6a46', '#b8915e', '#5e4630', '#d9c09a'], 4.5, 0.9, 11);
+    for (var i = 0; i < 24; i++) X.goldSpark(p);
   };
+  X.goldSpark = function (p) {
+    var l = 0.5 + Math.random() * 0.5;
+    parts.push({ x: p.x + (Math.random() - 0.5) * 0.9, y: Math.random() * 1.6, z: p.z - 0.15 + (Math.random() - 0.5) * 0.3, vx: (Math.random() - 0.5) * 0.4, vy: 1.5 + Math.random() * 2.5, vz: 0, c: ['#fff6c0', '#ffe14d', '#ffc21a'][(Math.random() * 3) | 0], life: l, g: -0.5, sz: 0.03 + Math.random() * 0.03 });
+  };
+  X.powerDown = function (p) { X.burst(p.x, 1.2, p.z - 0.1, 18, ['#fff3a0', '#ffd23f', '#c9a53a'], 2, 0.5, 1); };
+  function drawRays(g, dt) {
+    for (var i = rays.length - 1; i >= 0; i--) {
+      var r = rays[i]; r.t += dt; if (r.t > r.life) { rays.splice(i, 1); continue; }
+      var c = X.proj(r.p.x, 1.05, r.p.z), u = r.t / r.life, R = c.s * (2.5 + 5 * u);
+      g.save(); g.globalCompositeOperation = 'lighter'; g.translate(c.x, c.y); g.rotate(r.t * 0.8);
+      for (var j = 0; j < 14; j++) { var a = j / 14 * 6.283, wd = 0.07 + 0.05 * (j % 2); g.globalAlpha = (1 - u) * 0.5; g.fillStyle = j % 2 ? '#fff6c8' : '#ffd23f'; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a - wd) * R, Math.sin(a - wd) * R); g.lineTo(Math.cos(a + wd) * R, Math.sin(a + wd) * R); g.closePath(); g.fill(); }
+      g.restore();
+    }
+  }
 })(window.HW);
+
