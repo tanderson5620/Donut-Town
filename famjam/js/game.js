@@ -351,7 +351,7 @@ window.HW = window.HW || {};
   G.PU = PU;
   function startPowerup(p) {
     G.pu = { p: p, t: 0, boom: false }; G.callouts = []; p.state = 'powerup'; p.st = 0; p.vx = p.vz = 0; p.dm = null; p.pending = null; p.trail = null;
-    Au.charge && Au.charge();
+    Au.charge && Au.charge(); if (((HW.FAMILY || {})[p.id] || {}).sex === 'm') Au.yell && Au.yell();
   }
   function updatePowerup(dt) {
     var pu = G.pu, p = pu.p; pu.t += dt; p.st = pu.t; animate(p, dt);
