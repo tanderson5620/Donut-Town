@@ -134,6 +134,8 @@ window.HW = window.HW || {};
     if (p.state === 'shoot' || p.state === 'dunk') { b.x = p.x + p.face * 0.12; b.y = p.y + p.def.height + 0.2; b.z = p.z - 0.15; return; }
     if (p.state === 'pass' && p.pending) { var hw = X.handWorld(p); if (hw) { b.x = hw.x; b.y = Math.max(0.15, hw.y); b.z = p.z - 0.25; } return; }   // in his hand through a fancy pass
     if (p.state === 'pass' || p.state === 'fall') return;
+    // game over: he stops dribbling and just holds it in his hand (up in the air if he's celebrating), no more bounces
+    if (G.phase === 'over') { var hh = X.handWorld(p); b.x = hh ? hh.x : p.x + p.face * 0.35; b.y = hh ? Math.max(0.2, hh.y) : p.y + 1.0; b.z = p.z - 0.25; p.dm = null; return; }
     var dm = p.dm;
     if (dm) {
       // crossover (low across the front) or behind-the-back (behind him): one bounce from the old side to the new one
@@ -545,7 +547,7 @@ window.HW = window.HW || {};
     }
     // loose ball physics + pickups
     b.vy -= GRAV * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
-    if (b.y < 0.15) { b.y = 0.15; if (b.vy < -1.2) { (Au.dribble || Au.bounce)(Math.abs(b.vy)); b.vy = -b.vy * 0.6; } else b.vy = 0; b.vx *= 0.97; b.vz *= 0.97; }
+    if (b.y < 0.15) { b.y = 0.15; if (b.vy < -1.2) { if (G.phase !== 'over') (Au.dribble || Au.bounce)(Math.abs(b.vy)); b.vy = -b.vy * 0.6; } else b.vy = 0; b.vx *= 0.97; b.vz *= 0.97; }
     if (Math.abs(b.x) > K.HL + 0.8) { b.x = Math.sign(b.x) * (K.HL + 0.8); b.vx *= -0.5; }
     if (b.z < 0.1 || b.z > K.CD + 0.5) { b.z = clamp(b.z, 0.1, K.CD + 0.5); b.vz *= -0.5; }
     if (b.noCatch > 0 || G.phase !== 'play') return;
@@ -587,8 +589,9 @@ window.HW = window.HW || {};
     var defending = b.holder && b.holder.team !== p.team && dist(p, b.holder) < 3;
     // stride rate follows the ground speed (depth speed counted at its true length), in real time so 120 Hz phones don't double it
     var stride = Math.hypot(p.vx, p.vz / G.ZS);
-    if (sp > 0.6) { p.anim = p.hasBall ? 'drun' : (defending && sp < 4 ? 'defend' : 'run'); p.frame = (p.frame + Math.min(stride, 9) * dt * 1.7) % 8; }
-    else { p.anim = p.hasBall ? 'dribble' : defending ? 'defend' : 'idle'; p.frame = (p.frame + dt * (p.hasBall ? 9 : 4)) % 6; }
+    var drib = p.hasBall && G.phase !== 'over';   // after the final buzzer whoever has it just holds it
+    if (sp > 0.6) { p.anim = drib ? 'drun' : (defending && sp < 4 ? 'defend' : 'run'); p.frame = (p.frame + Math.min(stride, 9) * dt * 1.7) % 8; }
+    else { p.anim = drib ? 'dribble' : defending ? 'defend' : 'idle'; p.frame = (p.frame + dt * (drib ? 9 : 4)) % 6; }
     // a taunt rides on top of normal play for 2 s: same legs, taunting arms (with the ball, shooting, blocking... he plays it straight).
     // The chop slams down twice: up, down, up, down and hold
     if (p.taunt && !p.hasBall) {
