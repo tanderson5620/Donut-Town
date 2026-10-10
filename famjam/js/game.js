@@ -31,6 +31,21 @@ window.HW = window.HW || {};
     X.ring(hx, hy, hz, 0.7 + 0.35 * hard); X.burst(hx, hy, hz, Math.round(10 + 8 * hard), ['#ffffff', '#ffe14d', '#ffb000'], 3 + 2 * hard, 0.35, 3);
     G.hitstop = Math.max(G.hitstop || 0, 0.05 + 0.035 * hard); X.shake = Math.max(X.shake, 0.5 + 0.3 * hard); Au.thud();
   };
+  // what the crowd yells when p flattens q: family trash talk when it fits (aunt/uncle on a niece/nephew, cousin on cousin, a woman
+  // dropping a guy), mixed in with the plain knockdown calls; never the same line twice in a row
+  var lastLine = '';
+  function knockLine(p, q) {
+    var P = HW.PHRASES, F = HW.FAMILY || {}, a = F[p.id], b = F[q.id], fam = [];
+    if (a && b && a.fam !== b.fam) {
+      if (a.gen === 1 && b.gen === 2) fam = fam.concat(a.sex === 'f' ? P.aunt : P.uncle, a.sex === 'f' ? P.aunt : P.uncle);   // listed twice: the family lines come up most
+      if (a.gen === 2 && b.gen === 2) fam = fam.concat(P.cousin, P.cousin);
+    }
+    if (a && b && a.sex === 'f' && b.sex === 'm') fam = fam.concat(P.girlBeatsGuy);
+    var pool = fam.length && Math.random() < 0.75 ? fam : P.shove.concat(fam), line;
+    for (var i = 0; i < 4; i++) { line = pick(pool); if (line !== lastLine) break; }
+    return (lastLine = line);
+  }
+  G.knockLine = knockLine;
   function slam(p) {   // he hits the floor
     var im = p.impact, hx = X.fallHeadX(p), cx = (p.x + hx) / 2; p.impact = null; p.st = Math.min(p.st, 0.36);   // his time on the floor starts now
     p.vx *= 0.15; p.vz *= 0.15;   // the slam kills his momentum: he stays on his crater
@@ -243,7 +258,7 @@ window.HW = window.HW || {};
       if (tgt.hasBall) G.drop(tgt, dx * 3, 3, dz * 3);
       var gap = str - tgt.def.stats.str + (fs ? 5 : 0);
       G.knockDown(tgt, p, { hard: fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6), blood: 0.7 + Math.max(0, gap) * 0.1, y: 1.2 });
-      G.say(pick(HW.PHRASES.shove), '#ff8a5a', 1);
+      G.say(knockLine(p, tgt), '#ff8a5a', 1.2);
     } else if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5);
   };
   G.jump = function (p) {
@@ -367,7 +382,7 @@ window.HW = window.HW || {};
     else if (p.hasBall && p.def.type === 'handler' && p.state === 'idle' && p.grounded() && p.prevFace && p.face !== p.prevFace && Math.abs(p.vx) > 0.9) {
       p.dm = { type: Math.random() < 0.6 ? 'cross' : 'btb', t: 0, dur: 0.34, from: p.prevFace };
       // on fire, the crossover can put his man on the floor
-      if (p.onFire) G.opps(p).forEach(function (q) { if (q.state !== 'fall' && q.grounded() && dist(p, q) < 1.8 && Math.random() < 0.65) { G.knockDown(q, p, { hard: 0.5, fallT: 1.0, blood: 0.5, y: 0.5 }); fireBurst(q.x, 0.4, q.z, 8); } });
+      if (p.onFire) G.opps(p).forEach(function (q) { if (q.state !== 'fall' && q.grounded() && dist(p, q) < 1.8 && Math.random() < 0.65) { G.knockDown(q, p, { hard: 0.5, fallT: 1.0, blood: 0.5, y: 0.5 }); fireBurst(q.x, 0.4, q.z, 8); G.say(knockLine(p, q), '#ff8a5a', 1.2); } });
     }
     p.prevFace = p.face;
     // speed on fire leaves afterimages

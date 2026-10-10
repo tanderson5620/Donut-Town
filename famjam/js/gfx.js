@@ -278,6 +278,8 @@ window.HW = window.HW || {};
     p.screen = ground;
     // shadow
     var sr = 0.6 * ground.s; g.fillStyle = 'rgba(0,0,0,' + Math.max(0.15, 0.5 - p.y * 0.1) + ')'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * (1 - Math.min(0.5, p.y * 0.12)), sr * 0.26, 0, 0, 6.283); g.fill();
+    // the player you control: a bright green ring on the floor round his feet
+    if (p.human) { var pu = 0.5 + 0.5 * Math.sin(X.t * 6 || 0); g.fillStyle = 'rgba(47,216,90,0.18)'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * 1.15, sr * 0.34, 0, 0, 6.283); g.fill(); g.lineWidth = 3; g.strokeStyle = 'rgba(47,216,90,' + (0.75 + 0.25 * pu) + ')'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * (1.15 + 0.08 * pu), sr * 0.34, 0, 0, 6.283); g.stroke(); g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 1; g.beginPath(); g.ellipse(ground.x, ground.y + 1, sr * (1.15 + 0.08 * pu) + 1.5, sr * 0.34 + 1.5, 0, 0, 6.283); g.stroke(); }
     if (p.ssj) { g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = 'rgba(255,200,40,' + (0.3 + 0.1 * Math.sin((X.t || 0) * 17)) + ')'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * 1.6, sr * 0.45, 0, 0, 6.283); g.fill(); g.restore(); }
     else if (p.onFire) { g.fillStyle = 'rgba(255,120,20,0.35)'; g.beginPath(); g.ellipse(ground.x, ground.y, sr * 1.3, sr * 0.36, 0, 0, 6.283); g.fill(); }
     // afterimages behind a speedster on fire

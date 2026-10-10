@@ -81,6 +81,18 @@ window.HW = window.HW || {};
     dunk: ['KABOOM!', 'RIM WRECKER!', 'SLAM-A-LAMA!', 'HAMMER TIME!', 'THUNDER DUNK!'],
     block: ['REJECTED!', 'DENIED!', 'GET THAT SHIT OUT OF HERE!', 'NOT IN MY HOUSE!'],
     steal: ['PICKPOCKET!', 'STOLEN!', 'SWIPED!'],
-    shove: ['TIMBER!', 'WHAM!', 'FLATTENED!']
+    shove: ['TIMBER!', 'WHAM!', 'FLATTENED!'],
+    // knockdown trash talk by who flattened whom (HW.FAMILY)
+    girlBeatsGuy: ['WIMP!', 'GET UP, WIMP!', 'BEAT BY A GIRL!', 'SIT DOWN, BOY!', 'TOO WEAK!'],
+    uncle: ["WHO'S YOUR UNCLE?", 'RESPECT YOUR UNCLE!'],
+    aunt: ["WHO'S YOUR AUNT?", 'AUNTIE SAYS SIT DOWN!'],
+    cousin: ['WEAKEST COUSIN I KNOW!', 'SEE YOU AT THANKSGIVING!']
+  };
+
+  // the family tree: Alan + Lisa Anderson -> Tyler, Carl; Karen (Alan's sister) + Kenny Gorman -> Katelyn (Katie), Kody, Kameron.
+  // gen 1 = the parents (uncles and aunts to the other family's kids), gen 2 = the kids (cousins across the families)
+  HW.FAMILY = {
+    alan: { gen: 1, sex: 'm', fam: 0 }, lisa: { gen: 1, sex: 'f', fam: 0 }, tyler: { gen: 2, sex: 'm', fam: 0 }, carl: { gen: 2, sex: 'm', fam: 0 },
+    kenny: { gen: 1, sex: 'm', fam: 1 }, karen: { gen: 1, sex: 'f', fam: 1 }, katelyn: { gen: 2, sex: 'f', fam: 1 }, kody: { gen: 2, sex: 'm', fam: 1 }, kameron: { gen: 2, sex: 'm', fam: 1 }
   };
 })(window.HW);
