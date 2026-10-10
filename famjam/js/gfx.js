@@ -100,7 +100,7 @@ window.HW = window.HW || {};
     // a low courtside board: dark panels with small lettering, so it frames the court instead of shouting over it
     wallC = canvas(1600, 40); var w = wallC.getContext('2d'); w.fillStyle = '#0b0b16'; w.fillRect(0, 0, 1600, 40);
     w.font = '8px "Press Start 2P", monospace'; w.textBaseline = 'middle'; w.textAlign = 'center';
-    var ads = [['HOOPS JAM', '#c9a53a'], ['ANDERSONS', '#c46a1c'], ['2 ON 2', '#b8407e'], ['GORMANS', '#2f6cc4'], ['TURBO!', '#47b07c']];
+    var ads = [['FAM JAM', '#c9a53a'], ['ANDERSONS', '#c46a1c'], ['2 ON 2', '#b8407e'], ['GORMANS', '#2f6cc4'], ['TURBO!', '#47b07c']];
     for (var i2 = 0; i2 < 16; i2++) { var a2 = ads[i2 % ads.length], x2 = i2 * 100; w.fillStyle = '#15152a'; w.fillRect(x2 + 3, 4, 94, 32); w.fillStyle = a2[1]; w.fillRect(x2 + 3, 4, 94, 2); w.fillText(a2[0], x2 + 50, 21); }
   }
   X.hype = 0;

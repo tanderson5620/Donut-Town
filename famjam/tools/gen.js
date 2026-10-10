@@ -1,5 +1,5 @@
-// Sprite factory runner: renders every player's animation frames and big heads into jam/sprites and jam/faces (indexed PNGs).
-// Usage (from the repo root, Playwright installed):  THREE_JS=/path/to/three.min.js node jam/tools/gen.js [ids...]
+// Sprite factory runner: renders every player's animation frames and big heads into famjam/sprites and famjam/faces (indexed PNGs).
+// Usage (from the repo root, Playwright installed):  THREE_JS=/path/to/three.min.js node famjam/tools/gen.js [ids...]
 // THREE_JS is optional; without it the page loads three.js r128 from the CDN. Env: OUT=dir writes elsewhere (for previews),
 // HEADS=1 only the heads, BODIES=1 only the sheets, REDO_FACES=1 also redoes existing front heads.
 // Front heads of players with a real photo cut-out (PHOTO in gen.html: alan) are never written.
@@ -25,7 +25,7 @@ function png8(r) {
   const page = await browser.newPage();
   page.on('pageerror', e => console.error('PAGE', e.message));
   if (process.env.THREE_JS) await page.route('**/three.min.js', r => r.fulfill({ path: process.env.THREE_JS, contentType: 'text/javascript' }));
-  await page.goto(`http://localhost:${srv.address().port}/jam/tools/gen.html`);
+  await page.goto(`http://localhost:${srv.address().port}/famjam/tools/gen.html`);
   await page.waitForFunction(() => window.ready, null, { timeout: 60000 }); await page.evaluate(() => window.ready);
   const ids = process.argv.slice(2).length ? process.argv.slice(2) : await page.evaluate(() => Object.keys(HW.PLAYERS));
   const photo = await page.evaluate(() => window.PHOTO);

@@ -164,5 +164,5 @@ Headless Chromium with SwiftShader (`--use-angle=swiftshader --enable-unsafe-swi
 ## Also in this repo: Hoops Jam
 `hoops/` holds a separate WebXR 2-on-2 arcade basketball game (own `index.html`, plain JS files, see `hoops/README.md`). It does not touch `donut-town-vr.html`, so the single-file rules above only apply to Donut Town.
 
-## Also in this repo: Hoops Jam (2D arcade)
-`jam/` is a separate 2D arcade basketball game for phones and desktop (canvas sprites, see `jam/README.md`). Its sprite factory reuses the athlete body from `hoops/`.
+## Also in this repo: FAM JAM (2D arcade)
+`famjam/` is FAM JAM: Andersons vs Gormans, a separate 2D arcade basketball game for phones and desktop (canvas sprites, see `famjam/README.md`), played at https://tanderson5620.github.io/Donut-Town/famjam/. `jam/` only redirects old links there. Its sprite factory reuses the athlete body from `hoops/`.

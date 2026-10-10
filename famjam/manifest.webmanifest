@@ -1,0 +1,1 @@
+{ "name": "FAM JAM: Andersons vs Gormans", "short_name": "Fam Jam", "icons": [{ "src": "img/icon.png", "sizes": "512x512", "type": "image/png" }], "start_url": ".", "display": "fullscreen", "orientation": "landscape", "background_color": "#05050c", "theme_color": "#05050c" }

@@ -1,4 +1,4 @@
-/* data.js - roster, teams, player types and difficulty for Hoops Jam (the 2D arcade game) */
+/* data.js - roster, teams, player types and difficulty for FAM JAM (the 2D arcade game) */
 window.HW = window.HW || {};
 (function (HW) {
   HW.TYPES = {

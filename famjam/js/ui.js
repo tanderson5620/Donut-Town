@@ -6,7 +6,7 @@ window.HW = window.HW || {};
   var UI = HW.JamUI = { screen: 'title', btns: [], st: { team: 0, picks: [], ctrl: null, diff: 'normal', qlen: 60 }, t: 0 };
   // quarter length is remembered on this device
   var QLENS = [60, 90, 120, 180];
-  try { var ql = +localStorage.getItem('hoopsjam.qlen'); if (QLENS.indexOf(ql) >= 0) UI.st.qlen = ql; } catch (e) { }
+  try { var ql = +(localStorage.getItem('famjam.qlen') || localStorage.getItem('hoopsjam.qlen')); if (QLENS.indexOf(ql) >= 0) UI.st.qlen = ql; } catch (e) { }
   function clockText(s) { return Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60); }
   var In = HW.In = { mx: 0, mz: 0, turbo: false, shootHeld: false, shootDown: false, shootUp: false, passDown: false, pauseDown: false, tap: null, keys: {}, touchMove: { x: 0, y: 0 }, stickTurbo: false, comboTurbo: false, actDown: false, nav: null };
   var CY = '#22c4f2', PB = '#262a8c', P1C = '#2fd85a';
@@ -370,14 +370,15 @@ window.HW = window.HW || {};
     if (s === 'title') {
       var C = card(g, '#141a6a'), W = X.W, cx = Math.round((C.L + C.R) / 2);
       g.drawImage(rays(C), C.L, C.T);
-      // logo: HOOPS over a big flaming JAM with a ball behind it
+      // logo: FAM over a big flaming JAM with a ball behind it
       var big = C.W >= 600 ? 9 : 8, by = C.T + 140;
       var ball = bigBall(); g.drawImage(ball, cx - ball.width / 2, by - ball.height / 2 - 4);
-      Fo.draw(g, 'HOOPS', cx, C.T + 52, { scale: 5, scheme: 'white', outline: 2, shadow: 3, shadowColor: '#0a1050' });
       flaming(g, 'JAM', cx, by, { scale: big, scheme: 'fire', outline: 3, shadow: 4, shadowColor: '#3a0800' }, fr);
+      Fo.draw(g, 'FAM', cx, C.T + 42, { scale: 6, scheme: 'white', outline: 2, shadow: 3, shadowColor: '#0a1050' });   // in front of JAM's flames
       var e0 = emblem(0, 2), e1 = emblem(1, 2), ex = Math.min(C.W * 0.36, (C.W - 60) / 2 - 64);
       if (C.W >= 520) { g.drawImage(e0, Math.round(cx - ex - 64), C.T + 50); g.drawImage(e1, Math.round(cx + ex - 64), C.T + 50); Fo.draw(g, T[0].name, cx - ex, C.T + 190, { scale: 2, color: T[0].color }); Fo.draw(g, T[1].name, cx + ex, C.T + 190, { scale: 2, color: T[1].color }); }
-      Fo.draw(g, 'VS', cx, C.T + 230, { scale: 3, scheme: 'red' });
+      if (C.W >= 520) Fo.draw(g, 'VS', cx, C.T + 230, { scale: 3, scheme: 'red' });
+      else Fo.draw(g, T[0].name + ' VS ' + T[1].name, cx, C.T + 230, { scale: 2, scheme: 'red' });
       Fo.draw(g, '2 ON 2 ARCADE BASKETBALL', cx, C.T + 258, { scale: 1, scheme: 'cyan' });
       if (blink()) Fo.draw(g, HW.TOUCH ? 'TAP TO START' : 'CLICK OR PRESS ENTER', cx, C.T + 286, { scale: 2, scheme: 'yellow' });
       if (!HW.TOUCH) Fo.draw(g, 'MOVE: ARROWS  SHOOT: J  PASS: K  TURBO: L/SHIFT  PAUSE: P', cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
@@ -470,7 +471,7 @@ window.HW = window.HW || {};
     // quarter length
     Fo.draw(g, 'QUARTER LENGTH', mid, pTop + 52, { scale: 1, scheme: 'gray', shadow: 0 });
     var qw = Math.floor((ccw - 12) / 4);
-    QLENS.forEach(function (q, i) { button(g, 'q' + q, ccx + i * (qw + 4), pTop + 60, qw, 20, clockText(q), { on: st.qlen === q, size: 1, color: '#22c4f2', fn: function () { st.qlen = q; try { localStorage.setItem('hoopsjam.qlen', q); } catch (e) { } } }); });
+    QLENS.forEach(function (q, i) { button(g, 'q' + q, ccx + i * (qw + 4), pTop + 60, qw, 20, clockText(q), { on: st.qlen === q, size: 1, color: '#22c4f2', fn: function () { st.qlen = q; try { localStorage.setItem('famjam.qlen', q); } catch (e) { } } }); });
     button(g, 'go', ccx, pTop + 88, ccw, 38, 'PLAY', { size: 3, fn: function () { UI.matchup(); } });
     button(g, 'back', ccx + ccw / 2 - 40, pTop + 132, 80, 22, 'BACK', { on: false, size: 1, fn: function () { UI.show('title'); } });
     if (In.nav === 'ArrowLeft') switchTeam(-1); else if (In.nav === 'ArrowRight') switchTeam(1);
