@@ -87,9 +87,10 @@ window.HW = window.HW || {};
   G.mates = function (p) { return G.players.filter(function (q) { return q.team === p.team && q !== p; }); };
   G.opps = function (p) { return G.players.filter(function (q) { return q.team !== p.team; }); };
 
+  var WHISTLE_LONG = 1.02;   // sfx/whistle.mp3: two short blasts, the long one starts 1.02 s in
   G.beginQuarter = function () {
     G.clock = G.q > 4 ? OT : QUARTER; G.lineup(G.q % 2 === 1 ? G.humanTeam : 1 - G.humanTeam, true);
-    G.phase = 'tip'; G.phaseT = 2.4; Au.sfx && Au.sfx(G.q > 4 ? 'overtime' : G.q === 4 ? 'final_round' : 'ready'); G.say(G.q > 4 ? 'OVERTIME!' : ['1ST QUARTER', '2ND QUARTER', '3RD QUARTER', '4TH QUARTER'][G.q - 1], '#fff', 2);
+    G.phase = 'tip'; G.phaseT = 2.4; G.whistled = false; if (G.q >= 4) Au.sfx && Au.sfx(G.q > 4 ? 'overtime' : 'final_round'); G.say(G.q > 4 ? 'OVERTIME!' : ['1ST QUARTER', '2ND QUARTER', '3RD QUARTER', '4TH QUARTER'][G.q - 1], '#fff', 2);
   };
   // set everyone up with `team` bringing the ball up from its own end
   G.lineup = function (team, center) {
@@ -380,7 +381,8 @@ window.HW = window.HW || {};
     if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall') { G.puQueue = null; startPowerup(pq); return; } }
     if (G.tipT > 0 && (G.tipT -= dt) <= 0) G.say('STICK PAST THE RING = TURBO!', '#5cff7a', 3.5, 0.55);
     var live = G.phase === 'play';
-    if (G.phase === 'tip') { G.phaseT -= dt; if (G.phaseT <= 0) { G.phase = 'play'; G.say('GO!', '#5cff7a', 0.8, 1.3); Au.whistle(); Au.sfx && Au.sfx('go'); } }
+    // the ref's whistle (recorded): tweet, tweet, then the long blast lands right on GO
+    if (G.phase === 'tip') { G.phaseT -= dt; if (!G.whistled && G.phaseT <= WHISTLE_LONG) { G.whistled = true; Au.sfx && Au.sfx('whistle', 0.85); } if (G.phaseT <= 0) { G.phase = 'play'; G.say('GO!', '#5cff7a', 0.8, 1.3); Au.sfx && Au.sfx('go'); } }
     else if (G.phase === 'scored') { G.phaseT -= dt; if (G.phaseT <= 0 && !(G.puQueue && G.phaseT > -2)) { G.lineup(G.nextPoss, false); G.phase = 'play'; } }   // a power-up still to come holds the restart
     else if (G.phase === 'break') { G.phaseT -= dt; if (G.phaseT <= 0) { G.q++; G.beginQuarter(); } }
     else if (G.phase === 'over') { G.phaseT -= dt; }

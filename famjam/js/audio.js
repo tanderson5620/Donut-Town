@@ -63,7 +63,7 @@ window.HW = window.HW || {};
   };
   A.musicPlaying = function () { return Object.keys(mus).filter(function (k) { return !mus[k].el.paused && (!mus[k].g || mus[k].g.gain.value > 0.05); }).join(',') || 'none'; };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'steal_whoosh', 'crowd_a', 'crowd_b', 'cheer_made', 'go', 'ready', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
+  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'steal_whoosh', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'combo', 'game_over', 'punch0', 'punch1', 'punch2', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (f) {   // .mp3 unless named (the dribbles are .wav: no encoder delay, so the thump lands on the frame)
@@ -138,7 +138,6 @@ window.HW = window.HW || {};
   A.rim = function (v) { if (!throttle('r', 70)) return; v = Math.min(1, (v || 4) / 8); tone(520, 0.4, 'triangle', 0.1 + 0.2 * v, 480); tone(1040, 0.3, 'sine', 0.06 + 0.1 * v, 990); noise(0.06, 0.1, 2200, 2); };
   A.board = function () { if (!throttle('bd', 80)) return; tone(160, 0.2, 'square', 0.12, 120); noise(0.1, 0.18, 700, 1); };
   A.buzzer = function () { tone(220, 0.9, 'sawtooth', 0.22); tone(233, 0.9, 'sawtooth', 0.18); };
-  A.whistle = function () { tone(2400, 0.18, 'sine', 0.12, 2700); tone(2700, 0.3, 'sine', 0.12, 2400, 0.18); };
   A.beep = function (hi) { tone(hi ? 880 : 440, hi ? 0.35 : 0.15, 'square', 0.12); };
   A.click = function () { tone(1200, 0.05, 'square', 0.06); };
   A.hover = function () { if (throttle('h', 50)) tone(900, 0.03, 'sine', 0.04); };
