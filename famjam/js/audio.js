@@ -68,7 +68,7 @@ window.HW = window.HW || {};
   };
   A.musicPlaying = function () { return Object.keys(mus).filter(function (k) { return !mus[k].el.paused && (!mus[k].g || mus[k].g.gain.value > 0.05); }).join(',') || 'none'; };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'yell_f0', 'shout0', 'shout1', 'trash0', 'trash1', 'incoming0', 'incoming1', 'incoming2', 'incoming3', 'incoming4', 'incoming5', 'incoming6', 'help0', 'help1', 'help2', 'help3', 'help4', 'help5', 'help6', 'help7', 'help8', 'hup0', 'hup1', 'hup2', 'hup3', 'ew0', 'ew1', 'ew2', 'wow0', 'wow1', 'wow2', 'wow3', 'wow4', 'wow5', 'baba0', 'baba1', 'baba2', 'happy0', 'happy1', 'happy2', 'land', 'hit0', 'hit1', 'hit2', 'hit3', 'scream', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'pass_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'game_over', 'glass'], bufs = {}, loading = false;
+  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'yell_f0', 'shout0', 'shout1', 'trash0', 'trash1', 'incoming0', 'incoming1', 'incoming2', 'incoming3', 'laugh0', 'pain_f0', 'pain_f1', 'pain_f2', 'pain_f3', 'help0', 'help1', 'help2', 'help3', 'help4', 'help5', 'help6', 'help7', 'help8', 'hup0', 'hup1', 'hup2', 'hup3', 'ew0', 'ew1', 'ew2', 'wow0', 'wow1', 'wow2', 'wow3', 'wow4', 'wow5', 'baba0', 'baba1', 'baba2', 'happy0', 'happy1', 'happy2', 'land', 'hit0', 'hit1', 'hit2', 'hit3', 'scream', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'pass_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'game_over', 'glass'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (f) {   // .mp3 unless named (the dribbles are .wav: no encoder delay, so the thump lands on the frame)
@@ -148,8 +148,12 @@ window.HW = window.HW || {};
     if (!A.ctx || (!big && (A.ctx.currentTime - trashT < 6 || Math.random() < 0.5))) return;
     if (line('trash', 2, 1.3, 0.45)) trashT = A.ctx.currentTime;
   };
-  // a defender sees a dunker take off from way out: "incoming!" (7 takes, at most once every 10 s)
-  A.incoming = function () { if (throttle('inc', 10000)) line('incoming', 7, 1.2, 0.05); };
+  // a defender sees a dunker take off from way out: "incoming!" (4 takes, at most once every 10 s)
+  A.incoming = function () { if (throttle('inc', 10000)) line('incoming', 4, 1.2, 0.05); };
+  // a steal: now and then the thief laughs like a cartoon bad guy
+  A.laugh = function () { if (Math.random() < 0.45) line('laugh', 1, 1.1, 0.15); };
+  // a woman takes a hit: a short pained grunt (4 takes, one at a time)
+  A.painF = function () { if (bufs.pain_f0 && throttle('pf', 300)) take('pain_f', 4, 1.0); };
   // a guy left on the floor by a hard hit calls for help (9 takes)
   A.help = function () { line('help', 9, 1.2, 0.35); };
   // a guy takes off for a dunk or jumps to block: a short video-game "hup!" (4 takes)

@@ -32,7 +32,8 @@ window.HW = window.HW || {};
     X.ring(hx, hy, hz, 0.7 + 0.35 * hard); X.burst(hx, hy, hz, Math.round(10 + 8 * hard), ['#ffffff', '#ffe14d', '#ffb000'], 3 + 2 * hard, 0.35, 3);
     G.hitstop = Math.max(G.hitstop || 0, 0.05 + 0.035 * hard); X.shake = Math.max(X.shake, 0.5 + 0.3 * hard); Au.punch && Au.punch();
     if (hard >= 1.8 && isGuy(q)) Au.scream && Au.scream();   // sent flying 3+ m: he screams on the way
-    if (isGuy(src)) Au.trash && Au.trash();   // and the guy who did it talks trash (now and then)
+    if (isGuy(src) && !o.block) Au.trash && Au.trash();   // and the guy who did it talks trash now and then (not on a block)
+    if (q && !isGuy(q)) Au.painF && Au.painF();   // a woman takes the hit with a pained grunt
   };
   // what the crowd yells when p flattens q: family trash talk when it fits (aunt/uncle on a niece/nephew, cousin on cousin, a woman
   // dropping a guy), mixed in with the plain knockdown calls; never the same line twice in a row
@@ -298,7 +299,7 @@ window.HW = window.HW || {};
     if (!p.human) c *= G.diff.steal * 0.75;   // the computer gets less of the boost
     if (h.dm) c *= 0.3;   // a crossover / behind-the-back dribble protects the ball
     if (h.state === 'dunk') c = 0;
-    if (Math.random() < c) { if (sig(p, 'steal')) fireBurst(h.x, 1.0, h.z, 12); p.stats.steals++; G.give(p); G.say(pick(HW.PHRASES.steal), '#7ee0ff', 1); Au.steal(); }
+    if (Math.random() < c) { if (sig(p, 'steal')) fireBurst(h.x, 1.0, h.z, 12); p.stats.steals++; G.give(p); G.say(pick(HW.PHRASES.steal), '#7ee0ff', 1); Au.steal(); Au.laugh && Au.laugh(); }
   };
   G.tryShove = function (p) {
     if (p.cd.shove > 0 || p.busy()) return; p.cd.shove = 0.9; p.state = 'shove'; p.st = 0;
@@ -318,7 +319,7 @@ window.HW = window.HW || {};
       var sty = p.shoveStyle, hk = sty === 'kick' ? 0.4 : sty === 'punch' ? 0.5 : sty === 'shin' ? -0.3 : 0;
       G.knockDown(tgt, p, { hard: (fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6)) + hk, blood: 0.7 + Math.max(0, gap) * 0.1, y: sty === 'kick' ? 1.6 : sty === 'shin' ? 0.35 : 1.2 });
       G.say(knockLine(p, tgt), '#ff8a5a', 1.2);
-    } else { if (!wall) Au.punch && Au.punch(); if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); }   // it lands but he stays up
+    } else { if (!wall) { Au.punch && Au.punch(); if (!isGuy(tgt) && Math.random() < 0.5) Au.painF && Au.painF(); } if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); }   // it lands but he stays up
   };
   G.jump = function (p) {
     if (!p.grounded() || p.busy() || p.cd.jump > 0) return; p.state = 'jump'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH); p.y = 0.001; p.cd.jump = 0.35; if (isGuy(p)) Au.hup(); else Au.jump();
@@ -351,7 +352,7 @@ window.HW = window.HW || {};
     var power = q.def.stats.str - dk.def.stats.str + (sig(q, 'str') ? 5 : 0);
     dk.dk = null; dk.vy = 0; dk.tongue = false; dk.jamArm = null;
     G.blocked(q, dk, null, 'GET THAT SHIT OUT OF HERE!');
-    G.knockDown(dk, q, { hard: power > 0 ? clamp(1.2 + power * 0.06, 1.2, 2) : 1, fallT: power > 0 ? 2.0 : 1.3, blood: 0.7 + Math.max(0, power) * 0.12, y: dk.y + 1.6 });
+    G.knockDown(dk, q, { hard: power > 0 ? clamp(1.2 + power * 0.06, 1.2, 2) : 1, fallT: power > 0 ? 2.0 : 1.3, blood: 0.7 + Math.max(0, power) * 0.12, y: dk.y + 1.6, block: true });
     if (q.def.stats.str >= 9) {
       // a bruiser hammers it: airborne, bent back into a C with both fists clasped behind his head, then down through the dunker,
       // who gets launched all the way out to midcourt
@@ -359,7 +360,6 @@ window.HW = window.HW || {};
       var vy = 6.5, hy = dk.y, T = (vy + Math.sqrt(vy * vy + 2 * GRAV * hy)) / GRAV, ex = 1 - Math.exp(-1.2 * T);
       dk.vy = vy; dk.vx = (0 - dk.x) * 1.2 / ex; dk.vz *= 0.3; dk.face = dk.vx > 0 ? -1 : 1; X.shake = Math.max(X.shake, 1.4);
       if (isGuy(dk)) Au.scream && Au.scream();
-      if (isGuy(q)) Au.trash && Au.trash(true);
     }
     X.hype = Math.max(X.hype, 2.6);
   };
@@ -565,7 +565,7 @@ window.HW = window.HW || {};
       var thief = null; ps.tried = ps.tried || [];
       G.opps(ps.from).forEach(function (q) { if (!thief && v > 0.2 && v < 0.9 && q.state !== 'fall' && ps.tried.indexOf(q) < 0 && Math.hypot(q.x - b.x, q.z - b.z) < (sig(q, 'steal') ? 0.95 : 0.55) && b.y < q.y + q.reach) thief = q; });
       if (thief) ps.tried.push(thief);
-      if (thief && Math.random() < (thief.human ? 0.75 : 0.5 * G.diff.steal) * ps.safe * (sig(thief, 'steal') ? 1.6 : 1)) { thief.stats.steals++; G.give(thief); G.say('INTERCEPTED!', '#7ee0ff', 1.1); Au.steal(); Au.catch(); return; }
+      if (thief && Math.random() < (thief.human ? 0.75 : 0.5 * G.diff.steal) * ps.safe * (sig(thief, 'steal') ? 1.6 : 1)) { thief.stats.steals++; G.give(thief); G.say('INTERCEPTED!', '#7ee0ff', 1.1); Au.steal(); Au.laugh && Au.laugh(); Au.catch(); return; }
       // the receiver catches it as soon as it reaches him near the end of the flight
       if (v > 0.7 && ps.to.state !== 'fall' && dist(ps.to, b) < 0.8 && b.y < ps.to.y + ps.to.reach) v = 1;
       if (v >= 1) { if (ps.to.state !== 'fall' && dist(ps.to, b) < 1.6) { G.give(ps.to); ps.to.assist = { by: ps.from, t: G.t }; Au.catch(); } else { b.state = 'loose'; b.vy = 0; } }
