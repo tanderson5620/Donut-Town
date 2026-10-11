@@ -452,6 +452,13 @@ window.HW = window.HW || {};
       var zmax = cine ? Math.max(1.3, Math.min(1.6, 0.75 * H / body)) : Math.max(1.5, Math.min(2.6, 0.92 * H / fig));
       za = u < 0.25 ? e(u / 0.25) : u > D - 0.3 ? e((D - u) / 0.3) : 1; zk = 1 + (zmax - 1) * za;
       zf = cine ? { x: gd.x - X.shakeX, y: (feet + top) / 2 } : { x: gd.x - X.shakeX, y: (gd.y - X.shakeY + top - 0.35 * gd.s) / 2 };
+      if (cine && pu.kind === 'board' && ball) {
+        // off the glass: in close on the ball itself as it leaves his hand, tightest as it hits the board, back out as it comes back to
+        // him - full view again the moment it's in his hand (u = how far through the dunk he is)
+        var bu = pp.dk ? pp.st / pp.dk.T : 1, bj = X.proj(ball.x, ball.y, ball.z);
+        za = bu < 0.14 ? 0 : bu < 0.27 ? e((bu - 0.14) / 0.13) : bu < 0.33 ? 1 : bu < 0.5 ? e((0.5 - bu) / 0.17) : 0;
+        zk = 1 + (2.4 - 1) * za; zf = { x: bj.x - X.shakeX, y: bj.y - X.shakeY };
+      }
       var tx = zf.x + (W / 2 - zf.x) * za, ty = zf.y + (H * 0.5 - zf.y) * za;
       tx = Math.max(W - zk * (W - zf.x), Math.min(zk * zf.x, tx)); ty = Math.max(H - zk * (H - zf.y), Math.min(zk * zf.y, ty));
       g.save(); g.translate(tx, ty); g.scale(zk, zk); g.translate(-zf.x, -zf.y);

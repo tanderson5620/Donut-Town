@@ -126,9 +126,13 @@ window.HW = window.HW || {};
       var k = p.dk, u = p.st / k.T, rx = rimX(p.team), sd = side(p.team), hand = null, lerp = function (a, c, f) { f = Math.max(0, Math.min(1, f)); f = f * f * (3 - 2 * f); return { x: a.x + (c.x - a.x) * f, y: a.y + (c.y - a.y) * f }; };
       var swap = k.style === 'legs' || k.style === 'btb', left = swap && u > 0.42;   // passed to the other hand under the leg / behind the back
       if (k.style === 'jam' && p.jamArm) { b.x = p.jamArm.x; b.y = p.jamArm.y; b.z = p.jamArm.z; return; }
-      if (k.style === 'board' && u > 0.14 && u < 0.5) {   // tossed off the glass and back to himself
-        var bd = { x: rx + sd * 0.45, y: 3.5 }; hand = X.handWorld(p) || { x: p.x, y: p.y + 2 };
-        var pt = u < 0.3 ? lerp({ x: k.x0 + (k.x1 - k.x0) * 0.2, y: 2.6 }, bd, (u - 0.14) / 0.16) : lerp(bd, hand, (u - 0.3) / 0.2); b.x = pt.x; b.y = pt.y; b.z = k.z1; return;
+      if (k.style === 'board' && u > 0.14 && u < 0.5) {   // tossed off the glass and back to himself (slow motion, the camera on the ball)
+        if (!k.toss) k.toss = { x: b.x, y: b.y };   // it leaves from right where his hand had it
+        var bd = { x: rx + sd * 0.45, y: 3.5 }, f1 = Math.min(1, (u - 0.14) / 0.16), f2 = Math.min(1, Math.max(0, (u - 0.3) / 0.2)); hand = X.handWorld(p) || { x: p.x, y: p.y + 2 };
+        // up into the glass at speed (a little arc), off it and back down into his hand; spinning, the spin flipping on the bounce
+        if (u < 0.3) { b.x = k.toss.x + (bd.x - k.toss.x) * f1; b.y = k.toss.y + (bd.y - k.toss.y) * f1 + 0.3 * 4 * f1 * (1 - f1); }
+        else { if (!k.boardHit) { k.boardHit = true; Au.board(); } var f3 = f2 * (2 - f2); b.x = bd.x + (hand.x - bd.x) * f3; b.y = bd.y + (hand.y - bd.y) * f3; }
+        b.z = k.z1; b.vx = 0; b.spin = ((b.spin || 0) + dt * (u < 0.3 ? 16 : -16) + 6.283) % 6.283; return;
       }
       if (k.style === 'bounce' && u < 0.46) {   // slammed into the floor ahead and caught on the way up
         var fl = { x: k.x0 + (k.x1 - k.x0) * 0.45, y: 0.12 }, h0 = { x: k.x0 + sd * 0.4, y: 1.1 }; hand = X.handWorld(p) || { x: p.x, y: p.y + 2 };
@@ -217,7 +221,8 @@ window.HW = window.HW || {};
     // under the legs (in slow motion, the camera in close on the whole move so you see the ball go under), behind the back, a flip
     if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
       if (p.dk.style === 'mj') p.tongue = true;
-      if (p.dk.style === 'legs') G.cine = { p: p, t: 0, dur: p.dk.T, slow: DUNK_SLAM * p.dk.T / 2.5 }; }   // 2.5 s of slow motion up to the slam
+      if (p.dk.style === 'legs') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'legs', slow: DUNK_SLAM * p.dk.T / 2.5 };   // 2.5 s of slow motion up to the slam
+      if (p.dk.style === 'board') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'board', slow: 0.36 * p.dk.T / 2.5 }; }   // the toss off the glass and back (u 0.14-0.5) takes 2.5 s
     // from way out (a dunker on fire every time, otherwise now and then) a guy on defense yells "incoming!"
     if (Math.hypot(p.x - rx, p.z - K.HZ) > 4.5 && (fd || Math.random() < 0.3) && G.opps(p).some(isGuy)) Au.incoming && Au.incoming();
     // taking off from behind the 3-point line (same line as a jump shot; only a dunker on fire gets out there) makes it a 3-point dunk
@@ -406,8 +411,11 @@ window.HW = window.HW || {};
     if (G.hitstop > 0) { G.hitstop -= dt; return; }   // freeze-frame on a hard hit
     // going on fire: a 2 s golden power-up with the camera zoomed in on him while everything else waits
     if (G.pu) { updatePowerup(dt); return; }
-    if (G.cine) {   // the under-the-legs dunk in slow motion (everything slows equally, so nobody gets a better chance at it)
-      var cp = G.cine.p; if (!cp.dk || cp.dk.style !== 'legs') G.cine = null; else { dt *= G.cine.slow || 0.4; G.cine.t = cp.st; }
+    if (G.cine) {   // the slow-motion dunks (everything slows equally, so nobody gets a better chance at it): under the legs all the way up
+      // to the slam; off the backboard only from the toss until it's back in his hand
+      var cp = G.cine.p, cu = cp.dk ? cp.st / cp.dk.T : 1;
+      if (!cp.dk || cp.dk.style !== G.cine.kind || (G.cine.kind === 'board' && cu >= 0.5)) G.cine = null;
+      else { dt *= G.cine.kind === 'board' && cu < 0.14 ? 1 : G.cine.slow || 0.4; G.cine.t = cp.st; }
     }
     if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall') { G.puQueue = null; startPowerup(pq); return; } }
     if (G.tipT > 0 && (G.tipT -= dt) <= 0) G.say('STICK PAST THE RING = TURBO!', '#5cff7a', 3.5, 0.55);
