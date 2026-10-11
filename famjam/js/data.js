@@ -91,6 +91,9 @@ window.HW = window.HW || {};
     cousin: ['WEAKEST COUSIN I KNOW!', 'SEE YOU AT THANKSGIVING!']
   };
 
+  // a player's catchphrase: it takes the place of exactly one of every 10 of his knockdown taunts, whatever the matchup
+  HW.CATCHPHRASE = { kenny: 'HOOCHIE MAMA!' };
+
   // lines that come with a 2 s taunt over normal play: the crotch chop (twice) or pointing off at the kiddie table
   HW.TAUNTS = { "WHO'S YOUR UNCLE?!?!": 'chop', "WHO'S YOUR AUNTIE?!?!": 'chop', "KIDDIE TABLE'S OVER THERE!": 'point' };
 

@@ -37,7 +37,7 @@ window.HW = window.HW || {};
   };
   // what the crowd yells when p flattens q: family trash talk when it fits (aunt/uncle on a niece/nephew, cousin on cousin, a woman
   // dropping a guy), mixed in with the plain knockdown calls; never the same line twice in a row
-  var lastLine = '';
+  var lastLine = '', catchBag = {};
   function knockLine(p, q) {
     var P = HW.PHRASES, F = HW.FAMILY || {}, a = F[p.id], b = F[q.id], fam = [];
     if (a && b && a.fam !== b.fam) {
@@ -48,6 +48,14 @@ window.HW = window.HW || {};
     var pool = fam.length && Math.random() < 0.75 ? fam : P.shove.concat(fam), line;
     for (var i = 0; i < 4; i++) { line = pick(pool); if (line !== lastLine) break; }
     var tk = HW.TAUNTS && HW.TAUNTS[line]; if (tk) p.taunt = { k: tk, t: 0 };   // and he lets them know it
+    // a catchphrase (Kenny's HOOCHIE MAMA!) replaces one taunt in every 10, at a random spot in each run of 10 (never two in a row
+    // across runs); he keeps the gesture the replaced line came with
+    var cp = HW.CATCHPHRASE && HW.CATCHPHRASE[p.id];
+    if (cp) {
+      var c = catchBag[p.id] || (catchBag[p.id] = { n: 0, at: Math.floor(Math.random() * 10) });
+      if (c.n++ === c.at) line = cp;
+      if (c.n === 10) { c.at = c.at === 9 ? 1 + Math.floor(Math.random() * 9) : Math.floor(Math.random() * 10); c.n = 0; }
+    }
     return (lastLine = line);
   }
   G.knockLine = knockLine;
