@@ -478,7 +478,7 @@ window.HW = window.HW || {};
     var notch = tri('d', 9, CY); g.drawImage(notch, Math.round(mid - notch.width / 2), divY - 3);
     [0, 1].forEach(function (slot) {
       var id = st.picks[slot], d = HW.PLAYERS[id], x = slot ? colR : colL, cxp = x + PWd / 2, me = st.ctrl === id;
-      Fo.draw(g, d.first, cxp, pTop + 22, { scale: 2, scheme: 'white', shadowColor: Fo.shade(d.color, -0.4) });
+      Fo.draw(g, d.first, cxp, pTop + 22, nameFit(d.first, PWd - 4, { scheme: 'white', shadowColor: Fo.shade(d.color, -0.4) }));
       Fo.draw(g, HW.TYPES[d.type].label, cxp, pTop + 40, { scale: 1, color: d.color });
       statLines(g, d, x + 2, pTop + 58, PWd - 4, 2, 20);
       if (me) Fo.draw(g, HW.TYPES[d.type].blurb, cxp, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
@@ -499,6 +499,8 @@ window.HW = window.HW || {};
     if (In.enter) UI.matchup();
   }
 
+  // a player's name at scale 2, squeezed to half width (same height) when it won't fit w (UNCLE KENNY on a small phone)
+  function nameFit(text, w, o) { o.sy = 2; o.sx = Fo.measure(text, 2) + 4 <= w ? 2 : 1; return o; }
   function drawMatchup(g, fr) {
     var m = UI.mu, T = HW.TEAMS, C = card(g), mid = Math.round((C.L + C.R) / 2), vsW = 70, gap = 4;
     var PWm = Math.floor((C.W - vsW - 2 * gap - 8) / 4) & ~1, PH = 150, hy = C.T + 18, py = C.T + 34, divY = py + PH;
@@ -514,7 +516,7 @@ window.HW = window.HW || {};
         var x = x0 + k * (PWm + gap), d = HW.PLAYERS[id], cxp = x + PWm / 2, me = id === m.human;
         g.drawImage(portrait(id, PWm, PH), x, py);
         if (k === 0) { g.fillStyle = CY; g.fillRect(x + PWm + 1, pTop, 2, stripY - pTop); }
-        Fo.draw(g, d.first, cxp, pTop + 16, { scale: 2, scheme: 'white', shadowColor: Fo.shade(d.color, -0.4) });
+        Fo.draw(g, d.first, cxp, pTop + 16, nameFit(d.first, PWm - 4, { scheme: 'white', shadowColor: Fo.shade(d.color, -0.4) }));
         Fo.draw(g, HW.TYPES[d.type].label, cxp, pTop + 33, { scale: 1, color: d.color });
         statLines(g, d, x + 2, pTop + 48, PWm - 4, 1, 12);
         tab(g, cxp, divY - 8, me ? 'YOU' : 'CPU', me ? '#ffd23f' : '#5a5e7a', me);

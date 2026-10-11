@@ -48,13 +48,13 @@ window.HW = window.HW || {};
     var pool = fam.length && Math.random() < 0.75 ? fam : P.shove.concat(fam), line;
     for (var i = 0; i < 4; i++) { line = pick(pool); if (line !== lastLine) break; }
     var tk = HW.TAUNTS && HW.TAUNTS[line]; if (tk) p.taunt = { k: tk, t: 0 };   // and he lets them know it
-    // a catchphrase (Kenny's HOOCHIE MAMA!) replaces one taunt in every 10, at a random spot in each run of 10 (never two in a row
-    // across runs); he keeps the gesture the replaced line came with
+    // a catchphrase (Kenny's HOOCHIE MAMA!, Lisa's WOOOO WEEEEEE!) replaces one taunt in every N, at a random spot in each run of N
+    // (never two in a row across runs); the gesture the replaced line came with stays
     var cp = HW.CATCHPHRASE && HW.CATCHPHRASE[p.id];
     if (cp) {
-      var c = catchBag[p.id] || (catchBag[p.id] = { n: 0, at: Math.floor(Math.random() * 10) });
-      if (c.n++ === c.at) line = cp;
-      if (c.n === 10) { c.at = c.at === 9 ? 1 + Math.floor(Math.random() * 9) : Math.floor(Math.random() * 10); c.n = 0; }
+      var N = cp.every, c = catchBag[p.id] || (catchBag[p.id] = { n: 0, at: Math.floor(Math.random() * N) });
+      if (c.n++ === c.at) line = cp.line;
+      if (c.n === N) { c.at = c.at === N - 1 ? 1 + Math.floor(Math.random() * (N - 1)) : Math.floor(Math.random() * N); c.n = 0; }
     }
     return (lastLine = line);
   }
