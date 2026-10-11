@@ -100,6 +100,8 @@ window.HW = window.HW || {};
     G.humanTeam = G.human.team; G.score = [0, 0]; G.q = 1; G.callouts = []; G.ball = { x: 0, y: 1, z: 7, vx: 0, vy: 0, vz: 0, state: 'loose', holder: null, visible: true, fire: false };
     G.beginQuarter();
   };
+  // a team's name and colors: the family's, unless an online game teamed people up across the families (setup.names)
+  G.team = function (ti) { var o = G.setup && G.setup.names && G.setup.names[ti]; return o ? Object.assign({}, HW.TEAMS[ti], o) : HW.TEAMS[ti]; };
   G.mates = function (p) { return G.players.filter(function (q) { return q.team === p.team && q !== p; }); };
   G.opps = function (p) { return G.players.filter(function (q) { return q.team !== p.team; }); };
 
@@ -662,7 +664,7 @@ window.HW = window.HW || {};
   G.endQuarter = function () {
     Au.buzzer();
     // the final buzzer: the announcer, and a guy on the winning team whoops "yeah!" over it
-    if (G.q >= 4 && G.score[0] !== G.score[1]) { G.phase = 'over'; G.phaseT = 4; var w = G.score[0] > G.score[1] ? 0 : 1; Au.sfx && Au.sfx(w === G.humanTeam ? 'you_win' : 'you_lose'); if (G.players.some(function (p) { return p.team === w && isGuy(p); })) Au.sfx && Au.sfx('shout1', 0.9, 0.7); G.say(HW.TEAMS[w].name.toUpperCase() + ' WIN!', HW.TEAMS[w].color, 4, 1.2); G.players.forEach(function (p) { if (p.team === w) { p.state = 'cheer'; p.st = -99; } }); Au.cheer(true); return; }
+    if (G.q >= 4 && G.score[0] !== G.score[1]) { G.phase = 'over'; G.phaseT = 4; var w = G.score[0] > G.score[1] ? 0 : 1; Au.sfx && Au.sfx(w === G.humanTeam ? 'you_win' : 'you_lose'); if (G.players.some(function (p) { return p.team === w && isGuy(p); })) Au.sfx && Au.sfx('shout1', 0.9, 0.7); G.say(G.team(w).name.toUpperCase() + ' WIN!', G.team(w).color, 4, 1.2); G.players.forEach(function (p) { if (p.team === w) { p.state = 'cheer'; p.st = -99; } }); Au.cheer(true); return; }
     G.phase = 'break'; G.phaseT = 3.2; G.say(G.q >= 4 ? 'TIED! OVERTIME' : 'END OF ' + ['1ST', '2ND', '3RD', '4TH'][G.q - 1], '#fff', 3);
   };
 

@@ -528,7 +528,7 @@ window.HW = window.HW || {};
     var pTop = divY + 4, stripY = C.B - 34;
     g.fillStyle = CY; g.fillRect(C.L - 1, stripY, C.W + 2, 3);
     order.forEach(function (ti, side) {
-      var x0 = side ? mid + vsW / 2 + gap : C.L + 4, tt = T[ti];
+      var x0 = side ? mid + vsW / 2 + gap : C.L + 4, tt = m.names && m.names[ti] ? Object.assign({}, T[ti], m.names[ti]) : T[ti];
       Fo.draw(g, tt.name, x0 + PWm + gap / 2, hy, { scale: 2, color: tt.color });
       m.teams[ti].forEach(function (id, k) {
         var x = x0 + k * (PWm + gap), d = HW.PLAYERS[id], cxp = x + PWm / 2, me = id === m.human;
@@ -625,8 +625,14 @@ window.HW = window.HW || {};
     var noted = Net.note && performance.now() < (Net.noteUntil || 0);
     if (isHost) {
       button(g, 'share', C.R - 172, C.T + 6, 162, 32, navigator.share ? 'SEND INVITE' : 'COPY LINK', { color: '#1fb04c', size: 2 });   // shareTap() does it
-      Fo.draw(g, noted ? Net.note : 'TEXT THE CODE OR LINK TO THE FAMILY', C.R - 10, C.T + 50, { scale: 1, scheme: noted ? 'green' : 'white', align: 'right', shadow: 0 });
-    } else Fo.draw(g, 'YOU\'RE IN! TAP WHO YOU WANT TO PLAY', C.R - 10, C.T + 36, { scale: 1, scheme: 'green', align: 'right', shadow: 0 });
+      Fo.draw(g, noted ? Net.note : 'TEXT IT TO THE FAMILY', C.R - 10, C.T + 50, { scale: 1, scheme: noted ? 'green' : 'white', align: 'right', shadow: 0 });
+    } else Fo.draw(g, 'YOU\'RE IN! TAP WHO YOU PLAY', C.R - 10, C.T + 50, { scale: 1, scheme: 'green', align: 'right', shadow: 0 });
+    // together (the people on one team vs the CPU) or against each other: the host picks
+    var tw = 100, tmid = Math.round((C.L + 120 + C.R - 176) / 2), ty = C.T + 6;
+    [['TOGETHER', false], ['AGAINST', true]].forEach(function (o, i) {
+      button(g, i ? 'vs' : 'coop', tmid - tw - 3 + i * (tw + 6), ty, tw, 26, o[0], { on: Net.vs === o[1], size: 1, color: i ? '#e0302a' : '#1fb04c', fn: isHost ? function () { Net.setVs(o[1]); } : null });
+    });
+    Fo.draw(g, Net.vs ? 'PEOPLE ON OPPOSITE TEAMS' : 'TEAM UP VS THE CPU (2 PEOPLE)', tmid, ty + 38, { scale: 1, scheme: Net.vs ? 'red' : 'green', shadow: 0 });
     // both families: tap a player to be him (again to let him go); people's picks are tagged, YOU flashing
     var py = C.T + 60, pw = Math.floor((C.W - 12) / 2), rowH = 27, ph = 26 + 5 * rowH + 4;
     [0, 1].forEach(function (ti) {
@@ -652,9 +658,9 @@ window.HW = window.HW || {};
       var dw = 54, qw = 40, sx0 = C.L + 8;
       DIFFS.forEach(function (dk, i) { button(g, 'd' + dk, sx0 + i * (dw + 4), y2, dw, 20, dk.toUpperCase(), { on: Net.diff === dk, size: 1, color: ['#1fb04c', '#ffc61a', '#e0302a'][i], fn: function () { Net.setDiff(dk); } }); });
       QLENS.forEach(function (q, i) { button(g, 'q' + q, sx0 + 3 * (dw + 4) + 8 + i * (qw + 4), y2, qw, 20, clockText(q), { on: Net.qlen === q, size: 1, color: '#22c4f2', fn: function () { Net.setQlen(q); } }); });
-      var ok = Net.canStart();
+      var ok = Net.canStart(), need = Net.need();
       button(g, 'start', C.R - 160, y2, 152, 50, 'START', { size: 3, disabled: !ok, fn: function () { Net.start(); } });
-      Fo.draw(g, ok ? 'CPU DIFFICULTY  /  QUARTER LENGTH' : 'EVERYONE PICK A PLAYER, THEN START', sx0, y2 + 32, { scale: 1, scheme: ok ? 'gray' : 'yellow', align: 'left', shadow: 0 });
+      Fo.draw(g, ok ? 'CPU DIFFICULTY  /  QUARTER LENGTH' : need, sx0, y2 + 32, { scale: 1, scheme: ok ? 'gray' : 'yellow', align: 'left', shadow: 0 });
       if (In.enter && ok) Net.start();
     } else {
       Fo.draw(g, 'CPU: ' + (HW.DIFFICULTY[Net.diff] || { label: 'NORMAL' }).label + '   ' + clockText(Net.qlen || 60) + ' QUARTERS', C.L + 12, y2 + 10, { scale: 1, scheme: 'gray', align: 'left', shadow: 0 });
@@ -678,14 +684,14 @@ window.HW = window.HW || {};
   function qtr(G) { return G.q > 4 ? 'OT' : ['1ST', '2ND', '3RD', '4TH'][G.q - 1]; }
   function clockStr(G) { var c = Math.max(0, G.clock), m = Math.floor(c / 60), s = Math.floor(c % 60); return c < 10 ? c.toFixed(1) : m + ':' + (s < 10 ? '0' : '') + s; }
   function scoreLine(g, cx, y) {
-    var G = HW.Jam, T = HW.TEAMS;
+    var G = HW.Jam, T = [G.team(0), G.team(1)];
     Fo.draw(g, T[0].name + ' ' + G.score[0], cx - 20, y, { scale: 2, color: T[0].color, align: 'right' });
     Fo.draw(g, '-', cx, y, { scale: 2, scheme: 'white' });
     Fo.draw(g, G.score[1] + ' ' + T[1].name, cx + 20, y, { scale: 2, color: T[1].color, align: 'left' });
   }
 
   function drawResults(g, fr) {
-    var G = HW.Jam, T = HW.TEAMS, w = G.score[0] > G.score[1] ? 0 : 1, C = card(g), cx = Math.round((C.L + C.R) / 2);
+    var G = HW.Jam, T = [G.team(0), G.team(1)], w = G.score[0] > G.score[1] ? 0 : 1, C = card(g), cx = Math.round((C.L + C.R) / 2);
     flaming(g, T[w].name + ' WIN!', cx, C.T + 30, { scale: C.W > 560 ? 4 : 3, color: T[w].color, outline: 2, shadow: 2 }, fr);
     Fo.draw(g, G.score[0] + ' - ' + G.score[1], cx, C.T + 70, { scale: 3, scheme: 'white' });
     var px = C.L + 6, pw = C.W - 12, py = C.T + 90, ph = 160; bevel(g, px, py, pw, ph, '#000', CY, 3);
@@ -733,7 +739,7 @@ window.HW = window.HW || {};
       g.fillStyle = 'rgba(255,255,255,0.45)'; g.fillRect(tx, ty, Math.round(tw * (p.onFire ? 1 : tv)), 1);
     });
     // scoreboard: compact, top centre under the names, clear of the hoops and the touch buttons
-    var T = HW.TEAMS, cx = Math.round(W / 2), bw = 176, bx = cx - bw / 2, by = 26, bh = 26;
+    var T = [G.team(0), G.team(1)], cx = Math.round(W / 2), bw = 176, bx = cx - bw / 2, by = 26, bh = 26;
     bevel(g, bx, by, bw, bh, '#000', CY, 2);
     Fo.draw(g, T[0].short, bx + 6, by + 13, { scale: 1, color: T[0].color, align: 'left' });
     Fo.draw(g, String(G.score[0]), bx + 62, by + 13, { scale: 2, scheme: 'white', align: 'right' });
