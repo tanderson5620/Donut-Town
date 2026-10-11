@@ -6,7 +6,7 @@
 window.HW = window.HW || {};
 (function (HW) {
   var X = HW.GFX, G = HW.Jam, Au = HW.Audio;
-  var N = HW.Net = { mode: null, stage: null, err: '', code: '', people: [], me: null, claim: null, diff: 'normal', qlen: 60, rec: false, ev: [], setup: null, played: {} };
+  var N = HW.Net = { mode: null, stage: null, err: '', code: '', people: [], me: null, claim: null, diff: 'normal', qlen: 60, rec: false, ev: [], setup: null, played: {}, vs: true };   // vs: people against each other (false: together vs the CPU)
   var LIB = 'js/lib/peerjs.min.js', PRE = 'famjam-', MAXP = 4, BUF = 0.08;
   var peer = null, conns = [], host = null, loadP = null, tries = 0, lastSnap = 0, snaps = [], offs = [], off = 0, lastIn = '', lastInT = 0;
   function r3(v) { return Math.round((v || 0) * 1000) / 1000; }
@@ -70,12 +70,12 @@ window.HW = window.HW || {};
   N.share = function () {
     var url = N.inviteURL(), text = 'Come play FAM JAM with me! Room code ' + N.code;
     if (navigator.share) { navigator.share({ title: 'FAM JAM', text: text, url: url }).catch(function () { }); return; }
-    try { navigator.clipboard.writeText(url).then(function () { N.note = 'LINK COPIED - PASTE IT IN A TEXT'; N.noteUntil = performance.now() + 3000; }); } catch (e) { }
+    try { navigator.clipboard.writeText(url).then(function () { N.note = 'LINK COPIED'; N.noteUntil = performance.now() + 3000; }); } catch (e) { }
   };
   function people() { return [{ lbl: 'P1', claim: N.claim, host: 1 }].concat(conns.map(function (k) { return { lbl: k.lbl, claim: k.claim }; })); }
   N.claimedBy = function (id) { for (var i = 0; i < N.people.length; i++) if (id && N.people[i].claim === id) return N.people[i].lbl; return null; };
   function showMatchup(su, me, then) {
-    var U = UI(); U.mu = { teams: su.teams, human: me, humans: su.humans, diff: su.diff, qlen: su.qlen, online: true }; U.screen = 'matchup'; U.loading = true;
+    var U = UI(); U.mu = { teams: su.teams, human: me, humans: su.humans, names: su.names, diff: su.diff, qlen: su.qlen, online: true }; U.screen = 'matchup'; U.loading = true;
     Promise.all(su.teams[0].concat(su.teams[1]).map(X.loadPlayer)).then(function () { U.loading = false; if (then) then(); });
   }
   function remember(code, claim) { try { sessionStorage.setItem('famjam.room', JSON.stringify({ code: code, claim: claim })); } catch (e) { } }
@@ -110,14 +110,15 @@ window.HW = window.HW || {};
   function freeLabel() { for (var i = 2; i <= MAXP; i++) { var l = 'P' + i; if (!conns.some(function (k) { return k.lbl === l; })) return l; } return null; }
   function sendLobby() {
     N.people = people();
-    conns.forEach(function (k) { send(k.c, { t: 'lobby', st: N.stage, code: N.code, people: N.people, diff: N.diff, qlen: N.qlen, you: k.lbl }); });
+    conns.forEach(function (k) { send(k.c, { t: 'lobby', st: N.stage, code: N.code, people: N.people, diff: N.diff, qlen: N.qlen, vs: N.vs, you: k.lbl }); });
   }
-  // a team can have two people on it; nobody can take a player someone else has
+  // against each other: two people per family at most; together: two people in all (one team), from either family. Nobody can
+  // take a player someone else has
   function canClaim(id, who) {
     if (!id) return true; var d = HW.PLAYERS[id]; if (!d) return false;
-    var all = [{ who: 'host', id: N.claim }].concat(conns.map(function (k) { return { who: k, id: k.claim }; })), n = 0;
-    for (var i = 0; i < all.length; i++) { var a = all[i]; if (a.who === who || !a.id) continue; if (a.id === id) return false; if (HW.PLAYERS[a.id].team === d.team) n++; }
-    return n < 2;
+    var all = [{ who: 'host', id: N.claim }].concat(conns.map(function (k) { return { who: k, id: k.claim }; })), n = 0, tot = 0;
+    for (var i = 0; i < all.length; i++) { var a = all[i]; if (a.who === who || !a.id) continue; if (a.id === id) return false; tot++; if (HW.PLAYERS[a.id].team === d.team) n++; }
+    return N.vs ? n < 2 : tot < 2;
   }
   function hostMsg(k, m) {
     if (!m || !m.t) return;
@@ -151,19 +152,37 @@ window.HW = window.HW || {};
     else if (N.mode === 'guest' && host) send(host, { t: 'claim', id: id === N.claim ? null : id });
   };
   N.setDiff = function (d) { N.diff = d; sendLobby(); };
+  N.setVs = function (v) { if (N.mode === 'host' && N.stage === 'lobby') { N.vs = v; sendLobby(); } };
   N.setQlen = function (q) { N.qlen = q; sendLobby(); };
-  N.canStart = function () { return N.mode === 'host' && N.stage === 'lobby' && !!N.claim && conns.every(function (k) { return k.claim; }); };
+  // what's still missing before the host can start ('' = ready)
+  N.need = function () {
+    if (N.mode !== 'host' || N.stage !== 'lobby') return '-';
+    if (!N.claim || !conns.every(function (k) { return k.claim; })) return 'EVERYONE PICK A PLAYER, THEN START';
+    var cl = [N.claim].concat(conns.map(function (k) { return k.claim; })), fam = cl.map(function (id) { return HW.PLAYERS[id].team; });
+    if (!N.vs && cl.length > 2) return 'TOGETHER IS FOR 2 PEOPLE: ONE TEAM';
+    if (N.vs && cl.length > 1 && fam.every(function (f) { return f === fam[0]; })) return 'AGAINST: SOMEONE PICK THE OTHER FAMILY';
+    return '';
+  };
+  N.canStart = function () { return N.need() === ''; };
   // everyone's picked: the people's players, the rest of each team filled in by the computer
   N.start = function () {
     if (!N.canStart()) return;
     var humans = {}; humans[N.claim] = 'P1'; conns.forEach(function (k) { humans[k.claim] = k.lbl; });
-    var taken = Object.keys(humans), teams = [0, 1].map(function (ti) {
+    var taken = Object.keys(humans), names = null, teams, mix = function (a) { return a.sort(function () { return Math.random() - 0.5; }); };
+    if (N.vs) teams = [0, 1].map(function (ti) {
       var ids = taken.filter(function (id) { return HW.PLAYERS[id].team === ti; });
-      var pool = HW.TEAMS[ti].roster.filter(function (id) { return taken.indexOf(id) < 0; }).sort(function () { return Math.random() - 0.5; });
+      var pool = mix(HW.TEAMS[ti].roster.filter(function (id) { return taken.indexOf(id) < 0; }));
       while (ids.length < 2) ids.push(pool.shift());
       return ids;
     });
-    N.setup = { teams: teams, humans: humans, diff: N.diff, qlen: N.qlen, human: N.claim, online: true };
+    else {   // together: the people (from either family) are one team; two CPU players from the other family (if they mixed, either one)
+      var fam = taken.map(function (id) { return HW.PLAYERS[id].team; }), cpuF = fam.every(function (f) { return f === 0; }) ? 1 : fam.every(function (f) { return f === 1; }) ? 0 : Math.random() < 0.5 ? 0 : 1;
+      var cpu = mix(HW.TEAMS[cpuF].roster.filter(function (id) { return taken.indexOf(id) < 0; })).slice(0, 2), ppl = taken.slice();
+      if (ppl.length < 2) ppl.push(mix(HW.TEAMS[fam[0]].roster.filter(function (id) { return taken.indexOf(id) < 0 && cpu.indexOf(id) < 0; }))[0]);
+      teams = []; teams[cpuF] = cpu; teams[1 - cpuF] = ppl;
+      if (HW.PLAYERS[ppl[0]].team !== HW.PLAYERS[ppl[1]].team) { names = []; names[1 - cpuF] = { name: 'Family', short: 'FAM', color: '#ffd23f', dark: '#6b4e00' }; }   // a mixed team plays as the Family
+    }
+    N.setup = { teams: teams, humans: humans, names: names, diff: N.diff, qlen: N.qlen, human: N.claim, online: true };
     N.stage = 'matchup';
     conns.forEach(function (k) { k.ready = false; send(k.c, { t: 'mu', setup: N.setup, claim: k.claim }); });
     showMatchup(N.setup, N.claim);
@@ -258,7 +277,7 @@ window.HW = window.HW || {};
     if (!m || !m.t) return;
     if (m.t === 's') { if (N.stage === 'game') arrive(m); return; }
     if (m.t === 'lobby') {
-      N.code = m.code; N.people = m.people; N.diff = m.diff; N.qlen = m.qlen; N.me = m.you;
+      N.code = m.code; N.people = m.people; N.diff = m.diff; N.qlen = m.qlen; N.me = m.you; N.vs = m.vs !== false;
       var mine = m.people.filter(function (q) { return q.lbl === m.you; })[0]; N.claim = mine ? mine.claim : null;
       if (m.st === 'lobby' && N.stage !== 'lobby') { N.stage = 'lobby'; G.players = []; snaps = []; UI().show('lobby'); }
       return;

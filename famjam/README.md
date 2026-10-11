@@ -60,7 +60,8 @@ Tap **ONLINE** on the title screen.
 1. **Host:** one person taps HOST A GAME and gets a 4-digit room code. SEND INVITE opens the phone's share sheet with a link (`?room=1234`); on a computer the button copies the link instead.
 2. **Join:** everyone else taps the link, or taps JOIN A GAME and types the code.
 3. **Pick players:** in the lobby each person taps who they want to be. That's up to 4 people with 2 on a team; a player someone has already taken can't be picked.
-4. **Start:** the host picks the CPU difficulty and quarter length and taps START. Spots nobody picked are played by the CPU.
+4. **Together or against:** the host also sets the mode. **TOGETHER** puts up to 2 people on one team against the CPU, picking from either family; a team with one of each family plays as the **Family** (`setup.names`, `G.team()`). **AGAINST** puts people on opposite teams, at most 2 per family.
+5. **Start:** the host picks the CPU difficulty and quarter length and taps START. Spots nobody picked are played by the CPU.
 
 How it works (`js/net.js`):
 - **The host runs the game.** Its phone runs the real game for everyone. The other phones only send their stick and buttons. The host sends back the picture about 60 times a second (every player, the ball, the scoreboard and the callouts, about 0.6 KB each), plus every sound and effect the game makes.
