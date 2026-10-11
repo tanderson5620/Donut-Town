@@ -296,6 +296,29 @@ Object.keys(DUNKS).forEach(function (k) { var n = DK_N[k] || 12; ANIMS['dk_' + k
 // side. Only the frames up to the slam (u <= 0.66) have it; the game hides its own ball while they play.
 var BALL_PAL = [[255, 196, 136], [246, 150, 80], [240, 122, 38], [212, 98, 26], [156, 58, 8], [35, 12, 0]];
 var BALL_KEY = new THREE.MeshBasicMaterial({ color: 0xff00ff, toneMapped: false });
+// which pixels show his near arm (the side facing the camera: shoulder, elbow and hand bones of side 0): the body drawn white where its
+// skin follows those bones, black elsewhere, everything else black, all depth-tested as usual
+var ARM_BLACK = new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }), ARM_BLACK_SK = new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false, skinning: true }), armMats = {};
+function armMat(ids) {
+  var key = ids.join(','); if (armMats[key]) return armMats[key];
+  var m = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, skinning: true });
+  m.onBeforeCompile = function (sh) {
+    var hit = function (c) { return '(' + ids.map(function (i) { return 'abs(skinIndex.' + c + ' - ' + i.toFixed(1) + ') < 0.5'; }).join(' || ') + ' ? skinWeight.' + c + ' : 0.0)'; };
+    sh.vertexShader = 'varying float vArm;\n' + sh.vertexShader.replace('#include <skinning_vertex>', '#include <skinning_vertex>\n  vArm = ' + ['x', 'y', 'z', 'w'].map(hit).join(' + ') + ';');
+    sh.fragmentShader = 'varying float vArm;\n' + sh.fragmentShader.replace('#include <dithering_fragment>', 'gl_FragColor = vec4(vec3(step(0.5, vArm)), 1.0);');
+  };
+  m.customProgramCacheKey = function () { return 'arm' + key; };
+  return armMats[key] = m;
+}
+function nearArmMask(A) {
+  var body = A.meshes.filter(function (q) { return q.name === 'body'; })[0], bones = body.skeleton.bones, ids = [A.sh[0], A.el[0], A.hand[0]].map(function (b) { return bones.indexOf(b); });
+  var keep = [];
+  A.root.traverse(function (o) { if (o.isMesh) { keep.push([o, o.material]); o.material = o === body ? armMat(ids) : o.isSkinnedMesh ? ARM_BLACK_SK : ARM_BLACK; } });
+  var g = grab(cam, FW, FH, SS, 0.5), out = new Uint8Array(FW * FH);
+  keep.forEach(function (k) { k[0].material = k[1]; });
+  for (var q = 0; q < FW * FH; q++) if (g[q * 4 + 3] && g[q * 4] > 128) out[q] = 1;
+  return out;
+}
 var DK_BALL = (function () {
   var c = document.createElement('canvas'); c.width = 256; c.height = 128; var g = c.getContext('2d');
   var gr = g.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, '#f39a4a'); gr.addColorStop(0.5, '#e8742a'); gr.addColorStop(1, '#c95a18'); g.fillStyle = gr; g.fillRect(0, 0, 256, 128);
@@ -459,6 +482,12 @@ window.genPlayer = function (id, opt) {
         if (DK_BALL.visible) {   // a second pass with the ball in flat magenta marks the ball's pixels (what his body leaves showing)
           var keepM = DK_BALL.material; DK_BALL.material = BALL_KEY; var pk = grab(cam, FW, FH, SS, 0.5), bm = new Uint8Array(FW * FH); DK_BALL.material = keepM;
           for (var q = 0; q < FW * FH; q++) if (pk[q * 4 + 3] && pk[q * 4] > 150 && pk[q * 4 + 2] > 150 && pk[q * 4 + 1] < 110) bm[q] = 1;
+          if (!DK_BALL.material.depthTest) {
+            // in his near hand the ball sits over his leg and body, but his near arm and hand stay over the ball (they wrap it): render him
+            // without the ball, and where his near arm shows (arm mask pass) keep that instead of the ball
+            DK_BALL.visible = false; var base = grab(cam, FW, FH, SS, 0.5), arm = nearArmMask(A); DK_BALL.visible = true;
+            for (var q2 = 0; q2 < FW * FH; q2++) if (!bm[q2] || arm[q2]) { bm[q2] = 0; for (var c4 = 0; c4 < 4; c4++) px[q2 * 4 + c4] = base[q2 * 4 + c4]; }
+          }
           masks[frames.length] = bm;
         }
         DK_BALL.visible = false; grade(px, opt.con || 1.1, opt.sat || 1.12, opt.black || 6); frames.push(px);
