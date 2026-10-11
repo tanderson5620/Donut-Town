@@ -92,7 +92,10 @@ window.HW = window.HW || {};
     if (HW.TOUCH && !G.tipShown) { G.tipShown = true; G.tipT = 1.2; }   // first game on a phone: show where turbo went
     G.setup = setup; G.players = []; G.diff = HW.DIFFICULTY[setup.diff || 'normal'];
     QUARTER = setup.qlen || 60; OT = clamp(Math.round(QUARTER / 2), 30, 60);
-    setup.teams.forEach(function (ids, team) { ids.forEach(function (id, i) { var p = new Player(id, team, i, id === setup.human); G.players.push(p); if (p.human) G.human = p; }); });
+    // online: everyone's game has the same players in the same order; `me` is the one this phone controls (the host's game also
+    // runs the other people's players - js/net.js hands them over as each phone is ready)
+    var me = setup.me || setup.human;
+    setup.teams.forEach(function (ids, team) { ids.forEach(function (id, i) { var p = new Player(id, team, i, id === me); p.me = id === me; p.lbl = setup.humans ? setup.humans[id] || null : null; G.players.push(p); if (p.me) G.human = p; }); });
     G.pu = null; G.puQueue = null; G.cine = null; G.babaDone = false;
     G.humanTeam = G.human.team; G.score = [0, 0]; G.q = 1; G.callouts = []; G.ball = { x: 0, y: 1, z: 7, vx: 0, vy: 0, vz: 0, state: 'loose', holder: null, visible: true, fire: false };
     G.beginQuarter();
@@ -185,7 +188,7 @@ window.HW = window.HW || {};
   /* ---------- actions ---------- */
   G.startShot = function (p) {
     if (!p.hasBall || !p.grounded() || p.busy()) return;
-    p.state = 'shoot'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH * 0.9); p.y = 0.001; p.released = false; p.tApex = p.vy / GRAV;
+    p.state = 'shoot'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH * 0.9); p.y = 0.001; p.released = false; p.tApex = p.vy / GRAV; p.relSt = null;
     // a 3-point shooter pulling up while moving away from the basket shoots a fadeaway: leaning back, knee kicked out, drifting away
     var rx0 = rimX(p.team), dx0 = rx0 - p.x, dz0 = K.HZ - p.z, dd0 = Math.hypot(dx0, dz0) || 1;
     p.fade = p.def.type === 'shooter' && -(p.vx * dx0 + p.vz * dz0) / dd0 > 1.0;
@@ -198,7 +201,9 @@ window.HW = window.HW || {};
     var s = p.def.stats, pm;
     if (three) pm = 0.16 + 0.05 * s.tp; else if (d > 4.5) pm = 0.34 + 0.035 * s.tp; else if (d > 2.2) pm = 0.48 + 0.025 * Math.max(s.tp, s.dunk); else pm = 0.68 + 0.02 * s.dunk;
     // release timing: the top of the jump is the sweet spot (wider for shooters from deep)
-    var off = Math.abs(p.st - p.tApex) / p.tApex, win = 0.16 * (1 + (s.tp - 5) * 0.06) * (three && p.def.type === 'shooter' ? 1.6 : 1), quality = off < win ? 'green' : off < win * 2.5 ? 'ok' : 'bad';
+    // online, a guest's release is timed by how far into the jump his own screen showed it (p.relSt), not when it reached the host
+    var rst = p.relSt != null ? Math.min(p.relSt, p.st) : p.st; p.relSt = null;
+    var off = Math.abs(rst - p.tApex) / p.tApex, win = 0.16 * (1 + (s.tp - 5) * 0.06) * (three && p.def.type === 'shooter' ? 1.6 : 1), quality = off < win ? 'green' : off < win * 2.5 ? 'ok' : 'bad';
     if (!p.human) quality = Math.random() < 0.35 * G.diff.shoot ? 'green' : 'ok';
     if (sig(p, 'tp')) quality = 'green';   // a shooter on fire can't miss the window
     if (quality === 'green') pm += 0.28; else if (quality === 'bad') pm *= 0.55;
@@ -447,7 +452,7 @@ window.HW = window.HW || {};
     G.players.forEach(function (p) {
       for (var k in p.cd) p.cd[k] = Math.max(0, p.cd[k] - dt);
       p.flash = Math.max(0, p.flash - dt);
-      if (p.human) humanControl(p, dt, In, live); else HW.JamAI.update(p, dt, live);
+      if (p.human) humanControl(p, dt, p.inp || In, live); else HW.JamAI.update(p, dt, live);   // p.inp: a guest's buttons, online
       physics(p, dt);
     });
     separate();
@@ -494,7 +499,7 @@ window.HW = window.HW || {};
     if (p.state === 'shoot' && p.fade && p.y > 0) { p.vx = (p.x > rimX(p.team) ? 1 : -1) * 2.0; p.vz *= 0.9; }   // the fadeaway drifts away from the rim
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
     if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump' || p.state === 'hammer') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = p.shimmy ? 'shimmy' : 'idle'; p.st = 0; p.shimmy = false; if (p.fade) p.vx *= 0.15; p.fade = false; if (p.state === 'shimmy') { p.vx = p.vz = 0; } } } }
-    if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * 1.7) G.releaseShot(p);
+    if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * (p.remote ? 1.95 : 1.7)) G.releaseShot(p);   // a guest's release is on its way: wait longer for it
     if (p.state === 'pass') updatePending(p);
     if ((p.state === 'pass' && p.st > (p.passStyle ? FANCY[p.passStyle].dur : 0.3) && p.grounded()) || (p.state === 'steal' && p.st > 0.3) || (p.state === 'shove' && p.st > 0.35) || (p.state === 'cheer' && p.st > 1.5) || (p.state === 'shimmy' && p.st > 1.4)) p.state = 'idle';
   }
