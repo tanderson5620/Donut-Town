@@ -232,7 +232,8 @@ window.HW = window.HW || {};
     // DUNK 9+ (on fire counts): a signature dunk, same timing and block window as any dunk. From way out: the free-throw-line dunk
     // (tongue out) or the stretched arm; closer: off the backboard, the double-biceps flex or a bounce to himself; from anywhere:
     // under the legs (in slow motion, the camera in close on the whole move so you see the ball go under), behind the back, a flip
-    if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
+    // the dunkers go off the glass a bit more often: 1 in 4 of their close signature dunks instead of 1 in 6
+    if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
       if (p.dk.style === 'mj') p.tongue = true;
       if (p.dk.style === 'legs') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'legs', slow: DUNK_SLAM * p.dk.T / 2.5 };   // 2.5 s of slow motion up to the slam
       if (p.dk.style === 'board') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'board', slow: 0.36 * p.dk.T / 2.5 }; }   // the toss off the glass and back (u 0.14-0.5) takes 2.5 s
