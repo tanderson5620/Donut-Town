@@ -204,7 +204,8 @@ window.HW = window.HW || {};
 
   G.canDunk = function (p) {
     var rx = rimX(p.team), d = Math.hypot(p.x - rx, p.z - K.HZ), t = HW.TYPES[p.def.type];
-    return p.hasBall && p.grounded() && !p.busy() && d < 2.1 + 0.22 * p.def.stats.dunk + t.dunkRange + (sig(p, 'dunk') ? 2.5 : 0) && d > 0.25;   // a dunker on fire takes off from way out
+    var reach = 2.1 + 0.22 * p.def.stats.dunk + t.dunkRange; if (sig(p, 'dunk')) reach = Math.max(reach + 2.5, K.R3 + 1.6);   // a dunker on fire takes off from way out, past the 3-point line
+    return p.hasBall && p.grounded() && !p.busy() && d < reach && d > 0.25;
   };
   G.startDunk = function (p) {
     var rx = rimX(p.team), s = side(p.team), dk = p.def.stats.dunk;
@@ -219,7 +220,9 @@ window.HW = window.HW || {};
       if (p.dk.style === 'legs') G.cine = { p: p, t: 0, dur: p.dk.T, slow: DUNK_SLAM * p.dk.T / 2.5 }; }   // 2.5 s of slow motion up to the slam
     // from way out (a dunker on fire every time, otherwise now and then) a guy on defense yells "incoming!"
     if (Math.hypot(p.x - rx, p.z - K.HZ) > 4.5 && (fd || Math.random() < 0.3) && G.opps(p).some(isGuy)) Au.incoming && Au.incoming();
-    p.face = s; p.stats.fga++; if (isGuy(p)) Au.hup(); else Au.jump(); Au.whoosh(9);   // a dunk is a field goal attempt (made ones already count in fgm)
+    // taking off from behind the 3-point line (same line as a jump shot; only a dunker on fire gets out there) makes it a 3-point dunk
+    var d0 = Math.hypot(p.x - rx, p.z - K.HZ); p.dk.three = d0 > K.R3 - 0.1 && Math.abs(p.z - K.HZ) < 6.2 || d0 > K.R3 + 0.3;
+    p.face = s; p.stats.fga++; if (p.dk.three) p.stats.tpa++; if (isGuy(p)) Au.hup(); else Au.jump(); Au.whoosh(9);   // a dunk is a field goal attempt (made ones already count in fgm)
   };
   var DUNK_SLAM = 0.66, DK_FRAMES = { legs: 30 };   // frames per signature dunk in the extras sheet (the slow-motion one gets more)
   function updateDunk(p, dt) {
@@ -236,7 +239,7 @@ window.HW = window.HW || {};
     if (u >= DUNK_SLAM && !k.slam) {
       k.slam = true; if (G.cine && G.cine.p === p) G.cine = null; p.tongue = false;   // the slow-motion close-up ends on the slam
       var b = G.ball; p.hasBall = false; b.holder = null; b.state = 'through'; b.x = rimX(p.team); b.z = K.HZ; b.y = K.RIM_H - 0.05; b.vy = -5; b.vx = b.vz = 0;
-      p.stats.dunks++; G.scored(p, 2, true);
+      p.stats.dunks++; G.scored(p, k.three ? 3 : 2, true);
       var poster = false;
       G.opps(p).forEach(function (q) { if (q.y > 0.3 && q.state !== 'fall' && q.state !== 'dunk' && dist(p, q) < 1.6 && p.def.stats.str > q.def.stats.str) { q.vy = Math.min(q.vy, 0); G.knockDown(q, p, { hard: 1.3, fallT: 1.6, blood: 0.7 + (p.def.stats.str - q.def.stats.str) * 0.1, y: q.y + 1.4 }); poster = true; } });
       if (poster) G.say('POSTERIZED!', '#ff8a5a', 1.6, 1.1);
@@ -334,7 +337,7 @@ window.HW = window.HW || {};
     if (pts === 3 && sig(p, 'tp')) for (var fi = 0; fi < 6; fi++) X.flame(rimX(team) + (Math.random() - 0.5) * 0.5, K.RIM_H - 0.3, K.HZ, 4, 0.5);
     p.streak++; if (!p.onFire && p.streak >= 3) { p.onFire = true; G.puQueue = p; Au.fire(); }   // he powers up as soon as he's back on his feet
     G.players.forEach(function (q) { if (q.team !== team) { if (q.onFire) { G.say(q.def.first.toUpperCase() + ' COOLS OFF', '#9ad0ff', 1.2, 0.7); if (q.ssj) X.powerDown(q); } q.onFire = false; q.ssj = 0; q.streak = 0; if (G.puQueue === q) G.puQueue = null; } });
-    var txt = dunk ? pick(HW.PHRASES.dunk) : pts === 3 ? pick(HW.PHRASES.three) : info && info.quality === 'green' ? pick(HW.PHRASES.swish) : pick(HW.PHRASES.two);
+    var txt = dunk ? (pts === 3 ? '3-POINT DUNK!' : pick(HW.PHRASES.dunk)) : pts === 3 ? pick(HW.PHRASES.three) : info && info.quality === 'green' ? pick(HW.PHRASES.swish) : pick(HW.PHRASES.two);
     G.say(txt, dunk ? '#ff7a1a' : pts === 3 ? '#ffb347' : '#ffe14d', 1.5, dunk ? 1.3 : 1);
     Au.cheer(pts === 3 || dunk); X.hype = Math.max(X.hype, dunk || pts === 3 ? 3 : 1.5);
     // a fan in the stands yells "baba booey!" after a three: always the first one of the game, then about 1 in 3
