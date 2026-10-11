@@ -84,7 +84,7 @@ window.HW = window.HW || {};
     G.setup = setup; G.players = []; G.diff = HW.DIFFICULTY[setup.diff || 'normal'];
     QUARTER = setup.qlen || 60; OT = clamp(Math.round(QUARTER / 2), 30, 60);
     setup.teams.forEach(function (ids, team) { ids.forEach(function (id, i) { var p = new Player(id, team, i, id === setup.human); G.players.push(p); if (p.human) G.human = p; }); });
-    G.pu = null; G.puQueue = null; G.cine = null;
+    G.pu = null; G.puQueue = null; G.cine = null; G.babaDone = false;
     G.humanTeam = G.human.team; G.score = [0, 0]; G.q = 1; G.callouts = []; G.ball = { x: 0, y: 1, z: 7, vx: 0, vy: 0, vz: 0, state: 'loose', holder: null, visible: true, fire: false };
     G.beginQuarter();
   };
@@ -213,7 +213,7 @@ window.HW = window.HW || {};
       if (p.dk.style === 'legs') G.cine = { p: p, t: 0, dur: p.dk.T, slow: DUNK_SLAM * p.dk.T / 2.5 }; }   // 2.5 s of slow motion up to the slam
     // from way out (a dunker on fire every time, otherwise now and then) a guy on defense yells "incoming!"
     if (Math.hypot(p.x - rx, p.z - K.HZ) > 4.5 && (fd || Math.random() < 0.3) && G.opps(p).some(isGuy)) Au.incoming && Au.incoming();
-    p.face = s; p.stats.fga++; Au.jump(); Au.whoosh(9);   // a dunk is a field goal attempt (made ones already count in fgm)
+    p.face = s; p.stats.fga++; if (isGuy(p)) Au.hup(); else Au.jump(); Au.whoosh(9);   // a dunk is a field goal attempt (made ones already count in fgm)
   };
   var DUNK_SLAM = 0.66, DK_FRAMES = { legs: 30 };   // frames per signature dunk in the extras sheet (the slow-motion one gets more)
   function updateDunk(p, dt) {
@@ -234,8 +234,9 @@ window.HW = window.HW || {};
       var poster = false;
       G.opps(p).forEach(function (q) { if (q.y > 0.3 && q.state !== 'fall' && q.state !== 'dunk' && dist(p, q) < 1.6 && p.def.stats.str > q.def.stats.str) { q.vy = Math.min(q.vy, 0); G.knockDown(q, p, { hard: 1.3, fallT: 1.6, blood: 0.7 + (p.def.stats.str - q.def.stats.str) * 0.1, y: q.y + 1.4 }); poster = true; } });
       if (poster) G.say('POSTERIZED!', '#ff8a5a', 1.6, 1.1);
-      X.shake = 1.4; X.hype = 3; Au.dunk(isGuy(p) || G.mates(p).some(isGuy)); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
-      if (p.def.stats.dunk >= 9 && Math.random() < (sig(p, 'dunk') ? 0.85 : 0.3)) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); Au.sfx && Au.sfx('glass'); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
+      var shatter = p.def.stats.dunk >= 9 && Math.random() < (sig(p, 'dunk') ? 0.85 : 0.3);   // a posterizer or a shattered board gets a "wow!" instead of the woo-hoo
+      X.shake = 1.4; X.hype = 3; Au.dunk(!(poster || shatter) && (isGuy(p) || G.mates(p).some(isGuy))); if (poster || shatter) Au.wow && Au.wow(); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
+      if (shatter) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); Au.sfx && Au.sfx('glass'); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
     }
     if (u >= 1) { p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; p.tongue = false; p.jamArm = null; }
   }
@@ -315,7 +316,7 @@ window.HW = window.HW || {};
     } else { if (!wall) Au.punch && Au.punch(); if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); }   // it lands but he stays up
   };
   G.jump = function (p) {
-    if (!p.grounded() || p.busy() || p.cd.jump > 0) return; p.state = 'jump'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH); p.y = 0.001; p.cd.jump = 0.35; Au.jump();
+    if (!p.grounded() || p.busy() || p.cd.jump > 0) return; p.state = 'jump'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH); p.y = 0.001; p.cd.jump = 0.35; if (isGuy(p)) Au.hup(); else Au.jump();
   };
 
   /* ---------- scoring ---------- */
@@ -330,6 +331,8 @@ window.HW = window.HW || {};
     var txt = dunk ? pick(HW.PHRASES.dunk) : pts === 3 ? pick(HW.PHRASES.three) : info && info.quality === 'green' ? pick(HW.PHRASES.swish) : pick(HW.PHRASES.two);
     G.say(txt, dunk ? '#ff7a1a' : pts === 3 ? '#ffb347' : '#ffe14d', 1.5, dunk ? 1.3 : 1);
     Au.cheer(pts === 3 || dunk); X.hype = Math.max(X.hype, dunk || pts === 3 ? 3 : 1.5);
+    // a fan in the stands yells "baba booey!" after a three: always the first one of the game, then about 1 in 3
+    if (pts === 3 && !dunk && (!G.babaDone || Math.random() < 0.35) && Au.baba && Au.baba()) G.babaDone = true;
     G.hoopFx[team === 0 ? 1 : 0] = 1;
     G.players.forEach(function (q) { if (q.team === team && q.state !== 'dunk') { q.state = 'cheer'; q.st = 0; } });
     G.phase = 'scored'; G.phaseT = 1.6; G.nextPoss = 1 - team;
@@ -347,7 +350,7 @@ window.HW = window.HW || {};
     if (q.def.stats.str >= 9) {
       // a bruiser hammers it: airborne, bent back into a C with both fists clasped behind his head, then down through the dunker,
       // who gets launched all the way out to midcourt
-      q.state = 'hammer'; q.st = 0; q.face = dk.x >= q.x ? 1 : -1; q.vy = Math.max(q.vy, 3.5); if (q.y < 0.01) q.y = 0.01;
+      q.state = 'hammer'; q.st = 0; q.face = dk.x >= q.x ? 1 : -1; q.vy = Math.max(q.vy, 3.5); if (q.y < 0.01) q.y = 0.01; if (isGuy(q)) Au.hup();
       var vy = 6.5, hy = dk.y, T = (vy + Math.sqrt(vy * vy + 2 * GRAV * hy)) / GRAV, ex = 1 - Math.exp(-1.2 * T);
       dk.vy = vy; dk.vx = (0 - dk.x) * 1.2 / ex; dk.vz *= 0.3; dk.face = dk.vx > 0 ? -1 : 1; X.shake = Math.max(X.shake, 1.4);
       if (isGuy(dk)) Au.scream && Au.scream();
@@ -383,7 +386,7 @@ window.HW = window.HW || {};
     }
     if (pu.t >= PU.dur) {
       G.pu = null; p.state = 'idle'; p.st = 0; p.dir = 'R';
-      G.say(p.def.first.toUpperCase() + ' IS ON FIRE!', '#ffd23a', 2.2, 1.25); X.hype = Math.max(X.hype, 3);
+      G.say(p.def.first.toUpperCase() + ' IS ON FIRE!', '#ffd23a', 2.2, 1.25); X.hype = Math.max(X.hype, 3); Au.happy && Au.happy();
     }
   }
 
@@ -543,7 +546,7 @@ window.HW = window.HW || {};
       });
       if (b.state === 'shot' && u >= 1) {
         if (s.make) { b.state = 'through'; b.vy = -3; b.vx = b.vz = 0; Au.net && Au.net(); G.scored(s.by, s.three ? 3 : 2, false); }
-        else { b.state = 'loose'; Au.rim(6); G.missed(s); var sd = s.rx > 0 ? -1 : 1; b.vx = sd * rand(1.5, 4.5); b.vy = rand(2.5, 5); b.vz = rand(-2.5, 2.5); b.noCatch = 0.15; G.shot = 24; }
+        else { b.state = 'loose'; Au.rim(6); G.missed(s); if (s.quality === 'bad') Au.ew && Au.ew(); var sd = s.rx > 0 ? -1 : 1; b.vx = sd * rand(1.5, 4.5); b.vy = rand(2.5, 5); b.vz = rand(-2.5, 2.5); b.noCatch = 0.15; G.shot = 24; }
       }
       return;
     }
