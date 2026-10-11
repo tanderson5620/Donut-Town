@@ -295,6 +295,7 @@ Object.keys(DUNKS).forEach(function (k) { var n = DK_N[k] || 12; ANIMS['dk_' + k
 // (right) hand, down and under his raised near thigh, between his legs to his far (left) hand behind him, then up to the rim on his far
 // side. Only the frames up to the slam (u <= 0.66) have it; the game hides its own ball while they play.
 var BALL_PAL = [[255, 196, 136], [246, 150, 80], [240, 122, 38], [212, 98, 26], [156, 58, 8], [35, 12, 0]];
+var BALL_UNDER = 0.17;   // how far below his palm the ball hangs when he pushes it down (a bit more than its radius)
 var BALL_KEY = new THREE.MeshBasicMaterial({ color: 0xff00ff, toneMapped: false });
 // which pixels show his near arm (the side facing the camera: shoulder, elbow and hand bones of side 0): the body drawn white where its
 // skin follows those bones, black elsewhere, everything else black, all depth-tested as usual
@@ -472,7 +473,10 @@ window.genPlayer = function (id, opt) {
         }
         DK_BALL.visible = false;
         if (an.ball) { var bu = i / (an.n - 1) * 0.9; if (bu <= 0.66) {
-          var bp = A.ballPt[0].getWorldPosition(new V3()).lerp(A.ballPt[1].getWorldPosition(new V3()), sm(0.36, 0.46, bu)); DK_BALL.position.copy(bp); DK_BALL.visible = true;
+          // in his near hand: held from the side while it's up by his chest, then, as his arm comes down, hanging under his hand (fingers
+          // over the top of it, pushing it down and under the thigh); then handed to his far hand
+          var nearSide = A.ballPt[0].getWorldPosition(new V3()), under = A.palm[0].getWorldPosition(new V3()).add(new V3(0, -BALL_UNDER, 0));
+          var bp = nearSide.lerp(under, sm(0.17, 0.27, bu)).lerp(A.ballPt[1].getWorldPosition(new V3()), sm(0.36, 0.46, bu)); DK_BALL.position.copy(bp); DK_BALL.visible = true;
           // in his near hand the ball is the front-most thing (it would cut into the thigh it's right next to); once it goes under to his
           // far hand his body covers it as it should
           var top = bu < 0.36; DK_BALL.material.depthTest = BALL_KEY.depthTest = !top; DK_BALL.renderOrder = top ? 999 : 0;
