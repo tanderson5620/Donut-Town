@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=2';
+  var SHEET_V = '?v=3';
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -228,6 +228,7 @@ window.HW = window.HW || {};
   }
 
   var HEAD_M = 0.56;   // big digitized head width in meters (arcade proportions)
+  X.hasAnim = function (p, name) { var sh = sheets[p.id]; return !!(sh && sh.x && sh.x.meta && sh.x.img.naturalWidth && sh.x.meta.anim[name]); };
   function frameOf(p) {
     var sh = sheets[p.id]; if (!sh || !sh.meta) return null;
     // powered up: the pumped-up version of the anim if there is one; anims the main sheet doesn't have come from the extras sheet
@@ -475,8 +476,8 @@ window.HW = window.HW || {};
       items.push({ z: K.HZ + 0.75, draw: function () { drawHoopBack(g, side); drawRim(g, side, false); } });
       items.push({ z: K.HZ - 0.35, draw: function () { drawRim(g, side, true, hoopFx[side > 0 ? 1 : 0]); } });
     });
-    // (behind: going under his leg or round his back in a dunk - drawn before him, so his body covers it)
-    if (ball && ball.visible) items.push({ z: ball.z - 0.01 - (ball.inFront ? 0.6 : 0) + (ball.behind ? 0.4 : 0), draw: function () { X.drawBall(g, ball, t); } });
+    // (behind: round his back in a dunk - drawn before him, so his body covers it; baked: the under-the-legs dunk's frames draw it)
+    if (ball && ball.visible && !ball.baked) items.push({ z: ball.z - 0.01 - (ball.inFront ? 0.6 : 0) + (ball.behind ? 0.4 : 0), draw: function () { X.drawBall(g, ball, t); } });
     items.sort(function (a, b) { return b.z - a.z; });
     items.forEach(function (it) { it.draw(); });
     X.drawParts(g, dt);
