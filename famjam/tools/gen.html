@@ -255,11 +255,13 @@ var DK_TAKE = { crouch: 0.3, lean: 0.35, rs: 0.9, re: 1.4, ls: 0.9, le: 1.4, rt:
 var DK_SLAM = { lean: 0.3, rs: 2.2, re: 0.05, rz: 0.1, ls: 1.2, le: 0.6, lz: 0.4, rt: 0.5, rk: 1.2, lt: 0.1, lk: 0.5 };
 var DK_HANG = { lean: 0.2, rs: 2.7, re: 0.3, rz: 0.1, ls: 1.4, le: 0.6, lz: 0.5, rt: 0.2, rk: 0.6, lt: 0.1, lk: 0.4 };
 var DUNKS = {
+  // under the legs (the ball is rendered with him, see DK_BALL): his near knee kicked up high, leaning over it, the near hand takes the
+  // ball down and under the thigh to the far hand, which brings it out in front and reaches it forward and up to the rim
   legs: [[0, DK_TAKE], [0.15, { rs: 1.2, re: 1.6, ls: 1.0, le: 1.5, rt: 0.6, rk: 1.2, lt: 0.2, lk: 0.6 }],
-    [0.3, { lean: 0.15, rs: 0.5, re: 0.4, rz: -0.2, ls: 0.4, le: 0.6, lz: -0.1, rt: 1.6, rk: 1.7, lt: 0.1, lk: 0.6 }],
-    [0.42, { lean: 0.15, rs: 0.25, re: 0.3, rz: -0.35, ls: 0.3, le: 0.5, lz: -0.35, rt: 1.7, rk: 1.8, lt: 0.1, lk: 0.6 }],
-    [0.54, { lean: 0.05, rs: 1.2, re: 0.8, ls: 2.4, le: 0.7, lz: 0.2, rt: 0.9, rk: 1.3, lt: 0.2, lk: 0.7 }],
-    [0.66, { lean: 0.3, rs: 1.2, re: 0.6, rz: 0.4, ls: 2.2, le: 0.05, lz: 0.1, rt: 0.5, rk: 1.2, lt: 0.1, lk: 0.5 }], [0.9, { lean: 0.2, rs: 1.4, re: 0.6, rz: 0.5, ls: 2.7, le: 0.3, lz: 0.1, rt: 0.2, rk: 0.6, lk: 0.4 }]],
+    [0.3, { lean: 0.45, rs: 0.4, re: 0.05, rz: -0.2, ls: 0.3, le: 0.3, lz: -0.2, rt: 2.0, rk: 1.9, lt: 0.1, lk: 0.6 }],
+    [0.42, { lean: 0.45, rs: 0.35, re: 0.05, rz: -0.45, ls: 0.35, le: 0.15, lz: -0.45, rt: 2.05, rk: 1.9, lt: 0.1, lk: 0.6 }],
+    [0.54, { lean: 0.15, rs: 1.2, re: 0.8, ls: 1.85, le: 0.6, lz: 0.2, rt: 0.9, rk: 1.3, lt: 0.2, lk: 0.7 }],
+    [0.66, { lean: 0.3, rs: 1.2, re: 0.6, rz: 0.4, ls: 1.9, le: 0.1, lz: 0.1, rt: 0.5, rk: 1.2, lt: 0.1, lk: 0.5 }], [0.9, { lean: 0.2, rs: 1.4, re: 0.6, rz: 0.5, ls: 2.7, le: 0.3, lz: 0.1, rt: 0.2, rk: 0.6, lk: 0.4 }]],
   btb: [[0, DK_TAKE], [0.15, { rs: 1.0, re: 1.2, rz: 0.3, ls: 1.0, le: 1.4, rt: 0.6, rk: 1.2, lk: 0.6 }],
     [0.3, { twist: 0.4, rs: -0.4, re: 0.6, rz: 0.4, ls: 0.8, le: 1.2, rt: 0.5, rk: 1.3, lk: 0.7 }],
     [0.42, { twist: 0.3, rs: -0.6, ry: 1.0, re: 1.3, rz: -0.3, ls: 0.2, le: 0.6, lz: 0.5, rt: 0.5, rk: 1.3, lk: 0.7 }],
@@ -288,7 +290,20 @@ var DUNKS = {
 };
 // the under-the-legs dunk plays in 2.5 s of slow motion, so it gets 30 frames (the rest 12)
 var DK_N = { legs: 30 };
-Object.keys(DUNKS).forEach(function (k) { var n = DK_N[k] || 12; ANIMS['dk_' + k] = { n: n, dirs: [k === 'flex' ? 'C' : 'R'], f: keyed(DUNKS[k], n) }; });
+Object.keys(DUNKS).forEach(function (k) { var n = DK_N[k] || 12; ANIMS['dk_' + k] = { n: n, dirs: [k === 'flex' ? 'C' : 'R'], f: keyed(DUNKS[k], n), ball: k === 'legs' }; });
+// the under-the-legs dunk carries its own ball, rendered in 3D with him so his legs and body hide it just as they would: in his near
+// (right) hand, down and under his raised near thigh, between his legs to his far (left) hand behind him, then up to the rim on his far
+// side. Only the frames up to the slam (u <= 0.66) have it; the game hides its own ball while they play.
+var BALL_PAL = [[255, 196, 136], [246, 150, 80], [240, 122, 38], [212, 98, 26], [156, 58, 8], [35, 12, 0]];
+var BALL_KEY = new THREE.MeshBasicMaterial({ color: 0xff00ff, toneMapped: false });
+var DK_BALL = (function () {
+  var c = document.createElement('canvas'); c.width = 256; c.height = 128; var g = c.getContext('2d');
+  var gr = g.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, '#f39a4a'); gr.addColorStop(0.5, '#e8742a'); gr.addColorStop(1, '#c95a18'); g.fillStyle = gr; g.fillRect(0, 0, 256, 128);
+  g.strokeStyle = '#2a0e02'; g.lineWidth = 6; [0, 64, 128, 192, 256].forEach(function (x) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 128); g.stroke(); });
+  g.beginPath(); g.moveTo(0, 64); g.lineTo(256, 64); g.stroke();
+  var m = new THREE.Mesh(new THREE.SphereGeometry(0.15, 28, 18), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(c), roughness: 0.7, metalness: 0 }));
+  m.visible = false; scene.add(m); return m;
+})();
 // moonwalk pass: facing away from his man he glides backward - one knee bent with the heel up, the other leg straight and sliding,
 // swapping each step - ball on his hip, then he flicks it back over his shoulder without looking
 ANIMS.pass_moon = { n: 8, dirs: ['R'], f: function (t, i) {
@@ -366,10 +381,15 @@ function palette(list, n) {
 }
 var BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 // map one image to palette indices (+base) with a light 4x4 ordered dither; 0 = transparent; outline: 1 px ring of index `ol`
-function indexed(d, w, h, pal, base, amp, ol) {
+// mask (optional): pixels that are the dunk ball, coloured from the palette's ball entries only (from index b0)
+function indexed(d, w, h, pal, base, amp, ol, mask, b0) {
   var out = new Uint8Array(w * h), cache = new Int16Array(32768).fill(-1);
   for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
     var p = y * w + x, i = p * 4; if (!d[i + 3]) continue;
+    if (mask && mask[p]) {   // by brightness, so most of it is the game ball's main orange, with highlight and shadow only at the ends
+      var L = 0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2], bc = L > 250 ? 0 : L > 215 ? 1 : L > 120 ? 2 : L > 75 ? 3 : L > 32 ? 4 : 5;
+      out[p] = b0 + bc + base; continue;
+    }
     var t = ((BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16 - 0.5) * amp;
     var r = Math.max(0, Math.min(255, d[i] + t)), g = Math.max(0, Math.min(255, d[i + 1] + t)), b = Math.max(0, Math.min(255, d[i + 2] + t));
     var key = (r >> 3) << 10 | (g >> 3) << 5 | b >> 3, c = cache[key];
@@ -400,8 +420,10 @@ window.genPlayer = function (id, opt) {
   var bx = 1 + (d.bulk - 1) * 0.45, bz = bx * (d.belly ? 1.08 : 1);
   A.spine.scale.set(bx, 1, bz); A.neck.scale.set(1 / bx, 1, 1 / bz); A.sh.forEach(function (sh) { sh.scale.set(1 / bx, 1, 1 / bz); });
   buffRig(A);
+  // where a held ball sits: off each palm, toward the palm side (the dunk ball above)
+  A.ballPt = [0, 1].map(function (hi) { var s2 = hi ? 1 : -1, pt = new THREE.Object3D(); pt.position.set(-s2 * 0.17, -0.09, 0); A.hand[hi].add(pt); return pt; });
   var frames = [], meta = { fw: FW, fh: FH, ppm: PPM, anim: {}, head: [], hand: [], off: {}, back: {}, hrot: {}, feet: project(new V3(0, 0, 0)) };
-  var only = opt.only;
+  var only = opt.only, hasBall = false, masks = {};
   Object.keys(ANIMS).forEach(function (name) {
     if (only && only.indexOf(name) < 0) return;
     var an = ANIMS[name]; meta.anim[name] = {};
@@ -425,7 +447,16 @@ window.genPlayer = function (id, opt) {
           A.root.position.set(dx, dy, 0); A.root.updateMatrixWorld(true);
           if (Math.abs(dx) > 0.01) meta.off[frames.length] = [+(dx * PPM).toFixed(1), 0];
         }
-        var px = grab(cam, FW, FH, SS, 0.5); grade(px, opt.con || 1.1, opt.sat || 1.12, opt.black || 6); frames.push(px);
+        DK_BALL.visible = false;
+        if (an.ball) { var bu = i / (an.n - 1) * 0.9; if (bu <= 0.66) { var bp = A.ballPt[0].getWorldPosition(new V3()).lerp(A.ballPt[1].getWorldPosition(new V3()), sm(0.36, 0.46, bu)); DK_BALL.position.copy(bp); DK_BALL.visible = true; } }
+        if (DK_BALL.visible) hasBall = true;
+        var px = grab(cam, FW, FH, SS, 0.5);
+        if (DK_BALL.visible) {   // a second pass with the ball in flat magenta marks the ball's pixels (what his body leaves showing)
+          var keepM = DK_BALL.material; DK_BALL.material = BALL_KEY; var pk = grab(cam, FW, FH, SS, 0.5), bm = new Uint8Array(FW * FH); DK_BALL.material = keepM;
+          for (var q = 0; q < FW * FH; q++) if (pk[q * 4 + 3] && pk[q * 4] > 150 && pk[q * 4 + 2] > 150 && pk[q * 4 + 1] < 110) bm[q] = 1;
+          masks[frames.length] = bm;
+        }
+        DK_BALL.visible = false; grade(px, opt.con || 1.1, opt.sat || 1.12, opt.black || 6); frames.push(px);
         var hp = A.head.getWorldPosition(new V3()), np = A.neck.getWorldPosition(new V3());
         var hr = A.palm[0].getWorldPosition(new V3()), hl = A.palm[1].getWorldPosition(new V3());
         meta.head.push(project(hp).concat(project(np))); meta.hand.push(project(hr).concat(project(hl)));
@@ -438,9 +469,10 @@ window.genPlayer = function (id, opt) {
     });
   });
   A.root.position.set(0, 0, 0); scene.remove(A.root);
-  var pal = palette(frames, opt.colors || 46), cols = 16, rows = Math.ceil(frames.length / cols), AW = cols * FW, AH = rows * FH, idx = new Uint8Array(AW * AH);
+  // the ball's few pixels would get folded into the skin tones: give it the game ball's own oranges (gfx.js drawBall) and seam brown
+  var pal = palette(frames, opt.colors || 46).concat(hasBall ? BALL_PAL : []), cols = 16, rows = Math.ceil(frames.length / cols), AW = cols * FW, AH = rows * FH, idx = new Uint8Array(AW * AH);
   frames.forEach(function (px, f) {
-    var fr = indexed(px, FW, FH, pal, 2, opt.dither === undefined ? 14 : opt.dither, 1), ox = (f % cols) * FW, oy = Math.floor(f / cols) * FH;
+    var fr = indexed(px, FW, FH, pal, 2, opt.dither === undefined ? 14 : opt.dither, 1, masks[f], pal.length - BALL_PAL.length), ox = (f % cols) * FW, oy = Math.floor(f / cols) * FH;
     for (var y = 0; y < FH; y++) idx.set(fr.subarray(y * FW, y * FW + FW), (oy + y) * AW + ox);
   });
   meta.cols = cols; meta.count = frames.length; meta.outline = 1;   // tells the game not to add its own rim

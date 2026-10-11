@@ -133,11 +133,16 @@ window.HW = window.HW || {};
         var fl = { x: k.x0 + (k.x1 - k.x0) * 0.45, y: 0.12 }, h0 = { x: k.x0 + sd * 0.4, y: 1.1 }; hand = X.handWorld(p) || { x: p.x, y: p.y + 2 };
         var pb = u < 0.14 ? lerp(h0, fl, u / 0.14) : lerp(fl, hand, (u - 0.14) / 0.32); b.x = pb.x; b.y = pb.y; b.z = p.z - 0.2; return;
       }
-      if (swap && u > 0.2 && u < 0.46) {
-        // under the leg / behind the back: his far hand takes it down round the back of him and hands it to the near one, so the ball
-        // goes behind his body - showing through between his legs, hidden by them - until the near hand brings it out the other side
+      if (swap) {
+        // his near hand (the sprite's right, the side facing you) hands it to his far one, under the leg or round his back
         var rh = X.handWorld(p, false), lh = X.handWorld(p, true), f = Math.max(0, Math.min(1, (u - 0.36) / 0.08)); f = f * f * (3 - 2 * f);
-        if (rh && lh) { b.x = rh.x + (lh.x - rh.x) * f; b.y = Math.max(0.2, rh.y + (lh.y - rh.y) * f); b.z = p.z - 0.2; b.behind = true; return; }
+        if (rh && lh) {
+          b.x = rh.x + (lh.x - rh.x) * f; b.y = Math.max(0.2, rh.y + (lh.y - rh.y) * f); b.z = p.z - 0.2;
+          // under the legs: the dunk's own frames carry the ball, rendered in 3D with him so his legs hide it right - ours stays out of
+          // sight until the slam. Behind the back: round his back, then in his far hand on the far side of him
+          if (k.style === 'legs' && X.hasAnim(p, 'dk_legs')) b.baked = u < DUNK_SLAM; else b.behind = u > 0.22;
+          return;
+        }
       }
       hand = X.handWorld(p, left); if (hand) { b.x = hand.x; b.y = Math.max(0.2, hand.y); b.z = p.z - 0.2; return; }
     }
@@ -363,7 +368,7 @@ window.HW = window.HW || {};
     var b = G.ball; q.stats.blocks++;
     if (info) G.missed(info); else { shooter.streak = 0; shooter.released = true; }
     X.burst(b.x, b.y, b.z, 14, ['#ffffff', '#ffd23f', '#ff6b6b'], 3, 0.5); if (sig(q, 'block')) fireBurst(b.x, b.y, b.z, 18);
-    G.give(q); q.cd.catch = 0; if (isGuy(q)) Au.blockNo && Au.blockNo();   // "no!" - "not interested!"
+    G.give(q); q.cd.catch = 0;
     G.say(text || pick(HW.PHRASES.block), '#ff6b6b', 1.3, text ? 1.2 : 1); Au.board(); X.shake = 0.6; X.hype = Math.max(X.hype, 1.6);
   };
 
@@ -502,7 +507,7 @@ window.HW = window.HW || {};
 
   function updateBall(dt) {
     if (!(dt > 0)) return;   // velocities below divide by dt
-    var b = G.ball; if (b.swoosh > 0) b.swoosh -= dt; b.noCatch = Math.max(0, (b.noCatch || 0) - dt); b.inFront = false; b.behind = false;
+    var b = G.ball; if (b.swoosh > 0) b.swoosh -= dt; b.noCatch = Math.max(0, (b.noCatch || 0) - dt); b.inFront = false; b.behind = false; b.baked = false;
     b.fire = !!((b.holder && b.holder.onFire && !(G.cine && G.cine.p === b.holder)) || (b.shotInfo && b.shotInfo.by.onFire && b.state === 'shot') || (b.state === 'pass' && b.pass && b.pass.from.onFire));   // not in the slow-motion dunk: the ball stays in plain view
     if (b.state === 'held') {
       ballAtHolder(b.holder, dt);
