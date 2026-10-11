@@ -448,7 +448,12 @@ window.genPlayer = function (id, opt) {
           if (Math.abs(dx) > 0.01) meta.off[frames.length] = [+(dx * PPM).toFixed(1), 0];
         }
         DK_BALL.visible = false;
-        if (an.ball) { var bu = i / (an.n - 1) * 0.9; if (bu <= 0.66) { var bp = A.ballPt[0].getWorldPosition(new V3()).lerp(A.ballPt[1].getWorldPosition(new V3()), sm(0.36, 0.46, bu)); DK_BALL.position.copy(bp); DK_BALL.visible = true; } }
+        if (an.ball) { var bu = i / (an.n - 1) * 0.9; if (bu <= 0.66) {
+          var bp = A.ballPt[0].getWorldPosition(new V3()).lerp(A.ballPt[1].getWorldPosition(new V3()), sm(0.36, 0.46, bu)); DK_BALL.position.copy(bp); DK_BALL.visible = true;
+          // in his near hand the ball is the front-most thing (it would cut into the thigh it's right next to); once it goes under to his
+          // far hand his body covers it as it should
+          var top = bu < 0.36; DK_BALL.material.depthTest = BALL_KEY.depthTest = !top; DK_BALL.renderOrder = top ? 999 : 0;
+        } }
         if (DK_BALL.visible) hasBall = true;
         var px = grab(cam, FW, FH, SS, 0.5);
         if (DK_BALL.visible) {   // a second pass with the ball in flat magenta marks the ball's pixels (what his body leaves showing)
