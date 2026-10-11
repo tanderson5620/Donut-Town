@@ -77,7 +77,7 @@ window.HW = window.HW || {};
     this.ai = { t: 0, spot: null, spotT: 0, hold: 0 };
   }
   Player.prototype.grounded = function () { return this.y <= 0.001 && this.vy === 0; };
-  Player.prototype.busy = function () { return this.state === 'hammer' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
+  Player.prototype.busy = function () { return this.state === 'shimmy' || this.state === 'hammer' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
 
   G.start = function (setup) {
     X.clearBlood();
@@ -178,6 +178,9 @@ window.HW = window.HW || {};
   G.startShot = function (p) {
     if (!p.hasBall || !p.grounded() || p.busy()) return;
     p.state = 'shoot'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH * 0.9); p.y = 0.001; p.released = false; p.tApex = p.vy / GRAV;
+    // a 3-point shooter pulling up while moving away from the basket shoots a fadeaway: leaning back, knee kicked out, drifting away
+    var rx0 = rimX(p.team), dx0 = rx0 - p.x, dz0 = K.HZ - p.z, dd0 = Math.hypot(dx0, dz0) || 1;
+    p.fade = p.def.type === 'shooter' && -(p.vx * dx0 + p.vz * dz0) / dd0 > 1.0;
     p.face = side(p.team); Au.jump();
   };
   G.releaseShot = function (p) {
@@ -196,6 +199,8 @@ window.HW = window.HW || {};
     if (p.onFire) pm = Math.max(pm, sig(p, 'tp') ? 0.99 : 0.94);
     pm = clamp(pm, 0.04, 0.97);
     var make = Math.random() < pm;
+    // a 3-point shooter who knows it's good does a shoulder shimmy once he lands, about 2 in 10 of his made threes
+    p.shimmy = make && three && p.def.type === 'shooter' && Math.random() < 0.2;
     p.hasBall = false; b.holder = null; b.state = 'shot'; b.last = p;
     b.shotInfo = { by: p, team: p.team, three: three, make: make, quality: quality, t: 0, T: 0.7 + d * 0.055, x0: b.x, y0: b.y, z0: b.z, rx: rx, arc: 1.4 + d * 0.13, missX: rand(-0.35, 0.35), missZ: rand(-0.3, 0.3) };
     p.stats.fga++; if (three) p.stats.tpa++;
@@ -348,7 +353,7 @@ window.HW = window.HW || {};
     // a fan in the stands yells "baba booey!" after a three: always the first one of the game, then about 1 in 3
     if (pts === 3 && !dunk && (!G.babaDone || Math.random() < 0.35) && Au.baba && Au.baba()) G.babaDone = true;
     G.hoopFx[team === 0 ? 1 : 0] = 1;
-    G.players.forEach(function (q) { if (q.team === team && q.state !== 'dunk') { q.state = 'cheer'; q.st = 0; } });
+    G.players.forEach(function (q) { if (q.team === team && q.state !== 'dunk' && q.state !== 'shimmy') { q.state = 'cheer'; q.st = 0; } });
     G.phase = 'scored'; G.phaseT = 1.6; G.nextPoss = 1 - team;
   };
   G.missed = function (info) { info.by.streak = 0; };
@@ -447,7 +452,7 @@ window.HW = window.HW || {};
   // up/down the screen is squeezed by the camera, so moving in depth runs faster than along the court to feel as quick
   var ZS = G.ZS = 1.5;
   function move(p, mx, mz, turbo, dt) {
-    var can = !(p.state === 'fall' || p.state === 'dunk' || p.state === 'shove' || (p.state === 'shoot' && p.grounded()) || (p.state === 'pass' && p.passStyle === 'hike'));
+    var can = !(p.state === 'fall' || p.state === 'dunk' || p.state === 'shove' || p.state === 'shimmy' || (p.state === 'shoot' && p.grounded()) || (p.state === 'pass' && p.passStyle === 'hike'));
     var m = Math.hypot(mx, mz); if (m > 1) { mx /= m; mz /= m; m = 1; }
     p.turboOn = false;
     if (turbo && m > 0.1 && can && (p.turbo > 2 || p.onFire)) { p.turboOn = true; if (!p.onFire) p.turbo = Math.max(0, p.turbo - p.drain * dt); }
@@ -477,11 +482,12 @@ window.HW = window.HW || {};
     if (p.state === 'dunk') { updateDunk(p, dt); return; }
     if (p.state === 'fall') { var fr = p.y > 0 ? 1.2 : 6; p.vx *= Math.max(0, 1 - fr * dt); p.vz *= Math.max(0, 1 - fr * dt); if (p.st > (p.fallT || 1.3)) { p.state = 'idle'; p.flash = 0.6; p.fallT = 0; } }
     if (p.state === 'pass' && p.passStyle === 'moon' && p.st < 0.75) { p.vx = -p.face * 1.8; p.vz *= 0.85; }   // moonwalking backward toward his man
+    if (p.state === 'shoot' && p.fade && p.y > 0) { p.vx = (p.x > rimX(p.team) ? 1 : -1) * 2.0; p.vz *= 0.9; }   // the fadeaway drifts away from the rim
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
-    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump' || p.state === 'hammer') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = 'idle'; } } }
+    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump' || p.state === 'hammer') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = p.shimmy ? 'shimmy' : 'idle'; p.st = 0; p.shimmy = false; if (p.fade) p.vx *= 0.15; p.fade = false; if (p.state === 'shimmy') { p.vx = p.vz = 0; } } } }
     if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * 1.7) G.releaseShot(p);
     if (p.state === 'pass') updatePending(p);
-    if ((p.state === 'pass' && p.st > (p.passStyle ? FANCY[p.passStyle].dur : 0.3) && p.grounded()) || (p.state === 'steal' && p.st > 0.3) || (p.state === 'shove' && p.st > 0.35) || (p.state === 'cheer' && p.st > 1.5)) p.state = 'idle';
+    if ((p.state === 'pass' && p.st > (p.passStyle ? FANCY[p.passStyle].dur : 0.3) && p.grounded()) || (p.state === 'steal' && p.st > 0.3) || (p.state === 'shove' && p.st > 0.35) || (p.state === 'cheer' && p.st > 1.5) || (p.state === 'shimmy' && p.st > 1.4)) p.state = 'idle';
   }
   function separate() {
     var P = G.players;
@@ -613,7 +619,8 @@ window.HW = window.HW || {};
         p.frame = t < 0.2 ? 0 : t < 0.35 ? 1 : t < PU.boom ? 2 : t < PU.boom + 0.12 ? 3 : 4 + Math.floor((t - PU.boom - 0.12) / 0.08) % 4; return;
       }
       case 'fall': p.anim = 'fall'; p.dir = 'R'; p.frame = Math.min(3, p.st / 0.12); return;
-      case 'shoot': p.anim = 'shoot'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
+      case 'shimmy': p.anim = 'shimmy'; p.dir = 'F'; p.frame = (p.st * 11) % 6; return;   // the shoulder shimmy after a made three
+      case 'shoot': p.anim = p.fade && X.hasAnim(p, 'shoot_fade') ? 'shoot_fade' : 'shoot'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
       case 'jump': p.anim = 'jump'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.vy > 2 ? 1 : 2; return;
       case 'pass': if (p.passStyle) { var F = FANCY[p.passStyle]; p.anim = 'pass_' + p.passStyle; p.dir = p.passStyle === 'back' ? 'W' : 'R'; p.frame = frameAt(F, p.st); }
         else { p.anim = 'pass'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); } return;
