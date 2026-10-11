@@ -8,7 +8,7 @@ window.HW = window.HW || {};
   var QLENS = [60, 90, 120, 180];
   try { var ql = +(localStorage.getItem('famjam.qlen') || localStorage.getItem('hoopsjam.qlen')); if (QLENS.indexOf(ql) >= 0) UI.st.qlen = ql; } catch (e) { }
   function clockText(s) { return Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60); }
-  var In = HW.In = { mx: 0, mz: 0, turbo: false, shootHeld: false, shootDown: false, shootUp: false, passDown: false, pauseDown: false, tap: null, keys: {}, touchMove: { x: 0, y: 0 }, stickTurbo: false, comboTurbo: false, actDown: false, nav: null };
+  var In = HW.In = { digits: [], mx: 0, mz: 0, turbo: false, shootHeld: false, shootDown: false, shootUp: false, passDown: false, pauseDown: false, tap: null, keys: {}, touchMove: { x: 0, y: 0 }, stickTurbo: false, comboTurbo: false, actDown: false, nav: null };
   var CY = '#22c4f2', PB = '#262a8c', P1C = '#2fd85a';
 
   /* ---------- input ---------- */
@@ -20,6 +20,7 @@ window.HW = window.HW || {};
       if (k === 'KeyK') In.passDown = true;
       if (k === 'Escape' || k === 'KeyP') In.pauseDown = true;
       if (k === 'Enter') In.enter = true;
+      if (/^(Digit|Numpad)\d$/.test(k)) In.digits.push(k.slice(-1)); else if (k === 'Backspace') In.digits.push('DEL');   // queued: two keys in one slow frame both count
       if (/^Arrow/.test(k)) In.nav = k;
     });
     window.addEventListener('keyup', function (e) { In.keys[e.code] = false; if (e.code === 'KeyJ' || e.code === 'Space') { In.shootHeld = false; In.shootUp = true; } });
@@ -27,6 +28,14 @@ window.HW = window.HW || {};
     cv.addEventListener('mousedown', function (e) { Au.init(); In.tap = toCanvas(e.clientX, e.clientY); if (HW.Jam.phase !== 'menu' && !UI.overlay()) { In.shootHeld = true; In.shootDown = true; } });
     window.addEventListener('mouseup', function () { if (In.shootHeld && !In.keys.KeyJ && !In.keys.Space) { In.shootHeld = false; In.shootUp = true; } });
     cv.addEventListener('touchstart', function (e) { e.preventDefault(); Au.init(); var t = e.changedTouches[0]; In.tap = toCanvas(t.clientX, t.clientY); UI.firstGesture(); }, { passive: false });
+    // the phone's share sheet (and the clipboard) only open straight from the tap itself, not a frame later: the online lobby's
+    // SEND INVITE button answers the finger lifting off it here
+    function shareTap(x, y) {
+      var p = toCanvas(x, y), b = UI.btns.filter(function (q) { return q.id === 'share'; })[0];
+      if (b && UI.screen === 'lobby' && HW.Net && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) HW.Net.share();
+    }
+    cv.addEventListener('touchend', function (e) { var t = e.changedTouches[0]; if (t) shareTap(t.clientX, t.clientY); });
+    cv.addEventListener('click', function (e) { shareTap(e.clientX, e.clientY); });
     UI.initTouch();
   };
   UI.firstGesture = function () {
@@ -82,7 +91,7 @@ window.HW = window.HW || {};
     var lv = Math.round(h.onFire ? 100 : h.turbo);
     if (lv !== tLevel) { tLevel = lv; var r = document.getElementById('stickRing'); r.style.setProperty('--t', lv); r.style.setProperty('--tc', h.onFire ? '#ff7a1a' : lv > 25 ? '#3df07a' : '#ff4b3a'); }
   };
-  UI.endFrame = function () { In.shootDown = In.shootUp = In.passDown = In.actDown = In.pauseDown = In.enter = false; In.tap = null; In.nav = null; };
+  UI.endFrame = function () { In.shootDown = In.shootUp = In.passDown = In.actDown = In.pauseDown = In.enter = false; In.tap = null; In.nav = null; In.digits.length = 0; };
 
   /* ---------- safe area (notch, home bar) in canvas pixels ---------- */
   var probe, safeKey, safeV = { l: 0, r: 0, t: 0, b: 0 };
@@ -357,8 +366,11 @@ window.HW = window.HW || {};
   }
 
   /* ---------- menus ---------- */
-  UI.overlay = function () { var G = HW.Jam; return G.phase === 'menu' || G.phase === 'paused' || UI.screen === 'results'; };
-  UI.show = function (s) { UI.screen = s; if (s !== 'results' && s !== 'paused') HW.Jam.phase = 'menu'; if (s === 'team') fixPicks(); };
+  UI.overlay = function () { var G = HW.Jam; return G.phase === 'menu' || G.phase === 'paused' || UI.screen === 'results' || UI.screen === 'paused'; };
+  UI.show = function (s) {
+    if ((s === 'title' || s === 'team') && HW.Net && HW.Net.mode) HW.Net.leave();   // back to the menus: off line
+    UI.screen = s; if (s !== 'results' && s !== 'paused') HW.Jam.phase = 'menu'; if (s === 'team') fixPicks();
+  };
   var DIFFS = ['easy', 'normal', 'hard'];
   UI.memo = {};
   function fixPicks() {
@@ -393,6 +405,7 @@ window.HW = window.HW || {};
       if (blink()) Fo.draw(g, HW.TOUCH ? 'TAP TO START' : 'CLICK OR PRESS ENTER', cx, C.T + 286, { scale: 2, scheme: 'yellow' });
       if (!HW.TOUCH) Fo.draw(g, 'MOVE: ARROWS  SHOOT: J  PASS: K  TURBO: L/SHIFT  PAUSE: P', cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
       UI.btns.push({ id: 'start', x: 0, y: 0, w: W, h: X.H, fn: function () { UI.show('team'); } });
+      if (HW.Net) button(g, 'online', C.R - 138, C.T + 270, 128, 32, 'ONLINE', { color: '#22c4f2', size: 2, fn: function () { UI.show('online'); } });   // play the family on their own phones
       if (In.enter) UI.show('team');
     } else if (s === 'team') {
       drawTeamCard(g, fr);
@@ -403,19 +416,24 @@ window.HW = window.HW || {};
       flaming(g, 'PAUSED', cx2, C2.T + 34, { scale: 4, scheme: 'yellow', outline: 2, shadow: 2 }, fr);
       scoreLine(g, cx2, C2.T + 74);
       var bw = Math.min(240, C2.W * 0.4);
-      button(g, 'resume', cx2 - bw - 6, C2.T + 98, bw, 40, 'RESUME', { color: '#1fb04c', size: 2, fn: function () { UI.screen = null; HW.Jam.phase = UI.prevPhase || 'play'; } });
-      button(g, 'quit', cx2 + 6, C2.T + 98, bw, 40, 'QUIT', { color: '#e0302a', size: 2, fn: function () { UI.show('title'); HW.Jam.players = []; } });
-      var hy = C2.T + 152; bevel(g, C2.L + 6, hy, C2.W - 12, C2.B - hy - 6, '#000', CY, 3);
+      var onl = HW.Net && HW.Net.playing(), resume = function () { UI.screen = null; if (!onl) HW.Jam.phase = UI.prevPhase || 'play'; };
+      button(g, 'resume', cx2 - bw - 6, C2.T + 98, bw, 40, 'RESUME', { color: '#1fb04c', size: 2, fn: resume });
+      button(g, 'quit', cx2 + 6, C2.T + 98, bw, 40, onl ? 'LEAVE GAME' : 'QUIT', { color: '#e0302a', size: 2, fn: function () { UI.show('title'); HW.Jam.players = []; } });
+      if (onl) Fo.draw(g, HW.Net.mode === 'host' ? 'ONLINE: THE GAME KEEPS GOING. IF YOU LEAVE, IT ENDS FOR EVERYONE' : 'ONLINE: THE GAME KEEPS GOING. IF YOU LEAVE, THE CPU PLAYS FOR YOU', cx2, C2.T + 148, { scale: 1, scheme: 'cyan', shadow: 0 });
+      var hy = C2.T + (onl ? 158 : 152); bevel(g, C2.L + 6, hy, C2.W - 12, C2.B - hy - 6, '#000', CY, 3);
       var help = HW.TOUCH ?
         [['TURBO:', 'PUSH THE STICK PAST ITS RING'], ['SHOOT:', 'HOLD, LET GO AT THE TOP OF THE JUMP'], ['DUNK:', 'DUNK BUTTON, OR TURBO + SHOOT AT THE RIM'], ['DEFENSE:', 'PASS = STEAL  SHOVE  SHOOT = BLOCK'], ['NO BALL:', 'PASS = CALL FOR IT  SHOVE  SHOOT = TEAMMATE SHOOTS']] :
         [['SHOOT:', 'HOLD, LET GO AT THE TOP OF THE JUMP'], ['DUNK:', 'TURBO + SHOOT NEAR THE RIM'], ['DEFENSE:', 'PASS = STEAL  TURBO+PASS = SHOVE  SHOOT = BLOCK'], ['NO BALL:', 'PASS = CALL FOR IT  TURBO+PASS = SHOVE'], ['ON FIRE:', '3 BUCKETS IN A ROW']];
       var lx = C2.L + 20, sc = C2.W > 620 ? 2 : 1, lh = sc === 2 ? 0 : 0;
-      var fitsBig = Fo.measure('DEFENSE: PASS = STEAL  TURBO+PASS = SHOVE  SHOOT = BLOCK', 2) < C2.W - 40; sc = fitsBig ? 2 : 1;
+      var fitsBig = help.every(function (r) { return Fo.measure(r[0] + ' ' + r[1], 2) + 8 < C2.W - 40; }); sc = fitsBig ? 2 : 1;
       help.forEach(function (r, i) { var yy = hy + 18 + i * (sc === 2 ? 30 : 22) + lh; var w1 = Fo.draw(g, r[0], lx, yy, { scale: sc, scheme: 'yellow', align: 'left' }); Fo.draw(g, r[1], lx + w1 + 4 * sc, yy, { scale: sc, scheme: 'white', align: 'left' }); });
-      if (In.enter) { UI.screen = null; G.phase = UI.prevPhase || 'play'; }
+      if (In.enter) resume();
     } else if (s === 'results') {
       drawResults(g, fr);
-    }
+    } else if (s === 'online') drawOnline(g, fr);
+    else if (s === 'join') drawJoin(g, fr);
+    else if (s === 'lobby') drawLobby(g, fr);
+    else if (s === 'neterr') drawNetErr(g, fr);
     if (In.tap) { for (var i = UI.btns.length - 1; i >= 0; i--) { var b = UI.btns[i]; if (!b.disabled && In.tap.x >= b.x && In.tap.x <= b.x + b.w && In.tap.y >= b.y && In.tap.y <= b.y + b.h) { Au.click(); b.fn && b.fn(); break; } } }
   };
 
@@ -519,7 +537,8 @@ window.HW = window.HW || {};
         Fo.draw(g, d.first, cxp, pTop + 16, nameFit(d.first, PWm - 4, { scheme: 'white', shadowColor: Fo.shade(d.color, -0.4) }));
         Fo.draw(g, HW.TYPES[d.type].label, cxp, pTop + 33, { scale: 1, color: d.color });
         statLines(g, d, x + 2, pTop + 48, PWm - 4, 1, 12);
-        tab(g, cxp, divY - 8, me ? 'YOU' : 'CPU', me ? '#ffd23f' : '#5a5e7a', me);
+        var who = me ? 'YOU' : m.humans && m.humans[id] || 'CPU';   // online: the other people's P2, P3...
+        tab(g, cxp, divY - 8, who, me ? '#ffd23f' : who !== 'CPU' ? '#1aa6d8' : '#5a5e7a', me);
       });
     });
     g.fillStyle = CY; g.fillRect(mid - vsW / 2 - 2, pTop, 3, stripY - pTop); g.fillRect(mid + vsW / 2, pTop, 3, stripY - pTop);
@@ -527,8 +546,14 @@ window.HW = window.HW || {};
     var e0 = emblem(order[0], 1), e1 = emblem(order[1], 1);
     if (vsW >= 64) { g.drawImage(e0, mid - 32, pTop + 4, 32, 32); g.drawImage(e1, mid, pTop + 50, 32, 32); }
     Fo.draw(g, (HW.DIFFICULTY[m.diff] || { label: 'NORMAL' }).label + '   ' + clockText(m.qlen || 60) + ' QUARTERS', C.L + 14, stripY + 18, { scale: 1, scheme: 'gray', align: 'left', shadow: 0 });
+    var Net = HW.Net, wait = m.online && Net && Net.mode === 'host' ? Net.waiting() : [];
     if (UI.loading) Fo.draw(g, 'LOADING...', mid, stripY + 18, { scale: 2, scheme: 'white' });
-    else {
+    else if (m.online && Net && Net.mode !== 'host') { if (blink()) Fo.draw(g, 'WAITING FOR P1 TO TIP OFF', mid, stripY + 18, { scale: 2, scheme: 'yellow' }); }
+    else if (wait.length) Fo.draw(g, 'WAITING FOR ' + wait.join(' + ') + '...', mid, stripY + 18, { scale: 2, scheme: 'white' });
+    else if (m.online) {
+      if (blink()) Fo.draw(g, HW.TOUCH ? 'TAP TO TIP OFF' : 'CLICK TO TIP OFF', mid, stripY + 18, { scale: 2, scheme: 'yellow' });
+      UI.btns.push({ id: 'tip', x: 0, y: 0, w: X.W, h: X.H, fn: function () { Net.go(); } }); if (In.enter) Net.go();
+    } else {
       if (blink()) Fo.draw(g, HW.TOUCH ? 'TAP TO TIP OFF' : 'CLICK TO TIP OFF', mid, stripY + 18, { scale: 2, scheme: 'yellow' });
       var go = function () { UI.screen = null; HW.Jam.start(m); };
       UI.btns.push({ id: 'tip', x: 0, y: 0, w: X.W, h: X.H, fn: go }); if (In.enter) go();
@@ -541,6 +566,114 @@ window.HW = window.HW || {};
     UI.mu = { teams: teams, human: st.ctrl, diff: st.diff, qlen: st.qlen || 60 }; UI.screen = 'matchup'; UI.loading = true;
     Promise.all(teams[0].concat(teams[1]).map(X.loadPlayer)).then(function () { UI.loading = false; });
   };
+
+  /* ---------- online: host or join, the room-code keypad, the lobby, and when it goes wrong ---------- */
+  function wrapText(text, w, sc) {
+    var lines = [], cur = ''; text.split(' ').forEach(function (wd) { var t = cur ? cur + ' ' + wd : wd; if (cur && Fo.measure(t, sc) > w) { lines.push(cur); cur = wd; } else cur = t; });
+    if (cur) lines.push(cur); return lines;
+  }
+  function drawOnline(g, fr) {
+    var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net;
+    flaming(g, 'PLAY ONLINE', cx, C.T + 36, { scale: 4, scheme: 'fire', outline: 2, shadow: 2 }, fr);
+    Fo.draw(g, 'THE FAMILY ON THEIR OWN PHONES, FROM ANYWHERE', cx, C.T + 72, { scale: 1, scheme: 'cyan', shadow: 0 });
+    var bw = Math.floor(Math.min(250, (C.W - 40) / 2)), by = C.T + 90, bh = 56;
+    button(g, 'host', cx - bw - 8, by, bw, bh, 'HOST A GAME', { color: '#1fb04c', size: 2, fn: function () { Net.host(); UI.show('lobby'); } });
+    button(g, 'joinb', cx + 8, by, bw, bh, 'JOIN A GAME', { color: '#1aa6d8', size: 2, fn: function () { UI.code = ''; UI.show('join'); } });
+    Fo.draw(g, 'GET A CODE TO SEND', cx - bw / 2 - 8, by + bh + 13, { scale: 1, scheme: 'white', shadow: 0 });
+    Fo.draw(g, 'TYPE THE HOST\'S CODE', cx + bw / 2 + 8, by + bh + 13, { scale: 1, scheme: 'white', shadow: 0 });
+    var hy = by + bh + 28, hh = C.B - hy - 40; bevel(g, C.L + 6, hy, C.W - 12, hh, '#000', CY, 3);
+    ['1. ONE PERSON HOSTS AND SENDS THE CODE OR THE INVITE LINK', '2. EVERYONE ELSE JOINS AND PICKS WHO THEY PLAY', '3. THE HOST STARTS IT. ANY EMPTY SPOTS ARE CPU', 'UP TO 4 PEOPLE, 2 ON A TEAM'].forEach(function (t, i) {
+      Fo.draw(g, t, C.L + 20, hy + 18 + i * Math.min(20, (hh - 24) / 4), { scale: 1, scheme: i === 3 ? 'yellow' : 'white', align: 'left', shadow: 0 });
+    });
+    button(g, 'back', cx - 40, C.B - 30, 80, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show('title'); } });
+    if (In.enter) { Net.host(); UI.show('lobby'); }
+  }
+  function drawJoin(g, fr) {
+    var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net, code = UI.code || '', busy = Net.mode === 'guest' && Net.stage === 'connecting';
+    Fo.draw(g, busy ? 'JOINING ROOM ' + Net.code + '...' : 'TYPE THE ROOM CODE', cx, C.T + 18, { scale: 2, scheme: busy ? 'yellow' : 'cyan' });
+    var bw0 = 46, gap = 10, x0 = Math.round(cx - (4 * bw0 + 3 * gap) / 2), shown = busy ? Net.code : code;
+    for (var i = 0; i < 4; i++) {
+      var bx = x0 + i * (bw0 + gap); bevel(g, bx, C.T + 34, bw0, 54, '#0a0c2a', !busy && i === code.length && blink(2) ? '#ffd23f' : CY, 3);
+      if (shown[i]) Fo.draw(g, shown[i], bx + bw0 / 2, C.T + 61, { scale: 4, scheme: 'white' });
+    }
+    // the 4th digit joins
+    var add = function (d) {
+      if (busy) return;
+      if (d === 'DEL') code = code.slice(0, -1); else if (/^\d$/.test(d) && code.length < 4) code += d;
+      UI.code = code; if (code.length === 4 && (d !== 'DEL')) Net.join(code);
+    };
+    var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'DEL', '0', 'JOIN'], kw = 70, kh = 34, kg = 6, kx0 = Math.round(cx - (3 * kw + 2 * kg) / 2), ky0 = C.T + 98;
+    keys.forEach(function (k, i) {
+      var col = i % 3, row = (i / 3) | 0;
+      button(g, 'k' + k, kx0 + col * (kw + kg), ky0 + row * (kh + kg), kw, kh, k, { size: k.length > 1 ? 1 : 2, color: k === 'JOIN' ? '#1fb04c' : k === 'DEL' ? '#e0302a' : '#22c4f2', disabled: busy || (k === 'JOIN' && code.length < 4), fn: function () { if (k === 'JOIN') Net.join(code); else add(k); } });
+    });
+    if (!busy && HW.TOUCH) Fo.draw(g, 'GOT A LINK? JUST TAP IT', cx, C.B - 46, { scale: 1, scheme: 'gray', shadow: 0 });
+    button(g, 'back', C.L + 10, C.B - 32, 90, 26, busy ? 'CANCEL' : 'BACK', { on: false, size: 1, fn: function () { if (Net.mode) Net.leave(); UI.show('online'); } });
+    In.digits.forEach(add); if (In.enter && code.length === 4 && !busy) Net.join(code);
+  }
+  function drawLobby(g, fr) {
+    var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net, isHost = Net.mode === 'host';
+    if (!Net.mode) { UI.show('online'); return; }
+    if (Net.stage === 'connecting') {
+      flaming(g, isHost ? 'MAKING A ROOM...' : 'JOINING...', cx, C.T + 130, { scale: 3, scheme: 'yellow', outline: 2, shadow: 2 }, fr);
+      button(g, 'cancel', cx - 50, C.B - 34, 100, 26, 'CANCEL', { on: false, size: 1, fn: function () { Net.leave(); UI.show('online'); } });
+      return;
+    }
+    // the room code, big, and (host) the button that texts it to the family
+    Fo.draw(g, 'ROOM CODE', C.L + 12, C.T + 10, { scale: 1, scheme: 'cyan', align: 'left', shadow: 0 });
+    Fo.draw(g, Net.code, C.L + 12, C.T + 36, { scale: 4, scheme: 'fire', outline: 2, shadow: 2, align: 'left' });
+    var noted = Net.note && performance.now() < (Net.noteUntil || 0);
+    if (isHost) {
+      button(g, 'share', C.R - 172, C.T + 6, 162, 32, navigator.share ? 'SEND INVITE' : 'COPY LINK', { color: '#1fb04c', size: 2 });   // shareTap() does it
+      Fo.draw(g, noted ? Net.note : 'TEXT THE CODE OR LINK TO THE FAMILY', C.R - 10, C.T + 50, { scale: 1, scheme: noted ? 'green' : 'white', align: 'right', shadow: 0 });
+    } else Fo.draw(g, 'YOU\'RE IN! TAP WHO YOU WANT TO PLAY', C.R - 10, C.T + 36, { scale: 1, scheme: 'green', align: 'right', shadow: 0 });
+    // both families: tap a player to be him (again to let him go); people's picks are tagged, YOU flashing
+    var py = C.T + 60, pw = Math.floor((C.W - 12) / 2), rowH = 27, ph = 26 + 5 * rowH + 4;
+    [0, 1].forEach(function (ti) {
+      var T = HW.TEAMS[ti], x = C.L + 4 + ti * (pw + 4);
+      bevel(g, x, py, pw, ph, '#06081e', T.color, 3);
+      Fo.draw(g, T.name.toUpperCase(), x + pw / 2, py + 15, { scale: 2, color: T.color });
+      T.roster.forEach(function (id, r) {
+        var d = HW.PLAYERS[id], y = py + 27 + r * rowH, who = Net.claimedBy(id), me = !!who && who === Net.me, f = miniFace(id, rowH - 3);
+        if (me) { g.fillStyle = blink(2) ? '#ffe14d' : '#ffb000'; g.fillRect(x + 5, y, pw - 10, rowH - 1); g.fillStyle = '#06081e'; g.fillRect(x + 7, y + 2, pw - 14, rowH - 5); }
+        g.globalAlpha = who && !me ? 0.45 : 1;
+        g.drawImage(f, x + 10, y + 1);
+        Fo.draw(g, d.first, x + 16 + f.width, y + rowH / 2, nameFit(d.first, pw - f.width - 74, { scheme: 'white', align: 'left', shadowColor: Fo.shade(d.color, -0.4) }));
+        g.globalAlpha = 1;
+        if (who) tab(g, x + pw - 30, y + rowH / 2 - 7, me ? 'YOU' : who, me ? '#ffd23f' : '#1aa6d8', me);
+        UI.btns.push({ id: 'pick' + id, x: x + 4, y: y, w: pw - 8, h: rowH - 1, fn: function () { if (!who || me) Net.pick(id); } });
+      });
+    });
+    // who's here, the host's settings and START; everyone else waits for it
+    var by = py + ph + 9, ppl = Net.people.map(function (q) { return q.lbl + ' ' + (q.claim ? HW.PLAYERS[q.claim].first.toUpperCase() : 'PICKING...'); }).join('   ');
+    Fo.draw(g, ppl, cx, by, { scale: 1, scheme: 'white', shadow: 0 });
+    var y2 = by + 12;
+    if (isHost) {
+      var dw = 54, qw = 40, sx0 = C.L + 8;
+      DIFFS.forEach(function (dk, i) { button(g, 'd' + dk, sx0 + i * (dw + 4), y2, dw, 20, dk.toUpperCase(), { on: Net.diff === dk, size: 1, color: ['#1fb04c', '#ffc61a', '#e0302a'][i], fn: function () { Net.setDiff(dk); } }); });
+      QLENS.forEach(function (q, i) { button(g, 'q' + q, sx0 + 3 * (dw + 4) + 8 + i * (qw + 4), y2, qw, 20, clockText(q), { on: Net.qlen === q, size: 1, color: '#22c4f2', fn: function () { Net.setQlen(q); } }); });
+      var ok = Net.canStart();
+      button(g, 'start', C.R - 160, y2, 152, 50, 'START', { size: 3, disabled: !ok, fn: function () { Net.start(); } });
+      Fo.draw(g, ok ? 'CPU DIFFICULTY  /  QUARTER LENGTH' : 'EVERYONE PICK A PLAYER, THEN START', sx0, y2 + 32, { scale: 1, scheme: ok ? 'gray' : 'yellow', align: 'left', shadow: 0 });
+      if (In.enter && ok) Net.start();
+    } else {
+      Fo.draw(g, 'CPU: ' + (HW.DIFFICULTY[Net.diff] || { label: 'NORMAL' }).label + '   ' + clockText(Net.qlen || 60) + ' QUARTERS', C.L + 12, y2 + 10, { scale: 1, scheme: 'gray', align: 'left', shadow: 0 });
+      if (blink()) Fo.draw(g, Net.claim ? 'WAITING FOR P1 TO START' : 'PICK A PLAYER', C.R - 12, y2 + 10, { scale: 2, scheme: 'yellow', align: 'right' });
+    }
+    button(g, 'leave', C.L + 8, C.B - 26, 90, 22, 'LEAVE', { on: false, size: 1, fn: function () { UI.show('online'); Net.leave(); } });
+  }
+  function drawNetErr(g, fr) {
+    var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net, msg = Net.err || 'SOMETHING WENT WRONG', badCode = /^NO (GAME|ANSWER)/.test(msg);
+    flaming(g, 'UH OH!', cx, C.T + 54, { scale: 5, scheme: 'fire', outline: 2, shadow: 2 }, fr);
+    wrapText(msg, C.W - 60, 2).forEach(function (t, i) { Fo.draw(g, t, cx, C.T + 116 + i * 26, { scale: 2, scheme: 'white' }); });
+    var bw = Math.min(200, (C.W - 40) / 2), by = C.T + 200;
+    button(g, 'retry', cx - bw - 6, by, bw, 44, badCode ? 'TYPE IT AGAIN' : 'TRY AGAIN', { color: '#1fb04c', size: 2, fn: function () {
+      if (Net.lastMode === 'host') { Net.host(); UI.show('lobby'); }
+      else if (badCode) { UI.code = ''; UI.show('join'); }
+      else { UI.code = Net.code; UI.show('join'); Net.join(Net.code); }
+    } });
+    button(g, 'menu', cx + 6, by, bw, 44, 'MENU', { color: '#1aa6d8', size: 2, fn: function () { UI.show('title'); } });
+  }
 
   function qtr(G) { return G.q > 4 ? 'OT' : ['1ST', '2ND', '3RD', '4TH'][G.q - 1]; }
   function clockStr(G) { var c = Math.max(0, G.clock), m = Math.floor(c / 60), s = Math.floor(c % 60); return c < 10 ? c.toFixed(1) : m + ':' + (s < 10 ? '0' : '') + s; }
@@ -564,19 +697,28 @@ window.HW = window.HW || {};
       if (i === 2) { g.fillStyle = '#20245a'; g.fillRect(px + 6, y - 19, pw - 12, 1); }
       g.drawImage(f, px + 12, y - 15);
       Fo.draw(g, p.def.first, px + 46, y, { scale: 2, color: p.def.color, align: 'left' });
-      if (p.human) tab(g, px + 52 + Fo.measure(p.def.first, 2) + 18, y - 7, 'YOU', '#ffd23f', true);
+      if (p.me) tab(g, px + 52 + Fo.measure(p.def.first, 2) + 18, y - 7, 'YOU', '#ffd23f', true);
+      else if (p.lbl) tab(g, px + 52 + Fo.measure(p.def.first, 2) + 14, y - 7, p.lbl, '#1aa6d8', false);
       [sv.pts, sv.fgm + '/' + sv.fga, sv.tpm + '/' + sv.tpa, sv.ast, sv.dunks, sv.steals, sv.blocks].forEach(function (v, k) { Fo.draw(g, String(v), px + pw * cols[k][1], y, { scale: k === 1 || k === 2 ? 1 : 2, scheme: k ? 'white' : 'yellow' }); });
     });
-    var bw = Math.min(220, (C.W - 30) / 2), by = py + ph + 10;
-    button(g, 'again', cx - bw - 6, by, bw, Math.min(40, C.B - by - 2), 'REMATCH', { size: 2, fn: function () { UI.screen = null; HW.Jam.start(G.setup); } });
-    button(g, 'new', cx + 6, by, bw, Math.min(40, C.B - by - 2), 'NEW TEAMS', { color: '#1aa6d8', size: 2, fn: function () { UI.show('team'); HW.Jam.players = []; } });
+    var bw = Math.min(220, (C.W - 30) / 2), by = py + ph + 10, bh = Math.min(40, C.B - by - 2), Net = HW.Net;
+    if (Net && Net.mode === 'guest') {   // online, the host decides what's next
+      if (blink()) Fo.draw(g, 'WAITING FOR P1: REMATCH OR NEW TEAMS', cx - 70, by + bh / 2, { scale: 1, scheme: 'yellow' });
+      button(g, 'leave', C.R - 130, by, 120, bh, 'LEAVE', { color: '#e0302a', size: 2, fn: function () { UI.show('title'); } });
+    } else if (Net && Net.mode === 'host') {
+      button(g, 'again', cx - bw - 6, by, bw, bh, 'REMATCH', { size: 2, fn: function () { Net.go(); } });
+      button(g, 'new', cx + 6, by, bw, bh, 'NEW TEAMS', { color: '#1aa6d8', size: 2, fn: function () { Net.toLobby(); } });
+    } else {
+      button(g, 'again', cx - bw - 6, by, bw, bh, 'REMATCH', { size: 2, fn: function () { UI.screen = null; HW.Jam.start(G.setup); } });
+      button(g, 'new', cx + 6, by, bw, bh, 'NEW TEAMS', { color: '#1aa6d8', size: 2, fn: function () { UI.show('team'); HW.Jam.players = []; } });
+    }
   }
 
   /* ---------- in-game HUD ---------- */
   UI.drawHUD = function (g) {
     UI.syncTouch(HW.Jam);
     var G = HW.Jam, W = X.W, S = UI.safe(), fr = Math.floor(G.t * 12);
-    var P = G.players.slice().sort(function (a, b) { return a.team - b.team || (b.human - a.human) || a.slot - b.slot; });
+    var P = G.players.slice().sort(function (a, b) { return a.team - b.team || (!!b.me - !!a.me) || (!!b.human - !!a.human) || a.slot - b.slot; });
     var l = S.l + 4, r = W - S.r - 4, span = (r - l) / 4;
     // four names across the top, ball behind whoever has it, slim turbo meters underneath
     P.forEach(function (p, i) {
@@ -584,7 +726,7 @@ window.HW = window.HW || {};
       if (p.hasBall) { var bi = ballIcon(p.onFire, fr % 3); g.drawImage(bi, Math.round(cx - nw / 2 - 6), 15 - bi.height); }
       var fire = p.onFire && blink(6);
       Fo.draw(g, name, cx, 9, { scheme: fire ? 'fire' : 'yellow' });
-      if (p.human) { var m1 = marker(P1C, 'YOU'); g.drawImage(m1, Math.round(cx - nw / 2 - m1.width - 3), 2, m1.width, m1.height - 6); }
+      if (p.me || (p.human && p.lbl)) { var m1 = p.me ? marker(P1C, 'YOU') : marker('#1aa6d8', p.lbl); g.drawImage(m1, Math.round(cx - nw / 2 - m1.width - 3), 2, m1.width, m1.height - 6); }   // online: who's playing whom
       var tw = 40, tx = cx - tw / 2, ty = 17, tv = Math.max(0, Math.min(1, p.turbo / 100));
       g.fillStyle = '#000'; g.fillRect(tx - 1, ty - 1, tw + 2, 6); g.fillStyle = '#26284a'; g.fillRect(tx, ty, tw, 4);
       g.fillStyle = p.onFire ? (blink(8) ? '#ff5a10' : '#ffd23f') : tv > 0.5 ? '#3df07a' : tv > 0.25 ? '#ffd23f' : '#ff4b3a'; g.fillRect(tx, ty, Math.round(tw * (p.onFire ? 1 : tv)), 4);
@@ -618,7 +760,7 @@ window.HW = window.HW || {};
       if (!p.screen) return; var off = p.screen.x < S.l - 6 ? -1 : p.screen.x > W - S.r + 6 ? 1 : 0; if (!off) return;
       var ay = Math.max(74, Math.min(176, Math.round(p.screen.y - 90))), a = tri(off < 0 ? 'l' : 'r', 7, p.def.color), ax = off < 0 ? S.l + 2 : W - S.r - 2 - a.width;
       g.drawImage(a, ax, ay - a.height / 2 | 0);
-      Fo.draw(g, p.human ? 'YOU' : String(p.def.num), off < 0 ? ax + a.width + 2 : ax - 2, ay, { scale: 1, scheme: p.human ? 'green' : 'white', align: off < 0 ? 'left' : 'right', shadow: 0 });
+      Fo.draw(g, p.me ? 'YOU' : p.human && p.lbl ? p.lbl : String(p.def.num), off < 0 ? ax + a.width + 2 : ax - 2, ay, { scale: 1, scheme: p.me ? 'green' : 'white', align: off < 0 ? 'left' : 'right', shadow: 0 });
     });
     // callouts: big flaming arcade text that pops in
     var maxW = W - S.l - S.r - 30, cy = 112;

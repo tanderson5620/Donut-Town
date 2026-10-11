@@ -53,6 +53,26 @@ Rebuild the sprites after changing a player's look in `js/data.js` (`HW.PLAYERS`
 node famjam/tools/gen.js
 ```
 
+## Online (the family on their own phones)
+
+Tap **ONLINE** on the title screen.
+
+1. **Host:** one person taps HOST A GAME and gets a 4-digit room code. SEND INVITE opens the phone's share sheet with a link (`?room=1234`); on a computer the button copies the link instead.
+2. **Join:** everyone else taps the link, or taps JOIN A GAME and types the code.
+3. **Pick players:** in the lobby each person taps who they want to be. That's up to 4 people with 2 on a team; a player someone has already taken can't be picked.
+4. **Start:** the host picks the CPU difficulty and quarter length and taps START. Spots nobody picked are played by the CPU.
+
+How it works (`js/net.js`):
+- **The host runs the game.** Its phone runs the real game for everyone. The other phones only send their stick and buttons. The host sends back the picture about 60 times a second (every player, the ball, the scoreboard and the callouts, about 0.6 KB each), plus every sound and effect the game makes.
+- **Guests draw it smoothly.** Each guest draws the host's game 0.08 s in the past and blends between updates, so it doesn't stutter.
+- **Fair shooting.** A guest's jump-shot release is judged by where their own screen showed the jump when they let go (`p.relSt`), so lag doesn't spoil their timing.
+- **Connections.** Phones connect straight to each other over WebRTC. PeerJS (`js/lib/peerjs.min.js`, MIT, loaded only when you go online) uses its free cloud server to introduce them, and its TURN servers relay when a network blocks a direct line.
+- **Menus don't stop the game.** Opening the menu (II) on any phone doesn't pause it for everyone.
+- **Someone drops out.** If a guest's phone drops, the CPU takes over their player. Tapping TRY AGAIN puts them back as the same player.
+- **The host leaves.** If the host leaves, the game ends for everyone.
+- **The host has a small edge.** The host plays with no lag at all, so the person with the best connection should host.
+- **Testing.** For testing, `?peer=127.0.0.1:9000` points the game at your own PeerServer (npm `peer`) instead of the cloud one.
+
 ## Files
 
 ```
@@ -65,7 +85,9 @@ famjam/js/audio.js          synthesized sound effects
 famjam/js/gfx.js            camera, scanline floor, crowd, hoops, sprites + big heads, ball, particles
 famjam/js/game.js           rules: turbo, timed jump shots, dunks, passes, steals, shoves, blocks, rebounds, on fire, clock
 famjam/js/ai.js             computer players
-famjam/js/ui.js             input, menus (team select, player cards, matchup), HUD, callouts
+famjam/js/net.js            online play: room codes, lobby, host runs the game, guests send buttons and draw the host's game
+famjam/js/lib               PeerJS (WebRTC connections, MIT), loaded only for online play
+famjam/js/ui.js             input, menus (team select, player cards, matchup, online lobby and room-code keypad), HUD, callouts
 famjam/js/main.js           boot and main loop
 famjam/sprites, faces       generated art
 famjam/img                  link-preview image (share.png, 1200x630) and home-screen icon (icon.png, 512x512)

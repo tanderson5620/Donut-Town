@@ -18,16 +18,26 @@ window.HW = window.HW || {};
     try { document.fonts.load('16px "Press Start 2P"').then(function () { X.rebuild(); }); } catch (e) { }
     Object.keys(HW.PLAYERS).forEach(function (id) { X.loadFace(id); });
     G.phase = 'menu'; UI.screen = 'title';
-    if (/[?&]quick/.test(location.search)) { UI.st = { team: 0, picks: ['alan', 'carl'], ctrl: 'alan', diff: 'normal', qlen: UI.st.qlen || 60 }; UI.matchup(); }
+    var room = /[?&]room=(\d{4})/.exec(location.search);   // an invite link: straight into that room
+    if (room && HW.Net) { UI.code = room[1]; UI.screen = 'join'; HW.Net.join(room[1]); }
+    else if (/[?&]quick/.test(location.search)) { UI.st = { team: 0, picks: ['alan', 'carl'], ctrl: 'alan', diff: 'normal', qlen: UI.st.qlen || 60 }; UI.matchup(); }
     requestAnimationFrame(loop);
   }
   var idleT = 0;
   function loop(ts) {
     var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts; if (HW.dtOverride) dt = HW.dtOverride;
     UI.readInput();
-    if (In.pauseDown && (G.phase === 'play' || G.phase === 'tip' || G.phase === 'scored')) { UI.prevPhase = G.phase; G.phase = 'paused'; UI.screen = 'paused'; }
+    var Net = HW.Net, live = Net && Net.playing();
+    // online the game never stops for one phone's menu: II just opens it over the game
+    if (live) { if (In.pauseDown && (!UI.screen || UI.screen === 'paused')) UI.screen = UI.screen ? null : 'paused'; }
+    else if (In.pauseDown && (G.phase === 'play' || G.phase === 'tip' || G.phase === 'scored')) { UI.prevPhase = G.phase; G.phase = 'paused'; UI.screen = 'paused'; }
     else if (In.pauseDown && UI.screen === 'paused') { UI.screen = null; G.phase = UI.prevPhase; }
-    if (!UI.screen || UI.screen === 'results') G.update(dt, In); else G.update(0, In);
+    if (live && Net.mode === 'guest') Net.guestFrame();   // a guest doesn't run the game: it shows the host's
+    else {
+      if (Net) { Net.pre(); Net.rec = live; }
+      if (!UI.screen || UI.screen === 'results' || live) G.update(dt, In); else G.update(0, In);
+      if (Net) { Net.rec = false; Net.post(); }
+    }
     if (G.phase === 'over' && G.phaseT <= 0 && UI.screen !== 'results') UI.screen = 'results';
     g.fillStyle = '#05050c'; g.fillRect(0, 0, X.W, X.H);
     if (G.players.length && G.phase !== 'menu') { X.drawScene(g, G.t, UI.screen === 'paused' ? 0 : dt, G.players, G.ball, G.hoopFx); if (!(G.pu && G.pu.t > 0.12 && G.pu.t < G.PU.dur - 0.15) && !G.cine) UI.drawHUD(g); }   // the power-up close-up gets the whole screen
