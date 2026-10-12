@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=11';
+  var SHEET_V = '?v=12';
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -263,6 +263,13 @@ window.HW = window.HW || {};
       if (gold) { var P = img === f.front ? f.ssjPad : f.ssjPadBack, sx = hw / img.naturalWidth; img = img === f.front ? f.ssj : f.ssjBack; dx0 -= P[0] * sx; dy0 -= P[1] * sx; dw = img.naturalWidth * sx; dh = img.naturalHeight * sx; }
       if (rot) { g.save(); g.translate(hx, hy); g.rotate(rot); g.drawImage(img, dx0, dy0, dw, dh); g.restore(); }   // head turns with a flip or a fall
       else g.drawImage(img, hx + dx0, hy + dy0, dw, dh);
+      // Gator twerking hard after his flash: lips pursed, pushed out in a pout (pixel art, on the mouth, turning with the head)
+      var J = HW.Jam, js = J && J.show, purse = js && js.kind === 'pu' && js.p === p && js.t >= J.TW.slow1;
+      if (purse && f && (img === f.front || img === f.ssj)) {
+        var mo2 = HW.MOUTH && HW.MOUTH[p.id] || [0.5, 0.8], ls = lipsSprite(), lw = hw / hs * 0.3, lh = lw * ls.height / ls.width, sm2 = g.imageSmoothingEnabled;
+        g.save(); g.translate(hx, hy); if (rot) g.rotate(rot); g.imageSmoothingEnabled = false;
+        g.drawImage(ls, -hw / 2 + mo2[0] * hw - lw / 2, -hh * 0.8 + mo2[1] * hh - lh * 0.55, lw, lh); g.restore(); g.imageSmoothingEnabled = sm2;
+      }
       if (p.tongue && !rot && f && (img === f.front || img === f.ssj)) {   // tongue hanging out of his mouth (the free-throw-line dunk), pixel art like the sprites
         var mo = HW.MOUTH && HW.MOUTH[p.id] || [0.5, 0.8], fw0 = hw / hs, ts = tongueSprite(), tw = fw0 * 0.2, th = tw * ts.height / ts.width;
         var smooth = g.imageSmoothingEnabled; g.imageSmoothingEnabled = false;
@@ -493,8 +500,9 @@ window.HW = window.HW || {};
       if (ball && ball.holder && ball.holder.id === cm.id || sh.zoom && ball && ball.holder && ball.holder !== sh.p) ball = null;
     }
     drawSceneInner(g, t, dt, players, ball, hoopFx);
-    var T0 = HW.Jam && HW.Jam.TW, smack = cm && sh.t >= T0.hit && sh.t < T0.hit + 0.7 ? X.buttWorld(sh.p) : null, smackAt = null;
-    if (smack) { var sp = X.proj(smack.x, smack.y + (sh.zoom ? 0.35 : 1.2), sh.p.z); smackAt = pu ? { x: (sp.x - zf.x) * zk + tx, y: (sp.y - zf.y) * zk + ty } : { x: sp.x, y: sp.y }; }
+    var T0 = HW.Jam && HW.Jam.TW, hitAt = -1; if (cm) T0.hits.forEach(function (h) { if (sh.t >= h && sh.t < h + 0.55) hitAt = h; });
+    var smack = hitAt >= 0 ? X.buttWorld(sh.p) : null, smackAt = null;
+    if (smack) { var sp = X.proj(smack.x, smack.y + 0.35, sh.p.z); smackAt = pu ? { x: (sp.x - zf.x) * zk + tx, y: (sp.y - zf.y) * zk + ty } : { x: sp.x, y: sp.y }; }
     if (pu) {
       g.restore(); g.imageSmoothingEnabled = true;
       // dim the edges so he owns the screen, darker while he charges
@@ -503,9 +511,9 @@ window.HW = window.HW || {};
     }
     // the slow motion in Gator's twerk: cinema bars in and out, and SMACK! where her hand lands
     if (cm) {
-      var lb = Math.max(0, Math.min(1, (sh.t - T0.slow0 + 0.15) / 0.25, (T0.slow1 + 0.2 - sh.t) / 0.25)) * H * (sh.zoom ? 0.09 : 0.045);   // thinner over the whole court
+      var lb = Math.max(0, Math.min(1, (sh.t - T0.slow0 + 0.15) / 0.25, (T0.slow1 + 0.2 - sh.t) / 0.25)) * H * 0.09;   // through the slow wind-up
       if (lb > 0) { g.fillStyle = '#000'; g.fillRect(0, 0, W, lb); g.fillRect(0, H - lb, W, lb); }
-      if (smackAt && HW.Font) { var st = sh.t - T0.hit, pop = (st < 0.06 ? 5 : 4) - (sh.zoom ? 0 : 2); g.globalAlpha = Math.min(1, (0.7 - st) / 0.2); HW.Font.draw(g, 'SMACK!', smackAt.x, smackAt.y - st * 30, { scale: pop, scheme: 'yellow', outline: 3, outlineColor: '#7a0a00', shadow: 3 }); g.globalAlpha = 1; }
+      if (smackAt && HW.Font) { var st = sh.t - hitAt, pop = (st < 0.06 ? 5 : 4) - (hitAt > T0.hits[0] ? 1 : 0); g.globalAlpha = Math.min(1, (0.55 - st) / 0.2); HW.Font.draw(g, 'SMACK!', smackAt.x, smackAt.y - st * 30, { scale: pop, scheme: 'yellow', outline: 3, outlineColor: '#7a0a00', shadow: 3 }); g.globalAlpha = 1; }
     }
     if (X.white > 0) { g.fillStyle = 'rgba(255,248,214,' + Math.min(1, X.white) + ')'; g.fillRect(0, 0, W, H); X.white = Math.max(0, X.white - dt * 3.2); }
   };
@@ -526,6 +534,24 @@ window.HW = window.HW || {};
     X.drawParts(g, dt);
   }
 
+  // pursed lips: a round pout, outlined, the top lip shaded, a highlight on the bottom one
+  var lipsC = null;
+  function lipsSprite() {
+    if (lipsC) return lipsC;
+    var rows = ['...oooo...', '.ooTTTToo.', 'oTTTDTTTTo', 'oTTDdDTTTo', '.oMMMMMMo.', 'oLLLLLLLLo', 'oLHHLLLLLo', '.oLLLLLLo.', '..oooooo..'];
+    var col = { o: '#4a0f1e', T: '#c23a58', D: '#8f1f38', d: '#5e1022', M: '#3a0a14', L: '#e05a74', H: '#ff9fb2' }, c = lipsC = canvas(10, rows.length), g = c.getContext('2d');
+    rows.forEach(function (r, y) { for (var x = 0; x < 10; x++) if (col[r[x]]) { g.fillStyle = col[r[x]]; g.fillRect(x, y, 1, 1); } });
+    return c;
+  }
+  // a frame of a player's anim drawn straight onto the screen (feet at x, y; ppm screen pixels per meter) - the team card's twerk
+  X.drawFrameAt = function (g, id, anim, frame, x, y, ppm, face) {
+    var p = { id: id, def: HW.PLAYERS[id], anim: anim, dir: 'R', frame: frame, face: face || 1, x: 0, y: 0, z: 0 };
+    if (!X.hasAnim(p, anim)) return false; var o = frameOf(p); if (!o) return false;
+    o.k = ppm / o.m.ppm; o.ground = { x: x, y: y, s: ppm }; o.lift = 0;
+    var sm = g.imageSmoothingEnabled; g.imageSmoothingEnabled = false;
+    g.save(); g.translate(x, y); if (o.flip) g.scale(-1, 1); drawBody(g, p, o); g.restore(); g.imageSmoothingEnabled = sm;
+    return true;
+  };
   // a little pixel-art tongue: comes out of a dark mouth gap, outlined, shaded, with the groove down the middle
   var tongueC = null;
   function tongueSprite() {
