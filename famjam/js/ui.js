@@ -564,7 +564,7 @@ window.HW = window.HW || {};
     var opp = T[1 - st.team].roster.slice().sort(function () { return Math.random() - 0.5; }).slice(0, 2);
     teams[st.team] = [st.ctrl, mate]; teams[1 - st.team] = opp;
     UI.mu = { teams: teams, human: st.ctrl, diff: st.diff, qlen: st.qlen || 60 }; UI.screen = 'matchup'; UI.loading = true;
-    Promise.all(teams[0].concat(teams[1]).map(X.loadPlayer)).then(function () { UI.loading = false; });
+    Promise.all(HW.Jam.loadIds(teams).map(X.loadPlayer)).then(function () { UI.loading = false; });
   };
 
   /* ---------- online: host or join, the room-code keypad, the lobby, and when it goes wrong ---------- */

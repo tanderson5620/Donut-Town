@@ -25,7 +25,7 @@ window.HW = window.HW || {};
   N.playing = function () { return !!N.mode && N.stage === 'game'; };
 
   /* ---------- sounds and effects: the host records each one the game makes, the guests play them back ---------- */
-  var AU = ['sfx', 'whoosh', 'scream', 'punch', 'painF', 'laugh', 'jump', 'hup', 'dribble', 'catch', 'bounce', 'yell', 'wow', 'trash', 'swipe', 'steal', 'shoveYell', 'powerup', 'passWhoosh', 'net', 'land', 'incoming', 'help', 'happy', 'fireball', 'fire', 'ew', 'cheer', 'charge', 'buzzer', 'board', 'baba', 'thud', 'shove', 'shatter', 'rim', 'dunk'];
+  var AU = ['sfx', 'whoosh', 'scream', 'punch', 'painF', 'laugh', 'jump', 'hup', 'dribble', 'catch', 'bounce', 'yell', 'wow', 'trash', 'swipe', 'steal', 'shoveYell', 'powerup', 'passWhoosh', 'net', 'land', 'incoming', 'help', 'happy', 'fireball', 'fire', 'ew', 'cheer', 'charge', 'buzzer', 'board', 'baba', 'thud', 'shove', 'shatter', 'rim', 'dunk', 'slap'];
   var FX = ['burst', 'flame', 'ring', 'crater', 'blood', 'powerFlash', 'powerDown'];
   var orig = { a: {}, x: {} }, depth = 0;
   function enc(args) {
@@ -76,7 +76,7 @@ window.HW = window.HW || {};
   N.claimedBy = function (id) { for (var i = 0; i < N.people.length; i++) if (id && N.people[i].claim === id) return N.people[i].lbl; return null; };
   function showMatchup(su, me, then) {
     var U = UI(); U.mu = { teams: su.teams, human: me, humans: su.humans, names: su.names, diff: su.diff, qlen: su.qlen, online: true }; U.screen = 'matchup'; U.loading = true;
-    Promise.all(su.teams[0].concat(su.teams[1]).map(X.loadPlayer)).then(function () { U.loading = false; if (then) then(); });
+    Promise.all(G.loadIds(su.teams).map(X.loadPlayer)).then(function () { U.loading = false; if (then) then(); });
   }
   function remember(code, claim) { try { sessionStorage.setItem('famjam.room', JSON.stringify({ code: code, claim: claim })); } catch (e) { } }
   function remembered(code) { try { var r = JSON.parse(sessionStorage.getItem('famjam.room') || 'null'); return r && r.code === code ? r.claim : null; } catch (e) { return null; } }
@@ -239,7 +239,7 @@ window.HW = window.HW || {};
       t: 's', ht: r3(ht),
       g: [r3(G.t), G.phase, r3(G.phaseT), G.q, r3(G.clock), r3(G.shot), G.score[0], G.score[1], r3(X.camX), r3(X.shake), r3(X.hype), r3(G.hoopFx[0]), r3(G.hoopFx[1])],
       co: G.callouts.map(function (c) { return [c.text, c.color, c.life, r3(c.t), c.size]; }),
-      pu: G.pu ? [P.indexOf(G.pu.p), r3(G.pu.t), G.pu.boom ? 1 : 0] : 0,
+      pu: G.pu ? [P.indexOf(G.pu.p), r3(G.pu.t), G.pu.boom ? 1 : 0, G.pu.dur, G.pu.tw || 0] : 0,
       ci: G.cine ? [P.indexOf(G.cine.p), r3(G.cine.t), r3(G.cine.dur), G.cine.kind] : 0,
       b: [r3(b.x), r3(b.y), r3(b.z), r3(b.vx), b.visible ? 1 : 0, b.baked ? 1 : 0, b.behind ? 1 : 0, b.inFront ? 1 : 0, b.fire ? 1 : 0, r3(b.swoosh), r3(b.spin), b.holder ? P.indexOf(b.holder) : -1, b.state],
       p: P.map(function (p) {
@@ -337,7 +337,8 @@ window.HW = window.HW || {};
       b.x = lb ? L(bb[0], nb[0], f) : bb[0]; b.y = lb ? L(bb[1], nb[1], f) : bb[1]; b.z = lb ? L(bb[2], nb[2], f) : bb[2];
       b.vx = bb[3]; b.visible = !!bb[4]; b.baked = !!bb[5]; b.behind = !!bb[6]; b.inFront = !!bb[7]; b.fire = !!bb[8]; b.swoosh = bb[9]; b.spin = bb[10]; b.holder = bb[11] >= 0 ? P[bb[11]] : null; b.state = bb[12];
     }
-    G.pu = s.pu ? { p: P[s.pu[0]], t: n && n.pu ? L(s.pu[1], n.pu[1], f) : s.pu[1], boom: !!s.pu[2] } : null;
+    var cam = G.pu && G.pu.cam;   // keep Lisa's walk-on (G.puCameo) from one update to the next
+    G.pu = s.pu ? { p: P[s.pu[0]], t: n && n.pu ? L(s.pu[1], n.pu[1], f) : s.pu[1], boom: !!s.pu[2], dur: s.pu[3], tw: s.pu[4], cam: cam } : null;
     G.cine = s.ci ? { p: P[s.ci[0]], t: s.ci[1], dur: s.ci[2], kind: s.ci[3] } : null;
     if (G.phase !== 'over' && U.screen === 'results') U.screen = null;   // the host started a rematch
   }

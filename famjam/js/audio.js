@@ -202,6 +202,7 @@ window.HW = window.HW || {};
   A.beep = function (hi) { tone(hi ? 880 : 440, hi ? 0.35 : 0.15, 'square', 0.12); };
   A.click = function () { tone(1200, 0.05, 'square', 0.06); };
   A.hover = function () { if (throttle('h', 50)) tone(900, 0.03, 'sine', 0.04); };
+  A.slap = function () { noise(0.06, 0.75, 2800, 1.1, 0, 'highpass'); noise(0.14, 0.4, 900, 1.2); tone(150, 0.09, 'sine', 0.3, 70); };   // an open-hand smack
   A.shove = function () { noise(0.14, 0.3, 300, 0.8); tone(80, 0.15, 'sine', 0.25, 50); };
   A.steal = function () { noise(0.1, 0.22, 1500, 2); tone(700, 0.08, 'triangle', 0.1, 1200); };
   A.thud = function () { noise(0.25, 0.35, 160, 0.7); tone(60, 0.3, 'sine', 0.4, 40); };
