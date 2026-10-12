@@ -460,6 +460,15 @@ window.HW = window.HW || {};
     return bigBallC = up(c, 2);
   }
 
+  // Gator's card: his picture for 5 s, then his twerk for 5 s (cross-fading), back and forth
+  function twerkCard(g, id, x, y, w, h) {
+    X.loadPlayer(id); if (!X.hasAnim({ id: id }, 'twerk')) return;   // his sprites (loaded once)
+    var c = UI.t % 10, a = c < 5 ? 0 : Math.max(0, Math.min(1, (c - 5) / 0.35, (10 - c) / 0.35)); if (a <= 0) return;
+    g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.globalAlpha = a;
+    g.fillStyle = PB; g.fillRect(x, y, w, h);
+    X.drawFrameAt(g, id, 'twerk', Math.floor(UI.t / 0.05) % 6, x + w * 0.5, y + h - 14, h * 0.62 / 1.0);
+    g.restore();
+  }
   function drawTeamCard(g, fr) {
     var st = UI.st, T = HW.TEAMS, t = T[st.team]; fixPicks();
     var C = card(g), aw = 30, cL = C.L + aw + 4, cR = C.R - aw - 4, cw = cR - cL;
@@ -469,6 +478,7 @@ window.HW = window.HW || {};
     [0, 1].forEach(function (slot) {
       var id = st.picks[slot], x = slot ? cR - PWd : cL, pc = portrait(id, PWd, PH);
       g.drawImage(pc, x, py);
+      if (HW.PLAYERS[id].powerup === 'twerk') twerkCard(g, id, x, py, PWd, PH);
       // the player you control gets a glowing yellow frame; the computer's teammate is dimmed
       if (st.ctrl === id) { var gl = blink(2) ? '#ffe14d' : '#ffb000'; g.fillStyle = gl; g.fillRect(x, py, PWd, 3); g.fillRect(x, py + PH - 3, PWd, 3); g.fillRect(x, py, 3, PH); g.fillRect(x + PWd - 3, py, 3, PH); }
       else { g.fillStyle = 'rgba(5,6,20,0.45)'; g.fillRect(x, py, PWd, PH); }

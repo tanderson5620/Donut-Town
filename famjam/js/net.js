@@ -240,7 +240,7 @@ window.HW = window.HW || {};
       g: [r3(G.t), G.phase, r3(G.phaseT), G.q, r3(G.clock), r3(G.shot), G.score[0], G.score[1], r3(X.camX), r3(X.shake), r3(X.hype), r3(G.hoopFx[0]), r3(G.hoopFx[1])],
       co: G.callouts.map(function (c) { return [c.text, c.color, c.life, r3(c.t), c.size]; }),
       pu: G.pu ? [P.indexOf(G.pu.p), r3(G.pu.t), G.pu.boom ? 1 : 0, G.pu.dur, G.pu.tw || 0] : 0,
-      sh: G.show ? [P.indexOf(G.show.p), r3(G.show.t), G.show.zoom ? 1 : 0] : 0,
+      sh: G.show ? [P.indexOf(G.show.p), r3(G.show.t), G.show.kind === 'pu' ? 1 : 0, G.show.len] : 0,
       ci: G.cine ? [P.indexOf(G.cine.p), r3(G.cine.t), r3(G.cine.dur), G.cine.kind] : 0,
       b: [r3(b.x), r3(b.y), r3(b.z), r3(b.vx), b.visible ? 1 : 0, b.baked ? 1 : 0, b.behind ? 1 : 0, b.inFront ? 1 : 0, b.fire ? 1 : 0, r3(b.swoosh), r3(b.spin), b.holder ? P.indexOf(b.holder) : -1, b.state],
       p: P.map(function (p) {
@@ -340,7 +340,7 @@ window.HW = window.HW || {};
     }
     G.pu = s.pu ? { p: P[s.pu[0]], t: n && n.pu ? L(s.pu[1], n.pu[1], f) : s.pu[1], boom: !!s.pu[2], dur: s.pu[3], tw: s.pu[4] } : null;
     var cam = G.show && G.show.cam;   // Gator's twerk show: keep Lisa's walk-on (G.showCameo) from one update to the next
-    G.show = s.sh ? { p: P[s.sh[0]], t: n && n.sh ? L(s.sh[1], n.sh[1], f) : s.sh[1], len: G.TW.len, zoom: !!s.sh[2], cam: cam } : null;
+    G.show = s.sh ? { p: P[s.sh[0]], t: n && n.sh ? L(s.sh[1], n.sh[1], f) : s.sh[1], len: s.sh[3], kind: s.sh[2] ? 'pu' : 'solo', zoom: !!s.sh[2], cam: cam } : null;
     G.cine = s.ci ? { p: P[s.ci[0]], t: s.ci[1], dur: s.ci[2], kind: s.ci[3] } : null;
     if (G.phase !== 'over' && U.screen === 'results') U.screen = null;   // the host started a rematch
   }
