@@ -347,7 +347,7 @@ window.HW = window.HW || {};
     var In = HW.In, U = UI(), e = [], me = G.human;
     if (U.screen === 'paused') { In.shootDown = In.shootUp = In.passDown = In.actDown = false; }
     if (In.shootDown) e.push('sd');
-    if (In.shootUp) e.push(['su', me.state === 'shoot' && me.hasBall && !me.released ? r3(me.st) : null]);
+    if (In.shootUp) e.push(['su', me.state === 'shoot' && me.hasBall && !me.released ? r3(me.st) : me.state === 'stepback' ? -1 : null]);   // -1: let go during the step-back
     if (In.passDown) e.push('pd'); if (In.actDown) e.push('ad');
     var mx = U.screen ? 0 : Math.round(In.mx * 100) / 100, mz = U.screen ? 0 : Math.round(In.mz * 100) / 100, tb = In.turbo ? 1 : 0, ct = In.comboTurbo ? 1 : 0;
     var key = mx + ',' + mz + ',' + tb + ct, now = performance.now();
