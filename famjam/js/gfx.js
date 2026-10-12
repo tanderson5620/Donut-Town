@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=10';
+  var SHEET_V = '?v=11';
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -274,6 +274,18 @@ window.HW = window.HW || {};
   X.handWorld = function (p, left) {
     var o = frameOf(p); if (!o) return null; var hd = o.m.hand[o.fi]; if (!hd) return null; var j = left && hd.length > 3 ? 2 : 0;
     return { x: p.x + (o.flip ? -1 : 1) * (hd[j] - o.fx) / o.m.ppm, y: p.y + (o.fy - hd[j + 1]) / o.m.ppm };
+  };
+  // the back of the twerk's booty right now (meta.butt from the sprite factory), in court meters
+  X.buttWorld = function (p) {
+    var o = frameOf(p); if (!o || !o.m.butt) return null; var b = o.m.butt[o.fi]; if (!b) return null;
+    return { x: p.x + (o.flip ? -1 : 1) * (b[0] - o.fx) / o.m.ppm, y: p.y + (o.fy - b[1]) / o.m.ppm };
+  };
+  // a point ('hand' = the near hand, or 'butt') of frame idx of an anim, in meters from the feet, facing right
+  X.animPoint = function (id, anim, idx, key) {
+    var sh = sheets[id]; if (!sh) return null; var S = sh.meta && sh.meta.anim[anim] ? sh : sh.x && sh.x.meta && sh.x.meta.anim[anim] ? sh.x : null; if (!S) return null;
+    var m = S.meta, A = m.anim[anim], list = A.R || A[Object.keys(A)[0]], fi = list[Math.min(idx, list.length - 1)], pt = key === 'butt' ? m.butt && m.butt[fi] : m.hand[fi]; if (!pt) return null;
+    var off = m.off && m.off[fi], fx = m.feet[0] + (off ? off[0] : 0), fy = m.feet[1] + (off ? off[1] : 0);
+    return { x: (pt[0] - fx) / m.ppm, y: (fy - pt[1]) / m.ppm };
   };
   // the polished floor mirrors the players faintly, like the arcade's glossy hardwood
   X.drawReflection = function (g, p) {
@@ -444,14 +456,22 @@ window.HW = window.HW || {};
     X.t = t;
     var pu = HW.Jam && (HW.Jam.pu || HW.Jam.cine), zk = 1, za = 0, zf = null, cine = pu && !HW.Jam.pu;
     if (pu) {   // the power-up camera: zoom in on him, hold, ease back out
-      var D = cine ? pu.dur : HW.Jam.PU.dur, u = pu.t, e = function (v) { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+      var D = pu.dur || HW.Jam.PU.dur, u = pu.t, e = function (v) { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
       // zoom so he fills about 3/4 of the screen from his shoes to the tips of the hair, never showing past the edge of the scene
       var pp = pu.p, gd = X.proj(pp.x, 0, pp.z), top = pp.headTop !== undefined ? pp.headTop - X.shakeY : gd.y - 2.3 * gd.s, fig = Math.max(40, gd.y - X.shakeY - top + 0.35 * gd.s);
       // the slow-motion dunk: the whole of him in the air, from his sneakers to his hair, so the ball going under his leg is plain
       var feet = cine ? X.proj(pp.x, pp.y, pp.z).y - X.shakeY : 0, body = Math.max(40, feet - top + 0.1 * gd.s);
       var zmax = cine ? Math.max(1.3, Math.min(1.6, 0.75 * H / body)) : Math.max(1.5, Math.min(2.6, 0.92 * H / fig));
-      za = u < 0.25 ? e(u / 0.25) : u > D - 0.3 ? e((D - u) / 0.3) : 1; zk = 1 + (zmax - 1) * za;
       zf = cine ? { x: gd.x - X.shakeX, y: (feet + top) / 2 } : { x: gd.x - X.shakeX, y: (gd.y - X.shakeY + top - 0.35 * gd.s) / 2 };
+      if (!cine && pu.tw && pu.cam) {
+        // Gator's twerk: the two of them side-on in frame (his rear, her hand); into the normal power-up it eases back onto him alone
+        var lx = X.proj(pu.cam.spot, 0, pp.z).x - X.shakeX, mid = (gd.x - X.shakeX + lx) / 2, span = Math.abs(gd.x - X.shakeX - lx) + 1.3 * gd.s;
+        var ltop = pu.cam.headTop !== undefined ? pu.cam.headTop - X.shakeY : top, fig2 = Math.max(fig, gd.y - X.shakeY - Math.min(top, ltop) + 0.3 * gd.s);
+        var z1 = Math.max(1.25, Math.min(2.1, 0.85 * H / fig2, 0.92 * W / span)), k2 = e((u - pu.tw) / 0.35);
+        zmax = z1 + (zmax - z1) * k2;
+        zf = { x: mid + (gd.x - X.shakeX - mid) * k2, y: (gd.y - X.shakeY + Math.min(top, ltop)) / 2 + (zf.y - (gd.y - X.shakeY + Math.min(top, ltop)) / 2) * k2 };
+      }
+      za = u < 0.25 ? e(u / 0.25) : u > D - 0.3 ? e((D - u) / 0.3) : 1; zk = 1 + (zmax - 1) * za;
       if (cine && pu.kind === 'board' && ball) {
         // off the glass: in close on the ball itself as it leaves his hand, tightest as it hits the board, back out as it comes back to
         // him - full view again the moment it's in his hand (u = how far through the dunk he is)
@@ -464,12 +484,23 @@ window.HW = window.HW || {};
       g.save(); g.translate(tx, ty); g.scale(zk, zk); g.translate(-zf.x, -zf.y);
       if (za > 0.3) g.imageSmoothingEnabled = false;
     }
+    // Lisa walks on in Gator's power-up: she's drawn in place of the real her (and the ball if she has it)
+    var cm = HW.Jam && HW.Jam.puCameo && HW.Jam.puCameo();
+    if (cm) { players = [pu.p, cm]; if (ball && ball.holder && ball.holder !== pu.p) ball = null; }   // just the two of them, nobody in the way
     drawSceneInner(g, t, dt, players, ball, hoopFx);
+    var smack = !cine && pu && pu.tw && pu.t >= HW.Jam.TW.hit && pu.t < HW.Jam.TW.hit + 0.7 ? X.buttWorld(pu.p) : null, smackAt = null;
+    if (smack) { var sp = X.proj(smack.x, smack.y + 0.35, pu.p.z); smackAt = { x: (sp.x - zf.x) * zk + tx, y: (sp.y - zf.y) * zk + ty }; }
     if (pu) {
       g.restore(); g.imageSmoothingEnabled = true;
       // dim the edges so he owns the screen, darker while he charges
       var vg = g.createRadialGradient(W / 2, H * 0.52, H * 0.25, W / 2, H * 0.52, W * 0.62), dark = (cine ? 0.35 : pu.boom ? 0.5 : 0.7) * za;
       vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,8,' + dark + ')'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    }
+    // the slow motion in Gator's twerk: cinema bars in and out, and SMACK! where her hand lands
+    if (pu && !cine && pu.tw && pu.t < pu.tw) {
+      var T0 = HW.Jam.TW, lb = Math.max(0, Math.min(1, (pu.t - T0.slow0 + 0.15) / 0.25, (T0.slow1 + 0.2 - pu.t) / 0.25)) * H * 0.09;
+      if (lb > 0) { g.fillStyle = '#000'; g.fillRect(0, 0, W, lb); g.fillRect(0, H - lb, W, lb); }
+      if (smackAt && HW.Font) { var st = pu.t - T0.hit, pop = st < 0.06 ? 5 : 4; g.globalAlpha = Math.min(1, (0.7 - st) / 0.2); HW.Font.draw(g, 'SMACK!', smackAt.x, smackAt.y - st * 30, { scale: pop, scheme: 'yellow', outline: 3, outlineColor: '#7a0a00', shadow: 3 }); g.globalAlpha = 1; }
     }
     if (X.white > 0) { g.fillStyle = 'rgba(255,248,214,' + Math.min(1, X.white) + ')'; g.fillRect(0, 0, W, H); X.white = Math.max(0, X.white - dt * 3.2); }
   };
