@@ -64,6 +64,38 @@ function apply(A, p) {
   // pelvis: [tip, turn, roll] of the pelvis alone (the twerk), turning round the base of the spine: the spine is turned back by as
   // much, so his back, arms and head hold perfectly still, and the legs bend at hip and knee to keep the feet where they were
   if (p.pelvis) pelvis(A, p.pelvis);
+  // flat: both soles flat and level on the floor whatever the legs do (toes turned out with the thighs)
+  if (p.flat) flatFeet(A, p);
+  // knees: both hands planted on the knees (arm IK) - [up the thigh from the knee joint, out from the front of it]
+  if (p.knees) [0, 1].forEach(function (k) { handOnKnee(A, k, p.knees); });
+}
+function flatFeet(A, p) {
+  A.root.updateMatrixWorld(true);
+  var rq = A.root.getWorldQuaternion(new THREE.Quaternion()), q = new THREE.Quaternion();
+  [0, 1].forEach(function (k) {
+    var turn = k ? (p.lto || 0) : -(p.rto || 0);
+    A.feet[k].quaternion.copy(A.kn[k].getWorldQuaternion(q).invert().multiply(rq.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turn))));
+  });
+  A.root.updateMatrixWorld(true);
+}
+// numeric IK (damped least squares): nudge the params x (set(x) poses the bones) until the point get() is at goal (world space)
+function ik(A, x, set, get, goal, lo) {
+  var d = 1e-3, M = new THREE.Matrix3();
+  for (var it = 0; it < 20; it++) {
+    set(x); A.root.updateMatrixWorld(true); var f = get(), e = goal.clone().sub(f); if (e.lengthSq() < 1e-8) break;
+    var J = x.map(function (v, k) { var y = x.slice(); y[k] += d; set(y); A.root.updateMatrixWorld(true); return get().sub(f).divideScalar(d); }), m = [];
+    for (var i = 0; i < 3; i++) for (var j = 0; j < 3; j++) m.push(J.reduce(function (s, c) { return s + c.getComponent(i) * c.getComponent(j); }, i === j ? 1e-3 : 0));
+    var w = e.applyMatrix3(M.set(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]).invert());
+    x = x.map(function (v, k) { return Math.max(lo[k], v + J[k].dot(w)); });
+  }
+  set(x); A.root.updateMatrixWorld(true); return x;
+}
+function handOnKnee(A, k, off) {
+  A.root.updateMatrixWorld(true);
+  var goal = A.th[k].localToWorld(A.kn[k].position.clone().add(new THREE.Vector3(0, off[0], off[1])));
+  var sh = A.sh[k], el = A.el[k], r = sh.rotation, s = k ? 1 : -1;
+  var x0 = [-r.x, s * r.z - 0.12, -el.rotation.x], ry = r.y;   // back to the pose's own rs / rz / re
+  ik(A, x0, function (x) { sh.rotation.set(-x[0], ry, s * (0.12 + x[1])); el.rotation.x = -x[2]; }, function () { return A.palm[k].getWorldPosition(new THREE.Vector3()); }, goal, [-3, -1, 0.05]);
 }
 function pelvis(A, e) {
   A.root.updateMatrixWorld(true);
@@ -76,17 +108,11 @@ function pelvis(A, e) {
   [0, 1].forEach(function (k) { legTo(A, k, f0[k]); A.feet[k].quaternion.copy(A.kn[k].getWorldQuaternion(new THREE.Quaternion()).invert().multiply(fq[k])); });
   A.root.updateMatrixWorld(true);
 }
-// two-bone IK by a few Newton steps: swing thigh k at the hip and bend its knee until its ankle is back at goal (height and forward, root space)
+// leg IK: swing thigh k at the hip (forward and out) and bend its knee until its ankle is back at goal (root space)
 function legTo(A, k, goal) {
-  var th = A.th[k], kn = A.kn[k], q0 = th.quaternion.clone(), r0 = kn.rotation.x, a = 0, b = 0, qa = new THREE.Quaternion(), ax = new THREE.Vector3(1, 0, 0);
-  var at = function (a, b) { th.quaternion.copy(q0).multiply(qa.setFromAxisAngle(ax, a)); kn.rotation.x = r0 + b; A.root.updateMatrixWorld(true); return A.root.worldToLocal(A.feet[k].getWorldPosition(new THREE.Vector3())); };
-  for (var it = 0; it < 8; it++) {
-    var f = at(a, b), ey = goal.y - f.y, ez = goal.z - f.z; if (ey * ey + ez * ez < 1e-10) break;
-    var d = 1e-3, fa = at(a + d, b), fb = at(a, b + d), j00 = (fa.y - f.y) / d, j01 = (fb.y - f.y) / d, j10 = (fa.z - f.z) / d, j11 = (fb.z - f.z) / d, det = j00 * j11 - j01 * j10;
-    if (Math.abs(det) < 1e-9) break;
-    a += (j11 * ey - j01 * ez) / det; b += (j00 * ez - j10 * ey) / det;
-  }
-  at(a, b);
+  var th = A.th[k], kn = A.kn[k], q0 = th.quaternion.clone(), r0 = kn.rotation.x, q = new THREE.Quaternion(), e = new THREE.Euler();
+  ik(A, [0, 0, 0], function (x) { th.quaternion.copy(q0).multiply(q.setFromEuler(e.set(x[0], 0, x[1]))); kn.rotation.x = r0 + x[2]; },
+    function () { return A.feet[k].getWorldPosition(new THREE.Vector3()); }, A.root.localToWorld(goal.clone()), [-3, -3, 0.05 - r0]);
 }
 // ---------- muscle pump (the on-fire power-up) ----------
 // An extra scale per bone, in the bone's own rest frame round its joint (y runs along the limb), that is NOT passed on to its
@@ -116,20 +142,20 @@ function buffRig(A) {
   A.socks = A.kn.map(function (k) { return k.children.filter(function (c) { return c.isMesh; }); });   // rigid socks swell with the calves
   A.buffRig = 1;
 }
-var TUCK = null, TUCK_D = 0.018;
-function tuckGeo(g) {
-  if (TUCK) return TUCK;
+var TUCK = {}, TUCK_D = 0.018;
+function tuckGeo(g, depth) {   // (depth: a pose's own, deeper tuck - the twerk's squat)
+  var D = depth || TUCK_D; if (TUCK[D]) return TUCK[D];
   var t = g.clone(), p = t.attributes.position, n = g.attributes.normal, si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
   var cov = { 0: 1, 1: 1, 2: 1, 9: 1, 15: 1 };   // hips, spine, chest, both thighs (not the arms: the hands hang beside the shorts)
   for (var i = 0; i < p.count; i++) {
     var y = p.getY(i), r = sm(0.62, 0.7, y) * sm(1.3, 1.22, y); if (r <= 0) continue;
     var w = (cov[si.getX(i)] ? sw.getX(i) : 0) + (cov[si.getY(i)] ? sw.getY(i) : 0) + (cov[si.getZ(i)] ? sw.getZ(i) : 0) + (cov[si.getW(i)] ? sw.getW(i) : 0);
     w = sm(0.85, 1, w / (sw.getX(i) + sw.getY(i) + sw.getZ(i) + sw.getW(i) || 1)); if (w <= 0) continue;
-    var nx = n.getX(i) / 127, ny = n.getY(i) / 127, nz = n.getZ(i) / 127, L = Math.hypot(nx, ny, nz) || 1, d = TUCK_D * r * w / L;
+    var nx = n.getX(i) / 127, ny = n.getY(i) / 127, nz = n.getZ(i) / 127, L = Math.hypot(nx, ny, nz) || 1, d = D * r * w / L;
     p.setXYZ(i, p.getX(i) - nx * d, y - ny * d, p.getZ(i) - nz * d);
   }
   p.needsUpdate = true;
-  return (TUCK = t);
+  return (TUCK[D] = t);
 }
 function setBuff(A, a, fist, tuck) {
   A.buff = a; A.fist = fist || 0;
@@ -241,16 +267,17 @@ function powerup(i) {
   return o;
 }
 ANIMS.powerup = { n: 8, dirs: ['C'], f: function (t, i) { return powerup(i); } };
-// Gator's twerk, side-on: a wide squat, bent over with his hands on his knees, his rear stuck way out - and in the shorts a booty, two
+// Gator's twerk, side-on (turned a touch past profile, so his far arm hides behind the near one): a wide squat, feet flat, bent
+// over with both hands planted on his knees, his rear stuck way out - and in the shorts a booty, two
 // round cheeks the size of a basketball each (pose.booty: per cheek x/y/z scale and a lift; near cheek first). It's all in the hips:
 // his back, head, arms and legs hold still while the pelvis alone (pose.pelvis) pops the rear up and drops it, rolling and swaying
 // round as it goes, the cheeks bouncing a beat behind
 function twerk(ph, hard, jig) {
   // hard: after the power-up flash he goes at it harder - the hips popping higher and rolling wider, the cheeks bouncing more (rendered pumped)
-  var h = hard ? 1 : 0, lean = 0.77, hipx = 0.46, up = Math.sin(ph), rnd = Math.cos(ph);
+  var h = hard ? 1 : 0, lean = 1.0, hipx = 0.46, up = Math.sin(ph), rnd = Math.cos(ph);
   jig = jig || [Math.sin(ph - 1.1), Math.sin(ph - 2.3)];
   var b = function (k) { var j = jig[k] * (1.2 + 0.6 * h); return [1 + 0.07 * j, 1 - 0.1 * j, 1 + 0.05 * j, 0.014 * j]; };
-  return { plant: 1, crouch: 0.37, lean: lean, hipx: hipx, chx: -0.42, neck: -0.42,
+  return { yaw: 0.5, plant: 1, flat: 1, tuck: 0.055, knees: [0.05, 0.03], crouch: 0.37, lean: lean, hipx: hipx, chx: -0.3, neck: -0.42,
     pelvis: [(0.5 + 0.16 * h) * up, (0.15 + 0.05 * h) * rnd, (0.28 + 0.08 * h) * rnd],
     rt: 0.62 + lean * 0.5 + hipx, lt: 0.62 + lean * 0.5 + hipx, rk: 1.36, lk: 1.36, ra: 0.3, la: 0.3, rto: 0.4, lto: 0.4,
     rs: 0.55, ls: 0.55, re: 0.3, le: 0.3, rz: 0.2, lz: 0.2, booty: [b(0), b(1)] };
@@ -548,8 +575,9 @@ window.genPlayer = function (id, opt) {
         var pz = an.f(i / an.n, i);
         // muscle pump: per frame (pose.buff), per anim (the *_buff copies) or for the whole sheet (opt.buff)
         setBuff(A, pz.buff !== undefined ? pz.buff : an.buff !== undefined ? an.buff : opt.buff || 0, pz.fist, pz.plant);
+        if (pz.tuck && A.bodyMesh) A.bodyMesh.geometry = tuckGeo(A.bodyGeo, pz.tuck);
         A.root.position.set(0, 0, 0); A.root.rotation.y = DIRS[dir]; apply(A, pz);
-        A.cheeks.forEach(function (c, k) { var q = pz.booty && pz.booty[k]; c.visible = !!q; if (q) { c.scale.set(q[0], q[1], q[2]); c.position.y = -0.1 + q[3]; } });
+        A.cheeks.forEach(function (c, k) { var q = pz.booty && pz.booty[k]; c.visible = !!q; if (q) { c.scale.set(q[0], q[1] * 1.14, q[2]); c.position.y = -0.12 + q[3]; } });   // a touch taller and lower than round, so the shorts never gap under them
         A.root.updateMatrixWorld(true);
         if (pz.plant) {   // stand the ankles at their rest height whatever the legs do (crouch comes from the knee bend)
           var fy = Math.min(A.feet[0].getWorldPosition(new V3()).y, A.feet[1].getWorldPosition(new V3()).y);

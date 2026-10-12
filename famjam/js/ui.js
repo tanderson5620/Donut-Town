@@ -466,7 +466,7 @@ window.HW = window.HW || {};
     var c = UI.t % 10, a = c < 5 ? 0 : Math.max(0, Math.min(1, (c - 5) / 0.35, (10 - c) / 0.35)); if (a <= 0) return;
     g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.globalAlpha = a;
     g.fillStyle = PB; g.fillRect(x, y, w, h);
-    X.drawFrameAt(g, id, 'twerk', Math.floor(UI.t / 0.05) % 6, x + w * 0.5, y + h - 14, h * 0.62 / 1.0);
+    X.drawFrameAt(g, id, 'twerk', Math.floor(UI.t / 0.05) % 6, x + w * 0.5, y + h - 18, h * 0.6);
     g.restore();
   }
   function drawTeamCard(g, fr) {
