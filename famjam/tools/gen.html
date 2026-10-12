@@ -214,6 +214,18 @@ function powerup(i) {
   return o;
 }
 ANIMS.powerup = { n: 8, dirs: ['C'], f: function (t, i) { return powerup(i); } };
+// Gator's power-up: a twerk, side-on - wide squat, bent over with his hands on his knees, hips popping up and back three times a
+// second (twerk_buff: the same with the muscles pumped, for after the flash)
+function twerk(i) {
+  var ph = i / 6 * Math.PI * 2, pop = 0.5 + 0.5 * Math.sin(ph);
+  // (leaning the hips forward swings the thighs back with them, so the thighs come forward by that much more to stay in a squat)
+  var lean = 0.72 + 0.45 * pop;   // the hips tip up and back hard; the chest counters so it's the hips that move, not the head
+  return { plant: 1, crouch: 0.33 + 0.1 * pop, lean: lean, chx: -0.38 * pop, neck: -0.6 + 0.2 * pop,
+    rt: 0.7 + lean * 0.5, lt: 0.7 + lean * 0.5, rk: 1.25 + 0.12 * pop, lk: 1.25 + 0.12 * pop, ra: 0.3, la: 0.3, rto: 0.4, lto: 0.4,
+    rs: 0.55 + 0.1 * pop, ls: 0.55 + 0.1 * pop, re: 0.3, le: 0.3, rz: 0.2, lz: 0.2 };
+}
+ANIMS.twerk = { n: 6, dirs: ['R'], f: function (t, i) { return twerk(i); } };
+ANIMS.twerk_buff = { n: 6, dirs: ['R'], f: function (t, i) { return twerk(i); }, buff: 1 };
 // the on-fire play anims with the muscles pumped up (the game swaps these in while he's powered up)
 ['idle', 'run', 'drun', 'dribble'].forEach(function (n) { var a = ANIMS[n]; ANIMS[n + '_buff'] = { n: a.n, dirs: a.dirs, f: a.f, buff: 1 }; });
 // bruiser shoves (strength players): a roundhouse kick, a Superman punch, a kick to the shins
