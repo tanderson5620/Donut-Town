@@ -659,7 +659,11 @@ window.HW = window.HW || {};
     switch (p.state) {
       case 'dunk': return;
       case 'powerup': {   // stance, arms crossed (charging), the down-thrust, then the held power stance trembling in the aura
-        var t = p.st; p.anim = 'powerup'; p.dir = 'C';
+        var t = p.st;
+        // a player with a power-up of his own does that instead: Gator twerks, side-on, hips popping 3 times a second (the
+        // pumped-up version after the flash comes in by itself with the gold hair)
+        if (p.def.powerup && X.hasAnim(p, p.def.powerup)) { p.anim = p.def.powerup; p.dir = 'R'; p.frame = Math.floor(t / 0.05) % 6; return; }
+        p.anim = 'powerup'; p.dir = 'C';
         p.frame = t < 0.2 ? 0 : t < 0.35 ? 1 : t < PU.boom ? 2 : t < PU.boom + 0.12 ? 3 : 4 + Math.floor((t - PU.boom - 0.12) / 0.08) % 4; return;
       }
       case 'fall': p.anim = 'fall'; p.dir = 'R'; p.frame = Math.min(3, p.st / 0.12); return;
