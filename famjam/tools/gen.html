@@ -298,6 +298,12 @@ ANIMS.shoot_fade = { n: 5, dirs: ['R', 'F'], f: function (t, i) { return [
   { lean: -0.42, rs: 2.35, re: 0.4, ls: 1.6, le: 0.5, rt: 0.95, rk: 0.7, lt: -0.15, lk: 0.3, air: 1 }][i]; } };
 // the shimmy after a made three: shoulders shaking back and forth, elbows out, chest up, a little bounce (twice per loop)
 ANIMS.shimmy = { n: 6, dirs: ['F'], f: function (t, i) { var s = Math.sin(i / 6 * Math.PI * 4); return { crouch: 0.1 + 0.05 * Math.abs(s), twist: 0.5 * s, rs: 0.45 + 0.45 * s, ls: 0.45 - 0.45 * s, re: 1.75, le: 1.75, rz: 0.6, lz: 0.6, chx: -0.12, rt: 0.2, lt: 0.2, rk: 0.35, lk: 0.35 }; } };
+// the Harden step-back (3-point shooters moving side to side): gather the dribble low with the lead leg out front, the hop back off
+// the defender (lead leg kicked out in front, trail leg reaching back, ball pulled into the chest), then landing square, ball at the set
+ANIMS.stepback = { n: 3, dirs: ['R'], f: function (t, i) { return [
+  { crouch: 0.27, lean: 0.3, rs: 0.3, re: 0.85, rz: 0.25, ls: 0.75, le: 1.15, lz: 0.4, rt: 0.6, rk: 0.85, lt: -0.3, lk: 0.6 },
+  { crouch: 0.08, lean: -0.24, rs: 0.95, re: 1.85, rz: 0.12, ls: 1.0, le: 1.85, lz: 0.12, rt: 1.0, rk: 0.8, lt: -0.45, lk: 0.12, air: 1 },
+  { crouch: 0.29, lean: 0.12, rs: 1.2, re: 1.75, ls: 1.2, le: 1.75, rz: 0.1, lz: 0.1, rt: 0.4, rk: 0.95, lt: 0.2, lk: 0.95 }][i]; } };
 // the under-the-legs dunk plays in 2.5 s of slow motion, so it gets 30 frames (the rest 12)
 var DK_N = { legs: 30 };
 Object.keys(DUNKS).forEach(function (k) { var n = DK_N[k] || 12; ANIMS['dk_' + k] = { n: n, dirs: [k === 'flex' ? 'C' : 'R'], f: keyed(DUNKS[k], n), ball: k === 'legs' }; });
