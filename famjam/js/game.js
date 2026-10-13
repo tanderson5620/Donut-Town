@@ -436,7 +436,7 @@ window.HW = window.HW || {};
     if (fs) kd = 1; if (wall) kd = 0;   // power on fire: every shove flattens him, and nobody moves him
     if (!wall) { var push = (4 + str * 0.5) * (fs ? 1.7 : 1); tgt.vx += dx * push; tgt.vz += dz * push; }
     if (fs) fireBurst((p.x + tgt.x) / 2, 1.2, (p.z + tgt.z) / 2, 14);
-    if (Math.random() < kd && p.def.type === 'strength' && Math.random() < ARMBAR_P && canArmbar(p, tgt)) { G.startArmbar(p, tgt); return; }
+    if (p.def.type === 'strength' && Math.random() < ARMBAR_P && canArmbar(p, tgt)) { G.startArmbar(p, tgt); return; }
     if (Math.random() < kd) {
       if (tgt.hasBall) G.drop(tgt, dx * 3, 3, dz * 3);
       var gap = str - tgt.def.stats.str + (fs ? 5 : 0);
@@ -445,10 +445,11 @@ window.HW = window.HW || {};
       G.say(knockLine(p, tgt), '#ff8a5a', 1.2);
     } else { if (!wall) { Au.punch && Au.punch(); if (!isGuy(tgt) && Math.random() < 0.5) Au.painF && Au.painF(); } if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); }   // it lands but he stays up
   };
-  // the arm bar (Max Strength players, about 1 in 6 of the shoves that would put a man down): in 2.5 s of slow motion he grabs the arm,
+  // the arm bar (Max Strength players, rare: 1 in 20 of the shoves that reach a man, so about 1 in 30 of all their shoves counting the
+  // ones that hit nobody): in 2.5 s of slow motion he grabs the arm,
   // takes him down, both legs across him, pulls the wrist into his chest and bridges - SNAP. His man is down for 10 s, and stays down
   // through every stoppage (baskets, quarter breaks: G.lineup leaves him where he lies); then he gets up and plays on
-  var ARMBAR_P = 0.17, AB_T = 1.4, AB_SNAP = 0.62, AB_UP = 0.6, HURT = 10;
+  var ARMBAR_P = 0.05, AB_T = 1.4, AB_SNAP = 0.62, AB_UP = 0.6, HURT = 10;
   function canArmbar(p, q) { return p.grounded() && q.grounded() && !q.hurtT && !G.cine && !G.pu && !G.show && G.phase === 'play' && X.hasAnim(p, 'armbar') && X.hasAnim(q, 'armbarred'); }
   function abGap(p, q) {   // how far ahead of him his man lies, so the arm reaches his chest (from the sprites' hand points)
     var a = X.animPoint(p.id, 'armbar', 5, 'hand'), b = X.animPoint(q.id, 'armbarred', 5, 'hand');

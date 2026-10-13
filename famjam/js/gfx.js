@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=21';   // (the faces carry it too)
+  var SHEET_V = '?v=22';   // (the faces carry it too)
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -280,6 +280,10 @@ window.HW = window.HW || {};
         var smooth = g.imageSmoothingEnabled; g.imageSmoothingEnabled = false;
         g.drawImage(ts, hx - hw / 2 + mo[0] * hw - tw / 2, hy - hh * 0.8 + mo[1] * hh - th * 0.12, tw, th); g.imageSmoothingEnabled = smooth;
       }
+      // his arms where his real head wouldn't hide them (up in front of his face, or beside it where the photo is far wider than a
+      // head): a layer of their own from the sprite factory (meta.over), drawn back on top of the photo
+      var ov = m.over && m.over[o.fi];   // [x, y, w, h] in the sheet, [dx, dy] in the frame
+      if (ov) g.drawImage(o.sh.img, ov[0], ov[1], ov[2], ov[3], (ov[4] - fx) * k, (ov[5] - fy) * k, ov[2] * k, ov[3] * k);
     }
   }
   // where his ball hand is right now, in court meters (the ball rides in it through a fancy pass)
