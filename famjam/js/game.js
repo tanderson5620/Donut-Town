@@ -315,9 +315,10 @@ window.HW = window.HW || {};
       var lr = Math.random(), lb0 = lr < 0.3 ? 'roll' : lr < 0.6 ? 'rev' : 'lay', farS = p.z > K.HZ, ls = lb0 + (farS ? '2' : '');
       if (!X.hasAnim(p, 'dk_' + ls)) { lb0 = 'lay'; ls = 'lay'; }
       p.dk.style = ls; p.dk.lay = lb0; p.dk.spin = false; p.dk.peak = lb0 === 'roll' ? 0.95 : 0.8;
-      // (he ends a step off the middle of the rim, so the ball goes up beside it rather than inside the net: the far-hand finish shows
-      // on the baseline side of him, the near-hand one on the court side)
-      if (lb0 === 'rev') { var sg = farS ? -1 : 1; p.dk.x1 = rx + s * (farS ? -0.12 : 0.12); p.dk.zA = K.HZ - sg * 0.55; p.dk.z1 = K.HZ + sg * 0.55; }
+      // (he ends a step off the middle of the rim, the other way from the hand that finishes: that hand holds the ball right out to the
+      // side, Jordan's way, so it hangs between the rim and the glass - the far-hand finish shows on the baseline side of him, the
+      // near-hand one on the court side - and scoops up beside the rim rather than inside the net)
+      if (lb0 === 'rev') { var sg = farS ? -1 : 1; p.dk.x1 = rx + s * (farS ? 0.3 : -0.3); p.dk.zA = K.HZ - sg * 0.55; p.dk.z1 = K.HZ + sg * 0.55; }
       else { p.dk.x1 = rx - s * (lb0 === 'roll' ? 0.75 : 0.85); p.dk.z1 = K.HZ + (farS ? 0.3 : -0.3); }   // stays on his side of the rim
       if (lb0 === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: DUNK_SLAM * p.dk.T / 2 };   // 2 s of slow motion up to the release
       if (lb0 === 'roll') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'roll', slow: 0.45 };   // slow from the top of the rise until it drops in
