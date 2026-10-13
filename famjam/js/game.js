@@ -174,6 +174,9 @@ window.HW = window.HW || {};
       var k = p.dk, u = p.st / k.T, rx = rimX(p.team), sd = side(p.team), hand = null, lerp = function (a, c, f) { f = Math.max(0, Math.min(1, f)); f = f * f * (3 - 2 * f); return { x: a.x + (c.x - a.x) * f, y: a.y + (c.y - a.y) * f }; };
       var swap = k.style === 'legs' || k.style === 'btb', left = swap && u > 0.42;   // passed to the other hand under the leg / behind the back
       if (k.style === 'jam' && p.jamArm) { b.x = p.jamArm.x; b.y = p.jamArm.y; b.z = p.jamArm.z; return; }
+      // the reverse layup's frames carry the ball in his hand (rendered with him): ours stays hidden but right where it is drawn, so it
+      // leaves his hand from exactly there
+      if (k.style === 'rev') { var rw = X.ballWorld(p); if (rw) { b.x = rw.x; b.y = Math.max(0.2, rw.y); b.z = p.z - 0.2; b.baked = rw.baked && u < DUNK_SLAM; b.inFront = !b.baked; return; } }   // (up over his head we draw it, over his face)
       if (k.style === 'board' && u > 0.14 && u < 0.5) {   // tossed off the glass and back to himself (slow motion, the camera on the ball)
         if (!k.toss) k.toss = { x: b.x, y: b.y };   // it leaves from right where his hand had it
         var bd = { x: rx + sd * 0.45, y: 3.5 }, f1 = Math.min(1, (u - 0.14) / 0.16), f2 = Math.min(1, Math.max(0, (u - 0.3) / 0.2)); hand = X.handWorld(p) || { x: p.x, y: p.y + 2 };
@@ -322,7 +325,7 @@ window.HW = window.HW || {};
     var d0 = Math.hypot(p.x - rx, p.z - K.HZ); p.dk.three = d0 > K.R3 - 0.1 && Math.abs(p.z - K.HZ) < 6.2 || d0 > K.R3 + 0.3;
     p.face = s; p.stats.fga++; if (p.dk.three) p.stats.tpa++; if (isGuy(p)) Au.hup(); else Au.jump(); Au.whoosh(9);   // a dunk is a field goal attempt (made ones already count in fgm)
   };
-  var DUNK_SLAM = 0.66, DK_FRAMES = { legs: 30, roll: 16, rev: 24 };   // frames per signature dunk in the extras sheet (the slow-motion one gets more)
+  var DUNK_SLAM = 0.66, DK_FRAMES = { legs: 30, roll: 16, rev: 30 };   // frames per signature dunk in the extras sheet (the slow-motion one gets more)
   function updateDunk(p, dt) {
     // he glides to the rim (eased in and out over the first 60%), so a defender in his path has time to get up and meet him
     var k = p.dk, u = p.st / k.T, e0 = Math.min(1, u / 0.6), e = e0 * e0 * (3 - 2 * e0);   // p.st is advanced once in physics() (it used to be counted twice, so dunks ran at double speed)
