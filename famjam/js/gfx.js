@@ -224,6 +224,8 @@ window.HW = window.HW || {};
   function loadGold(id) {
     var f = faces[id]; if (!f || f.ssj) return;
     if (HW.PLAYERS[id].photo && HW.SSJ_PAD && HW.SSJ_PAD[id]) { f.ssj = new Image(); f.ssjPad = HW.SSJ_PAD[id]; f.ssj.src = 'faces/' + id + '_ssj.png' + SHEET_V; }
+    var DF = HW.DUNK_FACE && HW.DUNK_FACE[id];   // and a slow-motion dunk face (plain and gold)
+    if (DF) { f.dunk = new Image(); f.dunk.src = 'faces/' + id + '_dunk.png' + SHEET_V; f.dunkSsj = new Image(); f.dunkSsj.src = 'faces/' + id + '_dunk_ssj.png' + SHEET_V; }
     if (HW.SSJ_PAD_BACK && HW.SSJ_PAD_BACK[id]) { f.ssjBack = new Image(); f.ssjPadBack = HW.SSJ_PAD_BACK[id]; f.ssjBack.src = 'faces/' + id + '_ssj_back.png' + SHEET_V; }
   }
 
@@ -260,6 +262,9 @@ window.HW = window.HW || {};
       // a hard hit snaps his head back
       if (p.hitT > 0) { var jk = Math.min(1, p.hitT / 0.45); rot -= 0.9 * jk * jk; hx -= hw * 0.22 * jk; }
       var dx0 = -hw / 2, dy0 = -hh * 0.8, dw = hw, dh = hh;
+      // his slow-motion dunk face (HW.DUNK_FACE: another photo lined up on his head), gold-haired when he's on fire
+      var DF = p.dunkFace && img === f.front && HW.DUNK_FACE && HW.DUNK_FACE[p.id], dg = DF && gold && f.dunkSsj && f.dunkSsj.naturalWidth, di = DF && (dg ? f.dunkSsj : f.dunk);
+      if (di && di.naturalWidth) { var dp = dg ? DF.ssj : DF.pad, dsx = hw / img.naturalWidth; img = di; dx0 -= dp[0] * dsx; dy0 -= dp[1] * dsx; dw = di.naturalWidth * dsx; dh = di.naturalHeight * dsx; gold = false; }
       if (gold) { var P = img === f.front ? f.ssjPad : f.ssjPadBack, sx = hw / img.naturalWidth; img = img === f.front ? f.ssj : f.ssjBack; dx0 -= P[0] * sx; dy0 -= P[1] * sx; dw = img.naturalWidth * sx; dh = img.naturalHeight * sx; }
       if (rot) { g.save(); g.translate(hx, hy); g.rotate(rot); g.drawImage(img, dx0, dy0, dw, dh); g.restore(); }   // head turns with a flip or a fall
       else g.drawImage(img, hx + dx0, hy + dy0, dw, dh);
