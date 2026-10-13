@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=18';   // (the faces carry it too)
+  var SHEET_V = '?v=19';   // (the faces carry it too)
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -286,6 +286,11 @@ window.HW = window.HW || {};
   X.handWorld = function (p, left) {
     var o = frameOf(p); if (!o) return null; var hd = o.m.hand[o.fi]; if (!hd) return null; var j = left && hd.length > 3 ? 2 : 0;
     return { x: p.x + (o.flip ? -1 : 1) * (hd[j] - o.fx) / o.m.ppm, y: p.y + (o.fy - hd[j + 1]) / o.m.ppm };
+  };
+  // where the ball is in a frame that carries its own ball (meta.ballp: the reverse layup), in court meters
+  X.ballWorld = function (p) {
+    var o = frameOf(p); if (!o || !o.m.ballp) return null; var bp = o.m.ballp[o.fi]; if (!bp) return null;
+    return { x: p.x + (o.flip ? -1 : 1) * (bp[0] - o.fx) / o.m.ppm, y: p.y + (o.fy - bp[1]) / o.m.ppm, baked: bp[2] !== 0 };   // baked: drawn into the frame
   };
   // the back of the twerk's booty right now (meta.butt from the sprite factory), in court meters
   X.buttWorld = function (p) {
