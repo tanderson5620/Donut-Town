@@ -587,13 +587,16 @@ window.HW = window.HW || {};
     if (X.lookUp) drawRafters(g);
     drawCrowd(g, t, dt); drawFloor(g); drawPools(g, dt);
     players.forEach(function (p) { X.drawReflection(g, p); if (p.onFire && dt > 0 && Math.random() < 0.5) { if (p.ssj) X.goldSpark(p); else X.flame(p.x + (Math.random() - 0.5) * 0.5, p.y + 0.05, p.z - 0.1, 1, 0.3); } });
-    var items = players.map(function (p) { return { z: p.z, draw: function () { X.drawPlayer(g, p); } }; });
+    // a reverse layup is drawn in front of the net all the way, even once he's under the rim on its far side (the net would cover his
+    // face for the whole finish), the ball in his hands in front of him too
+    var revUp = function (p) { return p && p.state === 'dunk' && /^dk_rev/.test(p.anim || ''); };
+    var items = players.map(function (p) { return { z: revUp(p) ? Math.min(p.z, K.HZ - 0.36) : p.z, draw: function () { X.drawPlayer(g, p); } }; });
     [-1, 1].forEach(function (side) {
       items.push({ z: K.HZ + 0.75, draw: function () { drawHoopBack(g, side); drawRim(g, side, false); } });
       items.push({ z: K.HZ - 0.35, draw: function () { drawRim(g, side, true, hoopFx[side > 0 ? 1 : 0]); } });
     });
     // (behind: round his back in a dunk - drawn before him, so his body covers it; baked: the under-the-legs dunk's frames draw it)
-    if (ball && ball.visible && !ball.baked) items.push({ z: ball.z - 0.01 - (ball.inFront ? 0.6 : 0) + (ball.behind ? 0.4 : 0), draw: function () { X.drawBall(g, ball, t); } });
+    if (ball && ball.visible && !ball.baked) items.push({ z: Math.min(ball.z - 0.01 - (ball.inFront ? 0.6 : 0) + (ball.behind ? 0.4 : 0), revUp(ball.holder) && ball.inFront ? K.HZ - 0.37 : 99), draw: function () { X.drawBall(g, ball, t); } });
     items.sort(function (a, b) { return b.z - a.z; });
     items.forEach(function (it) { it.draw(); });
     X.drawParts(g, dt);
