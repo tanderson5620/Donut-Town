@@ -15,6 +15,7 @@ window.HW = window.HW || {};
     alan:    { id: 'alan',    name: 'Gator Anderson',   first: 'Gator', powerup: 'twerk', cameo: 'lisa',   team: 0, type: 'handler',  num: 11, color: '#fb5607', skin: '#c98262', hair: '#c2ab82', hairStyle: 'swept', photo: true, height: 1.76, bulk: 1.12,
                // from his photo: sun-tanned freckled skin, short swept-back ash-blond/gray hair, tinted wire glasses, stocky with a belly, gray shorts, tan suede slip-ons
                freckles: true, glasses: true, belly: true, noBand: true, shorts: '#6f6b72', shoes: '#c9ad86', soles: '#ece2cf', brow: '#b5a07a', age: true,  stats: { speed: 10, tp: 5, dunk: 4, steal: 9, block: 3, str: 3, pass: 10 } },
+    bianca:  { id: 'bianca',  name: 'Bianca',           first: 'Bianca',  team: 0, type: 'handler',  num: 2,  color: '#ff8fab', skin: '#dba487', hair: '#b8935f', hairStyle: 'long',  photo: true, headScale: 1.24, brow: '#6e5040', height: 1.68, bulk: 0.86, stats: { speed: 10, tp: 5, dunk: 3, steal: 9, block: 3, str: 3, pass: 10 } },
     lisa:    { id: 'lisa',    name: 'Lisa Anderson',    first: 'Lisa',    team: 0, type: 'strength', num: 34, color: '#ff006e', skin: '#e9b39a', hair: '#b49766', hairStyle: 'long',  photo: true, headScale: 1.45, height: 1.80, bulk: 1.2,  stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 4 } },
     katelyn: { id: 'katelyn', name: 'Katelyn Gorman',   first: 'Katelyn', team: 1, type: 'handler',  num: 7,  color: '#06d6a0', skin: '#dca592', hair: '#5c4a3e', hairStyle: 'long',  photo: true, headScale: 1.49, brow: '#5a4234', height: 1.70, bulk: 0.88, stats: { speed: 10, tp: 5, dunk: 3, steal: 9, block: 3, str: 3, pass: 10 } },
     kameron: { id: 'kameron', name: 'Kameron Gorman',   first: 'Kameron', team: 1, type: 'dunker',   num: 1,  color: '#3a86ff', skin: '#e4a387', hair: '#3a3029', hairStyle: 'short', photo: true, brow: '#4e3a2c', height: 1.96, bulk: 1.0,  stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6, pass: 5 } },
@@ -28,6 +29,7 @@ window.HW = window.HW || {};
     carl:    { iris: '#6f8a8a' },
     tyler:   { iris: '#4f7396' },
     alan:    { iris: '#6e8794', glasses: true, plainShorts: true, noSocks: true, shoe: { base: '#c4a57e', sole: '#efe6d4', suede: true } },
+    bianca:  { iris: '#6b4a32' },
     lisa:    { iris: '#4a3018' },
     katelyn: { iris: '#5a4234' },
     kameron: { iris: '#4e3a2c' },
@@ -38,7 +40,7 @@ window.HW = window.HW || {};
   Object.keys(LOOK).forEach(function (id) { HW.PLAYERS[id].look = LOOK[id]; });
 
   HW.TEAMS = [
-    { id: 0, name: 'Andersons', short: 'AND', color: '#ff8a1f', dark: '#7a3a00', roster: ['carl', 'tyler', 'alan', 'lisa'] },
+    { id: 0, name: 'Andersons', short: 'AND', color: '#ff8a1f', dark: '#7a3a00', roster: ['carl', 'tyler', 'alan', 'lisa', 'bianca'] },
     { id: 1, name: 'Gormans',   short: 'GOR', color: '#3a86ff', dark: '#10306b', roster: ['katelyn', 'kameron', 'kody', 'kenny', 'karen'] }
   ];
 
@@ -51,12 +53,13 @@ window.HW = window.HW || {};
   // powered-up heads: faces/<id>_ssj.png (front) and faces/<id>_ssj_back.png (back of the head).
   // [x, y] = where the original image's top-left corner sits inside the bigger powered-up canvas, in original-image pixels
   // where each photo's mouth is (fraction of the photo across, down): the tongue on the free-throw-line dunk comes out here
-  HW.MOUTH = { carl: [0.50, 0.80], tyler: [0.50, 0.76], alan: [0.52, 0.74], lisa: [0.60, 0.82], katelyn: [0.58, 0.83], kameron: [0.47, 0.81], kody: [0.55, 0.77], kenny: [0.50, 0.79], karen: [0.60, 0.81] };
+  HW.MOUTH = { carl: [0.50, 0.80], tyler: [0.50, 0.76], alan: [0.52, 0.74], lisa: [0.60, 0.82], bianca: [0.46, 0.78], katelyn: [0.58, 0.83], kameron: [0.47, 0.81], kody: [0.55, 0.77], kenny: [0.50, 0.79], karen: [0.60, 0.81] };
   HW.SSJ_PAD = {
     carl: [64, 180],
     tyler: [63, 176],
     alan: [57, 165],
     lisa: [21, 161],
+    bianca: [58, 177],
     katelyn: [21, 141],
     kameron: [67, 171],
     kody: [67, 146],
@@ -68,6 +71,7 @@ window.HW = window.HW || {};
     tyler: [49, 75],
     alan: [46, 75],
     lisa: [47, 79],
+    bianca: [51, 75],
     katelyn: [52, 76],
     kameron: [50, 68],
     kody: [48, 76],
@@ -97,10 +101,10 @@ window.HW = window.HW || {};
   // lines that come with a 2 s taunt over normal play: the crotch chop (twice) or pointing off at the kiddie table
   HW.TAUNTS = { "WHO'S YOUR UNCLE?!?!": 'chop', "WHO'S YOUR AUNTIE?!?!": 'chop', "KIDDIE TABLE'S OVER THERE!": 'point' };
 
-  // the family tree: Alan + Lisa Anderson -> Tyler, Carl; Karen (Alan's sister) + Kenny Gorman -> Katelyn (Katie), Kody, Kameron.
+  // the family tree: Alan + Lisa Anderson -> Tyler, Carl (Bianca plays for the Andersons, no generation set: no uncle/aunt/cousin lines); Karen (Alan's sister) + Kenny Gorman -> Katelyn (Katie), Kody, Kameron.
   // gen 1 = the parents (uncles and aunts to the other family's kids), gen 2 = the kids (cousins across the families)
   HW.FAMILY = {
-    alan: { gen: 1, sex: 'm', fam: 0 }, lisa: { gen: 1, sex: 'f', fam: 0 }, tyler: { gen: 2, sex: 'm', fam: 0 }, carl: { gen: 2, sex: 'm', fam: 0 },
+    alan: { gen: 1, sex: 'm', fam: 0 }, lisa: { gen: 1, sex: 'f', fam: 0 }, bianca: { sex: 'f', fam: 0 }, tyler: { gen: 2, sex: 'm', fam: 0 }, carl: { gen: 2, sex: 'm', fam: 0 },
     kenny: { gen: 1, sex: 'm', fam: 1 }, karen: { gen: 1, sex: 'f', fam: 1 }, katelyn: { gen: 2, sex: 'f', fam: 1 }, kody: { gen: 2, sex: 'm', fam: 1 }, kameron: { gen: 2, sex: 'm', fam: 1 }
   };
 })(window.HW);
