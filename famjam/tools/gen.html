@@ -61,6 +61,9 @@ function apply(A, p) {
   A.body.rotation.set(p.flip || 0, 0, p.roll || 0); A.body.position.set(0, p.lift || 0, p.slide || 0);
   // somersault: turn the body round the hips instead of the feet
   if (p.somer) { var h = 0.95; A.body.rotation.x = p.somer; A.body.position.set(0, h * (1 - Math.cos(p.somer)), -h * Math.sin(p.somer)); }
+  // cartwheel: turn the body round his hips in the plane of his body (seen straight on, a wheel turning on the screen; - = clockwise,
+  // rolling off to his left), the hips held at wheelH so his hands reach the floor when he's upside down
+  if (p.wheel) { var wh = p.wheelH || 1.08; A.body.rotation.z = p.wheel; A.body.position.set(wh * Math.sin(p.wheel), wh * (1 - Math.cos(p.wheel)), 0); }
   if (p.yaw) A.root.rotation.y += p.yaw;   // spin moves
   // pelvis: [tip, turn, roll] of the pelvis alone (the twerk), turning round the base of the spine: the spine is turned back by as
   // much, so his back, arms and head hold perfectly still, and the legs bend at hip and knee to keep the feet where they were
@@ -451,7 +454,7 @@ var LAYUPS = {
     [0.6, { lean: -0.12, rs: 2.4, re: 0.05, rtw: -1.5, ls: 1.2, le: 0.9, lz: 0.3, rt: 1.6, rk: 1.4, lt: 0.05, lk: 0.6, neck: -0.35 }],
     [0.66, { lean: -0.15, rs: 2.6, re: 0.0, rtw: -1.5, ls: 1.1, le: 0.9, lz: 0.3, rt: 1.4, rk: 1.4, lt: 0.05, lk: 0.6, neck: -0.4 }],
     [0.78, { yaw: -0.35, lean: -0.1, rs: 2.95, re: 0.05, rtw: -1.1, ls: 0.9, le: 1.0, lz: 0.3, rt: 0.9, rk: 1.2, lt: 0.1, lk: 0.6, neck: -0.35 }],
-    [0.9, { yaw: -0.8, lean: -0.05, rs: 3.0, re: 0.05, rz: 0.45, rtw: -1.1, ls: 0.6, le: 1.2, lz: 0.3, rt: 0.3, rk: 0.5, lt: 0.2, lk: 0.5, neck: -0.2 }]],
+    [0.9, { yaw: -0.8, lean: -0.05, rs: 3.05, re: 0.05, rz: 0.1, rtw: -0.5, ls: 0.6, le: 1.2, lz: 0.3, rt: 0.3, rk: 0.5, lt: 0.2, lk: 0.5, neck: -0.2 }]],
   // the reverse (after Jordan's), side on to the camera the way the game sees it: he takes off on his side of the rim with the ball
   // already in that hand (his near one here: the camera side, so the ball goes up in front of his face) and goes up with it, the arm
   // stretched up high toward the rim as if to lay it in; just before his body passes under the rim he brings it down in front of
@@ -482,8 +485,9 @@ var LAY_N = { lay: 12, roll: 16, rev: 30, lay2: 12, roll2: 16, rev2: 30 };   // 
 // one hand swinging loose and brushing up past his head once a cycle - and the finger-roll hand held straight up the whole way.
 // dougie: his far arm up (after a near-hand roll the game flips the frames, which puts that arm on the side the roll's arm was on),
 // dougie2: his near arm up
-// (the raised arm leans out a little, UPZ: straight up it would run right up the middle of a big photo face like Lindsay's)
-var UPZ = 0.5, UPTW = -1.2;
+// (the raised arm: straight up, UPZ how far it leans out - with a big photo face like Lindsay's it runs up in front of it, and that's
+// fine)
+var UPZ = 0.12, UPTW = -0.3;
 function dougiePose(i, upNear) {
   var f = i / 16 * 2 * Math.PI, bo = 0.5 - 0.5 * Math.cos(2 * f), st1 = Math.max(0, Math.sin(f)), st2 = Math.max(0, -Math.sin(f));
   var o = { yaw: -1.25 + 0.15 * Math.sin(f), lean: -0.22, crouch: 0.03 + 0.1 * bo, twist: 0.35 * Math.sin(f), roll: 0.1 * Math.sin(f), chx: -0.08 + 0.06 * Math.sin(2 * f), neck: -0.05 + 0.1 * Math.sin(2 * f) };
@@ -497,6 +501,26 @@ function dougiePose(i, upNear) {
 }
 ANIMS.dougie = { n: 16, dirs: ['R'], armOver: true, f: function (t, i) { return dougiePose(i, false); } };
 ANIMS.dougie2 = { n: 16, dirs: ['R'], armOver: true, f: function (t, i) { return dougiePose(i, true); } };
+// the 3-point shooters' cartwheel three: straight on to the camera he cartwheels off to his left (away from the rim; the game flips it
+// to go the right way), one-handed: his left hand plants while the right keeps the ball tucked at his hip the whole way round, legs
+// straddled wide;
+// lands, turns toward the rim - then the one-handed chuck (shoot_chuck). 14 frames: ready, ten round the wheel, land, turn
+ANIMS.cartwheel = { n: 14, dirs: ['C'], center: 'x', ball: { hand: 0, until: 9 }, f: function (t, i) {
+  if (i === 0) return { crouch: 0.15, lean: 0.12, roll: 0.15, rs: 2.5, re: 0.5, rz: 0.4, rtw: -1.2, ls: 0.6, le: 0.3, lz: 0.9, ltw: -1.2, rt: 0.3, rk: 0.5, lt: 0.2, lk: 0.3, la: 0.2 };
+  if (i >= 12) return i === 12 ? { crouch: 0.22, lean: 0.15, rs: 1.6, re: 1.5, rz: 0.4, rtw: -1.0, ls: 0.6, le: 0.4, lz: 0.8, ltw: -1.2, rt: 0.6, rk: 1.0, lt: 0.6, lk: 1.0, ra: 0.25, la: 0.25 }
+    : { yaw: -1.0, crouch: 0.2, lean: 0.1, rs: 1.4, re: 1.9, rz: 0.3, rtw: -1.3, ls: 1.0, le: 0.4, lz: 0.4, rt: 0.5, rk: 0.9, lt: 0.5, lk: 0.9 };
+  var th = (i - 1) / 10 * 2 * Math.PI, k = Math.sin(th / 2);   // k: legs and arms spread widest upside down
+  // (the ball tucked against his hip under his right arm, football style, so it never touches the floor: a one-handed cartwheel)
+  return { wheel: -th, rs: 0.45, re: 1.45, rz: 0.15, rtw: -0.4, ls: 2.7, le: 0.05, lz: 0.35 + 0.2 * k, ltw: -1.3, rt: 0.05, rk: 0.15, lt: 0.05, lk: 0.15, ra: 0.45 + 0.35 * k, la: 0.45 + 0.35 * k, air: 1, neck: -0.1 };
+} };
+// the one-handed chuck after the cartwheel: the same jump and release as his jump shot (gather, rise, top, release, follow-through),
+// the ball cocked back behind his head in his right hand, the other arm pointing at the rim, then the arm whips over and lets it fly
+ANIMS.shoot_chuck = { n: 5, dirs: ['R'], ball: { hand: 0, until: 0.5 }, f: function (t, i) { return [
+  { crouch: 0.26, lean: 0.12, rs: 0.7, re: 1.5, rz: 0.3, rtw: -1.2, ls: 1.2, le: 0.5, rt: 0.45, lt: 0.45, rk: 0.95, lk: 0.95 },
+  { crouch: 0.02, lean: -0.12, rs: 2.5, re: 2.1, rz: 0.25, rtw: -1.2, ls: 1.6, le: 0.1, rt: 0.35, rk: 0.4, lt: 0.0, lk: 0.2, air: 1 },
+  { lean: -0.22, rs: 2.8, re: 2.3, rz: 0.2, rtw: -1.2, ls: 1.7, le: 0.05, rt: 0.6, rk: 0.7, lt: -0.1, lk: 0.3, air: 1, neck: -0.1 },
+  { lean: 0.12, rs: 2.4, re: 0.1, rz: 0.1, rtw: -0.6, ls: 0.7, le: 0.4, rt: 0.5, rk: 0.6, lt: -0.15, lk: 0.3, air: 1 },
+  { lean: 0.22, rs: 1.8, re: 0.15, rz: 0.1, ls: 0.5, le: 0.5, rt: 0.3, rk: 0.5, lt: -0.1, lk: 0.3, air: 1 }][i]; } };
 // the arm bar (Max Strength players turn a shove into one now and then; after a photo of an MMA arm bar): the bruiser grabs his man's
 // near arm, swings a leg over, falls back with both legs across him and pulls the wrist into his chest, bridges his hips (the snap),
 // holds it, then rolls up and stands. Both lie along the court, so the two sprites interlock (the victim lies a fixed gap ahead of
@@ -758,7 +782,7 @@ window.genPlayer = function (id, opt) {
           // the frame, and tell the game to slide it back by the same amount sideways (meta.off) so it lands behind where he stood
           var js = [A.head, A.neck, A.hips, A.kn[0], A.kn[1], A.feet[0], A.feet[1], A.palm[0], A.palm[1]].map(function (b) { return b.getWorldPosition(new V3()); });
           var minY = Math.min.apply(null, js.map(function (v) { return v.y; })), minX = Math.min.apply(null, js.map(function (v) { return v.x; })), maxX = Math.max.apply(null, js.map(function (v) { return v.x; }));
-          var dx = -(minX + maxX) / 2, dy = Math.max(0, 0.13 - minY);
+          var dx = -(minX + maxX) / 2, dy = an.center === 'x' ? 0 : Math.max(0, 0.13 - minY);   // ('x': only slid sideways)
           A.root.position.set(dx, dy, 0); A.root.updateMatrixWorld(true);
           if (Math.abs(dx) > 0.01) meta.off[frames.length] = [+(dx * PPM).toFixed(1), 0];
         }

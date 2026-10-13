@@ -85,7 +85,7 @@ window.HW = window.HW || {};
     this.ai = { t: 0, spot: null, spotT: 0, hold: 0 };
   }
   Player.prototype.grounded = function () { return this.y <= 0.001 && this.vy === 0; };
-  Player.prototype.busy = function () { return this.state === 'dougie' || this.state === 'armbar' || this.state === 'stepback' || this.state === 'shimmy' || this.state === 'hammer' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
+  Player.prototype.busy = function () { return this.state === 'cartwheel' || this.state === 'dougie' || this.state === 'armbar' || this.state === 'stepback' || this.state === 'shimmy' || this.state === 'hammer' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
 
   G.start = function (setup) {
     X.clearBlood();
@@ -203,6 +203,7 @@ window.HW = window.HW || {};
       hand = X.handWorld(p, left); if (hand) { b.x = hand.x; b.y = Math.max(0.2, hand.y + (k.lay === 'roll' && u > 0.3 ? 0.13 : 0)); b.z = p.z - 0.2; return; }
     }
     if (G.show && G.show.p === p && G.show.t < G.show.len) { b.x = p.x + p.face * 0.6; b.y = 0.15; b.z = p.z - 0.3; return; }   // set down for the twerk
+    if (p.state === 'cartwheel' || (p.state === 'shoot' && p.cart)) { var cw = X.ballWorld(p); if (cw) { b.x = cw.x; b.y = Math.max(0.2, cw.y); b.z = p.z - 0.2; b.baked = cw.baked; b.inFront = !cw.baked; return; } }
     if (p.state === 'stepback') { var hs = X.handWorld(p); b.x = hs ? hs.x : p.x + p.face * 0.3; b.y = hs ? Math.max(0.2, hs.y) : p.y + 1.1; b.z = p.z - 0.25; return; }
     if (p.state === 'shoot' || p.state === 'dunk') { b.x = p.x + p.face * 0.12; b.y = p.y + p.def.height + 0.2; b.z = p.z - 0.15; return; }
     if (p.state === 'pass' && p.pending) { var hw = X.handWorld(p); if (hw) { b.x = hw.x; b.y = Math.max(0.15, hw.y); b.z = p.z - 0.25; } return; }   // in his hand through a fancy pass
@@ -238,11 +239,29 @@ window.HW = window.HW || {};
     if (!p.sbGo && p.def.type === 'shooter' && threeFrom(p) && across > 1.5 && across > Math.abs(along)) {
       p.state = 'stepback'; p.st = 0; p.sb = { ux: ux, uz: uz }; p.sbRel = false; p.face = side(p.team); p.dm = null; (Au.dribble || Au.bounce)(5); return;
     }
+    // now and then (CART_P of their other threes) a 3-point shooter cartwheels off away from the rim first, one-handed, then chucks
+    // it one-handed - the same jump, release window, odds (from where he started) and blocks as his jump shot
+    if (!p.sbGo && !p.cartGo && p.def.type === 'shooter' && threeFrom(p) && -along <= 1.0 && X.hasAnim(p, 'cartwheel') && Math.random() < CART_P) {
+      p.state = 'cartwheel'; p.st = 0; p.cartFrom = { x: p.x, z: p.z }; p.sbRel = false; p.face = -side(p.team); p.vx = p.vz = 0; p.dm = null; Au.whoosh(5); return;
+    }
+    p.cart = !!p.cartGo;
     p.state = 'shoot'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH * 0.9); p.y = 0.001; p.released = false; p.tApex = p.vy / GRAV; p.relSt = null; p.stepT = !!p.sbGo;
     // a 3-point shooter pulling up while moving away from the basket shoots a fadeaway: leaning back, knee kicked out, drifting away
     p.fade = p.def.type === 'shooter' && !p.sbGo && -along > 1.0;
     p.face = side(p.team); Au.jump();
   };
+  // the cartwheel: 0.8 s round the wheel and about 1.7 m away from the rim (the frames turn him back toward it at the end), then the
+  // one-handed chuck. Let go of SHOOT during it and the shot goes up on its own, like after the step-back
+  var CART_P = 0.15, CW_T = 0.8;
+  function cartwheel(p, dt) {
+    p.face = -side(p.team); p.vx = p.st < 0.72 * CW_T ? p.face * 2.6 : 0; p.vz = 0; p.vy = 0; p.y = 0;
+    p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6);
+    if (p.st >= CW_T) {
+      p.state = 'idle'; p.vx = 0; p.cartGo = true; G.startShot(p); p.cartGo = false;
+      if (p.state === 'shoot' && p.sbRel) p.sbAuto = true;
+      p.sbRel = false;
+    }
+  }
   // the step-back: gather (0-0.08 s), the hop back (0.08-0.28, ~0.7 m and a little air), land square, then the jump shot at 0.34 s.
   // Let go of SHOOT during it and the shot goes up on its own at the top of the jump (a decent look, not a perfect one)
   var SB_T = 0.34;
@@ -260,7 +279,8 @@ window.HW = window.HW || {};
   G.releaseShot = function (p) {
     if (p.state !== 'shoot' || p.released || !p.hasBall) return;
     p.released = true; p.st2 = 0;
-    var b = G.ball, rx = rimX(p.team), d = Math.hypot(p.x - rx, p.z - K.HZ), three = d > K.R3 - 0.1 && Math.abs(p.z - K.HZ) < 6.2 || d > K.R3 + 0.3;
+    // (after a cartwheel the odds are the ones from where he started it)
+    var b = G.ball, rx = rimX(p.team), sp = p.cart && p.cartFrom || p, d = Math.hypot(sp.x - rx, sp.z - K.HZ), three = d > K.R3 - 0.1 && Math.abs(sp.z - K.HZ) < 6.2 || d > K.R3 + 0.3;
     var s = p.def.stats, pm;
     if (three) pm = 0.16 + 0.05 * s.tp; else if (d > 4.5) pm = 0.34 + 0.035 * s.tp; else if (d > 2.2) pm = 0.48 + 0.025 * Math.max(s.tp, s.dunk); else pm = 0.68 + 0.02 * s.dunk;
     // release timing: the top of the jump is the sweet spot (wider for shooters from deep)
@@ -322,7 +342,7 @@ window.HW = window.HW || {};
       // when that's the near side, behind his head on the far side)
       if (lb0 === 'rev') { var sg = farS ? -1 : 1; p.dk.x1 = rx - s * 0.15; p.dk.zA = K.HZ - sg * 0.55; p.dk.z1 = K.HZ + sg * 0.55; }
       else { p.dk.x1 = rx - s * (lb0 === 'roll' ? 0.75 : 0.85); p.dk.z1 = K.HZ + (farS ? 0.3 : -0.3); }   // stays on his side of the rim
-      if (lb0 === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: DUNK_SLAM * p.dk.T / 2 };   // 2 s of slow motion up to the release
+      if (lb0 === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: DUNK_SLAM * p.dk.T / 1.5, flySlow: 0.4 };   // 1.5 s of slow motion up to the release, the bank shot about 1.75 s
       if (lb0 === 'roll') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'roll', slow: 1 };   // full speed: the camera rides up with the ball, 1 s up and in
     } else if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
       if (p.dk.style === 'mj') p.tongue = true;
@@ -577,7 +597,7 @@ window.HW = window.HW || {};
   function startPowerup(p) {
     var tw = twerker(true) === p ? TW.len : 0;
     G.pu = { p: p, t: 0, boom: false, tw: tw, dur: tw || PU.dur }; G.callouts = []; p.state = 'powerup'; p.st = 0; p.vx = p.vz = 0; p.dm = null; p.pending = null; p.trail = null;
-    if (tw) { startShow(p, 'pu', tw); Au.sfx && Au.sfx('gator_song', 0.85); }   // the first 5 s of "Add It Up" over the whole thing
+    if (tw) { startShow(p, 'pu', tw); Au.sfx && Au.sfx('gator_song', 1.5); }   // the first 5 s of "Add It Up" over the whole thing (up front: the crowd ducks under it)
     else { Au.charge && Au.charge(); Au.fireball && Au.fireball(); Au.yell && Au.yell(!isGuy(p)); }
   }
   function updatePowerup(dt) {
@@ -612,7 +632,7 @@ window.HW = window.HW || {};
       } else if (ck === 'roll' || ck === 'rev') {   // the layups: slow until the ball drops through (the finger roll from the top of his rise)
         var lfly = G.ball.state === 'shot' && bsi && bsi.by === cp && bsi.lay === ck;
         if (!lfly && !(cp.dk && cp.dk.lay === ck)) G.cine = null;
-        else { dt *= ck === 'roll' && !lfly && cu < 0.45 ? 1 : G.cine.slow; G.cine.t = cp.st; }
+        else { dt *= ck === 'roll' && !lfly && cu < 0.45 ? 1 : lfly && G.cine.flySlow || G.cine.slow; G.cine.t = cp.st; }
       } else if (!cp.dk || cp.dk.style !== G.cine.kind || (G.cine.kind === 'board' && cu >= 0.5)) G.cine = null;
       else { dt *= G.cine.kind === 'board' && cu < 0.14 ? 1 : G.cine.slow || 0.4; G.cine.t = cp.st; }
     }
@@ -651,7 +671,7 @@ window.HW = window.HW || {};
   // up/down the screen is squeezed by the camera, so moving in depth runs faster than along the court to feel as quick
   var ZS = G.ZS = 2.2;
   function move(p, mx, mz, turbo, dt) {
-    var can = !(p.state === 'fall' || p.state === 'dunk' || p.state === 'shove' || p.state === 'shimmy' || p.state === 'dougie' || p.state === 'stepback' || (p.state === 'shoot' && p.grounded()) || (p.state === 'pass' && p.passStyle === 'hike'));
+    var can = !(p.state === 'fall' || p.state === 'dunk' || p.state === 'shove' || p.state === 'shimmy' || p.state === 'dougie' || p.state === 'stepback' || p.state === 'cartwheel' || (p.state === 'shoot' && p.grounded()) || (p.state === 'pass' && p.passStyle === 'hike'));
     var m = Math.hypot(mx, mz); if (m > 1) { mx /= m; mz /= m; m = 1; }
     p.turboOn = false;
     if (turbo && m > 0.1 && can && (p.turbo > 2 || p.onFire)) { p.turboOn = true; if (!p.onFire) p.turbo = Math.max(0, p.turbo - p.drain * dt); }
@@ -681,6 +701,7 @@ window.HW = window.HW || {};
     else if (p.trail && p.trail.length) p.trail.pop();
     if (p.state === 'dunk') { updateDunk(p, dt); return; }
     if (p.state === 'stepback') { stepback(p, dt); return; }
+    if (p.state === 'cartwheel') { cartwheel(p, dt); return; }
     if (p.state === 'armbar') { updateArmbar(p, dt); return; }
     // arm-barred: glued to the man who has the arm until the snap; then down for HURT seconds whatever the clock is doing
     if (p.state === 'fall' && (p.abBy || p.hurtT > 0)) {
@@ -720,7 +741,7 @@ window.HW = window.HW || {};
       if (In.shootDown) { if (In.turbo && G.canDunk(p) && towardRim(p, In)) G.startDunk(p); else G.startShot(p); }
       if (In.actDown && G.canDunk(p)) G.startDunk(p);   // the touch DUNK button
       // let go during the step-back (online: a guest's screen still showed it, relSt -1): the shot goes up on its own at the top
-      if (In.shootUp) { if (p.state === 'stepback') p.sbRel = true; else if (p.relSt != null && p.relSt < 0) { p.relSt = null; if (p.state === 'shoot' && !p.released) p.sbAuto = true; } else G.releaseShot(p); }
+      if (In.shootUp) { if (p.state === 'stepback' || p.state === 'cartwheel') p.sbRel = true; else if (p.relSt != null && p.relSt < 0) { p.relSt = null; if (p.state === 'shoot' && !p.released) p.sbAuto = true; } else G.releaseShot(p); }
       if (In.passDown) G.passTo(p, mate);
     } else if (holder && holder.team === p.team) {
       // arcade teamwork: PASS calls for the ball, SHOOT tells your teammate to shoot; you can shove a defender off him
@@ -845,10 +866,11 @@ window.HW = window.HW || {};
           p.frame = by && by.state === 'armbar' && by.st < AB_T ? Math.min(7, Math.floor(by.st / AB_T * 8)) : 8 + Math.floor((G.t || 0) * 3) % 4; return;
         }
         p.anim = 'fall'; p.dir = 'R'; p.frame = Math.min(3, p.st / 0.12); return;
+      case 'cartwheel': p.anim = 'cartwheel'; p.dir = 'C'; p.frame = Math.min(13, Math.floor(p.st / CW_T * 14)); return;
       case 'stepback': if (X.hasAnim(p, 'stepback')) { p.anim = 'stepback'; p.frame = p.st < 0.08 ? 0 : p.st < 0.26 ? 1 : 2; } else { p.anim = 'shoot'; p.frame = 0; } p.dir = 'R'; return;
       case 'shimmy': p.anim = 'shimmy'; p.dir = 'F'; p.frame = (p.st * 11) % 6; return;   // the shoulder shimmy after a made three
       case 'dougie': p.anim = p.dougie || 'dougie'; p.dir = 'R'; p.frame = Math.floor(p.st * 16 / 1.4) % 16; return;   // a 1.4 s beat-cycle
-      case 'shoot': p.anim = p.fade && X.hasAnim(p, 'shoot_fade') ? 'shoot_fade' : 'shoot'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
+      case 'shoot': p.anim = p.cart && X.hasAnim(p, 'shoot_chuck') ? 'shoot_chuck' : p.fade && X.hasAnim(p, 'shoot_fade') ? 'shoot_fade' : 'shoot'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
       case 'jump': p.anim = 'jump'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.vy > 2 ? 1 : 2; return;
       case 'pass': if (p.passStyle) { var F = FANCY[p.passStyle]; p.anim = 'pass_' + p.passStyle; p.dir = p.passStyle === 'back' ? 'W' : 'R'; p.frame = frameAt(F, p.st); }
         else { p.anim = 'pass'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); } return;
