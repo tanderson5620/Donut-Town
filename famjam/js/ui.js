@@ -191,6 +191,13 @@ window.HW = window.HW || {};
       g.beginPath(); g.arc(8, 40, 15, -1.1, 1.1); g.stroke(); g.beginPath(); g.arc(56, 40, 15, 2.04, 4.24); g.stroke();
       pixelize(c, { pal: ['#000000', '#1a0a02', '#a8460c', '#f07a26', '#ffb070', '#b81e06', '#f04a10', '#ff9a1f', '#ffd23f'] });
       Fo.draw(g, 'A', 32, 41, { scale: 3, scheme: 'white', shadowColor: t.dark });
+    } else if (ti === 2) {
+      // a gold-rimmed purple star with a big S
+      var star = function (r, ri) { g.beginPath(); for (var q = 0; q < 10; q++) { var an = -Math.PI / 2 + q * Math.PI / 5, rr = q % 2 ? ri : r; g.lineTo(32 + rr * Math.cos(an), 35 + rr * Math.sin(an)); } g.closePath(); };
+      g.fillStyle = '#000'; star(32, 16); g.fill(); g.fillStyle = '#ffd23f'; star(29, 14.5); g.fill(); g.fillStyle = '#5a189a'; star(25.5, 12.5); g.fill();
+      g.save(); star(25.5, 12.5); g.clip(); g.fillStyle = '#9b5de5'; g.fillRect(0, 0, 32, 64); g.restore();
+      pixelize(c, { pal: ['#000000', '#ffd23f', '#5a189a', '#9b5de5'] });
+      Fo.draw(g, 'S', 32, 36, { scale: 3, scheme: 'white', shadowColor: t.dark });
     } else {
       // shield with a lightning bolt and a big G
       function shield(m) { g.beginPath(); g.moveTo(8 + m, 6 + m); g.lineTo(56 - m, 6 + m); g.lineTo(56 - m, 30); g.quadraticCurveTo(56 - m, 50 - m * 0.3, 32, 61 - m * 1.3); g.quadraticCurveTo(8 + m, 50 - m * 0.3, 8 + m, 30); g.closePath(); }
@@ -377,8 +384,12 @@ window.HW = window.HW || {};
     var st = UI.st, r = HW.TEAMS[st.team].roster, m = UI.memo[st.team];
     if (!st.picks || st.picks.length !== 2 || r.indexOf(st.picks[0]) < 0 || r.indexOf(st.picks[1]) < 0 || st.picks[0] === st.picks[1]) st.picks = m ? m.picks.slice() : [r[0], r[1]];
     if (st.picks.indexOf(st.ctrl) < 0) st.ctrl = m && st.picks.indexOf(m.ctrl) >= 0 ? m.ctrl : st.picks[0];
+    fixOpp();
   }
-  function switchTeam(dir) { var st = UI.st; UI.memo[st.team] = { picks: st.picks.slice(), ctrl: st.ctrl }; st.team = (st.team + dir + HW.TEAMS.length) % HW.TEAMS.length; st.picks = []; fixPicks(); Au.click(); }
+  // who you play against (one of the other families)
+  function fixOpp() { var st = UI.st; if (st.opp == null || st.opp === st.team || !HW.TEAMS[st.opp]) st.opp = st.team === 0 ? 1 : 0; }
+  function nextOpp(dir) { var st = UI.st, n = HW.TEAMS.length; do { st.opp = (st.opp + dir + n) % n; } while (st.opp === st.team); Au.click(); }
+  function switchTeam(dir) { var st = UI.st, was = st.team; UI.memo[st.team] = { picks: st.picks.slice(), ctrl: st.ctrl }; st.team = (st.team + dir + HW.TEAMS.length) % HW.TEAMS.length; if (st.opp === st.team) st.opp = was; st.picks = []; fixPicks(); Au.click(); }
   function cycle(slot, dir) {
     var st = UI.st, r = HW.TEAMS[st.team].roster, cur = st.picks[slot], other = st.picks[1 - slot], i = r.indexOf(cur);
     do { i = (i + dir + r.length) % r.length; } while (r[i] === other);
@@ -487,15 +498,19 @@ window.HW = window.HW || {};
       arrowBtn(g, 'up' + slot, ax, py + 6, 38, 40, 'u', function () { cycle(slot, -1); });
       arrowBtn(g, 'dn' + slot, ax, py + 50, 38, 40, 'd', function () { cycle(slot, 1); });
     });
-    // pick a team: one big button per family, the chosen one lit in its colors
+    // pick a team: one button per family, the chosen one lit in its colors; under them, the family you play against (tap to switch)
     Fo.draw(g, 'PICK YOUR TEAM', mid, py + 9, { scale: 1, scheme: 'cyan', shadow: 0 });
     var tbw = Math.min(CW, 200), tbx = Math.round(mid - tbw / 2);
     T.forEach(function (tt, i) {
-      var on = st.team === i, by = py + 17 + i * 30;
-      button(g, 'team' + i, tbx, by, tbw, 26, tt.name.toUpperCase(), { on: on, size: 2, color: tt.color, fn: function () { if (st.team !== i) switchTeam(i - st.team); } });
-      if (on) { var ar = tri('r', 6, '#ffe14d'); g.drawImage(ar, tbx - ar.width - 3 - (Math.floor(UI.t * 3) % 2), by + 13 - (ar.height >> 1)); }
+      var on = st.team === i, by = py + 16 + i * 27;
+      button(g, 'team' + i, tbx, by, tbw, 24, tt.name.toUpperCase(), { on: on, size: 2, color: tt.color, fn: function () { if (st.team !== i) switchTeam(i - st.team); } });
+      if (on) { var ar = tri('r', 6, '#ffe14d'); g.drawImage(ar, tbx - ar.width - 3 - (Math.floor(UI.t * 3) % 2), by + 12 - (ar.height >> 1)); }
     });
-    var eTop = py + 80, e = emblem(st.team, PH - 84 >= 112 && CW >= 136 ? 2 : 1); g.drawImage(e, Math.round(mid - e.width / 2), Math.round(eTop + (PH - 84 - e.height) / 2));
+    var oy = py + 16 + T.length * 27 + 6, ot = T[st.opp];
+    g.drawImage(emblem(st.team, 1), tbx + 4, oy - 6, 30, 30); g.drawImage(emblem(st.opp, 1), tbx + tbw - 34, oy - 6, 30, 30);
+    flaming(g, 'VS', mid, oy + 9, { scale: 2, scheme: 'fire', outline: 1, shadow: 1 }, fr);
+    button(g, 'opp', tbx, oy + 28, tbw, 24, ot.name.toUpperCase(), { on: true, size: 2, color: ot.color, fn: function () { nextOpp(1); } });
+    var al = tri('l', 5, '#ffe14d'), arr = tri('r', 5, '#ffe14d'); g.drawImage(al, tbx + 5, oy + 40 - (al.height >> 1)); g.drawImage(arr, tbx + tbw - 5 - arr.width, oy + 40 - (arr.height >> 1));
     // big arrows on the card edges switch team
     arrowBtn(g, 'tprev', C.oL - 6, C.T + 58, aw + 8, 90, 'l', function () { switchTeam(-1); }, true);
     arrowBtn(g, 'tnext', C.oR - aw - 2, C.T + 58, aw + 8, 90, 'r', function () { switchTeam(1); }, true);
@@ -538,7 +553,7 @@ window.HW = window.HW || {};
     var pTop = divY + 4, stripY = C.B - 34;
     g.fillStyle = CY; g.fillRect(C.L - 1, stripY, C.W + 2, 3);
     order.forEach(function (ti, side) {
-      var x0 = side ? mid + vsW / 2 + gap : C.L + 4, tt = m.names && m.names[ti] ? Object.assign({}, T[ti], m.names[ti]) : T[ti];
+      var x0 = side ? mid + vsW / 2 + gap : C.L + 4, tf = T[m.fams ? m.fams[ti] : ti], tt = m.names && m.names[ti] ? Object.assign({}, tf, m.names[ti]) : tf;
       Fo.draw(g, tt.name, x0 + PWm + gap / 2, hy, { scale: 2, color: tt.color });
       m.teams[ti].forEach(function (id, k) {
         var x = x0 + k * (PWm + gap), d = HW.PLAYERS[id], cxp = x + PWm / 2, me = id === m.human;
@@ -553,7 +568,7 @@ window.HW = window.HW || {};
     });
     g.fillStyle = CY; g.fillRect(mid - vsW / 2 - 2, pTop, 3, stripY - pTop); g.fillRect(mid + vsW / 2, pTop, 3, stripY - pTop);
     flaming(g, 'VS', mid, py + PH / 2, { scale: 4, scheme: 'fire', outline: 2, shadow: 3 }, fr);
-    var e0 = emblem(order[0], 1), e1 = emblem(order[1], 1);
+    var e0 = emblem(m.fams ? m.fams[order[0]] : order[0], 1), e1 = emblem(m.fams ? m.fams[order[1]] : order[1], 1);
     if (vsW >= 64) { g.drawImage(e0, mid - 32, pTop + 4, 32, 32); g.drawImage(e1, mid, pTop + 50, 32, 32); }
     Fo.draw(g, (HW.DIFFICULTY[m.diff] || { label: 'NORMAL' }).label + '   ' + clockText(m.qlen || 60) + ' QUARTERS', C.L + 14, stripY + 18, { scale: 1, scheme: 'gray', align: 'left', shadow: 0 });
     var Net = HW.Net, wait = m.online && Net && Net.mode === 'host' ? Net.waiting() : [];
@@ -570,10 +585,11 @@ window.HW = window.HW || {};
     }
   }
   UI.matchup = function () {
-    var st = UI.st, T = HW.TEAMS, mate = st.picks.filter(function (id) { return id !== st.ctrl; })[0], teams = [null, null];
-    var opp = T[1 - st.team].roster.slice().sort(function () { return Math.random() - 0.5; }).slice(0, 2);
-    teams[st.team] = [st.ctrl, mate]; teams[1 - st.team] = opp;
-    UI.mu = { teams: teams, human: st.ctrl, diff: st.diff, qlen: st.qlen || 60 }; UI.screen = 'matchup'; UI.loading = true;
+    var st = UI.st, T = HW.TEAMS; fixOpp(); var mate = st.picks.filter(function (id) { return id !== st.ctrl; })[0], teams = [null, null];
+    var opp = T[st.opp].roster.slice().sort(function () { return Math.random() - 0.5; }).slice(0, 2);
+    var fams = st.team < st.opp ? [st.team, st.opp] : [st.opp, st.team], mine = fams.indexOf(st.team);
+    teams[mine] = [st.ctrl, mate]; teams[1 - mine] = opp;
+    UI.mu = { teams: teams, fams: fams, human: st.ctrl, diff: st.diff, qlen: st.qlen || 60 }; UI.screen = 'matchup'; UI.loading = true;
     Promise.all(HW.Jam.loadIds(teams).map(X.loadPlayer)).then(function () { UI.loading = false; });
   };
 
@@ -644,9 +660,9 @@ window.HW = window.HW || {};
     });
     Fo.draw(g, Net.vs ? 'PEOPLE ON OPPOSITE TEAMS' : 'TEAM UP VS THE CPU (2 PEOPLE)', tmid, ty + 38, { scale: 1, scheme: Net.vs ? 'red' : 'green', shadow: 0 });
     // both families: tap a player to be him (again to let him go); people's picks are tagged, YOU flashing
-    var py = C.T + 60, pw = Math.floor((C.W - 12) / 2), rowH = 27, ph = 26 + 5 * rowH + 4;
-    [0, 1].forEach(function (ti) {
-      var T = HW.TEAMS[ti], x = C.L + 4 + ti * (pw + 4);
+    var NF = HW.TEAMS.length, py = C.T + 60, pw = Math.floor((C.W - 4 * (NF + 1)) / NF), rowH = 27, ph = 26 + 5 * rowH + 4;
+    HW.TEAMS.forEach(function (T, ti) {
+      var x = C.L + 4 + ti * (pw + 4);
       bevel(g, x, py, pw, ph, '#06081e', T.color, 3);
       Fo.draw(g, T.name.toUpperCase(), x + pw / 2, py + 15, { scale: 2, color: T.color });
       T.roster.forEach(function (id, r) {

@@ -97,11 +97,14 @@ window.HW = window.HW || {};
     var me = setup.me || setup.human;
     setup.teams.forEach(function (ids, team) { ids.forEach(function (id, i) { var p = new Player(id, team, i, id === me); p.me = id === me; p.lbl = setup.humans ? setup.humans[id] || null : null; G.players.push(p); if (p.me) G.human = p; }); });
     G.pu = null; G.puQueue = null; G.cine = null; G.babaDone = false;
+    if (X.teamColors) X.teamColors([G.team(0).color, G.team(1).color]);   // the paint under each hoop in the two families' colors
     G.humanTeam = G.human.team; G.score = [0, 0]; G.q = 1; G.callouts = []; G.ball = { x: 0, y: 1, z: 7, vx: 0, vy: 0, vz: 0, state: 'loose', holder: null, visible: true, fire: false };
     G.beginQuarter();
   };
   // a team's name and colors: the family's, unless an online game teamed people up across the families (setup.names)
-  G.team = function (ti) { var o = G.setup && G.setup.names && G.setup.names[ti]; return o ? Object.assign({}, HW.TEAMS[ti], o) : HW.TEAMS[ti]; };
+  // (setup.fams: which family plays on each side - three families, two in a game; older setups had side = family)
+  G.fam = function (ti) { var f = G.setup && G.setup.fams; return f ? f[ti] : ti; };
+  G.team = function (ti) { var o = G.setup && G.setup.names && G.setup.names[ti], t = HW.TEAMS[G.fam(ti)]; return o ? Object.assign({}, t, o) : t; };
   G.mates = function (p) { return G.players.filter(function (q) { return q.team === p.team && q !== p; }); };
   G.opps = function (p) { return G.players.filter(function (q) { return q.team !== p.team; }); };
   // sprites a game needs: its four players, plus anyone who walks on in one of their power-ups (Lisa, for Gator's)

@@ -21,7 +21,13 @@ window.HW = window.HW || {};
     kameron: { id: 'kameron', name: 'Kameron Gorman',   first: 'Kameron', team: 1, type: 'dunker',   num: 1,  color: '#3a86ff', skin: '#e4a387', hair: '#3a3029', hairStyle: 'short', photo: true, brow: '#4e3a2c', height: 1.96, bulk: 1.0,  stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6, pass: 5 } },
     kody:    { id: 'kody',    name: 'Kody Gorman',      first: 'Kody',    team: 1, type: 'strength', num: 55, color: '#8338ec', skin: '#d8a68e', hair: '#5a4232', hairStyle: 'short', photo: true, headScale: 1.15, brow: '#4a3628', height: 1.92, bulk: 1.3,  stats: { speed: 4, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 3 } },
     kenny:   { id: 'kenny',   name: 'Uncle Kenny Gorman', first: 'Uncle Kenny',  team: 1, type: 'strength', num: 44, color: '#118ab2', skin: '#d8a587', hair: '#9e9a93', hairStyle: 'short', photo: true, brow: '#7f7268', height: 1.90, bulk: 1.25, stats: { speed: 5, tp: 4, dunk: 5, steal: 5, block: 9, str: 9, pass: 4 } },
-    karen:   { id: 'karen',   name: 'Karen Gorman',     first: 'Karen',   team: 1, type: 'shooter',  num: 30, color: '#2ec4b6', skin: '#e3a690', hair: '#4d4038', hairStyle: 'short', photo: true, headScale: 1.15, brow: '#3d322b', height: 1.76, bulk: 0.9,  stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4, pass: 6 } }
+    karen:   { id: 'karen',   name: 'Karen Gorman',     first: 'Karen',   team: 1, type: 'shooter',  num: 30, color: '#2ec4b6', skin: '#e3a690', hair: '#4d4038', hairStyle: 'short', photo: true, headScale: 1.15, brow: '#3d322b', height: 1.76, bulk: 0.9,  stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4, pass: 6 } },
+    // the Stowells (team 2): Blair, Rox, Lindsay, Trent, Justin
+    blair:   { id: 'blair',   name: 'Blair Stowell',    first: 'Blair',   team: 2, type: 'strength', num: 50, color: '#7b2cbf', skin: '#d99a7c', hair: '#d6d2ca', hairStyle: 'short', photo: true, headScale: 1.01, brow: '#9c8a7a', height: 1.86, bulk: 1.22, stats: { speed: 5, tp: 4, dunk: 5, steal: 5, block: 9, str: 9, pass: 4 } },
+    rox:     { id: 'rox',     name: 'Rox Stowell',      first: 'Rox',     team: 2, type: 'shooter',  num: 21, color: '#c77dff', skin: '#d9a07c', hair: '#a8895f', hairStyle: 'long',  photo: true, headScale: 1.64, brow: '#6e5240', height: 1.68, bulk: 0.92, stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4, pass: 6 } },
+    lindsay: { id: 'lindsay', name: 'Lindsay Stowell',  first: 'Lindsay', team: 2, type: 'handler',  num: 10, color: '#f15bb5', skin: '#dfa07a', hair: '#d8b878', hairStyle: 'long',  photo: true, headScale: 1.68, brow: '#7a5a40', height: 1.70, bulk: 0.88, stats: { speed: 10, tp: 5, dunk: 3, steal: 9, block: 3, str: 3, pass: 10 } },
+    trent:   { id: 'trent',   name: 'Trent Stowell',    first: 'Trent',   team: 2, type: 'dunker',   num: 33, color: '#9b5de5', skin: '#e2a283', hair: '#4a3426', hairStyle: 'short', photo: true, headScale: 0.96, brow: '#3e2c20', height: 1.90, bulk: 1.05, stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6, pass: 5 } },
+    justin:  { id: 'justin',  name: 'Justin Stowell',   first: 'Justin',  team: 2, type: 'strength', num: 8,  color: '#5a189a', skin: '#d8987a', hair: '#5a4535', hairStyle: 'short', photo: true, headScale: 0.94, brow: '#4a3628', height: 1.86, bulk: 1.28, stats: { speed: 4, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 3 } }
   };
 
   // Realistic-body extras per player: eye color, headband, and anything special (Alan: from his photo)
@@ -35,13 +41,19 @@ window.HW = window.HW || {};
     kameron: { iris: '#4e3a2c' },
     kody:    { iris: '#3d2a18' },
     kenny:   { iris: '#556b3e', glasses: true },
-    karen:   { iris: '#4f7a4a' }
+    karen:   { iris: '#4f7a4a' },
+    blair:   { iris: '#5f7a88' },
+    rox:     { iris: '#5a4a3a' },
+    lindsay: { iris: '#4f6f8a' },
+    trent:   { iris: '#4a3a2a' },
+    justin:  { iris: '#5a4a3a' }
   };
   Object.keys(LOOK).forEach(function (id) { HW.PLAYERS[id].look = LOOK[id]; });
 
   HW.TEAMS = [
     { id: 0, name: 'Andersons', short: 'AND', color: '#ff8a1f', dark: '#7a3a00', roster: ['carl', 'tyler', 'alan', 'lisa', 'bianca'] },
-    { id: 1, name: 'Gormans',   short: 'GOR', color: '#3a86ff', dark: '#10306b', roster: ['katelyn', 'kameron', 'kody', 'kenny', 'karen'] }
+    { id: 1, name: 'Gormans',   short: 'GOR', color: '#3a86ff', dark: '#10306b', roster: ['katelyn', 'kameron', 'kody', 'kenny', 'karen'] },
+    { id: 2, name: 'Stowells',  short: 'STO', color: '#b45cff', dark: '#3d0f6b', roster: ['blair', 'rox', 'lindsay', 'trent', 'justin'] }
   ];
 
   HW.DIFFICULTY = {
@@ -53,7 +65,7 @@ window.HW = window.HW || {};
   // powered-up heads: faces/<id>_ssj.png (front) and faces/<id>_ssj_back.png (back of the head).
   // [x, y] = where the original image's top-left corner sits inside the bigger powered-up canvas, in original-image pixels
   // where each photo's mouth is (fraction of the photo across, down): the tongue on the free-throw-line dunk comes out here
-  HW.MOUTH = { carl: [0.50, 0.80], tyler: [0.50, 0.76], alan: [0.52, 0.74], lisa: [0.60, 0.82], bianca: [0.46, 0.78], katelyn: [0.58, 0.83], kameron: [0.47, 0.81], kody: [0.55, 0.77], kenny: [0.50, 0.79], karen: [0.60, 0.81] };
+  HW.MOUTH = { carl: [0.50, 0.80], tyler: [0.50, 0.76], alan: [0.52, 0.74], lisa: [0.60, 0.82], bianca: [0.46, 0.78], katelyn: [0.58, 0.83], kameron: [0.47, 0.81], kody: [0.55, 0.77], kenny: [0.50, 0.79], karen: [0.60, 0.81], blair: [0.52, 0.75], rox: [0.56, 0.72], lindsay: [0.41, 0.74], trent: [0.52, 0.78], justin: [0.50, 0.73] };
   // and where the mouth is on a powered-up face that's a different photo from the normal one (Carl's scowl), same units
   HW.MOUTH_SSJ = { carl: [0.59, 0.72] };
   // a face for the slow-motion dunks (another photo: Carl's yell), from the slow motion until he lands: faces/<id>_dunk.png and,
@@ -69,7 +81,12 @@ window.HW = window.HW || {};
     kameron: [67, 171],
     kody: [67, 146],
     kenny: [56, 156],
-    karen: [75, 170]
+    karen: [75, 170],
+    blair: [65, 173],
+    rox: [22, 163],
+    lindsay: [33, 197],
+    trent: [60, 170],
+    justin: [60, 165]
   };
   HW.SSJ_PAD_BACK = {
     carl: [49, 78],
@@ -81,7 +98,12 @@ window.HW = window.HW || {};
     kameron: [50, 68],
     kody: [48, 76],
     kenny: [48, 79],
-    karen: [50, 72]
+    karen: [50, 72],
+    blair: [51, 76],
+    rox: [47, 77],
+    lindsay: [48, 77],
+    trent: [46, 76],
+    justin: [48, 73]
   };
 
   // Derived physical numbers for a player definition.
@@ -106,10 +128,11 @@ window.HW = window.HW || {};
   // lines that come with a 2 s taunt over normal play: the crotch chop (twice) or pointing off at the kiddie table
   HW.TAUNTS = { "WHO'S YOUR UNCLE?!?!": 'chop', "WHO'S YOUR AUNTIE?!?!": 'chop', "KIDDIE TABLE'S OVER THERE!": 'point' };
 
-  // the family tree: Alan + Lisa Anderson -> Tyler, Carl (Bianca plays for the Andersons, no generation set: no uncle/aunt/cousin lines); Karen (Alan's sister) + Kenny Gorman -> Katelyn (Katie), Kody, Kameron.
+  // the family tree (the Stowells aren't placed in it yet: no gen, so no uncle/aunt/cousin lines for them): Alan + Lisa Anderson -> Tyler, Carl (Bianca plays for the Andersons, no generation set: no uncle/aunt/cousin lines); Karen (Alan's sister) + Kenny Gorman -> Katelyn (Katie), Kody, Kameron.
   // gen 1 = the parents (uncles and aunts to the other family's kids), gen 2 = the kids (cousins across the families)
   HW.FAMILY = {
     alan: { gen: 1, sex: 'm', fam: 0 }, lisa: { gen: 1, sex: 'f', fam: 0 }, bianca: { sex: 'f', fam: 0 }, tyler: { gen: 2, sex: 'm', fam: 0 }, carl: { gen: 2, sex: 'm', fam: 0 },
-    kenny: { gen: 1, sex: 'm', fam: 1 }, karen: { gen: 1, sex: 'f', fam: 1 }, katelyn: { gen: 2, sex: 'f', fam: 1 }, kody: { gen: 2, sex: 'm', fam: 1 }, kameron: { gen: 2, sex: 'm', fam: 1 }
+    kenny: { gen: 1, sex: 'm', fam: 1 }, karen: { gen: 1, sex: 'f', fam: 1 }, katelyn: { gen: 2, sex: 'f', fam: 1 }, kody: { gen: 2, sex: 'm', fam: 1 }, kameron: { gen: 2, sex: 'm', fam: 1 },
+    blair: { sex: 'm', fam: 2 }, rox: { sex: 'f', fam: 2 }, lindsay: { sex: 'f', fam: 2 }, trent: { sex: 'm', fam: 2 }, justin: { sex: 'm', fam: 2 }
   };
 })(window.HW);
