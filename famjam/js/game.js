@@ -174,9 +174,9 @@ window.HW = window.HW || {};
       var k = p.dk, u = p.st / k.T, rx = rimX(p.team), sd = side(p.team), hand = null, lerp = function (a, c, f) { f = Math.max(0, Math.min(1, f)); f = f * f * (3 - 2 * f); return { x: a.x + (c.x - a.x) * f, y: a.y + (c.y - a.y) * f }; };
       var swap = k.style === 'legs' || k.style === 'btb', left = swap && u > 0.42;   // passed to the other hand under the leg / behind the back
       if (k.style === 'jam' && p.jamArm) { b.x = p.jamArm.x; b.y = p.jamArm.y; b.z = p.jamArm.z; return; }
-      // the reverse layup's frames carry the ball in his hand (rendered with him): ours stays hidden but right where it is drawn, so it
-      // leaves his hand from exactly there
-      if (k.style === 'rev') { var rw = X.ballWorld(p); if (rw) { b.x = rw.x; b.y = Math.max(0.2, rw.y); b.z = p.z - 0.2; b.baked = rw.baked && u < DUNK_SLAM; b.inFront = !b.baked; return; } }   // (up over his head we draw it, over his face)
+      // the reverses and the far-hand layups carry the ball in their frames (rendered with him): ours stays hidden but right where it is
+      // drawn, so it leaves his hand from exactly there
+      if (k.lay) { var rw = X.ballWorld(p); if (rw) { b.x = rw.x; b.y = Math.max(0.2, rw.y); b.z = p.z - 0.2; b.baked = rw.baked && u < DUNK_SLAM; b.inFront = !b.baked; return; } }   // (over his face or up over his head we draw it, on top)
       if (k.style === 'board' && u > 0.14 && u < 0.5) {   // tossed off the glass and back to himself (slow motion, the camera on the ball)
         if (!k.toss) k.toss = { x: b.x, y: b.y };   // it leaves from right where his hand had it
         var bd = { x: rx + sd * 0.45, y: 3.5 }, f1 = Math.min(1, (u - 0.14) / 0.16), f2 = Math.min(1, Math.max(0, (u - 0.3) / 0.2)); hand = X.handWorld(p) || { x: p.x, y: p.y + 2 };
@@ -200,7 +200,7 @@ window.HW = window.HW || {};
           return;
         }
       }
-      hand = X.handWorld(p, left); if (hand) { b.x = hand.x; b.y = Math.max(0.2, hand.y + (k.style === 'roll' && u > 0.3 ? 0.13 : 0)); b.z = p.z - 0.2; return; }
+      hand = X.handWorld(p, left); if (hand) { b.x = hand.x; b.y = Math.max(0.2, hand.y + (k.lay === 'roll' && u > 0.3 ? 0.13 : 0)); b.z = p.z - 0.2; return; }
     }
     if (G.show && G.show.p === p && G.show.t < G.show.len) { b.x = p.x + p.face * 0.6; b.y = 0.15; b.z = p.z - 0.3; return; }   // set down for the twerk
     if (p.state === 'stepback') { var hs = X.handWorld(p); b.x = hs ? hs.x : p.x + p.face * 0.3; b.y = hs ? Math.max(0.2, hs.y) : p.y + 1.1; b.z = p.z - 0.25; return; }
@@ -305,15 +305,22 @@ window.HW = window.HW || {};
     // (tongue out) or the stretched arm; closer: off the backboard, the double-biceps flex or a bounce to himself; from anywhere:
     // under the legs (in slow motion, the camera in close on the whole move so you see the ball go under), behind the back, a flip
     // the dunkers go off the glass a bit more often: 1 in 4 of their close signature dunks instead of 1 in 6
-    // the Ball Handlers (speed) lay it up instead: the same glide, hang time and block window as a dunk, the ball leaving his hand right
-    // where a dunk would slam. About 3 in 10 a slow-motion finger roll (the ball rolls off his fingertips up to twice the rim's height,
-    // the camera riding up with it), 3 in 10 a slow-motion reverse (under the rim, ball held out in one hand, then up and back in)
-    if (p.def.type === 'handler' && X.hasAnim(p, 'dk_lay')) {
-      var lr = Math.random(), ls = lr < 0.3 ? 'roll' : lr < 0.6 ? 'rev' : 'lay'; if (!X.hasAnim(p, 'dk_' + ls)) ls = 'lay';
-      p.dk.style = ls; p.dk.lay = true; p.dk.spin = false; p.dk.peak = ls === 'roll' ? 0.95 : 0.8;
-      if (ls === 'rev') { p.dk.x1 = rx + s * 0.55; p.dk.z1 = K.HZ - 0.15; } else p.dk.x1 = rx - s * (ls === 'roll' ? 0.75 : 0.85);
-      if (ls === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: DUNK_SLAM * p.dk.T / 2.5 };   // 2.5 s of slow motion up to the release
-      if (ls === 'roll') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'roll', slow: 0.45 };   // slow from the top of the rise until it drops in
+    // the Ball Handlers (speed) mix layups in with their dunks (half their drives): the same glide, hang time and block window as a
+    // dunk, the ball leaving his hand right where a dunk would slam. Always the outside hand: on the near half of the court (z below the
+    // rim's, nearer you) his near hand, on the far half his far hand (the *2 frames, mirrored). About 3 in 10 a slow-motion finger roll
+    // (the ball rolls off his fingertips up to twice the rim's height, the camera riding up with it), 3 in 10 a slow-motion reverse: up
+    // on his side with the ball in that hand, under the rim to the other side, the ball switching hands right as his body crosses the
+    // middle of the basket (z = HZ), laid in with the other hand just under the rim
+    if (p.def.type === 'handler' && X.hasAnim(p, 'dk_lay') && Math.random() < 0.5) {
+      var lr = Math.random(), lb0 = lr < 0.3 ? 'roll' : lr < 0.6 ? 'rev' : 'lay', farS = p.z > K.HZ, ls = lb0 + (farS ? '2' : '');
+      if (!X.hasAnim(p, 'dk_' + ls)) { lb0 = 'lay'; ls = 'lay'; }
+      p.dk.style = ls; p.dk.lay = lb0; p.dk.spin = false; p.dk.peak = lb0 === 'roll' ? 0.95 : 0.8;
+      // (he ends a step off the middle of the rim, so the ball goes up beside it rather than inside the net: the far-hand finish shows
+      // on the baseline side of him, the near-hand one on the court side)
+      if (lb0 === 'rev') { var sg = farS ? -1 : 1; p.dk.x1 = rx + s * (farS ? -0.12 : 0.12); p.dk.zA = K.HZ - sg * 0.55; p.dk.z1 = K.HZ + sg * 0.55; }
+      else { p.dk.x1 = rx - s * (lb0 === 'roll' ? 0.75 : 0.85); p.dk.z1 = K.HZ + (farS ? 0.3 : -0.3); }   // stays on his side of the rim
+      if (lb0 === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: DUNK_SLAM * p.dk.T / 2 };   // 2 s of slow motion up to the release
+      if (lb0 === 'roll') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'roll', slow: 0.45 };   // slow from the top of the rise until it drops in
     } else if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
       if (p.dk.style === 'mj') p.tongue = true;
       if (p.dk.style === 'legs') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'legs', slow: DUNK_SLAM * p.dk.T / 2.5 };   // 2.5 s of slow motion up to the slam
@@ -325,11 +332,15 @@ window.HW = window.HW || {};
     var d0 = Math.hypot(p.x - rx, p.z - K.HZ); p.dk.three = d0 > K.R3 - 0.1 && Math.abs(p.z - K.HZ) < 6.2 || d0 > K.R3 + 0.3;
     p.face = s; p.stats.fga++; if (p.dk.three) p.stats.tpa++; if (isGuy(p)) Au.hup(); else Au.jump(); Au.whoosh(9);   // a dunk is a field goal attempt (made ones already count in fgm)
   };
-  var DUNK_SLAM = 0.66, DK_FRAMES = { legs: 30, roll: 16, rev: 30 };   // frames per signature dunk in the extras sheet (the slow-motion one gets more)
+  var DUNK_SLAM = 0.66, DK_FRAMES = { legs: 30, roll: 16, rev: 30, roll2: 16, rev2: 30 };   // frames per signature dunk in the extras sheet (the slow-motion one gets more)
   function updateDunk(p, dt) {
     // he glides to the rim (eased in and out over the first 60%), so a defender in his path has time to get up and meet him
     var k = p.dk, u = p.st / k.T, e0 = Math.min(1, u / 0.6), e = e0 * e0 * (3 - 2 * e0);   // p.st is advanced once in physics() (it used to be counted twice, so dunks ran at double speed)
-    p.x = k.x0 + (k.x1 - k.x0) * e; p.z = k.z0 + (k.z1 - k.z0) * e; p.y = Math.max(0, k.peak * Math.sin(Math.PI * Math.min(1, u)) * (u > 0.62 && u < 0.82 ? 1.02 : 1));
+    p.x = k.x0 + (k.x1 - k.x0) * e; p.z = k.z0 + (k.z1 - k.z0) * e;
+    // the reverse: under the rim on his own side by u = 0.4, then across to the other side, crossing the middle (z = HZ) at u = 0.425,
+    // right as the ball changes hands in his frames; he's under the rim by then
+    if (k.zA !== undefined) { var smooth = function (x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }, ex = Math.min(1, u / 0.45); p.x = k.x0 + (k.x1 - k.x0) * ex * ex * (3 - 2 * ex); p.z = k.z0 + (k.zA - k.z0) * smooth(u / 0.4) + (k.z1 - k.zA) * smooth((u - 0.25) / 0.35); }
+    p.y = Math.max(0, k.peak * Math.sin(Math.PI * Math.min(1, u)) * (u > 0.62 && u < 0.82 ? 1.02 : 1));
     if (k.spin && u > 0.18 && u < 0.5) p.face = Math.floor(u * 22) % 2 ? side(p.team) : -side(p.team); else p.face = side(p.team);
     if (sig(p, 'dunk')) {   // wrapped in flames all the way up; in the slow-motion dunk only a trail off his sneakers, so the move stays in plain view
       if (G.cine && G.cine.p === p) { if (Math.random() < 0.3) fireBurst(p.x - side(p.team) * 0.35, p.y + 0.1, p.z - 0.1, 1); }
@@ -338,11 +349,11 @@ window.HW = window.HW || {};
     if (k.style) { var nf = DK_FRAMES[k.style] || 12; p.anim = 'dk_' + k.style; p.dir = k.style === 'flex' ? 'C' : 'R'; p.frame = Math.min(nf - 1, Math.round(Math.min(u, 0.9) / 0.9 * (nf - 1))); p.jamArm = k.style === 'jam' && u > 0.25 && u < DUNK_SLAM ? { x: k.x1, y: K.RIM_H + 0.25, z: k.z1 - 0.1 } : null; }
     else { p.anim = 'dunk'; p.dir = 'R'; p.frame = u < 0.12 ? 0 : u < 0.3 ? 1 : u < 0.5 ? 2 : u < 0.64 ? 3 : u < 0.82 ? 4 : 5; }
     if (u >= DUNK_SLAM && !k.slam && k.lay) {   // a layup: the ball leaves his hand (it can't be blocked from here on, just like a dunk)
-      k.slam = true; var lb = G.ball, lrx = rimX(p.team), lfl = k.style === 'roll' ? { T: 1.55 } : k.style === 'rev' ? { T: 0.5, arc: 0.55 } : { T: 0.55, arc: 0.45 };
-      if (k.style === 'roll') lfl.arc = 2 * K.RIM_H - (lb.y + K.RIM_H + 0.12) / 2;   // up to twice the rim's height
+      k.slam = true; var lb = G.ball, lrx = rimX(p.team), lfl = k.lay === 'roll' ? { T: 1.55 } : k.lay === 'rev' ? { T: 0.5, arc: 0.55 } : { T: 0.55, arc: 0.45 };
+      if (k.lay === 'roll') lfl.arc = 2 * K.RIM_H - (lb.y + K.RIM_H + 0.12) / 2;   // up to twice the rim's height
       p.hasBall = false; lb.holder = null; lb.state = 'shot'; lb.last = p; lb.baked = lb.behind = false;
-      lb.shotInfo = { by: p, team: p.team, three: false, make: true, quality: 'green', lay: k.style, t: 0, T: lfl.T, x0: lb.x, y0: lb.y, z0: lb.z, rx: lrx, arc: lfl.arc, missX: 0, missZ: 0 };
-      Au.whoosh(k.style === 'roll' ? 8 : 5);
+      lb.shotInfo = { by: p, team: p.team, three: false, make: true, quality: 'green', lay: k.lay, t: 0, T: lfl.T, x0: lb.x, y0: lb.y, z0: lb.z, rx: lrx, arc: lfl.arc, missX: 0, missZ: 0 };
+      Au.whoosh(k.lay === 'roll' ? 8 : 5);
     }
     if (u >= DUNK_SLAM && !k.slam) {
       k.slam = true; if (G.cine && G.cine.p === p) G.cine = null; p.tongue = false;   // the slow-motion close-up ends on the slam
@@ -586,7 +597,7 @@ window.HW = window.HW || {};
         if (cp.state !== 'armbar' || cp.st >= AB_T) G.cine = null; else { dt *= G.cine.slow; G.cine.t = cp.st; }
       } else if (ck === 'roll' || ck === 'rev') {   // the layups: slow until the ball drops through (the finger roll from the top of his rise)
         var lfly = G.ball.state === 'shot' && bsi && bsi.by === cp && bsi.lay === ck;
-        if (!lfly && !(cp.dk && cp.dk.style === ck)) G.cine = null;
+        if (!lfly && !(cp.dk && cp.dk.lay === ck)) G.cine = null;
         else { dt *= ck === 'roll' && !lfly && cu < 0.45 ? 1 : G.cine.slow; G.cine.t = cp.st; }
       } else if (!cp.dk || cp.dk.style !== G.cine.kind || (G.cine.kind === 'board' && cu >= 0.5)) G.cine = null;
       else { dt *= G.cine.kind === 'board' && cu < 0.14 ? 1 : G.cine.slow || 0.4; G.cine.t = cp.st; }
