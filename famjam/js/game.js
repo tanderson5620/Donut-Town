@@ -323,7 +323,7 @@ window.HW = window.HW || {};
       if (lb0 === 'rev') { var sg = farS ? -1 : 1; p.dk.x1 = rx - s * 0.15; p.dk.zA = K.HZ - sg * 0.55; p.dk.z1 = K.HZ + sg * 0.55; }
       else { p.dk.x1 = rx - s * (lb0 === 'roll' ? 0.75 : 0.85); p.dk.z1 = K.HZ + (farS ? 0.3 : -0.3); }   // stays on his side of the rim
       if (lb0 === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: DUNK_SLAM * p.dk.T / 2 };   // 2 s of slow motion up to the release
-      if (lb0 === 'roll') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'roll', slow: 0.45 };   // slow from the top of the rise until it drops in
+      if (lb0 === 'roll') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'roll', slow: 1 };   // full speed: the camera rides up with the ball, 1 s up and in
     } else if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
       if (p.dk.style === 'mj') p.tongue = true;
       if (p.dk.style === 'legs') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'legs', slow: DUNK_SLAM * p.dk.T / 2.5 };   // 2.5 s of slow motion up to the slam
@@ -352,13 +352,14 @@ window.HW = window.HW || {};
     if (k.style) { var nf = DK_FRAMES[k.style] || 12; p.anim = 'dk_' + k.style; p.dir = k.style === 'flex' ? 'C' : 'R'; p.frame = Math.min(nf - 1, Math.round(Math.min(u, 0.9) / 0.9 * (nf - 1))); p.jamArm = k.style === 'jam' && u > 0.25 && u < DUNK_SLAM ? { x: k.x1, y: K.RIM_H + 0.25, z: k.z1 - 0.1 } : null; }
     else { p.anim = 'dunk'; p.dir = 'R'; p.frame = u < 0.12 ? 0 : u < 0.3 ? 1 : u < 0.5 ? 2 : u < 0.64 ? 3 : u < 0.82 ? 4 : 5; }
     if (u >= DUNK_SLAM && !k.slam && k.lay) {   // a layup: the ball leaves his hand (it can't be blocked from here on, just like a dunk)
-      k.slam = true; var lb = G.ball, lrx = rimX(p.team), lfl = k.lay === 'roll' ? { T: 1.55 } : k.lay === 'rev' ? { T: 0.7, arc: 0.2 } : { T: 0.55, arc: 0.45 };
+      k.slam = true; var lb = G.ball, lrx = rimX(p.team), lfl = k.lay === 'roll' ? { T: 1.0 } : k.lay === 'rev' ? { T: 0.7, arc: 0.2 } : { T: 0.55, arc: 0.45 };
       if (k.lay === 'roll') lfl.arc = 2 * K.RIM_H - (lb.y + K.RIM_H + 0.12) / 2;   // up to twice the rim's height
       p.hasBall = false; lb.holder = null; lb.state = 'shot'; lb.last = p; lb.baked = lb.behind = false;
       lb.shotInfo = { by: p, team: p.team, three: false, make: true, quality: 'green', lay: k.lay, t: 0, T: lfl.T, x0: lb.x, y0: lb.y, z0: lb.z, rx: lrx, arc: lfl.arc, missX: 0, missZ: 0 };
       // the reverse goes up off the glass on the side he finished on (kisses the board just in front of it, then drops in)
       if (k.lay === 'rev') lb.shotInfo.bank = { x: side(p.team) * (K.BOARDX - 0.12), y: K.RIM_H + 0.42, z: K.HZ + (k.z1 - K.HZ) * 0.55, f: 0.55 };
       Au.whoosh(k.lay === 'roll' ? 8 : 5);
+      if (k.lay === 'roll') lb.rollSpin = lrx > 0 ? -1 : 1;   // off his fingertips with heavy backspin: spinning hard the whole way up and in
     }
     if (u >= DUNK_SLAM && !k.slam) {
       k.slam = true; if (G.cine && G.cine.p === p) G.cine = null; p.tongue = false;   // the slow-motion close-up ends on the slam
@@ -609,7 +610,8 @@ window.HW = window.HW || {};
       else { dt *= G.cine.kind === 'board' && cu < 0.14 ? 1 : G.cine.slow || 0.4; G.cine.t = cp.st; }
     }
     if (G.show) updateShow(dt);   // the quarter-start / game-end twerk (everyone else stands still: they're waiting anyway)
-    if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall') { G.puQueue = null; startPowerup(pq); return; } }
+    // (not while a slow-motion move or its ball is still playing out: the finger roll is still up in the air when he lands)
+    if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall' && !G.cine) { G.puQueue = null; startPowerup(pq); return; } }
     if (G.tipT > 0 && (G.tipT -= dt) <= 0) G.say('STICK PAST THE RING = TURBO!', '#5cff7a', 3.5, 0.55);
     var live = G.phase === 'play';
     // the ref's whistle (recorded): tweet, tweet, then the long blast lands right on GO
@@ -725,7 +727,7 @@ window.HW = window.HW || {};
 
   function updateBall(dt) {
     if (!(dt > 0)) return;   // velocities below divide by dt
-    var b = G.ball; if (b.swoosh > 0) b.swoosh -= dt; b.noCatch = Math.max(0, (b.noCatch || 0) - dt); b.inFront = false; b.behind = false; b.baked = false;
+    var b = G.ball; if (b.swoosh > 0) b.swoosh -= dt; b.noCatch = Math.max(0, (b.noCatch || 0) - dt); b.inFront = false; b.behind = false; b.baked = false; if (b.state !== 'shot' && b.state !== 'through') b.rollSpin = 0;
     b.fire = !!((b.holder && b.holder.onFire && !(G.cine && G.cine.p === b.holder)) || (b.shotInfo && b.shotInfo.by.onFire && b.state === 'shot') || (b.state === 'pass' && b.pass && b.pass.from.onFire));   // not in the slow-motion dunk: the ball stays in plain view
     if (b.state === 'held') {
       ballAtHolder(b.holder, dt);

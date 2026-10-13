@@ -366,12 +366,26 @@ window.HW = window.HW || {};
     gr.addColorStop(0, '#ffc488'); gr.addColorStop(0.45, '#f07a26'); gr.addColorStop(1, '#9c3a08'); g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, r, 0, 6.283); g.fill();
     // seams turn with the spin
     g.save(); g.beginPath(); g.arc(p.x, p.y, r, 0, 6.283); g.clip();
+    // a finger roll's heavy backspin (rollSpin: -1 / 1, its direction on screen): the whole ball turns fast in the picture, about 5
+    // turns a second, timed on the screen clock so it spins the same at any frame rate and on a guest's phone too
+    var rs = b.rollSpin, now = performance.now() / 1000;
+    if (rs) { b.roll = ((b.roll || 0) + rs * 30 * Math.min(0.05, Math.max(0, now - (b.rollT || now))) + 6.283) % 6.283; g.translate(p.x, p.y); g.rotate(b.roll); g.translate(-p.x, -p.y); }
+    b.rollT = now;
     g.strokeStyle = 'rgba(35,12,0,0.85)'; g.lineWidth = Math.max(1, r * 0.11);
     var o = Math.sin(b.spin) * r * 0.55;
     g.beginPath(); g.moveTo(p.x - r, p.y + Math.cos(b.spin) * r * 0.15); g.lineTo(p.x + r, p.y - Math.cos(b.spin) * r * 0.15); g.stroke();
     g.beginPath(); g.ellipse(p.x + o, p.y, Math.abs(Math.cos(b.spin)) * r * 0.5 + 1, r, 0, 0, 6.283); g.stroke();
     g.restore();
     g.strokeStyle = 'rgba(60,20,0,0.9)'; g.lineWidth = 1; g.beginPath(); g.arc(p.x, p.y, r, 0, 6.283); g.stroke();
+    if (rs) {   // spin streaks: three short arcs whipping round just outside it, fading off their tails
+      g.lineCap = 'round';
+      for (var si = 0; si < 3; si++) for (var sj = 0; sj < 5; sj++) {
+        var a0 = b.roll + si * 2.094 - rs * sj * 0.22;
+        g.strokeStyle = 'rgba(255,240,215,' + (0.75 * (1 - sj / 5)) + ')'; g.lineWidth = Math.max(1, r * 0.14 * (1 - sj / 6));
+        g.beginPath(); g.arc(p.x, p.y, r * 1.28, Math.min(a0, a0 - rs * 0.24), Math.max(a0, a0 - rs * 0.24)); g.stroke();
+      }
+      g.lineCap = 'butt';
+    }
     b.scr = p;
   };
   var parts = [];
