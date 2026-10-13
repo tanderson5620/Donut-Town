@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=16';   // (the faces carry it too)
+  var SHEET_V = '?v=17';   // (the faces carry it too)
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -465,9 +465,48 @@ window.HW = window.HW || {};
   // a game's two families: repaint the lanes in their colors (only when they change)
   X.teamColors = function (cs) { if (FC && FC[0] === cs[0] && FC[1] === cs[1]) return; FC = cs.slice(); buildFloor(); };
 
+  // above the stands (only the finger roll's camera goes up there): the upper deck fading into the dark, a lighting truss with its
+  // spotlights, and the three families' championship banners hanging from it
+  var rafC = null, rafKey = '';
+  function buildRafters() {
+    var w = Math.round(W * 2.2), h = Math.round(H * 2), c = rafC = canvas(w, h), r = c.getContext('2d'); rafKey = W + 'x' + H;
+    var gr = r.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#0d1028'); gr.addColorStop(0.75, '#08091a'); gr.addColorStop(1, '#05050b'); r.fillStyle = gr; r.fillRect(0, 0, w, h);
+    var hs = function (a, b) { var v = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return v - Math.floor(v); };
+    // the upper deck: rows of faint fans climbing into the dark
+    for (var row = 0; row < 10; row++) { var y = h - 4 - row * 9, al = 0.55 * (1 - row / 10); for (var x = (row % 2) * 5; x < w; x += 9) { var q = hs(x, row); if (q < 0.12) continue; var cl = ['200,90,80', '90,120,200', '220,200,170', '120,180,120', '200,160,90'][Math.floor(q * 5)]; r.fillStyle = 'rgba(' + cl + ',' + (al * (0.5 + q * 0.5)).toFixed(2) + ')'; r.fillRect(x, y - 5, 5, 6); r.fillStyle = 'rgba(230,190,160,' + (al * 0.8).toFixed(2) + ')'; r.fillRect(x + 1, y - 9, 3, 3); } }
+    // the facade above it: a dark band with a strip of light
+    var fy = h - Math.round(0.3 * H); r.fillStyle = '#11132e'; r.fillRect(0, fy, w, 12); r.fillStyle = '#4a5aa0'; r.fillRect(0, fy, w, 2); r.fillStyle = 'rgba(255,210,120,0.5)'; for (var x1 = 6; x1 < w; x1 += 26) r.fillRect(x1, fy + 6, 10, 2);
+    // the truss: two chords and the zig-zag between them
+    var tY = h - Math.round(0.62 * H); r.strokeStyle = '#2c3360'; r.lineWidth = 3; r.beginPath(); r.moveTo(0, tY); r.lineTo(w, tY); r.moveTo(0, tY + 16); r.lineTo(w, tY + 16); r.stroke();
+    r.lineWidth = 2; r.beginPath(); for (var x2 = 0; x2 < w; x2 += 16) { r.moveTo(x2, tY); r.lineTo(x2 + 8, tY + 16); r.lineTo(x2 + 16, tY); } r.stroke();
+    // championship banners: the families' colors, their letter and a year
+    var BN = [['A', '#ff8a1f', '2024'], ['G', '#3a86ff', '2025'], ['S', '#b45cff', '2026'], ['FJ', '#e63946', 'CHAMPS']];
+    r.textAlign = 'center'; r.textBaseline = 'middle';
+    for (var i = 0, bx = 70; bx < w - 50; bx += 170, i++) {
+      var bn = BN[i % BN.length], by = tY + 18, bw = 44, bh = 74;
+      r.fillStyle = '#000'; r.beginPath(); r.moveTo(bx - 2, by - 2); r.lineTo(bx + bw + 2, by - 2); r.lineTo(bx + bw + 2, by + bh); r.lineTo(bx + bw / 2, by + bh + 12); r.lineTo(bx - 2, by + bh); r.closePath(); r.fill();
+      r.fillStyle = bn[1]; r.beginPath(); r.moveTo(bx, by); r.lineTo(bx + bw, by); r.lineTo(bx + bw, by + bh - 2); r.lineTo(bx + bw / 2, by + bh + 9); r.lineTo(bx, by + bh - 2); r.closePath(); r.fill();
+      r.fillStyle = 'rgba(255,255,255,0.85)'; r.fillRect(bx + 3, by + 3, bw - 6, 2); r.fillRect(bx + 3, by + bh - 14, bw - 6, 2);
+      r.fillStyle = '#fff'; r.font = 'bold 22px "Press Start 2P", monospace'; r.fillText(bn[0], bx + bw / 2, by + 28);
+      r.font = '7px "Press Start 2P", monospace'; r.fillText(bn[2], bx + bw / 2, by + bh - 24);
+      r.fillStyle = 'rgba(0,0,0,0.25)'; r.fillRect(bx + bw - 8, by, 8, bh - 2);
+    }
+    // spotlights hanging under the truss, between the banners
+    for (var x3 = 155, n3 = 0; x3 < w; x3 += 170, n3++) {
+      var lg = r.createRadialGradient(x3, tY + 30, 0, x3, tY + 30, 46); lg.addColorStop(0, 'rgba(255,250,230,0.95)'); lg.addColorStop(0.18, 'rgba(255,240,200,0.55)'); lg.addColorStop(1, 'rgba(255,230,180,0)'); r.fillStyle = lg; r.fillRect(x3 - 46, tY - 16, 92, 92);
+      r.fillStyle = '#1a1d38'; r.fillRect(x3 - 7, tY + 16, 14, 10); r.fillStyle = '#fffbe8'; r.fillRect(x3 - 5, tY + 25, 10, 4);
+    }
+  }
+  function drawRafters(g) {
+    if (!rafC || rafKey !== W + 'x' + H) buildRafters();
+    var off = Math.round((rafC.width - W) / 2 + X.camX * 9 + X.shakeX), ox = Math.max(0, Math.min(rafC.width - W, off));
+    g.drawImage(rafC, ox, 0, W, rafC.height, 0, 2 - rafC.height, W, rafC.height);
+  }
+  var rollCam = { apex: 0 };
+
   // full scene, back to front; `things` are players + ball, each with x,z
   X.drawScene = function (g, t, dt, players, ball, hoopFx) {
-    X.t = t;
+    X.t = t; X.lookUp = false;
     var pu = HW.Jam && (HW.Jam.pu || HW.Jam.cine), zk = 1, za = 0, zf = null, cine = pu && !HW.Jam.pu;
     if (pu) {   // the power-up camera: zoom in on him, hold, ease back out
       var D = pu.dur || HW.Jam.PU.dur, u = pu.t, e = function (v) { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
@@ -494,8 +533,16 @@ window.HW = window.HW || {};
         za = bu < 0.14 ? 0 : bu < 0.27 ? e((bu - 0.14) / 0.13) : bu < 0.33 ? 1 : bu < 0.5 ? e((0.5 - bu) / 0.17) : 0;
         zk = 1 + (2.4 - 1) * za; zf = { x: bj.x - X.shakeX, y: bj.y - X.shakeY };
       }
+      if (cine && pu.kind === 'roll' && ball) {
+        // the finger roll: once it leaves his fingertips the camera rides up with the ball, in close, past the top of the stands into the
+        // rafters; from the top of its arc it zooms back out as it drops, full view again just above the rim
+        var rb = X.proj(ball.x, ball.y, ball.z), free = !ball.holder, RH = K.RIM_H;
+        if (!free) rollCam.apex = 0; rollCam.apex = Math.max(rollCam.apex, ball.y);
+        za = !free ? 0 : ball.y >= rollCam.apex - 0.02 ? e((ball.y - (RH + 0.1)) / 1.2) : e((ball.y - (RH + 0.5)) / Math.max(0.5, rollCam.apex - RH - 0.5));
+        zk = 1 + (2.0 - 1) * za; zf = { x: rb.x - X.shakeX, y: rb.y - X.shakeY }; X.lookUp = za > 0;
+      }
       var tx = zf.x + (W / 2 - zf.x) * za, ty = zf.y + (H * 0.5 - zf.y) * za;
-      tx = Math.max(W - zk * (W - zf.x), Math.min(zk * zf.x, tx)); ty = Math.max(H - zk * (H - zf.y), Math.min(zk * zf.y, ty));
+      tx = Math.max(W - zk * (W - zf.x), Math.min(zk * zf.x, tx)); ty = X.lookUp ? Math.max(H - zk * (H - zf.y), ty) : Math.max(H - zk * (H - zf.y), Math.min(zk * zf.y, ty));   // (looking up: above the stands too)
       g.save(); g.translate(tx, ty); g.scale(zk, zk); g.translate(-zf.x, -zf.y);
       if (za > 0.3) g.imageSmoothingEnabled = false;
     }
@@ -527,6 +574,7 @@ window.HW = window.HW || {};
   function drawSceneInner(g, t, dt, players, ball, hoopFx) {
     X.shake = Math.max(0, X.shake - dt * 3); X.shakeX = (Math.random() - 0.5) * X.shake * 10; X.shakeY = (Math.random() - 0.5) * X.shake * 8;
     X.hype = Math.max(0, X.hype - dt * 0.7);
+    if (X.lookUp) drawRafters(g);
     drawCrowd(g, t, dt); drawFloor(g); drawPools(g, dt);
     players.forEach(function (p) { X.drawReflection(g, p); if (p.onFire && dt > 0 && Math.random() < 0.5) { if (p.ssj) X.goldSpark(p); else X.flame(p.x + (Math.random() - 0.5) * 0.5, p.y + 0.05, p.z - 0.1, 1, 0.3); } });
     var items = players.map(function (p) { return { z: p.z, draw: function () { X.drawPlayer(g, p); } }; });
