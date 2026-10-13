@@ -54,8 +54,10 @@ window.HW = window.HW || {};
   // [x, y] = where the original image's top-left corner sits inside the bigger powered-up canvas, in original-image pixels
   // where each photo's mouth is (fraction of the photo across, down): the tongue on the free-throw-line dunk comes out here
   HW.MOUTH = { carl: [0.50, 0.80], tyler: [0.50, 0.76], alan: [0.52, 0.74], lisa: [0.60, 0.82], bianca: [0.46, 0.78], katelyn: [0.58, 0.83], kameron: [0.47, 0.81], kody: [0.55, 0.77], kenny: [0.50, 0.79], karen: [0.60, 0.81] };
+  // and where the mouth is on a powered-up face that's a different photo from the normal one (Carl's scowl), same units
+  HW.MOUTH_SSJ = { carl: [0.59, 0.72] };
   HW.SSJ_PAD = {
-    carl: [64, 180],
+    carl: [80, 198],   // his on-fire face is another photo (the scowl), lined up on his head
     tyler: [63, 176],
     alan: [57, 165],
     lisa: [21, 161],

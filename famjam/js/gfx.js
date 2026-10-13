@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=14';
+  var SHEET_V = '?v=15';   // (the faces carry it too)
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -215,7 +215,7 @@ window.HW = window.HW || {};
     var f = faces[id] = { front: new Image(), back: new Image() };
     // players with a real photo get their cut-out face (faces/<id>_photo.png) up front; the back of the head is always rendered
     var photo = HW.PLAYERS[id] && HW.PLAYERS[id].photo;
-    f.ready = Promise.all(['front', 'back'].map(function (k) { return new Promise(function (res) { f[k].onload = res; f[k].onerror = res; f[k].src = 'faces/' + id + '_' + (k === 'front' && photo ? 'photo' : k) + '.png'; }); }));
+    f.ready = Promise.all(['front', 'back'].map(function (k) { return new Promise(function (res) { f[k].onload = res; f[k].onerror = res; f[k].src = 'faces/' + id + '_' + (k === 'front' && photo ? 'photo' : k) + '.png' + SHEET_V; }); }));
     return f.ready;
   };
   X.face = function (id) { return faces[id]; };
@@ -223,8 +223,8 @@ window.HW = window.HW || {};
   // HW.SSJ_PAD[_BACK] say where the photo's top-left corner sits in the bigger canvas
   function loadGold(id) {
     var f = faces[id]; if (!f || f.ssj) return;
-    if (HW.PLAYERS[id].photo && HW.SSJ_PAD && HW.SSJ_PAD[id]) { f.ssj = new Image(); f.ssjPad = HW.SSJ_PAD[id]; f.ssj.src = 'faces/' + id + '_ssj.png'; }
-    if (HW.SSJ_PAD_BACK && HW.SSJ_PAD_BACK[id]) { f.ssjBack = new Image(); f.ssjPadBack = HW.SSJ_PAD_BACK[id]; f.ssjBack.src = 'faces/' + id + '_ssj_back.png'; }
+    if (HW.PLAYERS[id].photo && HW.SSJ_PAD && HW.SSJ_PAD[id]) { f.ssj = new Image(); f.ssjPad = HW.SSJ_PAD[id]; f.ssj.src = 'faces/' + id + '_ssj.png' + SHEET_V; }
+    if (HW.SSJ_PAD_BACK && HW.SSJ_PAD_BACK[id]) { f.ssjBack = new Image(); f.ssjPadBack = HW.SSJ_PAD_BACK[id]; f.ssjBack.src = 'faces/' + id + '_ssj_back.png' + SHEET_V; }
   }
 
   var HEAD_M = 0.56;   // big digitized head width in meters (arcade proportions)
@@ -271,7 +271,7 @@ window.HW = window.HW || {};
         g.drawImage(ls, -hw / 2 + mo2[0] * hw - lw / 2, -hh * 0.8 + mo2[1] * hh - lh * 0.55, lw, lh); g.restore(); g.imageSmoothingEnabled = sm2;
       }
       if (p.tongue && !rot && f && (img === f.front || img === f.ssj)) {   // tongue hanging out of his mouth (the free-throw-line dunk), pixel art like the sprites
-        var mo = HW.MOUTH && HW.MOUTH[p.id] || [0.5, 0.8], fw0 = hw / hs, ts = tongueSprite(), tw = fw0 * 0.2, th = tw * ts.height / ts.width;
+        var mo = img === f.ssj && HW.MOUTH_SSJ && HW.MOUTH_SSJ[p.id] || HW.MOUTH && HW.MOUTH[p.id] || [0.5, 0.8], fw0 = hw / hs, ts = tongueSprite(), tw = fw0 * 0.2, th = tw * ts.height / ts.width;
         var smooth = g.imageSmoothingEnabled; g.imageSmoothingEnabled = false;
         g.drawImage(ts, hx - hw / 2 + mo[0] * hw - tw / 2, hy - hh * 0.8 + mo[1] * hh - th * 0.12, tw, th); g.imageSmoothingEnabled = smooth;
       }
