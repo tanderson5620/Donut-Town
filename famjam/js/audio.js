@@ -203,6 +203,8 @@ window.HW = window.HW || {};
   A.click = function () { tone(1200, 0.05, 'square', 0.06); };
   A.hover = function () { if (throttle('h', 50)) tone(900, 0.03, 'sine', 0.04); };
   // Lisa's smack: a bull-whip crack (Epidemic Sound, supplied by the owner; trimmed so the crack is right at the start)
+  // the arm bar: a sharp crack (the elbow), a dull pop under it
+  A.snap = function () { noise(0.035, 1.0, 3200, 1.4, 0, 'highpass'); noise(0.05, 0.8, 1400, 2.5, 0.01); tone(95, 0.12, 'sine', 0.45, 60, 0.015); };
   A.slap = function () { if (bufs.whip) A.sfx('whip', 1.0); else { noise(0.06, 0.75, 2800, 1.1, 0, 'highpass'); noise(0.14, 0.4, 900, 1.2); tone(150, 0.09, 'sine', 0.3, 70); } };
   A.shove = function () { noise(0.14, 0.3, 300, 0.8); tone(80, 0.15, 'sine', 0.25, 50); };
   A.steal = function () { noise(0.1, 0.22, 1500, 2); tone(700, 0.08, 'triangle', 0.1, 1200); };

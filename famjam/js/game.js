@@ -85,7 +85,7 @@ window.HW = window.HW || {};
     this.ai = { t: 0, spot: null, spotT: 0, hold: 0 };
   }
   Player.prototype.grounded = function () { return this.y <= 0.001 && this.vy === 0; };
-  Player.prototype.busy = function () { return this.state === 'stepback' || this.state === 'shimmy' || this.state === 'hammer' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
+  Player.prototype.busy = function () { return this.state === 'armbar' || this.state === 'stepback' || this.state === 'shimmy' || this.state === 'hammer' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
 
   G.start = function (setup) {
     X.clearBlood();
@@ -142,13 +142,18 @@ window.HW = window.HW || {};
   };
   // set everyone up with `team` bringing the ball up from its own end
   G.lineup = function (team, center) {
-    var s = side(team), off = G.players.filter(function (p) { return p.team === team; }), def = G.players.filter(function (p) { return p.team !== team; });
-    G.players.forEach(function (p) { p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.impact = null; p.hitT = 0; p.tongue = false; p.dunkFace = false; p.jamArm = null; if (!p.onFire) p.ssj = 0; });
+    // a man down from an arm bar stays down where he lies (a hold still going finishes now); everyone else lines up
+    G.players.forEach(function (p) { if (p.state === 'armbar' && p.ab) { if (!p.ab.snap) snapArm(p); if (p.ab.q.abBy === p) p.ab.q.abBy = null; p.ab = null; } });
+    if (G.cine && G.cine.kind === 'armbar') G.cine = null;
+    var down = function (p) { return p.hurtT > 0; };
+    var s = side(team), off = G.players.filter(function (p) { return p.team === team && !down(p); }), def = G.players.filter(function (p) { return p.team !== team && !down(p); });
+    if (!off.length) { off = G.players.filter(function (p) { return p.team === team; }); off.forEach(function (p) { p.hurtT = 0; p.abBy = null; }); }   // nobody left to bring it up: he shakes it off
+    G.players.forEach(function (p) { if (down(p)) return; p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.impact = null; p.hitT = 0; p.tongue = false; p.dunkFace = false; p.jamArm = null; if (!p.onFire) p.ssj = 0; });
     var hand = off.slice().sort(function (a, b) { return (b.human - a.human) || (b.def.type === 'handler') - (a.def.type === 'handler'); })[0];
     var bx = center ? -s * 1.5 : -s * 8.5;
     hand.x = bx; hand.z = 7; off.forEach(function (p) { if (p !== hand) { p.x = bx + s * 3.5; p.z = 3; } });
     def.forEach(function (p, i) { p.x = bx + s * (center ? 3.2 : 4.5); p.z = i ? 10 : 5; });
-    G.players.forEach(function (p) { p.face = p.team === team ? s : -s; });
+    G.players.forEach(function (p) { if (!down(p)) p.face = p.team === team ? s : -s; });
     G.give(hand); G.poss = team; G.shot = 24; X.camX = X.camClamp(bx);
   };
 
@@ -264,8 +269,12 @@ window.HW = window.HW || {};
     if (quality === 'green') pm += 0.28; else if (quality === 'bad') pm *= 0.55;
     var c = contest(p); pm -= c;
     if (!p.human) pm *= G.diff.shoot;
-    if (p.onFire) pm = Math.max(pm, sig(p, 'tp') ? 0.99 : 0.94);
-    pm = clamp(pm, 0.04, 0.97);
+    // range: a three from just behind the arc is fine, from way out it falls off fast - about 1 in 5 for a great shooter's green from
+    // half court, next to nothing from his own end (it used to be the same odds from anywhere, so a shooter could backpedal and fire
+    // full-court threes nobody could contest). On fire buys a little more range, not all of it
+    var deep = Math.max(0, d - (K.R3 + 1.0)), deepF = Math.exp(-0.42 * deep); pm *= deepF;
+    if (p.onFire) pm = Math.max(pm, (sig(p, 'tp') ? 0.99 : 0.94) * Math.exp(-0.3 * Math.max(0, d - (K.R3 + 2.5))));
+    pm = clamp(pm, deep > 3 ? 0.005 : 0.04, 0.97);
     var make = Math.random() < pm;
     // a 3-point shooter who knows it's good does a shoulder shimmy once he lands, about 2 in 10 of his made threes
     p.shimmy = make && three && p.def.type === 'shooter' && Math.random() < 0.2;
@@ -276,7 +285,7 @@ window.HW = window.HW || {};
     Au.whoosh(6);
   };
   function contest(p) {
-    var c = 0; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < 1.6) c = Math.max(c, (1.6 - d) / 1.6 * (q.y > 0.25 ? 0.32 : 0.16) * (0.7 + q.def.stats.block / 20)); }); return c;
+    var c = 0; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < 1.6 && q.state !== 'fall') c = Math.max(c, (1.6 - d) / 1.6 * (q.y > 0.25 ? 0.32 : 0.16) * (0.7 + q.def.stats.block / 20)); }); return c;
   }
 
   G.canDunk = function (p) {
@@ -357,7 +366,7 @@ window.HW = window.HW || {};
   function frameStart(F, i) { if (!F.w) return F.dur * i / F.n; var a = 0, t = 0; F.w.forEach(function (w, k) { t += w; if (k < i) a += w; }); return F.dur * a / t; }
   function frameAt(F, st) { for (var i = F.n - 1; i > 0; i--) if (st >= frameStart(F, i)) return i; return 0; }
   G.passTo = function (p, to) {
-    if (!p.hasBall || !to || p.state === 'dunk' || p.pending) return;
+    if (!p.hasBall || !to || p.state === 'dunk' || p.pending || to.hurtT > 0) return;
     var air = p.state === 'shoot';
     if (air) { if (p.released) return; p.state = 'idle'; }
     var d = dist(p, to), pr = p.def.stats.pass || 5, style = null, dirTo = to.x >= p.x ? 1 : -1;
@@ -412,6 +421,7 @@ window.HW = window.HW || {};
     if (fs) kd = 1; if (wall) kd = 0;   // power on fire: every shove flattens him, and nobody moves him
     if (!wall) { var push = (4 + str * 0.5) * (fs ? 1.7 : 1); tgt.vx += dx * push; tgt.vz += dz * push; }
     if (fs) fireBurst((p.x + tgt.x) / 2, 1.2, (p.z + tgt.z) / 2, 14);
+    if (Math.random() < kd && p.def.type === 'strength' && Math.random() < ARMBAR_P && canArmbar(p, tgt)) { G.startArmbar(p, tgt); return; }
     if (Math.random() < kd) {
       if (tgt.hasBall) G.drop(tgt, dx * 3, 3, dz * 3);
       var gap = str - tgt.def.stats.str + (fs ? 5 : 0);
@@ -420,6 +430,37 @@ window.HW = window.HW || {};
       G.say(knockLine(p, tgt), '#ff8a5a', 1.2);
     } else { if (!wall) { Au.punch && Au.punch(); if (!isGuy(tgt) && Math.random() < 0.5) Au.painF && Au.painF(); } if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); }   // it lands but he stays up
   };
+  // the arm bar (Max Strength players, about 1 in 6 of the shoves that would put a man down): in 2.5 s of slow motion he grabs the arm,
+  // takes him down, both legs across him, pulls the wrist into his chest and bridges - SNAP. His man is down for 10 s, and stays down
+  // through every stoppage (baskets, quarter breaks: G.lineup leaves him where he lies); then he gets up and plays on
+  var ARMBAR_P = 0.17, AB_T = 1.4, AB_SNAP = 0.62, AB_UP = 0.6, HURT = 10;
+  function canArmbar(p, q) { return p.grounded() && q.grounded() && !q.hurtT && !G.cine && !G.pu && !G.show && G.phase === 'play' && X.hasAnim(p, 'armbar') && X.hasAnim(q, 'armbarred'); }
+  function abGap(p, q) {   // how far ahead of him his man lies, so the arm reaches his chest (from the sprites' hand points)
+    var a = X.animPoint(p.id, 'armbar', 5, 'hand'), b = X.animPoint(q.id, 'armbarred', 5, 'hand');
+    return a && b ? clamp(a.x - b.x, 0.5, 1.3) : 0.85;
+  }
+  G.startArmbar = function (p, q) {
+    p.state = 'armbar'; p.st = 0; p.vx = p.vz = p.vy = 0; p.dm = null; p.pending = null; p.ab = { q: q, gap: abGap(p, q), snap: false };
+    if (q.hasBall) G.drop(q, p.face * 1.2, 2.6, 0);
+    q.state = 'fall'; q.st = 0; q.fallT = 99; q.abBy = p; q.hurtT = 0; q.vx = q.vz = q.vy = 0; q.y = 0; q.dk = null; q.pending = null; q.dm = null; q.dunkFace = false; q.tongue = false;
+    q.face = p.face; q.x = clamp(p.x + p.face * p.ab.gap, -K.HL - 0.6, K.HL + 0.6); q.z = clamp(p.z - 0.04, 0.3, K.CD - 0.3);   // (just in front of him, so his face shows)
+    G.cine = { p: p, q: q, t: 0, dur: AB_T, kind: 'armbar', slow: AB_T / 2.5 };
+    G.say('ARM BAR!', '#ff5a4a', 1.6, 1.3); Au.shove(); Au.hup && isGuy(p) && Au.hup();
+  };
+  function snapArm(p) {
+    var ab = p.ab, q = ab.q; ab.snap = true; q.hurtT = HURT;
+    var ex = q.x - q.face * 0.25, ey = 0.35; X.ring(ex, ey, q.z - 0.2, 0.9); X.burst(ex, ey, q.z - 0.2, 26, ['#ffffff', '#ffe14d', '#ff5a4a'], 4, 0.5, 3);
+    G.hitstop = Math.max(G.hitstop || 0, 0.12); X.shake = Math.max(X.shake, 1.2); Au.snap && Au.snap();
+    if (isGuy(q)) Au.scream && Au.scream(); else Au.painF && Au.painF();
+    G.say('SNAP!', '#ffffff', 1.4, 1.6);
+  }
+  function updateArmbar(p, dt) {
+    var ab = p.ab, q = ab && ab.q, u = p.st / AB_T; p.vx = p.vz = p.vy = 0; p.y = 0;
+    if (!ab) { p.state = 'idle'; return; }
+    if (q.abBy === p && q.state === 'fall') { q.x = clamp(p.x + p.face * ab.gap, -K.HL - 0.6, K.HL + 0.6); q.face = p.face; }
+    if (u >= AB_SNAP && !ab.snap) snapArm(p);
+    if (p.st >= AB_T + AB_UP) { p.state = 'idle'; p.ab = null; p.flash = 0.3; if (q.abBy === p) q.abBy = null; }
+  }
   G.jump = function (p) {
     if (!p.grounded() || p.busy() || p.cd.jump > 0) return; p.state = 'jump'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH); p.y = 0.001; p.cd.jump = 0.35; if (isGuy(p)) Au.hup(); else Au.jump();
   };
@@ -538,7 +579,9 @@ window.HW = window.HW || {};
     if (G.cine) {   // the slow-motion dunks (everything slows equally, so nobody gets a better chance at it): under the legs all the way up
       // to the slam; off the backboard only from the toss until it's back in his hand
       var cp = G.cine.p, cu = cp.dk ? cp.st / cp.dk.T : 1, ck = G.cine.kind, bsi = G.ball.shotInfo;
-      if (ck === 'roll' || ck === 'rev') {   // the layups: slow until the ball drops through (the finger roll from the top of his rise)
+      if (ck === 'armbar') {   // the arm bar: slow from the grab until the hold is done
+        if (cp.state !== 'armbar' || cp.st >= AB_T) G.cine = null; else { dt *= G.cine.slow; G.cine.t = cp.st; }
+      } else if (ck === 'roll' || ck === 'rev') {   // the layups: slow until the ball drops through (the finger roll from the top of his rise)
         var lfly = G.ball.state === 'shot' && bsi && bsi.by === cp && bsi.lay === ck;
         if (!lfly && !(cp.dk && cp.dk.style === ck)) G.cine = null;
         else { dt *= ck === 'roll' && !lfly && cu < 0.45 ? 1 : G.cine.slow; G.cine.t = cp.st; }
@@ -609,6 +652,13 @@ window.HW = window.HW || {};
     else if (p.trail && p.trail.length) p.trail.pop();
     if (p.state === 'dunk') { updateDunk(p, dt); return; }
     if (p.state === 'stepback') { stepback(p, dt); return; }
+    if (p.state === 'armbar') { updateArmbar(p, dt); return; }
+    // arm-barred: glued to the man who has the arm until the snap; then down for HURT seconds whatever the clock is doing
+    if (p.state === 'fall' && (p.abBy || p.hurtT > 0)) {
+      p.vx = p.vz = 0; if (p.abBy && p.abBy.state !== 'armbar' && !p.hurtT) { p.abBy = null; p.fallT = p.st + 0.6; }   // the hold was broken before the snap
+      if (p.hurtT > 0 && (p.hurtT -= dt) <= 0) { p.hurtT = 0; p.abBy = null; p.state = 'idle'; p.flash = 0.8; }
+      return;
+    }
     if (p.state === 'fall') { var fr = p.y > 0 ? 1.2 : 6; p.vx *= Math.max(0, 1 - fr * dt); p.vz *= Math.max(0, 1 - fr * dt); if (p.st > (p.fallT || 1.3)) { p.state = 'idle'; p.flash = 0.6; p.fallT = 0; } }
     if (p.state === 'pass' && p.passStyle === 'moon' && p.st < 0.75) { p.vx = -p.face * 1.8; p.vz *= 0.85; }   // moonwalking backward toward his man
     if (p.state === 'shoot' && p.fade && p.y > 0) { p.vx = (p.x > rimX(p.team) ? 1 : -1) * 2.0; p.vz *= 0.9; }   // the fadeaway drifts away from the rim
@@ -753,7 +803,13 @@ window.HW = window.HW || {};
         p.anim = 'powerup'; p.dir = 'C';
         p.frame = t < 0.2 ? 0 : t < 0.35 ? 1 : t < PU.boom ? 2 : t < PU.boom + 0.12 ? 3 : 4 + Math.floor((t - PU.boom - 0.12) / 0.08) % 4; return;
       }
-      case 'fall': p.anim = 'fall'; p.dir = 'R'; p.frame = Math.min(3, p.st / 0.12); return;
+      case 'armbar': p.anim = 'armbar'; p.dir = 'R'; p.frame = p.st < AB_T ? Math.min(7, Math.floor(p.st / AB_T * 8)) : 8 + Math.min(3, Math.floor((p.st - AB_T) / (AB_UP / 4))); return;
+      case 'fall':
+        if ((p.abBy || p.hurtT > 0) && X.hasAnim(p, 'armbarred')) {   // under the arm bar (in step with him), then lying there clutching the elbow
+          var by = p.abBy; p.anim = 'armbarred'; p.dir = 'R';
+          p.frame = by && by.state === 'armbar' && by.st < AB_T ? Math.min(7, Math.floor(by.st / AB_T * 8)) : 8 + Math.floor((G.t || 0) * 3) % 4; return;
+        }
+        p.anim = 'fall'; p.dir = 'R'; p.frame = Math.min(3, p.st / 0.12); return;
       case 'stepback': if (X.hasAnim(p, 'stepback')) { p.anim = 'stepback'; p.frame = p.st < 0.08 ? 0 : p.st < 0.26 ? 1 : 2; } else { p.anim = 'shoot'; p.frame = 0; } p.dir = 'R'; return;
       case 'shimmy': p.anim = 'shimmy'; p.dir = 'F'; p.frame = (p.st * 11) % 6; return;   // the shoulder shimmy after a made three
       case 'shoot': p.anim = p.fade && X.hasAnim(p, 'shoot_fade') ? 'shoot_fade' : 'shoot'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;

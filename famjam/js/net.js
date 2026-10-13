@@ -25,7 +25,7 @@ window.HW = window.HW || {};
   N.playing = function () { return !!N.mode && N.stage === 'game'; };
 
   /* ---------- sounds and effects: the host records each one the game makes, the guests play them back ---------- */
-  var AU = ['sfx', 'whoosh', 'scream', 'punch', 'painF', 'laugh', 'jump', 'hup', 'dribble', 'catch', 'bounce', 'yell', 'wow', 'trash', 'swipe', 'steal', 'shoveYell', 'powerup', 'passWhoosh', 'net', 'land', 'incoming', 'help', 'happy', 'fireball', 'fire', 'ew', 'cheer', 'charge', 'buzzer', 'board', 'baba', 'thud', 'shove', 'shatter', 'rim', 'dunk', 'slap'];
+  var AU = ['sfx', 'whoosh', 'scream', 'punch', 'painF', 'laugh', 'jump', 'hup', 'dribble', 'catch', 'bounce', 'yell', 'wow', 'trash', 'swipe', 'steal', 'shoveYell', 'powerup', 'passWhoosh', 'net', 'land', 'incoming', 'help', 'happy', 'fireball', 'fire', 'ew', 'cheer', 'charge', 'buzzer', 'board', 'baba', 'thud', 'shove', 'shatter', 'rim', 'dunk', 'slap', 'snap'];
   var FX = ['burst', 'flame', 'ring', 'crater', 'blood', 'powerFlash', 'powerDown'];
   var orig = { a: {}, x: {} }, depth = 0;
   function enc(args) {
@@ -248,12 +248,12 @@ window.HW = window.HW || {};
       co: G.callouts.map(function (c) { return [c.text, c.color, c.life, r3(c.t), c.size]; }),
       pu: G.pu ? [P.indexOf(G.pu.p), r3(G.pu.t), G.pu.boom ? 1 : 0, G.pu.dur, G.pu.tw || 0] : 0,
       sh: G.show ? [P.indexOf(G.show.p), r3(G.show.t), G.show.kind === 'pu' ? 1 : 0, G.show.len] : 0,
-      ci: G.cine ? [P.indexOf(G.cine.p), r3(G.cine.t), r3(G.cine.dur), G.cine.kind] : 0,
+      ci: G.cine ? [P.indexOf(G.cine.p), r3(G.cine.t), r3(G.cine.dur), G.cine.kind, G.cine.q ? P.indexOf(G.cine.q) : -1] : 0,
       b: [r3(b.x), r3(b.y), r3(b.z), r3(b.vx), b.visible ? 1 : 0, b.baked ? 1 : 0, b.behind ? 1 : 0, b.inFront ? 1 : 0, b.fire ? 1 : 0, r3(b.swoosh), r3(b.spin), b.holder ? P.indexOf(b.holder) : -1, b.state],
       p: P.map(function (p) {
         return [r3(p.x), r3(p.y), r3(p.z), r3(p.vy), p.anim, p.dir, Math.round((p.frame || 0) * 100) / 100, p.face, p.state, r3(p.st), r3(p.ssj), p.onFire ? 1 : 0, r3(p.flash), r3(p.hitT), (p.tongue ? 1 : 0) | (p.dunkFace ? 2 : 0), p.hasBall ? 1 : 0, Math.round(p.turbo),
           p.released ? 1 : 0, r3(p.tApex), p.dk ? [r3(p.dk.T), p.dk.style || 0] : 0, p.jamArm ? [r3(p.jamArm.x), r3(p.jamArm.y), r3(p.jamArm.z)] : 0,
-          p.trail && p.trail.length ? p.trail.map(function (t) { return [r3(t.x), r3(t.y), r3(t.z), t.anim, t.dir, Math.round(t.frame * 100) / 100, t.face]; }) : 0, stats(p), p.human ? p.lbl || 'P1' : 0];
+          p.trail && p.trail.length ? p.trail.map(function (t) { return [r3(t.x), r3(t.y), r3(t.z), t.anim, t.dir, Math.round(t.frame * 100) / 100, t.face]; }) : 0, stats(p), p.human ? p.lbl || 'P1' : 0, r3(p.hurtT || 0)];
       })
     };
   }
@@ -337,7 +337,7 @@ window.HW = window.HW || {};
       p.jamArm = a[20] ? { x: a[20][0], y: a[20][1], z: a[20][2] } : null;
       p.trail = a[21] ? a[21].map(function (t) { return { x: t[0], y: t[1], z: t[2], anim: t[3], dir: t[4], frame: t[5], face: t[6] }; }) : null;
       var st = a[22]; p.stats = { pts: st[0], fgm: st[1], fga: st[2], tpm: st[3], tpa: st[4], ast: st[5], dunks: st[6], steals: st[7], blocks: st[8], shoves: st[9] };
-      p.human = !!a[23]; p.lbl = a[23] || null;
+      p.human = !!a[23]; p.lbl = a[23] || null; p.hurtT = a[24] || 0;
     });
     var bb = s.b, nb = n && n.b, b = G.ball;
     if (bb && b) {
@@ -348,7 +348,7 @@ window.HW = window.HW || {};
     G.pu = s.pu ? { p: P[s.pu[0]], t: n && n.pu ? L(s.pu[1], n.pu[1], f) : s.pu[1], boom: !!s.pu[2], dur: s.pu[3], tw: s.pu[4] } : null;
     var cam = G.show && G.show.cam;   // Gator's twerk show: keep Lisa's walk-on (G.showCameo) from one update to the next
     G.show = s.sh ? { p: P[s.sh[0]], t: n && n.sh ? L(s.sh[1], n.sh[1], f) : s.sh[1], len: s.sh[3], kind: s.sh[2] ? 'pu' : 'solo', zoom: !!s.sh[2], cam: cam } : null;
-    G.cine = s.ci ? { p: P[s.ci[0]], t: s.ci[1], dur: s.ci[2], kind: s.ci[3] } : null;
+    G.cine = s.ci ? { p: P[s.ci[0]], t: s.ci[1], dur: s.ci[2], kind: s.ci[3], q: s.ci[4] >= 0 ? P[s.ci[4]] : null } : null;
     if (G.phase !== 'over' && U.screen === 'results') U.screen = null;   // the host started a rematch
   }
   // the guest's stick and buttons go to the host when they change (and a few times a second anyway)
