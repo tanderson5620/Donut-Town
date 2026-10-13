@@ -244,7 +244,7 @@ window.HW = window.HW || {};
       ci: G.cine ? [P.indexOf(G.cine.p), r3(G.cine.t), r3(G.cine.dur), G.cine.kind] : 0,
       b: [r3(b.x), r3(b.y), r3(b.z), r3(b.vx), b.visible ? 1 : 0, b.baked ? 1 : 0, b.behind ? 1 : 0, b.inFront ? 1 : 0, b.fire ? 1 : 0, r3(b.swoosh), r3(b.spin), b.holder ? P.indexOf(b.holder) : -1, b.state],
       p: P.map(function (p) {
-        return [r3(p.x), r3(p.y), r3(p.z), r3(p.vy), p.anim, p.dir, Math.round((p.frame || 0) * 100) / 100, p.face, p.state, r3(p.st), r3(p.ssj), p.onFire ? 1 : 0, r3(p.flash), r3(p.hitT), p.tongue ? 1 : 0, p.hasBall ? 1 : 0, Math.round(p.turbo),
+        return [r3(p.x), r3(p.y), r3(p.z), r3(p.vy), p.anim, p.dir, Math.round((p.frame || 0) * 100) / 100, p.face, p.state, r3(p.st), r3(p.ssj), p.onFire ? 1 : 0, r3(p.flash), r3(p.hitT), (p.tongue ? 1 : 0) | (p.dunkFace ? 2 : 0), p.hasBall ? 1 : 0, Math.round(p.turbo),
           p.released ? 1 : 0, r3(p.tApex), p.dk ? [r3(p.dk.T), p.dk.style || 0] : 0, p.jamArm ? [r3(p.jamArm.x), r3(p.jamArm.y), r3(p.jamArm.z)] : 0,
           p.trail && p.trail.length ? p.trail.map(function (t) { return [r3(t.x), r3(t.y), r3(t.z), t.anim, t.dir, Math.round(t.frame * 100) / 100, t.face]; }) : 0, stats(p), p.human ? p.lbl || 'P1' : 0];
       })
@@ -325,7 +325,7 @@ window.HW = window.HW || {};
       var lp = q && Math.abs(q[0] - a[0]) < 3 && Math.abs(q[2] - a[2]) < 3;   // no smoothing across a jump (a new lineup)
       p.x = lp ? L(a[0], q[0], f) : a[0]; p.y = lp ? L(a[1], q[1], f) : a[1]; p.z = lp ? L(a[2], q[2], f) : a[2];
       p.vy = a[3]; p.anim = a[4]; p.dir = a[5]; p.frame = a[6]; p.face = a[7]; p.state = a[8]; p.st = lp && q[8] === a[8] && q[9] >= a[9] ? L(a[9], q[9], f) : a[9];
-      p.ssj = a[10]; p.onFire = !!a[11]; p.flash = a[12]; p.hitT = a[13]; p.tongue = !!a[14]; p.hasBall = !!a[15]; p.turbo = a[16]; p.released = !!a[17]; p.tApex = a[18];
+      p.ssj = a[10]; p.onFire = !!a[11]; p.flash = a[12]; p.hitT = a[13]; p.tongue = !!(a[14] & 1); p.dunkFace = !!(a[14] & 2); p.hasBall = !!a[15]; p.turbo = a[16]; p.released = !!a[17]; p.tApex = a[18];
       p.dk = a[19] ? { T: a[19][0], style: a[19][1] || null } : null;
       p.jamArm = a[20] ? { x: a[20][0], y: a[20][1], z: a[20][2] } : null;
       p.trail = a[21] ? a[21].map(function (t) { return { x: t[0], y: t[1], z: t[2], anim: t[3], dir: t[4], frame: t[5], face: t[6] }; }) : null;

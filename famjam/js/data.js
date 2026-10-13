@@ -56,6 +56,9 @@ window.HW = window.HW || {};
   HW.MOUTH = { carl: [0.50, 0.80], tyler: [0.50, 0.76], alan: [0.52, 0.74], lisa: [0.60, 0.82], bianca: [0.46, 0.78], katelyn: [0.58, 0.83], kameron: [0.47, 0.81], kody: [0.55, 0.77], kenny: [0.50, 0.79], karen: [0.60, 0.81] };
   // and where the mouth is on a powered-up face that's a different photo from the normal one (Carl's scowl), same units
   HW.MOUTH_SSJ = { carl: [0.59, 0.72] };
+  // a face for the slow-motion dunks (another photo: Carl's yell), from the slow motion until he lands: faces/<id>_dunk.png and,
+  // on fire, faces/<id>_dunk_ssj.png; pad / ssj = where his normal photo's top-left sits in each (normal-photo pixels)
+  HW.DUNK_FACE = { carl: { pad: [-6, 25], ssj: [57, 181] } };
   HW.SSJ_PAD = {
     carl: [80, 198],   // his on-fire face is another photo (the scowl), lined up on his head
     tyler: [63, 176],

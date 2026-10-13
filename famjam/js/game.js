@@ -24,7 +24,7 @@ window.HW = window.HW || {};
     o = o || {}; var hard = o.hard || 1;
     var dx = src ? q.x - src.x : -q.face, dz = src ? q.z - src.z : 0, d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
     if (Math.abs(dx) < 0.35) dx = (dx < 0 ? -1 : 1) * 0.35;   // always some fling along the court so the fall reads
-    q.state = 'fall'; q.st = 0; q.fallT = o.fallT || 1.3; q.dk = null; q.pending = null; q.dm = null;
+    q.state = 'fall'; q.st = 0; q.fallT = o.fallT || 1.3; q.dk = null; q.dunkFace = false; q.pending = null; q.dm = null;
     q.face = dx > 0 ? -1 : 1;                                   // he faces the hit and goes over backwards
     q.vx = dx * (3 + 2 * hard); q.vz = dz * (1.2 + hard); q.vy = Math.max(q.vy || 0, 1.2 + 2.2 * hard); if (q.y < 0.001) q.y = 0.001;
     q.hitT = 0.45; q.flash = 0.12; q.impact = { blood: o.blood || 0.7, hard: hard };
@@ -140,7 +140,7 @@ window.HW = window.HW || {};
   // set everyone up with `team` bringing the ball up from its own end
   G.lineup = function (team, center) {
     var s = side(team), off = G.players.filter(function (p) { return p.team === team; }), def = G.players.filter(function (p) { return p.team !== team; });
-    G.players.forEach(function (p) { p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.impact = null; p.hitT = 0; p.tongue = false; p.jamArm = null; if (!p.onFire) p.ssj = 0; });
+    G.players.forEach(function (p) { p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.impact = null; p.hitT = 0; p.tongue = false; p.dunkFace = false; p.jamArm = null; if (!p.onFire) p.ssj = 0; });
     var hand = off.slice().sort(function (a, b) { return (b.human - a.human) || (b.def.type === 'handler') - (a.def.type === 'handler'); })[0];
     var bx = center ? -s * 1.5 : -s * 8.5;
     hand.x = bx; hand.z = 7; off.forEach(function (p) { if (p !== hand) { p.x = bx + s * 3.5; p.z = 3; } });
@@ -293,6 +293,7 @@ window.HW = window.HW || {};
     if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
       if (p.dk.style === 'mj') p.tongue = true;
       if (p.dk.style === 'legs') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'legs', slow: DUNK_SLAM * p.dk.T / 2.5 };   // 2.5 s of slow motion up to the slam
+      if ((p.dk.style === 'legs' || p.dk.style === 'board') && HW.DUNK_FACE && HW.DUNK_FACE[p.id]) p.dunkFace = true;   // his slow-motion dunk face, until he lands
       if (p.dk.style === 'board') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'board', slow: 0.36 * p.dk.T / 2.5 }; }   // the toss off the glass and back (u 0.14-0.5) takes 2.5 s
     // from way out (a dunker on fire every time, otherwise now and then) a guy on defense yells "incoming!"
     if (Math.hypot(p.x - rx, p.z - K.HZ) > 4.5 && (fd || Math.random() < 0.3) && G.opps(p).some(isGuy)) Au.incoming && Au.incoming();
@@ -323,7 +324,7 @@ window.HW = window.HW || {};
       X.shake = 1.4; X.hype = 3; Au.dunk(!(poster || shatter) && (isGuy(p) || G.mates(p).some(isGuy))); if (poster || shatter) Au.wow && Au.wow(); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
       if (shatter) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); Au.sfx && Au.sfx('glass'); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
     }
-    if (u >= 1) { p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; p.tongue = false; p.jamArm = null; }
+    if (u >= 1) { p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; p.tongue = false; p.dunkFace = false; p.jamArm = null; }
   }
 
   // PASS rating: faster, truer passes that are harder to pick off. Good passers show off: the ball stays in his hand through the move
@@ -429,7 +430,7 @@ window.HW = window.HW || {};
   // a stronger blocker puts him on the floor for 2 s and he leaves a little blood on the court
   G.rejectDunk = function (q, dk) {
     var power = q.def.stats.str - dk.def.stats.str + (sig(q, 'str') ? 5 : 0);
-    dk.dk = null; dk.vy = 0; dk.tongue = false; dk.jamArm = null;
+    dk.dk = null; dk.vy = 0; dk.tongue = false; dk.dunkFace = false; dk.jamArm = null;
     G.blocked(q, dk, null, 'GET THAT SHIT OUT OF HERE!');
     G.knockDown(dk, q, { hard: power > 0 ? clamp(1.2 + power * 0.06, 1.2, 2) : 1, fallT: power > 0 ? 2.0 : 1.3, blood: 0.7 + Math.max(0, power) * 0.12, y: dk.y + 1.6, block: true });
     if (q.def.stats.str >= 9) {
