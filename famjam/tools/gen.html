@@ -399,6 +399,32 @@ ANIMS.stepback = { n: 3, dirs: ['R'], f: function (t, i) { return [
 // the under-the-legs dunk plays in 2.5 s of slow motion, so it gets 30 frames (the rest 12)
 var DK_N = { legs: 30 };
 Object.keys(DUNKS).forEach(function (k) { var n = DK_N[k] || 12; ANIMS['dk_' + k] = { n: n, dirs: [k === 'flex' ? 'C' : 'R'], f: keyed(DUNKS[k], n), ball: k === 'legs' }; });
+// the Ball Handlers lay it up instead of dunking - same timing as a dunk, the ball leaving the hand at u = 0.66 (where a dunk slams):
+// lay: the plain layup, the near knee driving up, the ball laid up at full stretch
+// roll: the finger roll, the arm straight up, palm turning up, the ball rolling off the fingertips (slow motion in the game)
+// rev: the reverse (after Jordan's): he turns to you under the rim, the near knee tucked up high, the ball held right out in one hand
+//      away from the rim, then swings it up over his head and back up into the rim behind him (slow motion in the game)
+var LAYUPS = {
+  lay: [[0, DK_TAKE], [0.12, { lean: 0.15, rs: 1.6, re: 1.3, ls: 1.5, le: 1.4, rt: 1.3, rk: 1.7, lt: -0.2, lk: 0.4 }],
+    [0.35, { lean: 0.05, rs: 2.5, re: 0.8, ls: 2.0, le: 1.0, rt: 1.85, rk: 1.5, lt: -0.1, lk: 0.6 }],
+    [0.55, { lean: -0.05, rs: 2.9, re: 0.25, ls: 1.6, le: 0.9, lz: 0.3, rt: 1.75, rk: 1.4, lt: 0.0, lk: 0.6 }],
+    [0.66, { lean: -0.05, rs: 3.05, re: 0.1, ls: 1.4, le: 0.9, lz: 0.4, rt: 1.5, rk: 1.4, lt: 0.0, lk: 0.6 }],
+    [0.9, { lean: 0.1, rs: 2.6, re: 0.4, ls: 1.0, le: 0.8, lz: 0.3, rt: 0.5, rk: 0.7, lt: 0.2, lk: 0.5 }]],
+  roll: [[0, DK_TAKE], [0.12, { lean: 0.15, rs: 1.5, re: 1.4, ls: 1.4, le: 1.5, rt: 1.4, rk: 1.8, lt: -0.25, lk: 0.4 }],
+    [0.4, { lean: -0.05, rs: 2.6, re: 0.6, ry: -0.6, ls: 1.8, le: 1.1, rt: 1.9, rk: 1.5, lt: -0.1, lk: 0.5, neck: -0.1 }],
+    [0.58, { lean: -0.12, rs: 3.0, re: 0.15, ry: -1.0, ls: 1.5, le: 1.0, lz: 0.3, rt: 1.85, rk: 1.4, lt: 0.0, lk: 0.6, neck: -0.25 }],
+    [0.66, { lean: -0.15, rs: 3.15, re: 0.05, ry: -1.2, ls: 1.4, le: 1.0, lz: 0.4, rt: 1.6, rk: 1.4, lt: 0.05, lk: 0.6, neck: -0.35 }],
+    [0.78, { lean: -0.1, rs: 3.1, re: 0.1, ry: -1.2, ls: 1.2, le: 0.9, lz: 0.4, rt: 0.9, rk: 1.3, lt: 0.1, lk: 0.6, neck: -0.45 }],
+    [0.9, { lean: 0.05, rs: 2.7, re: 0.3, ls: 1.0, le: 0.8, lz: 0.3, rt: 0.4, rk: 0.6, lt: 0.2, lk: 0.5, neck: -0.3 }]],
+  rev: [[0, DK_TAKE], [0.1, { lean: 0.1, rs: 1.4, re: 1.3, ls: 1.3, le: 1.4, rt: 0.4, rk: 1.0, lt: 1.0, lk: 1.4 }],
+    [0.22, { yaw: -0.75, lean: -0.05, rs: 0.5, re: 0.4, rz: 1.1, ls: 1.3, le: 1.7, lz: 0.4, rt: 0.35, rk: 1.1, lt: 1.5, lk: 1.8, la: 0.15, neck: -0.15 }],
+    [0.48, { yaw: -0.85, lean: -0.08, rs: 0.35, re: 0.25, rz: 1.3, ry: 0.3, ls: 1.25, le: 1.9, lz: 0.5, rt: 0.3, rk: 1.25, lt: 1.65, lk: 1.95, la: 0.2, neck: -0.3 }],
+    [0.58, { yaw: -0.85, lean: -0.15, rs: 1.6, re: 0.4, rz: 1.2, ls: 1.0, le: 1.6, lz: 0.5, rt: 0.4, rk: 1.2, lt: 1.3, lk: 1.7, neck: -0.4 }],
+    [0.66, { yaw: -0.85, lean: -0.25, rs: 2.9, re: 0.25, rz: 0.9, ls: 0.9, le: 1.4, lz: 0.6, rt: 0.5, rk: 1.1, lt: 0.9, lk: 1.4, neck: -0.5 }],
+    [0.9, { yaw: -0.6, lean: 0.1, rs: 2.4, re: 0.4, rz: 0.6, ls: 0.6, le: 1.0, lz: 0.4, rt: 0.3, rk: 0.6, lt: 0.3, lk: 0.6 }]]
+};
+var LAY_N = { lay: 12, roll: 16, rev: 24 };
+Object.keys(LAYUPS).forEach(function (k) { ANIMS['dk_' + k] = { n: LAY_N[k], dirs: ['R'], f: keyed(LAYUPS[k], LAY_N[k]) }; });
 // the under-the-legs dunk carries its own ball, rendered in 3D with him so his legs and body hide it just as they would: in his near
 // (right) hand, down and under his raised near thigh, between his legs to his far (left) hand behind him, then up to the rim on his far
 // side. Only the frames up to the slam (u <= 0.66) have it; the game hides its own ball while they play.

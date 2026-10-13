@@ -84,7 +84,8 @@ window.HW = window.HW || {};
     if (!HW.TOUCH) return;
     var h = G.human; if (!h) return;
     var st = h.hasBall ? (G.canDunk(h) ? 'dunk' : 'dunk off') : 'shove';
-    if (st !== tState) { tState = st; var b = document.getElementById('bAct'); b.className = 'tb ' + st; b.textContent = h.hasBall ? 'DUNK' : 'SHOVE'; }
+    var lbl = h.hasBall ? (h.def.type === 'handler' ? 'LAYUP' : 'DUNK') : 'SHOVE';   // the Ball Handlers lay it up instead
+    if (st + lbl !== tState) { tState = st + lbl; var b = document.getElementById('bAct'); b.className = 'tb ' + st; b.textContent = lbl; }
     // the pass button steals on defense
     var bh = HW.Jam.ball && HW.Jam.ball.holder, pl = bh && bh.team !== h.team ? 'STEAL' : 'PASS';
     if (pl !== UI.passLbl) { UI.passLbl = pl; labelBtn('bPass', pl, 1.5); }
@@ -433,7 +434,7 @@ window.HW = window.HW || {};
       if (onl) Fo.draw(g, HW.Net.mode === 'host' ? 'ONLINE: THE GAME KEEPS GOING. IF YOU LEAVE, IT ENDS FOR EVERYONE' : 'ONLINE: THE GAME KEEPS GOING. IF YOU LEAVE, THE CPU PLAYS FOR YOU', cx2, C2.T + 148, { scale: 1, scheme: 'cyan', shadow: 0 });
       var hy = C2.T + (onl ? 158 : 152); bevel(g, C2.L + 6, hy, C2.W - 12, C2.B - hy - 6, '#000', CY, 3);
       var help = HW.TOUCH ?
-        [['TURBO:', 'PUSH THE STICK PAST ITS RING'], ['SHOOT:', 'HOLD, LET GO AT THE TOP OF THE JUMP'], ['DUNK:', 'DUNK BUTTON, OR TURBO + SHOOT AT THE RIM'], ['DEFENSE:', 'PASS = STEAL  SHOVE  SHOOT = BLOCK'], ['NO BALL:', 'PASS = CALL FOR IT  SHOVE  SHOOT = TEAMMATE SHOOTS']] :
+        [['TURBO:', 'PUSH THE STICK PAST ITS RING'], ['SHOOT:', 'HOLD, LET GO AT THE TOP OF THE JUMP'], ['DUNK:', 'DUNK BUTTON, OR TURBO + SHOOT AT THE RIM (BALL HANDLERS LAY IT UP)'], ['DEFENSE:', 'PASS = STEAL  SHOVE  SHOOT = BLOCK'], ['NO BALL:', 'PASS = CALL FOR IT  SHOVE  SHOOT = TEAMMATE SHOOTS']] :
         [['SHOOT:', 'HOLD, LET GO AT THE TOP OF THE JUMP'], ['DUNK:', 'TURBO + SHOOT NEAR THE RIM'], ['DEFENSE:', 'PASS = STEAL  TURBO+PASS = SHOVE  SHOOT = BLOCK'], ['NO BALL:', 'PASS = CALL FOR IT  TURBO+PASS = SHOVE'], ['ON FIRE:', '3 BUCKETS IN A ROW']];
       var lx = C2.L + 20, sc = C2.W > 620 ? 2 : 1, lh = sc === 2 ? 0 : 0;
       var fitsBig = help.every(function (r) { return Fo.measure(r[0] + ' ' + r[1], 2) + 8 < C2.W - 40; }); sc = fitsBig ? 2 : 1;

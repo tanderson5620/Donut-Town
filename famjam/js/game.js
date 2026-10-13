@@ -192,7 +192,7 @@ window.HW = window.HW || {};
           return;
         }
       }
-      hand = X.handWorld(p, left); if (hand) { b.x = hand.x; b.y = Math.max(0.2, hand.y); b.z = p.z - 0.2; return; }
+      hand = X.handWorld(p, left); if (hand) { b.x = hand.x; b.y = Math.max(0.2, hand.y + (k.style === 'roll' && u > 0.3 ? 0.13 : 0)); b.z = p.z - 0.2; return; }
     }
     if (G.show && G.show.p === p && G.show.t < G.show.len) { b.x = p.x + p.face * 0.6; b.y = 0.15; b.z = p.z - 0.3; return; }   // set down for the twerk
     if (p.state === 'stepback') { var hs = X.handWorld(p); b.x = hs ? hs.x : p.x + p.face * 0.3; b.y = hs ? Math.max(0.2, hs.y) : p.y + 1.1; b.z = p.z - 0.25; return; }
@@ -293,7 +293,16 @@ window.HW = window.HW || {};
     // (tongue out) or the stretched arm; closer: off the backboard, the double-biceps flex or a bounce to himself; from anywhere:
     // under the legs (in slow motion, the camera in close on the whole move so you see the ball go under), behind the back, a flip
     // the dunkers go off the glass a bit more often: 1 in 4 of their close signature dunks instead of 1 in 6
-    if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
+    // the Ball Handlers (speed) lay it up instead: the same glide, hang time and block window as a dunk, the ball leaving his hand right
+    // where a dunk would slam. About 3 in 10 a slow-motion finger roll (the ball rolls off his fingertips up to twice the rim's height,
+    // the camera riding up with it), 3 in 10 a slow-motion reverse (under the rim, ball held out in one hand, then up and back in)
+    if (p.def.type === 'handler' && X.hasAnim(p, 'dk_lay')) {
+      var lr = Math.random(), ls = lr < 0.3 ? 'roll' : lr < 0.6 ? 'rev' : 'lay'; if (!X.hasAnim(p, 'dk_' + ls)) ls = 'lay';
+      p.dk.style = ls; p.dk.lay = true; p.dk.spin = false; p.dk.peak = ls === 'roll' ? 0.95 : 0.8;
+      if (ls === 'rev') { p.dk.x1 = rx + s * 0.55; p.dk.z1 = K.HZ - 0.15; } else p.dk.x1 = rx - s * (ls === 'roll' ? 0.75 : 0.85);
+      if (ls === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: DUNK_SLAM * p.dk.T / 2.5 };   // 2.5 s of slow motion up to the release
+      if (ls === 'roll') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'roll', slow: 0.45 };   // slow from the top of the rise until it drops in
+    } else if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
       if (p.dk.style === 'mj') p.tongue = true;
       if (p.dk.style === 'legs') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'legs', slow: DUNK_SLAM * p.dk.T / 2.5 };   // 2.5 s of slow motion up to the slam
       if ((p.dk.style === 'legs' || p.dk.style === 'board') && HW.DUNK_FACE && HW.DUNK_FACE[p.id]) p.dunkFace = true;   // his slow-motion dunk face, until he lands
@@ -304,7 +313,7 @@ window.HW = window.HW || {};
     var d0 = Math.hypot(p.x - rx, p.z - K.HZ); p.dk.three = d0 > K.R3 - 0.1 && Math.abs(p.z - K.HZ) < 6.2 || d0 > K.R3 + 0.3;
     p.face = s; p.stats.fga++; if (p.dk.three) p.stats.tpa++; if (isGuy(p)) Au.hup(); else Au.jump(); Au.whoosh(9);   // a dunk is a field goal attempt (made ones already count in fgm)
   };
-  var DUNK_SLAM = 0.66, DK_FRAMES = { legs: 30 };   // frames per signature dunk in the extras sheet (the slow-motion one gets more)
+  var DUNK_SLAM = 0.66, DK_FRAMES = { legs: 30, roll: 16, rev: 24 };   // frames per signature dunk in the extras sheet (the slow-motion one gets more)
   function updateDunk(p, dt) {
     // he glides to the rim (eased in and out over the first 60%), so a defender in his path has time to get up and meet him
     var k = p.dk, u = p.st / k.T, e0 = Math.min(1, u / 0.6), e = e0 * e0 * (3 - 2 * e0);   // p.st is advanced once in physics() (it used to be counted twice, so dunks ran at double speed)
@@ -316,6 +325,13 @@ window.HW = window.HW || {};
     }
     if (k.style) { var nf = DK_FRAMES[k.style] || 12; p.anim = 'dk_' + k.style; p.dir = k.style === 'flex' ? 'C' : 'R'; p.frame = Math.min(nf - 1, Math.round(Math.min(u, 0.9) / 0.9 * (nf - 1))); p.jamArm = k.style === 'jam' && u > 0.25 && u < DUNK_SLAM ? { x: k.x1, y: K.RIM_H + 0.25, z: k.z1 - 0.1 } : null; }
     else { p.anim = 'dunk'; p.dir = 'R'; p.frame = u < 0.12 ? 0 : u < 0.3 ? 1 : u < 0.5 ? 2 : u < 0.64 ? 3 : u < 0.82 ? 4 : 5; }
+    if (u >= DUNK_SLAM && !k.slam && k.lay) {   // a layup: the ball leaves his hand (it can't be blocked from here on, just like a dunk)
+      k.slam = true; var lb = G.ball, lrx = rimX(p.team), lfl = k.style === 'roll' ? { T: 1.55 } : k.style === 'rev' ? { T: 0.5, arc: 0.55 } : { T: 0.55, arc: 0.45 };
+      if (k.style === 'roll') lfl.arc = 2 * K.RIM_H - (lb.y + K.RIM_H + 0.12) / 2;   // up to twice the rim's height
+      p.hasBall = false; lb.holder = null; lb.state = 'shot'; lb.last = p; lb.baked = lb.behind = false;
+      lb.shotInfo = { by: p, team: p.team, three: false, make: true, quality: 'green', lay: k.style, t: 0, T: lfl.T, x0: lb.x, y0: lb.y, z0: lb.z, rx: lrx, arc: lfl.arc, missX: 0, missZ: 0 };
+      Au.whoosh(k.style === 'roll' ? 8 : 5);
+    }
     if (u >= DUNK_SLAM && !k.slam) {
       k.slam = true; if (G.cine && G.cine.p === p) G.cine = null; p.tongue = false;   // the slow-motion close-up ends on the slam
       var b = G.ball; p.hasBall = false; b.holder = null; b.state = 'through'; b.x = rimX(p.team); b.z = K.HZ; b.y = K.RIM_H - 0.05; b.vy = -5; b.vx = b.vz = 0;
@@ -417,7 +433,7 @@ window.HW = window.HW || {};
     if (pts === 3 && sig(p, 'tp')) for (var fi = 0; fi < 6; fi++) X.flame(rimX(team) + (Math.random() - 0.5) * 0.5, K.RIM_H - 0.3, K.HZ, 4, 0.5);
     p.streak++; if (!p.onFire && p.streak >= 3) { p.onFire = true; G.puQueue = p; Au.fire(); }   // he powers up as soon as he's back on his feet
     G.players.forEach(function (q) { if (q.team !== team) { if (q.onFire) { G.say(q.def.first.toUpperCase() + ' COOLS OFF', '#9ad0ff', 1.2, 0.7); if (q.ssj) X.powerDown(q); } q.onFire = false; q.ssj = 0; q.streak = 0; if (G.puQueue === q) G.puQueue = null; } });
-    var txt = dunk ? (pts === 3 ? '3-POINT DUNK!' : pick(HW.PHRASES.dunk)) : pts === 3 ? (info && info.sb ? 'STEP-BACK THREE!' : pick(HW.PHRASES.three)) : info && info.quality === 'green' ? pick(HW.PHRASES.swish) : pick(HW.PHRASES.two);
+    var txt = !dunk && info && info.lay && info.by === p && HW.PHRASES[info.lay] ? pick(HW.PHRASES[info.lay]) : dunk ? (pts === 3 ? '3-POINT DUNK!' : pick(HW.PHRASES.dunk)) : pts === 3 ? (info && info.sb ? 'STEP-BACK THREE!' : pick(HW.PHRASES.three)) : info && info.quality === 'green' ? pick(HW.PHRASES.swish) : pick(HW.PHRASES.two);
     G.say(txt, dunk ? '#ff7a1a' : pts === 3 ? '#ffb347' : '#ffe14d', 1.5, dunk ? 1.3 : 1);
     Au.cheer(pts === 3 || dunk); X.hype = Math.max(X.hype, dunk || pts === 3 ? 3 : 1.5);
     // a fan in the stands yells "baba booey!" after a three: always the first one of the game, then about 1 in 3
@@ -521,8 +537,12 @@ window.HW = window.HW || {};
     if (G.pu) { updatePowerup(dt); return; }
     if (G.cine) {   // the slow-motion dunks (everything slows equally, so nobody gets a better chance at it): under the legs all the way up
       // to the slam; off the backboard only from the toss until it's back in his hand
-      var cp = G.cine.p, cu = cp.dk ? cp.st / cp.dk.T : 1;
-      if (!cp.dk || cp.dk.style !== G.cine.kind || (G.cine.kind === 'board' && cu >= 0.5)) G.cine = null;
+      var cp = G.cine.p, cu = cp.dk ? cp.st / cp.dk.T : 1, ck = G.cine.kind, bsi = G.ball.shotInfo;
+      if (ck === 'roll' || ck === 'rev') {   // the layups: slow until the ball drops through (the finger roll from the top of his rise)
+        var lfly = G.ball.state === 'shot' && bsi && bsi.by === cp && bsi.lay === ck;
+        if (!lfly && !(cp.dk && cp.dk.style === ck)) G.cine = null;
+        else { dt *= ck === 'roll' && !lfly && cu < 0.45 ? 1 : G.cine.slow; G.cine.t = cp.st; }
+      } else if (!cp.dk || cp.dk.style !== G.cine.kind || (G.cine.kind === 'board' && cu >= 0.5)) G.cine = null;
       else { dt *= G.cine.kind === 'board' && cu < 0.14 ? 1 : G.cine.slow || 0.4; G.cine.t = cp.st; }
     }
     if (G.show) updateShow(dt);   // the quarter-start / game-end twerk (everyone else stands still: they're waiting anyway)
@@ -670,7 +690,7 @@ window.HW = window.HW || {};
       // blocks: anyone off the floor near the ball in its flight (goaltending is legal here); one try per jump. You get a wide reach
       // and good odds when you're right on him (G.humanBlock); computer blockers need to be closer and get worse odds
       G.opps(s.by).forEach(function (q) {
-        if (b.state !== 'shot' || q.y < 0.15 || q.cd.block) return;
+        if (b.state !== 'shot' || s.lay || q.y < 0.15 || q.cd.block) return;
         var hum = q.human, d = Math.hypot(q.x - b.x, q.z - b.z);
         if (u < (hum ? 0.6 : 0.45) && d < (hum ? 1.6 : 1.0) + (sig(q, 'block') ? 0.5 : 0) && b.y < q.y + q.reach + (hum ? 0.7 : 0.35)) {
           q.cd.block = 1;

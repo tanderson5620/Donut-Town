@@ -112,6 +112,8 @@ window.HW = window.HW || {};
     three: ['FROM DOWNTOWN!', 'RAIN MAKER!', 'FROM THE PARKING LOT!', 'SPLASH!'],
     swish: ['SWISH!', 'NOT A TOUCH!', 'PURE BUTTER!'],
     dunk: ['KABOOM!', 'RIM WRECKER!', 'SLAM-A-LAMA!', 'HAMMER TIME!', 'THUNDER DUNK!'],
+    // the Ball Handlers' layups: the plain one, the finger roll, the reverse
+    lay: ['AND THE LAYUP!', 'TOO QUICK!', 'BLOW-BY!', 'OFF THE GLASS!'], roll: ['FINGER ROLL!', 'SKY HOOK HIGH!', 'UP AND IN!'], rev: ['REVERSE!', 'UNDER AND UP!', 'WRONG SIDE, RIGHT RESULT!'],
     block: ['REJECTED!', 'DENIED!', 'GET THAT SHIT OUT OF HERE!', 'NOT IN MY HOUSE!'],
     steal: ['PICKPOCKET!', 'STOLEN!', 'SWIPED!'],
     shove: ['TIMBER!', 'WHAM!', 'FLATTENED!'],
