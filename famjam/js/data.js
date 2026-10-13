@@ -15,7 +15,7 @@ window.HW = window.HW || {};
     alan:    { id: 'alan',    name: 'Gator Anderson',   first: 'Gator', powerup: 'twerk', cameo: 'lisa',   team: 0, type: 'handler',  num: 11, color: '#fb5607', skin: '#c98262', hair: '#c2ab82', hairStyle: 'swept', photo: true, height: 1.76, bulk: 1.12,
                // from his photo: sun-tanned freckled skin, short swept-back ash-blond/gray hair, tinted wire glasses, stocky with a belly, gray shorts, tan suede slip-ons
                freckles: true, glasses: true, belly: true, noBand: true, shorts: '#6f6b72', shoes: '#c9ad86', soles: '#ece2cf', brow: '#b5a07a', age: true,  stats: { speed: 10, tp: 5, dunk: 4, steal: 9, block: 3, str: 3, pass: 10 } },
-    bianca:  { id: 'bianca',  name: 'Bianca',           first: 'Bianca',  team: 0, type: 'handler',  num: 2,  color: '#ff8fab', skin: '#dba487', hair: '#b8935f', hairStyle: 'long',  photo: true, headScale: 1.24, brow: '#6e5040', height: 1.68, bulk: 0.86, stats: { speed: 10, tp: 5, dunk: 3, steal: 9, block: 3, str: 3, pass: 10 } },
+    bianca:  { id: 'bianca',  name: 'Bianca',           first: 'Bianca',  team: 0, type: 'handler',  num: 2,  color: '#ff8fab', skin: '#dba487', hair: '#b8935f', hairStyle: 'long',  photo: true, headScale: 1.24, brow: '#6e5040', height: 1.68, bulk: 0.86, stats: { speed: 10, tp: 5, dunk: 3, steal: 9, block: 4, str: 3, pass: 10 } },
     lisa:    { id: 'lisa',    name: 'Lisa Anderson',    first: 'Lisa',    team: 0, type: 'strength', num: 34, color: '#ff006e', skin: '#e9b39a', hair: '#b49766', hairStyle: 'long',  photo: true, headScale: 1.45, height: 1.80, bulk: 1.2,  stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 4 } },
     katelyn: { id: 'katelyn', name: 'Katelyn Gorman',   first: 'Katelyn', team: 1, type: 'handler',  num: 7,  color: '#06d6a0', skin: '#dca592', hair: '#5c4a3e', hairStyle: 'long',  photo: true, headScale: 1.49, brow: '#5a4234', height: 1.70, bulk: 0.88, stats: { speed: 10, tp: 5, dunk: 3, steal: 9, block: 3, str: 3, pass: 10 } },
     kameron: { id: 'kameron', name: 'Kameron Gorman',   first: 'Kameron', team: 1, type: 'dunker',   num: 1,  color: '#3a86ff', skin: '#e4a387', hair: '#3a3029', hairStyle: 'short', photo: true, brow: '#4e3a2c', height: 1.96, bulk: 1.0,  stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6, pass: 5 } },
@@ -123,7 +123,7 @@ window.HW = window.HW || {};
   };
 
   // a player's catchphrase: it takes the place of exactly one of every `every` of their knockdown taunts, whatever the matchup
-  HW.CATCHPHRASE = { kenny: { line: 'HOOCHIE MAMA!', every: 10 }, lisa: { line: 'WOOOO WEEEEEE!', every: 5 } };
+  HW.CATCHPHRASE = { kenny: { line: 'HOOCHIE MAMA!', every: 10 }, lisa: { line: 'WOOOO WEEEEEE!', every: 5 }, bianca: { line: 'NO SHOES ON THE CARPET!', every: 3 } };
 
   // lines that come with a 2 s taunt over normal play: the crotch chop (twice) or pointing off at the kiddie table
   HW.TAUNTS = { "WHO'S YOUR UNCLE?!?!": 'chop', "WHO'S YOUR AUNTIE?!?!": 'chop', "KIDDIE TABLE'S OVER THERE!": 'point' };
