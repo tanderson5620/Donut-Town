@@ -85,7 +85,7 @@ window.HW = window.HW || {};
     this.ai = { t: 0, spot: null, spotT: 0, hold: 0 };
   }
   Player.prototype.grounded = function () { return this.y <= 0.001 && this.vy === 0; };
-  Player.prototype.busy = function () { return this.state === 'armbar' || this.state === 'stepback' || this.state === 'shimmy' || this.state === 'hammer' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
+  Player.prototype.busy = function () { return this.state === 'dougie' || this.state === 'armbar' || this.state === 'stepback' || this.state === 'shimmy' || this.state === 'hammer' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
 
   G.start = function (setup) {
     X.clearBlood();
@@ -372,8 +372,15 @@ window.HW = window.HW || {};
       X.shake = 1.4; X.hype = 3; Au.dunk(!(poster || shatter) && (isGuy(p) || G.mates(p).some(isGuy))); if (poster || shatter) Au.wow && Au.wow(); X.burst(b.x, K.RIM_H, K.HZ, 30, ['#ffd23f', '#ff7a1a', '#fff'], 5, 0.9);
       if (shatter) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); Au.sfx && Au.sfx('glass'); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
     }
-    if (u >= 1) { p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; p.tongue = false; p.dunkFace = false; p.jamArm = null; }
+    if (u >= 1) {
+      var dg = k.lay === 'roll' && k.slam && (k.style === 'roll2' ? 'dougie2' : 'dougie');
+      p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; p.tongue = false; p.dunkFace = false; p.jamArm = null;
+      // after a finger roll he lands with that hand still straight up and Dougies his way back up the court (dougie: after a near-hand
+      // roll, the frames flipped as he turns back, so the raised arm stays on the side it went up on; dougie2 after a far-hand one)
+      if (dg && X.hasAnim(p, dg)) { p.state = 'dougie'; p.st = 0; p.dougie = dg; p.face = -side(p.team); }
+    }
   }
+  var DOUGIE_T = 2.6;   // seconds of the Dougie walk back
 
   // PASS rating: faster, truer passes that are harder to pick off. Good passers show off: the ball stays in his hand through the move
   // (behind the back, a 360 spin, a flip, a football snap through his legs, over the head, a no-look flick) and leaves from his hand
@@ -501,7 +508,7 @@ window.HW = window.HW || {};
     // a fan in the stands yells "baba booey!" after a three: always the first one of the game, then about 1 in 3
     if (pts === 3 && !dunk && (!G.babaDone || Math.random() < 0.35) && Au.baba && Au.baba()) G.babaDone = true;
     G.hoopFx[team === 0 ? 1 : 0] = 1;
-    G.players.forEach(function (q) { if (q.team === team && q.state !== 'dunk' && q.state !== 'shimmy') { q.state = 'cheer'; q.st = 0; } });
+    G.players.forEach(function (q) { if (q.team === team && q.state !== 'dunk' && q.state !== 'shimmy' && q.state !== 'dougie') { q.state = 'cheer'; q.st = 0; } });
     G.phase = 'scored'; G.phaseT = 1.6; G.nextPoss = 1 - team;
   };
   G.missed = function (info) { info.by.streak = 0; };
@@ -611,12 +618,12 @@ window.HW = window.HW || {};
     }
     if (G.show) updateShow(dt);   // the quarter-start / game-end twerk (everyone else stands still: they're waiting anyway)
     // (not while a slow-motion move or its ball is still playing out: the finger roll is still up in the air when he lands)
-    if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall' && !G.cine) { G.puQueue = null; startPowerup(pq); return; } }
+    if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall' && pq.state !== 'dougie' && !G.cine) { G.puQueue = null; startPowerup(pq); return; } }
     if (G.tipT > 0 && (G.tipT -= dt) <= 0) G.say('STICK PAST THE RING = TURBO!', '#5cff7a', 3.5, 0.55);
     var live = G.phase === 'play';
     // the ref's whistle (recorded): tweet, tweet, then the long blast lands right on GO
     if (G.phase === 'tip') { G.phaseT -= dt; if (!G.whistled && G.phaseT <= WHISTLE_LONG) { G.whistled = true; Au.sfx && Au.sfx('whistle', 0.85); } if (G.phaseT <= 0) { G.phase = 'play'; G.say('GO!', '#5cff7a', 0.8, 1.3); Au.sfx && Au.sfx('go'); } }
-    else if (G.phase === 'scored') { G.phaseT -= dt; if (G.phaseT <= 0 && !(G.puQueue && G.phaseT > -2)) { G.lineup(G.nextPoss, false); G.phase = 'play'; } }   // a power-up still to come holds the restart
+    else if (G.phase === 'scored') { G.phaseT -= dt; if (G.phaseT <= 0 && !(G.puQueue && G.phaseT > -2) && !(G.players.some(function (q) { return q.state === 'dougie'; }) && G.phaseT > -1.5)) { G.lineup(G.nextPoss, false); G.phase = 'play'; } }   // a power-up still to come holds the restart, and a Dougie gets a moment to finish
     else if (G.phase === 'break') { G.phaseT -= dt; if (G.phaseT <= 0) { G.q++; G.beginQuarter(); } }
     else if (G.phase === 'over') { G.phaseT -= dt; }
     if (live) {
@@ -644,7 +651,7 @@ window.HW = window.HW || {};
   // up/down the screen is squeezed by the camera, so moving in depth runs faster than along the court to feel as quick
   var ZS = G.ZS = 2.2;
   function move(p, mx, mz, turbo, dt) {
-    var can = !(p.state === 'fall' || p.state === 'dunk' || p.state === 'shove' || p.state === 'shimmy' || p.state === 'stepback' || (p.state === 'shoot' && p.grounded()) || (p.state === 'pass' && p.passStyle === 'hike'));
+    var can = !(p.state === 'fall' || p.state === 'dunk' || p.state === 'shove' || p.state === 'shimmy' || p.state === 'dougie' || p.state === 'stepback' || (p.state === 'shoot' && p.grounded()) || (p.state === 'pass' && p.passStyle === 'hike'));
     var m = Math.hypot(mx, mz); if (m > 1) { mx /= m; mz /= m; m = 1; }
     p.turboOn = false;
     if (turbo && m > 0.1 && can && (p.turbo > 2 || p.onFire)) { p.turboOn = true; if (!p.onFire) p.turbo = Math.max(0, p.turbo - p.drain * dt); }
@@ -683,6 +690,7 @@ window.HW = window.HW || {};
     }
     if (p.state === 'fall') { var fr = p.y > 0 ? 1.2 : 6; p.vx *= Math.max(0, 1 - fr * dt); p.vz *= Math.max(0, 1 - fr * dt); if (p.st > (p.fallT || 1.3)) { p.state = 'idle'; p.flash = 0.6; p.fallT = 0; } }
     if (p.state === 'pass' && p.passStyle === 'moon' && p.st < 0.75) { p.vx = -p.face * 1.8; p.vz *= 0.85; }   // moonwalking backward toward his man
+    if (p.state === 'dougie') { p.face = -side(p.team); p.vx = p.face * 1.3; p.vz = 0; if (p.st > DOUGIE_T) { p.state = 'idle'; p.vx = 0; } }   // side-stepping back up the court
     if (p.state === 'shoot' && p.fade && p.y > 0) { p.vx = (p.x > rimX(p.team) ? 1 : -1) * 2.0; p.vz *= 0.9; }   // the fadeaway drifts away from the rim
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
     if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump' || p.state === 'hammer') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = p.shimmy ? 'shimmy' : 'idle'; p.st = 0; p.shimmy = false; if (p.fade) p.vx *= 0.15; p.fade = false; if (p.state === 'shimmy') { p.vx = p.vz = 0; } } } }
@@ -839,6 +847,7 @@ window.HW = window.HW || {};
         p.anim = 'fall'; p.dir = 'R'; p.frame = Math.min(3, p.st / 0.12); return;
       case 'stepback': if (X.hasAnim(p, 'stepback')) { p.anim = 'stepback'; p.frame = p.st < 0.08 ? 0 : p.st < 0.26 ? 1 : 2; } else { p.anim = 'shoot'; p.frame = 0; } p.dir = 'R'; return;
       case 'shimmy': p.anim = 'shimmy'; p.dir = 'F'; p.frame = (p.st * 11) % 6; return;   // the shoulder shimmy after a made three
+      case 'dougie': p.anim = p.dougie || 'dougie'; p.dir = 'R'; p.frame = Math.floor(p.st * 16 / 1.4) % 16; return;   // a 1.4 s beat-cycle
       case 'shoot': p.anim = p.fade && X.hasAnim(p, 'shoot_fade') ? 'shoot_fade' : 'shoot'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
       case 'jump': p.anim = 'jump'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.vy > 2 ? 1 : 2; return;
       case 'pass': if (p.passStyle) { var F = FANCY[p.passStyle]; p.anim = 'pass_' + p.passStyle; p.dir = p.passStyle === 'back' ? 'W' : 'R'; p.frame = frameAt(F, p.st); }
