@@ -75,7 +75,7 @@ window.HW = window.HW || {};
   function people() { return [{ lbl: 'P1', claim: N.claim, host: 1 }].concat(conns.map(function (k) { return { lbl: k.lbl, claim: k.claim }; })); }
   N.claimedBy = function (id) { for (var i = 0; i < N.people.length; i++) if (id && N.people[i].claim === id) return N.people[i].lbl; return null; };
   function showMatchup(su, me, then) {
-    var U = UI(); U.mu = { teams: su.teams, human: me, humans: su.humans, names: su.names, diff: su.diff, qlen: su.qlen, online: true }; U.screen = 'matchup'; U.loading = true;
+    var U = UI(); U.mu = { teams: su.teams, fams: su.fams, human: me, humans: su.humans, names: su.names, diff: su.diff, qlen: su.qlen, online: true }; U.screen = 'matchup'; U.loading = true;
     Promise.all(G.loadIds(su.teams).map(X.loadPlayer)).then(function () { U.loading = false; if (then) then(); });
   }
   function remember(code, claim) { try { sessionStorage.setItem('famjam.room', JSON.stringify({ code: code, claim: claim })); } catch (e) { } }
@@ -112,14 +112,15 @@ window.HW = window.HW || {};
     N.people = people();
     conns.forEach(function (k) { send(k.c, { t: 'lobby', st: N.stage, code: N.code, people: N.people, diff: N.diff, qlen: N.qlen, vs: N.vs, you: k.lbl }); });
   }
-  // against each other: two people per family at most; together: two people in all (one team), from either family. Nobody can
-  // take a player someone else has
+  // against each other: two people per family at most, and two families at most (a game is two teams); together: two people in all
+  // (one team), from any family. Nobody can take a player someone else has
   function canClaim(id, who) {
     if (!id) return true; var d = HW.PLAYERS[id]; if (!d) return false;
-    var all = [{ who: 'host', id: N.claim }].concat(conns.map(function (k) { return { who: k, id: k.claim }; })), n = 0, tot = 0;
-    for (var i = 0; i < all.length; i++) { var a = all[i]; if (a.who === who || !a.id) continue; if (a.id === id) return false; tot++; if (HW.PLAYERS[a.id].team === d.team) n++; }
-    return N.vs ? n < 2 : tot < 2;
+    var all = [{ who: 'host', id: N.claim }].concat(conns.map(function (k) { return { who: k, id: k.claim }; })), n = 0, tot = 0, fs = {};
+    for (var i = 0; i < all.length; i++) { var a = all[i]; if (a.who === who || !a.id) continue; if (a.id === id) return false; tot++; fs[HW.PLAYERS[a.id].team] = 1; if (HW.PLAYERS[a.id].team === d.team) n++; }
+    return N.vs ? n < 2 && (fs[d.team] || Object.keys(fs).length < 2) : tot < 2;
   }
+  function uniq(a) { return a.filter(function (v, i) { return a.indexOf(v) === i; }); }
   function hostMsg(k, m) {
     if (!m || !m.t) return;
     if (m.t === 'hi') {
@@ -160,7 +161,8 @@ window.HW = window.HW || {};
     if (!N.claim || !conns.every(function (k) { return k.claim; })) return 'EVERYONE PICK A PLAYER, THEN START';
     var cl = [N.claim].concat(conns.map(function (k) { return k.claim; })), fam = cl.map(function (id) { return HW.PLAYERS[id].team; });
     if (!N.vs && cl.length > 2) return 'TOGETHER IS FOR 2 PEOPLE: ONE TEAM';
-    if (N.vs && cl.length > 1 && fam.every(function (f) { return f === fam[0]; })) return 'AGAINST: SOMEONE PICK THE OTHER FAMILY';
+    if (N.vs && cl.length > 1 && fam.every(function (f) { return f === fam[0]; })) return 'AGAINST: SOMEONE PICK ANOTHER FAMILY';
+    if (N.vs && uniq(fam).length > 2) return 'AGAINST: TWO FAMILIES AT A TIME';
     return '';
   };
   N.canStart = function () { return N.need() === ''; };
@@ -168,21 +170,26 @@ window.HW = window.HW || {};
   N.start = function () {
     if (!N.canStart()) return;
     var humans = {}; humans[N.claim] = 'P1'; conns.forEach(function (k) { humans[k.claim] = k.lbl; });
-    var taken = Object.keys(humans), names = null, teams, mix = function (a) { return a.sort(function () { return Math.random() - 0.5; }); };
-    if (N.vs) teams = [0, 1].map(function (ti) {
-      var ids = taken.filter(function (id) { return HW.PLAYERS[id].team === ti; });
-      var pool = mix(HW.TEAMS[ti].roster.filter(function (id) { return taken.indexOf(id) < 0; }));
-      while (ids.length < 2) ids.push(pool.shift());
-      return ids;
-    });
-    else {   // together: the people (from either family) are one team; two CPU players from the other family (if they mixed, either one)
-      var fam = taken.map(function (id) { return HW.PLAYERS[id].team; }), cpuF = fam.every(function (f) { return f === 0; }) ? 1 : fam.every(function (f) { return f === 1; }) ? 0 : Math.random() < 0.5 ? 0 : 1;
+    var taken = Object.keys(humans), names = null, teams, fams, mix = function (a) { return a.sort(function () { return Math.random() - 0.5; }); };
+    var famOf = function (id) { return HW.PLAYERS[id].team; }, others = function (fl) { return mix(HW.TEAMS.map(function (t, i) { return i; }).filter(function (i) { return fl.indexOf(i) < 0; })); };
+    if (N.vs) {   // the people's families (one person alone: a CPU family picked for them), lower family on side 0
+      fams = uniq(taken.map(famOf)); if (fams.length < 2) fams.push(others(fams)[0]); fams.sort();
+      teams = fams.map(function (f) {
+        var ids = taken.filter(function (id) { return famOf(id) === f; });
+        var pool = mix(HW.TEAMS[f].roster.filter(function (id) { return taken.indexOf(id) < 0; }));
+        while (ids.length < 2) ids.push(pool.shift());
+        return ids;
+      });
+    }
+    else {   // together: the people (from any family) are one team; two CPU players from a family neither of them is in
+      var fam = taken.map(famOf), cpuF = others(fam)[0];
       var cpu = mix(HW.TEAMS[cpuF].roster.filter(function (id) { return taken.indexOf(id) < 0; })).slice(0, 2), ppl = taken.slice();
       if (ppl.length < 2) ppl.push(mix(HW.TEAMS[fam[0]].roster.filter(function (id) { return taken.indexOf(id) < 0 && cpu.indexOf(id) < 0; }))[0]);
-      teams = []; teams[cpuF] = cpu; teams[1 - cpuF] = ppl;
-      if (HW.PLAYERS[ppl[0]].team !== HW.PLAYERS[ppl[1]].team) { names = []; names[1 - cpuF] = { name: 'Family', short: 'FAM', color: '#ffd23f', dark: '#6b4e00' }; }   // a mixed team plays as the Family
+      var pf = famOf(ppl[0]), ps = pf < cpuF ? 0 : 1; fams = ps ? [cpuF, pf] : [pf, cpuF];
+      teams = []; teams[1 - ps] = cpu; teams[ps] = ppl;
+      if (famOf(ppl[0]) !== famOf(ppl[1])) { names = []; names[ps] = { name: 'Family', short: 'FAM', color: '#ffd23f', dark: '#6b4e00' }; }   // a mixed team plays as the Family
     }
-    N.setup = { teams: teams, humans: humans, names: names, diff: N.diff, qlen: N.qlen, human: N.claim, online: true };
+    N.setup = { teams: teams, fams: fams, humans: humans, names: names, diff: N.diff, qlen: N.qlen, human: N.claim, online: true };
     N.stage = 'matchup';
     conns.forEach(function (k) { k.ready = false; send(k.c, { t: 'mu', setup: N.setup, claim: k.claim }); });
     showMatchup(N.setup, N.claim);

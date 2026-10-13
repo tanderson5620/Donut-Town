@@ -24,7 +24,7 @@ window.HW = window.HW || {};
   function hash(n) { var s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); }
 
   /* ---------- floor: a top-down court picture sampled one scanline at a time ---------- */
-  var PPM = 40, FX0 = -24, FZ0 = -3, FWm = 48, FDm = 22, floorTex;
+  var PPM = 40, FX0 = -24, FZ0 = -3, FWm = 48, FDm = 22, floorTex, FC = null;
   function buildFloor() {
     var c = floorTex = canvas(FWm * PPM, FDm * PPM), g = c.getContext('2d');
     function px(x) { return (x - FX0) * PPM; } function pz(z) { return (FDm - (z - FZ0)) * PPM; }   // far side at the top of the picture, like the screen
@@ -42,9 +42,9 @@ window.HW = window.HW || {};
     }
     // soft reflections of the arena lights
     for (var i = -2; i <= 2; i++) { var gr = g.createRadialGradient(px(i * 6), pz(10), 0, px(i * 6), pz(10), 4 * PPM); gr.addColorStop(0, 'rgba(255,240,210,0.1)'); gr.addColorStop(1, 'rgba(255,240,210,0)'); g.fillStyle = gr; g.fillRect(px(i * 6 - 4), pz(14), 8 * PPM, 8 * PPM); }
-    var teams = HW.TEAMS;
+    var tc = FC || [HW.TEAMS[0].color, HW.TEAMS[1].color];
     // paint: each team's color under the hoop it defends (team 0 attacks +x, so defends -x)
-    [[-1, teams[0].color], [1, teams[1].color]].forEach(function (e) {
+    [[-1, tc[0]], [1, tc[1]]].forEach(function (e) {
       var s = e[0], x0 = s * K.HL, x1 = s * (K.HL - K.LANE);
       g.fillStyle = e[1]; g.globalAlpha = 0.6; g.fillRect(Math.min(px(x0), px(x1)), pz(K.HZ + K.LANEW / 2), K.LANE * PPM, K.LANEW * PPM); g.globalAlpha = 1;
     });
@@ -100,7 +100,7 @@ window.HW = window.HW || {};
     // a low courtside board: dark panels with small lettering, so it frames the court instead of shouting over it
     wallC = canvas(1600, 40); var w = wallC.getContext('2d'); w.fillStyle = '#0b0b16'; w.fillRect(0, 0, 1600, 40);
     w.font = '8px "Press Start 2P", monospace'; w.textBaseline = 'middle'; w.textAlign = 'center';
-    var ads = [['FAM JAM', '#c9a53a'], ['ANDERSONS', '#c46a1c'], ['2 ON 2', '#b8407e'], ['GORMANS', '#2f6cc4'], ['TURBO!', '#47b07c']];
+    var ads = [['FAM JAM', '#c9a53a'], ['ANDERSONS', '#c46a1c'], ['2 ON 2', '#b8407e'], ['GORMANS', '#2f6cc4'], ['TURBO!', '#47b07c'], ['STOWELLS', '#8a46c8']];
     for (var i2 = 0; i2 < 16; i2++) { var a2 = ads[i2 % ads.length], x2 = i2 * 100; w.fillStyle = '#15152a'; w.fillRect(x2 + 3, 4, 94, 32); w.fillStyle = a2[1]; w.fillRect(x2 + 3, 4, 94, 2); w.fillText(a2[0], x2 + 50, 21); }
   }
   X.hype = 0;
@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=15';   // (the faces carry it too)
+  var SHEET_V = '?v=16';   // (the faces carry it too)
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -462,6 +462,8 @@ window.HW = window.HW || {};
 
   X.init = function () { buildFloor(); buildCrowd(); };
   X.rebuild = function () { buildFloor(); buildCrowd(); };
+  // a game's two families: repaint the lanes in their colors (only when they change)
+  X.teamColors = function (cs) { if (FC && FC[0] === cs[0] && FC[1] === cs[1]) return; FC = cs.slice(); buildFloor(); };
 
   // full scene, back to front; `things` are players + ball, each with x,z
   X.drawScene = function (g, t, dt, players, ball, hoopFx) {
