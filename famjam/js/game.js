@@ -315,10 +315,9 @@ window.HW = window.HW || {};
       var lr = Math.random(), lb0 = lr < 0.3 ? 'roll' : lr < 0.6 ? 'rev' : 'lay', farS = p.z > K.HZ, ls = lb0 + (farS ? '2' : '');
       if (!X.hasAnim(p, 'dk_' + ls)) { lb0 = 'lay'; ls = 'lay'; }
       p.dk.style = ls; p.dk.lay = lb0; p.dk.spin = false; p.dk.peak = lb0 === 'roll' ? 0.95 : 0.8;
-      // (he ends a step off the middle of the rim, the other way from the hand that finishes: that hand holds the ball right out to the
-      // side, Jordan's way, so it hangs between the rim and the glass - the far-hand finish shows on the baseline side of him, the
-      // near-hand one on the court side - and scoops up beside the rim rather than inside the net)
-      if (lb0 === 'rev') { var sg = farS ? -1 : 1; p.dk.x1 = rx + s * (farS ? 0.3 : -0.3); p.dk.zA = K.HZ - sg * 0.55; p.dk.z1 = K.HZ + sg * 0.55; }
+      // (he ends just under the rim on the other side, and the ball goes up off that side of the glass and in: up in front of his face
+      // when that's the near side, behind his head on the far side)
+      if (lb0 === 'rev') { var sg = farS ? -1 : 1; p.dk.x1 = rx - s * 0.15; p.dk.zA = K.HZ - sg * 0.55; p.dk.z1 = K.HZ + sg * 0.55; }
       else { p.dk.x1 = rx - s * (lb0 === 'roll' ? 0.75 : 0.85); p.dk.z1 = K.HZ + (farS ? 0.3 : -0.3); }   // stays on his side of the rim
       if (lb0 === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: DUNK_SLAM * p.dk.T / 2 };   // 2 s of slow motion up to the release
       if (lb0 === 'roll') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'roll', slow: 0.45 };   // slow from the top of the rise until it drops in
@@ -350,10 +349,12 @@ window.HW = window.HW || {};
     if (k.style) { var nf = DK_FRAMES[k.style] || 12; p.anim = 'dk_' + k.style; p.dir = k.style === 'flex' ? 'C' : 'R'; p.frame = Math.min(nf - 1, Math.round(Math.min(u, 0.9) / 0.9 * (nf - 1))); p.jamArm = k.style === 'jam' && u > 0.25 && u < DUNK_SLAM ? { x: k.x1, y: K.RIM_H + 0.25, z: k.z1 - 0.1 } : null; }
     else { p.anim = 'dunk'; p.dir = 'R'; p.frame = u < 0.12 ? 0 : u < 0.3 ? 1 : u < 0.5 ? 2 : u < 0.64 ? 3 : u < 0.82 ? 4 : 5; }
     if (u >= DUNK_SLAM && !k.slam && k.lay) {   // a layup: the ball leaves his hand (it can't be blocked from here on, just like a dunk)
-      k.slam = true; var lb = G.ball, lrx = rimX(p.team), lfl = k.lay === 'roll' ? { T: 1.55 } : k.lay === 'rev' ? { T: 0.5, arc: 0.55 } : { T: 0.55, arc: 0.45 };
+      k.slam = true; var lb = G.ball, lrx = rimX(p.team), lfl = k.lay === 'roll' ? { T: 1.55 } : k.lay === 'rev' ? { T: 0.7, arc: 0.2 } : { T: 0.55, arc: 0.45 };
       if (k.lay === 'roll') lfl.arc = 2 * K.RIM_H - (lb.y + K.RIM_H + 0.12) / 2;   // up to twice the rim's height
       p.hasBall = false; lb.holder = null; lb.state = 'shot'; lb.last = p; lb.baked = lb.behind = false;
       lb.shotInfo = { by: p, team: p.team, three: false, make: true, quality: 'green', lay: k.lay, t: 0, T: lfl.T, x0: lb.x, y0: lb.y, z0: lb.z, rx: lrx, arc: lfl.arc, missX: 0, missZ: 0 };
+      // the reverse goes up off the glass on the side he finished on (kisses the board just in front of it, then drops in)
+      if (k.lay === 'rev') lb.shotInfo.bank = { x: side(p.team) * (K.BOARDX - 0.12), y: K.RIM_H + 0.42, z: K.HZ + (k.z1 - K.HZ) * 0.55, f: 0.55 };
       Au.whoosh(k.lay === 'roll' ? 8 : 5);
     }
     if (u >= DUNK_SLAM && !k.slam) {
@@ -752,6 +753,11 @@ window.HW = window.HW || {};
       var s = b.shotInfo, u = Math.min(1, (s.t += dt) / s.T);
       var ex = s.rx + (s.make ? 0 : s.missX), ez = K.HZ + (s.make ? 0 : s.missZ), ey = K.RIM_H + 0.12;
       var nx = s.x0 + (ex - s.x0) * u, nz = s.z0 + (ez - s.z0) * u, ny = s.y0 + (ey - s.y0) * u + s.arc * 4 * u * (1 - u);
+      if (s.bank) {   // off the glass: up into the board, then down into the rim
+        var bk = s.bank, ba = Math.min(1, u / bk.f), bc = Math.max(0, (u - bk.f) / (1 - bk.f));
+        if (u < bk.f) { nx = s.x0 + (bk.x - s.x0) * ba; nz = s.z0 + (bk.z - s.z0) * ba; ny = s.y0 + (bk.y - s.y0) * ba + s.arc * 4 * ba * (1 - ba); }
+        else { if (!s.banked) { s.banked = true; Au.board && Au.board(); } nx = bk.x + (ex - bk.x) * bc; nz = bk.z + (ez - bk.z) * bc; ny = bk.y + (ey - bk.y) * bc + 0.15 * 4 * bc * (1 - bc); }
+      }
       b.vx = (nx - b.x) / dt; b.vy = (ny - b.y) / dt; b.vz = (nz - b.z) / dt; b.x = nx; b.y = ny; b.z = nz;
       // blocks: anyone off the floor near the ball in its flight (goaltending is legal here); one try per jump. You get a wide reach
       // and good odds when you're right on him (G.humanBlock); computer blockers need to be closer and get worse odds
