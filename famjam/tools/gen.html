@@ -430,34 +430,37 @@ ANIMS.stepback = { n: 3, dirs: ['R'], f: function (t, i) { return [
 var DK_N = { legs: 30 };
 Object.keys(DUNKS).forEach(function (k) { var n = DK_N[k] || 12; ANIMS['dk_' + k] = { n: n, dirs: [k === 'flex' ? 'C' : 'R'], f: keyed(DUNKS[k], n), ball: k === 'legs' }; });
 // the Ball Handlers lay it up instead of dunking - same timing as a dunk, the ball leaving the hand at u = 0.66 (where a dunk slams):
-// lay: the plain layup, the near knee driving up, the ball laid up at full stretch
+// lay: the plain layup, the near knee driving up, the ball laid up at full stretch - up and out toward the rim (straight up, the arm
+//      would run right across his face from the side camera)
 // roll: the finger roll, the arm straight up, palm turning up, the ball rolling off the fingertips (slow motion in the game)
 // rev: the reverse (after Jordan's): he turns to you under the rim, the near knee tucked up high, the ball held right out in one hand
 //      away from the rim, then swings it up over his head and back up into the rim behind him (slow motion in the game)
 var LAYUPS = {
   lay: [[0, DK_TAKE], [0.12, { lean: 0.15, rs: 1.6, re: 1.3, ls: 1.5, le: 1.4, rt: 1.3, rk: 1.7, lt: -0.2, lk: 0.4 }],
-    [0.35, { lean: 0.05, rs: 2.5, re: 0.8, ls: 2.0, le: 1.0, rt: 1.85, rk: 1.5, lt: -0.1, lk: 0.6 }],
-    [0.55, { lean: -0.05, rs: 2.9, re: 0.25, ls: 1.6, le: 0.9, lz: 0.3, rt: 1.75, rk: 1.4, lt: 0.0, lk: 0.6 }],
-    [0.66, { lean: -0.05, rs: 3.05, re: 0.1, ls: 1.4, le: 0.9, lz: 0.4, rt: 1.5, rk: 1.4, lt: 0.0, lk: 0.6 }],
-    [0.9, { lean: 0.1, rs: 2.6, re: 0.4, ls: 1.0, le: 0.8, lz: 0.3, rt: 0.5, rk: 0.7, lt: 0.2, lk: 0.5 }]],
+    [0.35, { lean: 0.05, rs: 2.2, re: 0.6, ls: 2.0, le: 1.0, rt: 1.85, rk: 1.5, lt: -0.1, lk: 0.6 }],
+    [0.55, { lean: -0.05, rs: 2.45, re: 0.2, ls: 1.6, le: 0.9, lz: 0.3, rt: 1.75, rk: 1.4, lt: 0.0, lk: 0.6 }],
+    [0.66, { lean: -0.05, rs: 2.55, re: 0.1, ls: 1.4, le: 0.9, lz: 0.4, rt: 1.5, rk: 1.4, lt: 0.0, lk: 0.6 }],
+    [0.9, { lean: 0.1, rs: 2.2, re: 0.4, ls: 1.0, le: 0.8, lz: 0.3, rt: 0.5, rk: 0.7, lt: 0.2, lk: 0.5 }]],
   roll: [[0, DK_TAKE], [0.12, { lean: 0.15, rs: 1.5, re: 1.4, ls: 1.4, le: 1.5, rt: 1.4, rk: 1.8, lt: -0.25, lk: 0.4 }],
-    [0.4, { lean: -0.05, rs: 2.6, re: 0.6, ry: -0.6, ls: 1.8, le: 1.1, rt: 1.9, rk: 1.5, lt: -0.1, lk: 0.5, neck: -0.1 }],
-    [0.58, { lean: -0.12, rs: 3.0, re: 0.15, ry: -1.0, ls: 1.5, le: 1.0, lz: 0.3, rt: 1.85, rk: 1.4, lt: 0.0, lk: 0.6, neck: -0.25 }],
-    [0.66, { lean: -0.15, rs: 3.15, re: 0.05, ry: -1.2, ls: 1.4, le: 1.0, lz: 0.4, rt: 1.6, rk: 1.4, lt: 0.05, lk: 0.6, neck: -0.35 }],
-    [0.78, { lean: -0.1, rs: 3.1, re: 0.1, ry: -1.2, ls: 1.2, le: 0.9, lz: 0.4, rt: 0.9, rk: 1.3, lt: 0.1, lk: 0.6, neck: -0.45 }],
-    [0.9, { lean: 0.05, rs: 2.7, re: 0.3, ls: 1.0, le: 0.8, lz: 0.3, rt: 0.4, rk: 0.6, lt: 0.2, lk: 0.5, neck: -0.3 }]],
-  // the reverse (after Jordan's): he goes up on his side of the rim with the ball in that hand (his near one here), turns to you as
-  // his body passes under the rim, both hands meet on the ball right as he crosses the middle and his other hand takes it. On the far
-  // side he holds it right out to the side the way Jordan did, the arm rolled so his hand is under the ball (palm up), the knee on that
-  // side up, the other hand across his belly, looking up at the rim (the slow-motion moment), then scoops it up palm-up and lays it in.
-  // The ball rides its own path (bx/by/bz) and the hands follow it by IK (g0, g1)
-  rev: [[0, abPose(DK_TAKE, { bx: 0, by: -0.12, bz: 0.3, g0: 1, g1: 1 })],
-    [0.1, { yaw: -0.2, lean: 0.1, rs: 1.2, re: 1.4, rz: 0.1, ls: 1.0, le: 1.2, rt: 1.0, rk: 1.6, lt: 0.2, lk: 0.7, bx: -0.22, by: 0.0, bz: 0.32, g0: 1, g1: 0.4 }],
-    [0.22, { yaw: -0.6, rs: 1.6, re: 1.0, rz: 0.15, ls: 1.1, le: 1.3, rt: 1.4, rk: 1.9, lt: 0.25, lk: 0.6, neck: -0.1, bx: -0.32, by: 0.08, bz: 0.36, g0: 1, g1: 0 }],
-    [0.34, { yaw: -0.95, lean: -0.05, rs: 1.7, re: 0.9, rz: 0.05, ls: 1.4, le: 1.2, rt: 1.55, rk: 2.0, lt: 0.25, lk: 0.5, neck: -0.2, bx: -0.15, by: 0.06, bz: 0.42, g0: 1, g1: 0.5 }],
-    [0.43, { yaw: -1.0, lean: -0.08, rs: 1.6, re: 1.0, rz: -0.2, ls: 1.6, le: 1.0, lz: -0.2, rt: 1.3, rk: 1.8, lt: 0.6, lk: 0.9, neck: -0.25, bx: 0, by: 0.06, bz: 0.42, g0: 1, g1: 1 }],
-    [0.5, { yaw: -1.0, lean: -0.1, rs: 0.8, re: 1.3, rz: -0.1, ls: 0.9, le: 1.1, lz: 0.5, ltw: -1.0, rt: 0.8, rk: 1.2, lt: 1.1, lk: 1.6, neck: -0.35, bx: 0.5, by: 0.12, bz: 0.32, g0: 0, g1: 1 }],
-    [0.56, { yaw: -1.0, lean: -0.12, rs: 0.5, re: 1.4, rz: -0.2, ls: 0.35, le: 1.05, lz: 0.8, ltw: -1.5, rt: 0.35, rk: 0.6, lt: 1.5, lk: 1.9, neck: -0.45, bx: 0.78, by: 0.22, bz: 0.2, g0: 0, g1: 1 }],
+    [0.4, { lean: -0.05, rs: 2.3, re: 0.5, ry: -0.6, ls: 1.8, le: 1.1, rt: 1.9, rk: 1.5, lt: -0.1, lk: 0.5, neck: -0.1 }],
+    [0.58, { lean: -0.12, rs: 2.5, re: 0.15, ry: -1.0, ls: 1.5, le: 1.0, lz: 0.3, rt: 1.85, rk: 1.4, lt: 0.0, lk: 0.6, neck: -0.25 }],
+    [0.66, { lean: -0.15, rs: 2.6, re: 0.05, ry: -1.2, ls: 1.4, le: 1.0, lz: 0.4, rt: 1.6, rk: 1.4, lt: 0.05, lk: 0.6, neck: -0.35 }],
+    [0.78, { lean: -0.1, rs: 2.6, re: 0.1, ry: -1.2, ls: 1.2, le: 0.9, lz: 0.4, rt: 0.9, rk: 1.3, lt: 0.1, lk: 0.6, neck: -0.45 }],
+    [0.9, { lean: 0.05, rs: 2.3, re: 0.3, ls: 1.0, le: 0.8, lz: 0.3, rt: 0.4, rk: 0.6, lt: 0.2, lk: 0.5, neck: -0.3 }]],
+  // the reverse (after Jordan's): he takes off on his side of the rim with the ball already in that hand (his near one here) and goes
+  // up with it, the arm stretched up high toward the rim as if to lay it in; just before his body passes under the rim he brings it
+  // down, turning to you, and right as he crosses the middle (even with the basket) it's at the middle of his body, both hands on it;
+  // from there it whips across to his other side. There he holds it right out to the side the way Jordan did, the arm rolled so his
+  // hand is under the ball (palm up), the knee on that side up, the other hand across his belly, looking up at the rim (the
+  // slow-motion moment), then scoops it up palm-up and lays it in. The ball rides its own path (bx/by/bz), the hands follow by IK
+  rev: [[0, abPose(DK_TAKE, { rs: 1.5, re: 1.2, rz: 0.1, bx: -0.24, by: 0.12, bz: 0.32, g0: 1, g1: 0 })],
+    [0.1, { yaw: -0.15, lean: 0.12, rs: 2.4, re: 0.7, rz: 0.1, ls: 1.0, le: 1.2, rt: 1.3, rk: 1.8, lt: 0.0, lk: 0.6, neck: -0.15, bx: -0.2, by: 0.5, bz: 0.46, g0: 1, g1: 0 }],
+    [0.2, { yaw: -0.2, lean: 0.05, rs: 2.5, re: 0.15, rz: 0.1, ls: 1.1, le: 1.2, rt: 1.6, rk: 2.0, lt: 0.1, lk: 0.6, neck: -0.3, bx: -0.12, by: 0.8, bz: 0.45, g0: 1, g1: 0 }],
+    [0.3, { yaw: -0.45, lean: 0.0, rs: 2.5, re: 0.2, rz: 0.1, ls: 1.2, le: 1.2, rt: 1.6, rk: 2.0, lt: 0.2, lk: 0.6, neck: -0.35, bx: -0.12, by: 0.78, bz: 0.45, g0: 1, g1: 0 }],
+    [0.37, { yaw: -0.8, lean: -0.05, rs: 2.0, re: 0.8, rz: 0.05, ls: 1.4, le: 1.2, rt: 1.55, rk: 2.0, lt: 0.25, lk: 0.5, neck: -0.25, bx: -0.14, by: 0.1, bz: 0.5, g0: 1, g1: 0.3 }],
+    [0.43, { yaw: -1.0, lean: -0.08, rs: 1.6, re: 1.0, rz: -0.2, ls: 1.6, le: 1.0, lz: -0.2, rt: 1.3, rk: 1.8, lt: 0.6, lk: 0.9, neck: -0.25, bx: 0, by: 0.08, bz: 0.42, g0: 1, g1: 1 }],
+    [0.48, { yaw: -1.0, lean: -0.1, rs: 0.8, re: 1.3, rz: -0.1, ls: 0.9, le: 1.1, lz: 0.5, ltw: -1.0, rt: 0.8, rk: 1.2, lt: 1.1, lk: 1.6, neck: -0.35, bx: 0.5, by: 0.12, bz: 0.32, g0: 0, g1: 1 }],
+    [0.53, { yaw: -1.0, lean: -0.12, rs: 0.5, re: 1.4, rz: -0.2, ls: 0.35, le: 1.05, lz: 0.8, ltw: -1.5, rt: 0.35, rk: 0.6, lt: 1.5, lk: 1.9, neck: -0.45, bx: 0.78, by: 0.22, bz: 0.2, g0: 0, g1: 1 }],
     [0.6, { yaw: -1.0, lean: -0.14, rs: 0.5, re: 1.4, rz: -0.2, ls: 0.6, le: 1.0, lz: 0.8, ltw: -1.5, rt: 0.35, rk: 0.6, lt: 1.5, lk: 1.9, neck: -0.5, bx: 0.76, by: 0.32, bz: 0.2, g0: 0, g1: 1 }],
     [0.66, { yaw: -0.9, lean: -0.18, rs: 0.5, re: 1.3, rz: -0.1, ls: 2.5, le: 0.4, lz: 0.45, ltw: -1.5, rt: 0.35, rk: 0.6, lt: 1.3, lk: 1.7, neck: -0.55, bx: 0.48, by: 0.84, bz: 0.15, g0: 0, g1: 1 }],
     [0.78, { yaw: -0.7, lean: -0.1, rs: 0.5, re: 1.0, rz: 0.1, ls: 2.8, le: 0.3, lz: 0.3, ltw: -1.2, rt: 0.35, rk: 0.6, lt: 0.8, lk: 1.1, neck: -0.4, bx: 0.48, by: 0.84, bz: 0.15 }],
@@ -506,7 +509,8 @@ ANIMS.armbarred = { n: 12, dirs: ['R'], center: true, f: function (t, i) {
 // the far-hand layups and the reverses carry their own ball, rendered in 3D with him up to the release (ball: in which hand, or on the
 // reverse's own path; until when); the near-hand ones leave it to the game
 var LAY_BALL = { lay2: { hand: 1, until: 0.66 }, roll2: { hand: 1, until: 0.66 }, rev: { hold: true, until: 0.66 }, rev2: { hold: true, until: 0.66 } };
-Object.keys(LAYUPS).forEach(function (k) { ANIMS['dk_' + k] = { n: LAY_N[k], dirs: ['R'], f: keyed(LAYUPS[k], LAY_N[k]), ball: LAY_BALL[k] || null }; });
+// (armOver: his arms show on top of the photo head wherever his real head wouldn't hide them)
+Object.keys(LAYUPS).forEach(function (k) { ANIMS['dk_' + k] = { n: LAY_N[k], dirs: ['R'], f: keyed(LAYUPS[k], LAY_N[k]), ball: LAY_BALL[k] || null, armOver: true }; });
 // the under-the-legs dunk carries its own ball, rendered in 3D with him so his legs and body hide it just as they would: in his near
 // (right) hand, down and under his raised near thigh, between his legs to his far (left) hand behind him, then up to the rim on his far
 // side. Only the frames up to the slam (u <= 0.66) have it; the game hides its own ball while they play.
@@ -538,11 +542,33 @@ function nearArmLayer(A) {
   body.material = keepB; if (jersey) jersey.material = keepJ; hid.forEach(function (o) { o.visible = true; }); DK_BALL.visible = ballVis;
   return g;
 }
+// The game pastes a big photo head over each frame (0.56 m wide, much bigger than a head), so an arm up in front of his face or up
+// beside his head would vanish under it. armOverMask marks the arm pixels his real head wouldn't hide: the whole body, the clothes
+// and a stand-in for his real head (the hidden one is shrunk away: the photo replaces it) only fill the depth buffer, and his two arms
+// are drawn on top of that. The game draws those pixels again after the photo (meta.over)
+var BODY_DEPTH = new THREE.MeshBasicMaterial({ colorWrite: false, skinning: true, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 4 });
+var RIGID_DEPTH = new THREE.MeshBasicMaterial({ colorWrite: false });
+function armOverMask(A) {
+  var body = A.meshes.filter(function (q) { return q.name === 'body'; })[0], bones = body.skeleton.bones;
+  var ids = [A.sh[0], A.el[0], A.hand[0], A.sh[1], A.el[1], A.hand[1]].map(function (b) { return bones.indexOf(b); });
+  if (!A.headProxy) {   // his real head: the athlete's head sculpt, a touch bigger for the hair
+    A.headProxy = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), RIGID_DEPTH); A.headProxy.scale.set(0.095, 0.125, 0.11); A.neck.add(A.headProxy);
+    A.bodyDepth = body.clone(); A.bodyDepth.material = BODY_DEPTH; A.bodyDepth.renderOrder = -10; body.parent.add(A.bodyDepth);
+  }
+  A.headProxy.position.copy(new V3(0, 0.083, 0.012).applyQuaternion(A.head.quaternion).add(A.head.position));
+  A.bodyDepth.geometry = body.geometry; A.headProxy.visible = A.bodyDepth.visible = true;
+  var keep = [], ballVis = DK_BALL.visible; DK_BALL.visible = false;
+  A.root.traverse(function (o) { if (o.isMesh && o.visible && o !== A.headProxy && o !== A.bodyDepth) { keep.push([o, o.material]); o.material = o === body ? armOnly(o.material, ids) : o.isSkinnedMesh ? DEPTH_ONLY : RIGID_DEPTH; } });
+  A.root.updateMatrixWorld(true);
+  var g = grab(cam, FW, FH, SS, 0.5);
+  keep.forEach(function (k) { k[0].material = k[1]; }); A.headProxy.visible = A.bodyDepth.visible = false; DK_BALL.visible = ballVis;
+  return g;
+}
 // would the game's pasted photo head (0.56 m wide, anchored 80% of the way down on the head joint) wrongly cover the ball? Where it
 // overlaps the photo and is in front of his face, or anywhere the photo covers but his real (much smaller) head wouldn't, like up
 // over his head: then the game draws the ball, on top
-function overFace(A, b) {
-  var h = A.head.getWorldPosition(new V3()), dx = (b.x - h.x) / (0.24 + 0.15), dy = (b.y - h.y - 0.2) / (0.3 + 0.15);
+function overFace(A, b, hs) {   // (hs: his photo's own scale, def.headScale - a cut-out with lots of hair is drawn bigger)
+  var h = A.head.getWorldPosition(new V3()), dx = (b.x - h.x) / (0.24 * hs + 0.15), dy = (b.y - h.y - 0.2 * hs) / (0.3 * hs + 0.15);
   if (dx * dx + dy * dy >= 1) return false;
   return b.z > h.z - 0.02 || Math.hypot(b.x - h.x, b.y - h.y - 0.1) > 0.22;
 }
@@ -681,7 +707,9 @@ window.genPlayer = function (id, opt) {
   });
   A.buttPt = new THREE.Object3D(); A.buttPt.position.set(0, -0.1, -0.26); A.hips.add(A.buttPt);   // the back of the booty (where a hand lands)
   var frames = [], meta = { fw: FW, fh: FH, ppm: PPM, anim: {}, head: [], hand: [], off: {}, back: {}, hrot: {}, butt: {}, feet: project(new V3(0, 0, 0)) };
-  var only = opt.only, hasBall = false, masks = {};
+  var only = opt.only, hasBall = false, masks = {}, overs = [];
+  // the arm layers are cut to his photo head's size (0.56 m wide x his photo's own scale, as tall as the photo, a touch generous)
+  var OVW = Math.min(FW, Math.ceil(0.56 * PPM * (d.headScale || 1) * 1.08)), OVH = Math.min(FH, Math.ceil(OVW * (PHOTO_ASPECT[id] || 1.25) * 1.06));
   Object.keys(ANIMS).forEach(function (name) {
     if (only && only.indexOf(name) < 0) return;
     var an = ANIMS[name]; meta.anim[name] = {};
@@ -713,7 +741,7 @@ window.genPlayer = function (id, opt) {
         if (BO) { var bu2 = i / (an.n - 1) * 0.9; if (bu2 < BO.until) {   // in his hand(s), ordinary depth (his body covers what it should)
           // (baked: drawn into the frame. In front of his face only its place is recorded and the game draws it, on top of the big pasted
           // head that would hide it)
-          DK_BALL.position.copy(BO.hold ? holdPt(A, pz) : A.ballPt[BO.hand].getWorldPosition(new V3())); DK_BALL.position.y += BO.up || 0; var bk = !overFace(A, DK_BALL.position);
+          DK_BALL.position.copy(BO.hold ? holdPt(A, pz) : A.ballPt[BO.hand].getWorldPosition(new V3())); DK_BALL.position.y += BO.up || 0; var bk = !overFace(A, DK_BALL.position, d.headScale || 1);
           DK_BALL.visible = bk; DK_BALL.material.depthTest = BALL_KEY.depthTest = true; DK_BALL.renderOrder = 0;
           (meta.ballp = meta.ballp || {})[frames.length] = project(DK_BALL.position).map(function (v) { return +v.toFixed(1); }).concat(bk ? 1 : 0);
         } }
@@ -730,6 +758,7 @@ window.genPlayer = function (id, opt) {
           for (var q = 0; q < FW * FH; q++) if (pk[q * 4 + 3] && pk[q * 4] > 150 && pk[q * 4 + 2] > 150 && pk[q * 4 + 1] < 110) bm[q] = 1;
           masks[frames.length] = bm;
         }
+        var aom = an.armOver ? armOverMask(A) : null;
         if (an.ball === true) {
           // his near arm (the side facing you) is always in front: over the ball it holds (the hand wraps it) and over his leg (in 3D it
           // would pass behind the raised thigh) - drawn as a layer of its own on top of everything
@@ -737,6 +766,14 @@ window.genPlayer = function (id, opt) {
           for (var q2 = 0; q2 < FW * FH; q2++) if (arm[q2 * 4 + 3]) { if (bm2) bm2[q2] = 0; for (var c4 = 0; c4 < 4; c4++) px[q2 * 4 + c4] = arm[q2 * 4 + c4]; }
         }
         DK_BALL.visible = false; grade(px, opt.con || 1.1, opt.sat || 1.12, opt.black || 6); frames.push(px);
+        if (aom) {   // the arm pixels over his photo head's area (a touch generous), kept if there are a few (25 at the game's scale)
+          var hp0 = project(A.head.getWorldPosition(new V3())), ox0 = Math.max(0, Math.min(FW - OVW, Math.round(hp0[0] - OVW / 2))), oy0 = Math.max(0, Math.min(FH - OVH, Math.round(hp0[1] - 0.8 * OVH)));
+          var ov = new Uint8ClampedArray(OVW * OVH * 4), cnt = 0;
+          for (var oy = 0; oy < OVH; oy++) for (var ox = 0; ox < OVW; ox++) {
+            var oq = ((oy0 + oy) * FW + ox0 + ox) * 4, od = (oy * OVW + ox) * 4; if (aom[oq + 3] && px[oq + 3]) { ov[od] = px[oq]; ov[od + 1] = px[oq + 1]; ov[od + 2] = px[oq + 2]; ov[od + 3] = 255; cnt++; }
+          }
+          if (cnt >= 25 * PPM * PPM / 5184) overs.push([frames.length - 1, ov, ox0, oy0]);
+        }
         var hp = A.head.getWorldPosition(new V3()), np = A.neck.getWorldPosition(new V3());
         var hr = A.palm[0].getWorldPosition(new V3()), hl = A.palm[1].getWorldPosition(new V3());
         meta.head.push(project(hp).concat(project(np))); meta.hand.push(project(hr).concat(project(hl)));
@@ -749,11 +786,29 @@ window.genPlayer = function (id, opt) {
       }
     });
   });
+  // the arm-over-the-photo layers go at the end of the sheet, packed as many to a cell as fit (a pixel of room round each, for the
+  // outline): meta.over[frame] = [x, y, w, h] of its layer in the sheet and [dx, dy] where it goes in the frame
+  var overOf = {}, nx = Math.max(1, Math.floor(FW / (OVW + 2))), ny = Math.max(1, Math.floor(FH / (OVH + 2)));
+  for (var ci = 0; ci < overs.length; ci += nx * ny) {
+    var cell = new Uint8ClampedArray(FW * FH * 4), cf = frames.length, pl = overOf[cf] = [];
+    overs.slice(ci, ci + nx * ny).forEach(function (o, j) {
+      var cx = (j % nx) * (OVW + 2) + 1, cy = Math.floor(j / nx) * (OVH + 2) + 1;
+      for (var y = 0; y < OVH; y++) cell.set(o[1].subarray(y * OVW * 4, (y + 1) * OVW * 4), ((cy + y) * FW + cx) * 4);
+      pl.push([o[0], cx, cy, o[2], o[3]]);
+    });
+    frames.push(cell); meta.head.push(meta.head[overs[ci][0]]); meta.hand.push(meta.hand[overs[ci][0]]);
+  }
   A.root.position.set(0, 0, 0); A.cheeks.forEach(function (c) { c.visible = false; }); scene.remove(A.root);
   // the ball's few pixels would get folded into the skin tones: give it the game ball's own oranges (gfx.js drawBall) and seam brown
   var pal = palette(frames, opt.colors || 46).concat(hasBall ? BALL_PAL : []), cols = 16, rows = Math.ceil(frames.length / cols), AW = cols * FW, AH = rows * FH, idx = new Uint8Array(AW * AH);
   frames.forEach(function (px, f) {
     var fr = indexed(px, FW, FH, pal, 2, opt.dither === undefined ? 14 : opt.dither, 1, masks[f], pal.length - BALL_PAL.length), ox = (f % cols) * FW, oy = Math.floor(f / cols) * FH;
+    // an arm layer keeps its outline only along his real silhouette, not where it was cut off against the rest of him
+    if (overOf[f]) overOf[f].forEach(function (o) {
+      var pf = frames[o[0]];
+      for (var y = 0; y < OVH; y++) for (var x = 0; x < OVW; x++) { var q = (o[2] + y) * FW + o[1] + x; if (fr[q] === 1 && pf[((o[4] + y) * FW + o[3] + x) * 4 + 3]) fr[q] = 0; }
+      (meta.over = meta.over || {})[o[0]] = [ox + o[1], oy + o[2], OVW, OVH, o[3], o[4]];
+    });
     for (var y = 0; y < FH; y++) idx.set(fr.subarray(y * FW, y * FW + FW), (oy + y) * AW + ox);
   });
   meta.cols = cols; meta.count = frames.length; meta.outline = 1;   // tells the game not to add its own rim
@@ -913,6 +968,10 @@ window.genHead = function (id, back, opt) {
   var pal = palette([px], opt.colors || 64), idx = indexed(px, w, h, pal, 2, opt.dither === undefined ? 8 : opt.dither, opt.outline ? 1 : 0);
   return { w: w, h: h, pal: [[0, 0, 0, 0], OUTLINE.concat(255)].concat(pal.map(function (c) { return c.concat(255); })), idx: b64(idx) };
 };
-window.ready = new Promise(function (res) { HW.Athlete.whenReady(res); });
+// each photo head's shape (height / width), to cut the arm layers to it
+var PHOTO_ASPECT = {};
+window.ready = Promise.all([new Promise(function (res) { HW.Athlete.whenReady(res); })].concat(Object.keys(HW.PLAYERS).map(function (id) {
+  return new Promise(function (res) { var im = new Image(); im.onload = function () { PHOTO_ASPECT[id] = im.naturalHeight / im.naturalWidth; res(); }; im.onerror = function () { res(); }; im.src = '../faces/' + id + '_photo.png'; });
+})));
 </script>
 </body></html>
