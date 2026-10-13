@@ -84,7 +84,7 @@ window.HW = window.HW || {};
     if (!HW.TOUCH) return;
     var h = G.human; if (!h) return;
     var st = h.hasBall ? (G.canDunk(h) ? 'dunk' : 'dunk off') : 'shove';
-    var lbl = h.hasBall ? (h.def.type === 'handler' ? 'LAYUP' : 'DUNK') : 'SHOVE';   // the Ball Handlers lay it up instead
+    var lbl = h.hasBall ? 'DUNK' : 'SHOVE';   // (the Ball Handlers mix layups in)
     if (st + lbl !== tState) { tState = st + lbl; var b = document.getElementById('bAct'); b.className = 'tb ' + st; b.textContent = lbl; }
     // the pass button steals on defense
     var bh = HW.Jam.ball && HW.Jam.ball.holder, pl = bh && bh.team !== h.team ? 'STEAL' : 'PASS';
