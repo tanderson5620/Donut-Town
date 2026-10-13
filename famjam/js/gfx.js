@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=17';   // (the faces carry it too)
+  var SHEET_V = '?v=18';   // (the faces carry it too)
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -525,6 +525,11 @@ window.HW = window.HW || {};
         zmax = z1 + (zmax - z1) * k2;
         zf = { x: mid + (gd.x - X.shakeX - mid) * k2, y: (gd.y - X.shakeY + Math.min(top, ltop)) / 2 + (zf.y - (gd.y - X.shakeY + Math.min(top, ltop)) / 2) * k2 };
       }
+      if (cine && pu.kind === 'armbar') {   // the arm bar: both of them on the floor in frame, from the grab to the snap and the hold
+        // (lying down, both bodies reach back past their feet: frame the middle of the bodies, not of the feet)
+        var aq = pu.q || pp, ga = X.proj(pp.x, 0, pp.z), gq = X.proj(aq.x, 0, aq.z), span = Math.abs(ga.x - gq.x) + 3.4 * ga.s;
+        zmax = Math.max(1.35, Math.min(2.0, 0.92 * W / span)); zf = { x: (ga.x + gq.x) / 2 - (pp.face || 1) * 0.75 * ga.s - X.shakeX, y: ga.y - 0.5 * ga.s - X.shakeY };
+      }
       za = u < 0.25 ? e(u / 0.25) : u > D - 0.3 ? e((D - u) / 0.3) : 1; zk = 1 + (zmax - 1) * za;
       if (cine && pu.kind === 'board' && ball) {
         // off the glass: in close on the ball itself as it leaves his hand, tightest as it hits the board, back out as it comes back to
@@ -587,6 +592,13 @@ window.HW = window.HW || {};
     items.sort(function (a, b) { return b.z - a.z; });
     items.forEach(function (it) { it.draw(); });
     X.drawParts(g, dt);
+    // a man down from an arm bar: a red-cross badge over him counting down the seconds until he's back up
+    players.forEach(function (p) {
+      if (!(p.hurtT > 0) || !HW.Font) return; var gp = X.proj(p.x, 0, p.z), bx = gp.x - X.shakeX, by = gp.y - 0.95 * gp.s - X.shakeY, r = Math.max(9, 0.17 * gp.s);
+      g.fillStyle = 'rgba(0,0,0,0.55)'; g.beginPath(); g.arc(bx, by, r + 3, 0, 6.283); g.fill(); g.fillStyle = '#e8141e'; g.beginPath(); g.arc(bx, by, r, 0, 6.283); g.fill();
+      g.fillStyle = '#fff'; g.fillRect(bx - r * 0.55, by - r * 0.18, r * 1.1, r * 0.36); g.fillRect(bx - r * 0.18, by - r * 0.55, r * 0.36, r * 1.1);
+      HW.Font.draw(g, String(Math.ceil(p.hurtT)), bx + r + 4, by, { scale: 2, scheme: 'white', align: 'left', outline: 1, shadow: 1 });
+    });
   }
 
   // pursed lips: a round pout, outlined, the top lip shaded, a highlight on the bottom one
