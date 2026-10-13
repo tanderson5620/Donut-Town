@@ -311,8 +311,11 @@ window.HW = window.HW || {};
     // (the ball rolls off his fingertips up to twice the rim's height, the camera riding up with it), 3 in 10 a slow-motion reverse: up
     // on his side with the ball in that hand, under the rim to the other side, the ball switching hands right as his body crosses the
     // middle of the basket (z = HZ), laid in with the other hand just under the rim
-    if (p.def.type === 'handler' && X.hasAnim(p, 'dk_lay') && Math.random() < 0.5) {
-      var lr = Math.random(), lb0 = lr < 0.3 ? 'roll' : lr < 0.6 ? 'rev' : 'lay', farS = p.z > K.HZ, ls = lb0 + (farS ? '2' : '');
+    // Coming in from the baseline (off to the side of the rim, even with it or behind it, or at most a little out in front: 60 degrees
+    // or more off the line down the middle of the court) it's the reverse every time - under the rim and up the other side
+    var bdx = (rx - p.x) * s, bdz = Math.abs(p.z - K.HZ), baseline = bdz > 0.6 && Math.atan2(bdz, bdx) >= Math.PI / 3;
+    if (p.def.type === 'handler' && X.hasAnim(p, 'dk_lay') && (baseline || Math.random() < 0.5)) {
+      var lr = Math.random(), lb0 = baseline ? 'rev' : lr < 0.3 ? 'roll' : lr < 0.6 ? 'rev' : 'lay', farS = p.z > K.HZ, ls = lb0 + (farS ? '2' : '');
       if (!X.hasAnim(p, 'dk_' + ls)) { lb0 = 'lay'; ls = 'lay'; }
       p.dk.style = ls; p.dk.lay = lb0; p.dk.spin = false; p.dk.peak = lb0 === 'roll' ? 0.95 : 0.8;
       // (he ends just under the rim on the other side, and the ball goes up off that side of the glass and in: up in front of his face
