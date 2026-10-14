@@ -1,0 +1,34 @@
+/* notify.js - a push notification on the owner's phone when someone opens FAM JAM. It goes through ntfy (ntfy.sh, a free push
+   service, no sign-up): the ntfy app on the phone subscribes to the topic below, and the game posts "someone just opened it" there.
+   Nothing about the player goes: no names, just a phone or a computer and how many are online. A device sends it at most once every
+   half hour (reloads don't buzz again), and the owner's own phones and computers never do: open the game once with ?me on each. */
+window.HW = window.HW || {};
+(function (HW) {
+  // ?notify=127.0.0.1:port posts to a stand-in on this machine instead (for testing; only local)
+  var m = /[?&]notify=(localhost|127\.0\.0\.1):(\d+)/.exec(location.search);
+  var TOPIC = 'famjam-an8b5m62sbps', API = (m ? 'http://' + m[1] + ':' + m[2] : 'https://ntfy.sh') + '/' + TOPIC;
+  var ME = 'famjam.me', LAST = 'famjam.notified', GAP = 30 * 60000, WAIT = 12000;
+  var GAME = 'https://tanderson5620.github.io/Donut-Town/famjam/';
+  function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function set(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
+  var N = HW.Notify = { sent: false, marked: false };
+  if (/[?&]me(&|=|$)/.test(location.search)) { set(ME, '1'); N.marked = true; }   // one of the owner's own devices (the title screen says so)
+  N.mine = function () { return !!get(ME); };
+  // once the game's been up a moment (and who's online has a count, if it gets one): tell the owner's phone
+  N.start = function () {
+    if (N.mine() || /[?&]nostats/.test(location.search) || !window.fetch) return;
+    if (!m && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) return;   // testing on this machine: not the real phone
+    if (Date.now() - (+get(LAST) || 0) < GAP) return;
+    var t0 = Date.now(), tick = setInterval(function () {
+      var Pr = HW.Presence;
+      if (!(Pr && Pr.ok) && Date.now() - t0 < WAIT) return;
+      clearInterval(tick); send(Pr && Pr.ok ? Pr.count : 0);
+    }, 500);
+  };
+  function send(n) {
+    var msg = 'Someone just opened FAM JAM on ' + (HW.TOUCH ? 'a phone' : 'a computer') + (n > 1 ? ' - ' + n + ' online now' : '') + '. Tap to play.';
+    set(LAST, String(Date.now())); N.sent = true;
+    // a plain POST (title and the tap-through link as query parameters, no custom headers), so the browser sends it as is
+    fetch(API + '?title=' + encodeURIComponent('FAM JAM') + '&tags=basketball&click=' + encodeURIComponent(GAME), { method: 'POST', body: msg, mode: 'no-cors' }).catch(function () { });
+  }
+})(HW);

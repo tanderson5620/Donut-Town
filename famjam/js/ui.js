@@ -497,6 +497,7 @@ window.HW = window.HW || {};
       if (Pr && Pr.ok && Pr.count > 0) Fo.draw(g, Pr.count + ' ONLINE NOW', C.R - 74, C.T + 314, { scale: 1, scheme: 'green', shadow: 0 });
       var tot = Ct ? [Ct.games != null ? Ct.games + ' GAMES PLAYED' : '', Ct.players != null ? Ct.players + (Ct.players === 1 ? ' PLAYER' : ' PLAYERS') : ''].filter(Boolean).join('   ') : '';
       if (tot) Fo.draw(g, tot, cx, HW.TOUCH ? C.B - 10 : C.B - 24, { scale: 1, scheme: 'gray', shadow: 0 });
+      if (HW.Notify && HW.Notify.marked) Fo.draw(g, 'GOT IT: THIS DEVICE WON\'T SEND YOU NOTIFICATIONS', cx, HW.TOUCH ? C.B - 24 : C.B - 38, { scale: 1, scheme: 'green', shadow: 0 });   // (opened with ?me)
       if (In.enter) UI.show('team');
     } else if (s === 'team') {
       drawTeamCard(g, fr);
