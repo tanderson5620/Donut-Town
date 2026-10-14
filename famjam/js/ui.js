@@ -497,6 +497,7 @@ window.HW = window.HW || {};
       if (Pr && Pr.ok && Pr.count > 0) Fo.draw(g, Pr.count + ' ONLINE NOW', C.R - 74, C.T + 314, { scale: 1, scheme: 'green', shadow: 0 });
       var tot = Ct ? [Ct.games != null ? Ct.games + ' GAMES PLAYED' : '', Ct.players != null ? Ct.players + (Ct.players === 1 ? ' PLAYER' : ' PLAYERS') : ''].filter(Boolean).join('   ') : '';
       if (tot) Fo.draw(g, tot, cx, HW.TOUCH ? C.B - 10 : C.B - 24, { scale: 1, scheme: 'gray', shadow: 0 });
+      if (HW.Notify && HW.Notify.marked) Fo.draw(g, 'GOT IT: THIS DEVICE WON\'T SEND YOU NOTIFICATIONS', cx, HW.TOUCH ? C.B - 24 : C.B - 38, { scale: 1, scheme: 'green', shadow: 0 });   // (opened with ?me)
       if (In.enter) UI.show('team');
     } else if (s === 'team') {
       drawTeamCard(g, fr);
@@ -862,8 +863,12 @@ window.HW = window.HW || {};
     if (h && h.screen && h.headTop !== undefined && h.screen.x > -20 && h.screen.x < W + 20) {
       var mk = marker(P1C, 'YOU', 2), my = Math.max(64, Math.round(h.headTop - mk.height - 3 - (Math.floor(G.t * 4) % 2)));   // big bobbing YOU over your player
       g.drawImage(mk, Math.round(h.screen.x - mk.width / 2 + 1), my);
-      if (h.state === 'shoot' && !h.released && h.hasBall) {
-        var mw = 44, mx = Math.round(h.screen.x - mw / 2), yy = my - 10, prog = Math.min(1.6, h.st / h.tApex) / 1.6, win = 0.16 * (1 + (h.def.stats.tp - 5) * 0.06);
+      // the shot meter fills from the press of SHOOT, the same for every jump shot (a step-back or cartwheel first doesn't slow it), until
+      // you let go; online a guest's runs off his own press (h.pressAt), as the host judges it
+      var gst = HW.Net && HW.Net.mode === 'guest', shooting = h.hasBall && !h.released && (h.state === 'shoot' || h.state === 'stepback' || h.state === 'cartwheel');
+      var sht = !shooting ? null : gst ? (h.pressAt != null ? (performance.now() - h.pressAt) / 1000 : null) : h.relPress == null ? h.sht : null;
+      if (sht != null) {
+        var mw = 44, mx = Math.round(h.screen.x - mw / 2), yy = my - 10, prog = Math.min(1.6, sht / (h.tApex || G.shotApex(h))) / 1.6, win = 0.16 * (1 + (h.def.stats.tp - 5) * 0.06);
         g.fillStyle = '#000'; g.fillRect(mx - 1, yy - 1, mw + 2, 7); g.fillStyle = '#3a1010'; g.fillRect(mx, yy, mw, 5);
         g.fillStyle = '#35e07c'; g.fillRect(Math.round(mx + mw * (1 - win) / 1.6), yy, Math.max(2, Math.round(mw * 2 * win / 1.6)), 5);
         var kx = Math.round(mx + mw * prog); g.fillStyle = '#000'; g.fillRect(kx - 2, yy - 3, 4, 11); g.fillStyle = '#fff'; g.fillRect(kx - 1, yy - 2, 2, 9);

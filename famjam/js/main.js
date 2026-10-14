@@ -22,8 +22,8 @@ window.HW = window.HW || {};
     if (room && HW.Net) { UI.code = room[1]; UI.screen = 'join'; HW.Net.join(room[1]); }
     else if (/[?&]quick/.test(location.search)) { UI.st = { team: 0, picks: ['alan', 'carl'], ctrl: 'alan', diff: 'normal', qlen: UI.st.qlen || 60 }; UI.matchup(); }
     requestAnimationFrame(loop);
-    // a moment after it's up: the play totals and who's online (?nostats leaves both off, for testing)
-    if (!/[?&]nostats/.test(location.search)) setTimeout(function () { if (HW.Count) HW.Count.load(); if (HW.Presence) HW.Presence.start(); }, 1500);
+    // a moment after it's up: the play totals, who's online and the owner's phone notification (?nostats leaves them off, for testing)
+    if (!/[?&]nostats/.test(location.search)) setTimeout(function () { if (HW.Count) HW.Count.load(); if (HW.Presence) HW.Presence.start(); if (HW.Notify) HW.Notify.start(); }, 1500);
   }
   var idleT = 0;
   function loop(ts) {
