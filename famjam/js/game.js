@@ -353,7 +353,7 @@ window.HW = window.HW || {};
       // when that's the near side, behind his head on the far side)
       if (lb0 === 'rev') { var sg = farS ? -1 : 1; p.dk.x1 = rx - s * 0.15; p.dk.zA = K.HZ - sg * 0.55; p.dk.z1 = K.HZ + sg * 0.55; }
       else { p.dk.x1 = rx - s * (lb0 === 'roll' ? 0.75 : 0.85); p.dk.z1 = K.HZ + (farS ? 0.3 : -0.3); }   // stays on his side of the rim
-      if (lb0 === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: DUNK_SLAM * p.dk.T / 1.5, flySlow: 0.4 };   // 1.5 s of slow motion up to the release, the bank shot about 1.75 s
+      if (lb0 === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: DUNK_SLAM * p.dk.T / 1.0 };   // 1 s up to the release, the bank shot at that same pace
       if (lb0 === 'roll') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'roll', slow: 1 };   // full speed: the camera rides up with the ball, 1 s up and in
     } else if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
       if (p.dk.style === 'mj') p.tongue = true;
