@@ -353,7 +353,7 @@ window.HW = window.HW || {};
       // when that's the near side, behind his head on the far side)
       if (lb0 === 'rev') { var sg = farS ? -1 : 1; p.dk.x1 = rx - s * 0.15; p.dk.zA = K.HZ - sg * 0.55; p.dk.z1 = K.HZ + sg * 0.55; }
       else { p.dk.x1 = rx - s * (lb0 === 'roll' ? 0.75 : 0.85); p.dk.z1 = K.HZ + (farS ? 0.3 : -0.3); }   // stays on his side of the rim
-      if (lb0 === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: DUNK_SLAM * p.dk.T / 1.0 };   // 1 s up to the release, the bank shot at that same pace
+      if (lb0 === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: 1 };   // regular speed: about 1 s from takeoff to the ball through the net
       if (lb0 === 'roll') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'roll', slow: 1 };   // full speed: the camera rides up with the ball, 1 s up and in
     } else if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'btb', 'flip'] : ['legs', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
       if (p.dk.style === 'mj') p.tongue = true;
@@ -383,7 +383,7 @@ window.HW = window.HW || {};
     if (k.style) { var nf = DK_FRAMES[k.style] || 12; p.anim = 'dk_' + k.style; p.dir = k.style === 'flex' ? 'C' : 'R'; p.frame = Math.min(nf - 1, Math.round(Math.min(u, 0.9) / 0.9 * (nf - 1))); p.jamArm = k.style === 'jam' && u > 0.25 && u < DUNK_SLAM ? { x: k.x1, y: K.RIM_H + 0.25, z: k.z1 - 0.1 } : null; }
     else { p.anim = 'dunk'; p.dir = 'R'; p.frame = u < 0.12 ? 0 : u < 0.3 ? 1 : u < 0.5 ? 2 : u < 0.64 ? 3 : u < 0.82 ? 4 : 5; }
     if (u >= DUNK_SLAM && !k.slam && k.lay) {   // a layup: the ball leaves his hand (it can't be blocked from here on, just like a dunk)
-      k.slam = true; var lb = G.ball, lrx = rimX(p.team), lfl = k.lay === 'roll' ? { T: 1.0 } : k.lay === 'rev' ? { T: 0.7, arc: 0.2 } : { T: 0.55, arc: 0.45 };
+      k.slam = true; var lb = G.ball, lrx = rimX(p.team), lfl = k.lay === 'roll' ? { T: 1.0 } : k.lay === 'rev' ? { T: 0.42, arc: 0.15 } : { T: 0.55, arc: 0.45 };
       if (k.lay === 'roll') lfl.arc = 2 * K.RIM_H - (lb.y + K.RIM_H + 0.12) / 2;   // up to twice the rim's height
       p.hasBall = false; lb.holder = null; lb.state = 'shot'; lb.last = p; lb.baked = lb.behind = false;
       lb.shotInfo = { by: p, team: p.team, three: false, make: true, quality: 'green', lay: k.lay, t: 0, T: lfl.T, x0: lb.x, y0: lb.y, z0: lb.z, rx: lrx, arc: lfl.arc, missX: 0, missZ: 0 };
