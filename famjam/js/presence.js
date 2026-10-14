@@ -1,0 +1,75 @@
+/* presence.js - who's online: how many people have FAM JAM open right now. No server of our own: on PeerJS's free cloud server
+   (the one online play uses) the first one on takes a well-known lobby ID and keeps the count; everyone else connects to it and
+   checks in every few seconds, and it sends the count back out. If the lobby's phone goes away (closed, or put in the background),
+   the others race to take the ID over. Nothing goes over the wire but a random ID and the count. */
+window.HW = window.HW || {};
+(function (HW) {
+  var P = HW.Presence = { count: 0, ok: false, role: null, log: [] };
+  function note(m) { P.log.push((Date.now() % 100000) + ' ' + m); if (P.log.length > 30) P.log.shift(); }   // the last few things that happened (for checking)
+  var LOBBY = 'famjam-lobby-v1', CHECKIN = 2000, DROP = 9000, QUIET = 7000, ANSWER = 6000;
+  var peer = null, members = {}, hub = null, retryT = null, tickT = null, heard = 0, started = false;
+  function opts() { return HW.Net && HW.Net.peerOpts ? HW.Net.peerOpts() : { debug: 0 }; }
+  function now() { return Date.now(); }
+  function send(c, m) { try { if (c && c.open) c.send(m); } catch (e) { } }
+  P.start = function () {
+    if (started || !HW.Net || !HW.Net.loadLib) return; started = true;
+    HW.Net.loadLib().then(claim, function () { started = false; });
+  };
+  // let go of everything (forgotten first, so the closing connections' own handlers see they're old news and stay out of it)
+  function stop() {
+    var h = hub, pr = peer, ms = members;
+    hub = null; peer = null; members = {}; P.role = null; P.ok = false;
+    clearInterval(tickT); tickT = null; clearTimeout(retryT); retryT = null;
+    if (h) try { h.close(); } catch (e) { }
+    Object.keys(ms).forEach(function (k) { try { ms[k].c.close(); } catch (e) { } });
+    if (pr) try { pr.destroy(); } catch (e) { }
+  }
+  function retry(ms) { stop(); retryT = setTimeout(claim, ms); }
+  // take the lobby ID if it's free (then this phone keeps the count), otherwise join whoever has it
+  function claim() {
+    if (document.hidden) return;
+    stop();
+    var pr = new Peer(LOBBY, opts()); peer = pr;
+    pr.on('open', function () { if (peer !== pr) return; note('hub'); P.role = 'hub'; P.ok = true; recount(); tickT = setInterval(sweep, 2000); });
+    pr.on('connection', function (c) {
+      c.on('data', function (m) { if (m && m.t === 'hi') { var k = members[c.peer]; if (!k) { members[c.peer] = { c: c, t: now() }; recount(); } else k.t = now(); } });
+      c.on('close', function () { if (members[c.peer] && members[c.peer].c === c) { delete members[c.peer]; recount(); } });
+    });
+    pr.on('error', function (e) {
+      if (peer !== pr) return;
+      note('claim error ' + (e && e.type));
+      if (e && e.type === 'unavailable-id') join(); else retry(15000);   // taken: someone's the lobby already
+    });
+    pr.on('disconnected', function () { if (peer === pr && P.role === 'hub') try { pr.reconnect(); } catch (e) { retry(3000); } });
+  }
+  // the lobby: drop anyone not heard from in a while, and send everyone the count (every 2 s, so they know it's still here)
+  function sweep() { var t = now(); Object.keys(members).forEach(function (k) { if (t - members[k].t > DROP) { try { members[k].c.close(); } catch (e) { } delete members[k]; } }); recount(); }
+  function recount() { P.count = 1 + Object.keys(members).length; Object.keys(members).forEach(function (k) { send(members[k].c, { t: 'n', n: P.count }); }); }
+  function join() {
+    stop();
+    var pr = new Peer(opts()); peer = pr;
+    pr.on('open', function () {
+      if (peer !== pr) return;
+      var c = pr.connect(LOBBY, { reliable: true }); hub = c; heard = now();
+      // the ID's taken but nobody answers (a phone that dropped off without letting go: the server holds its ID a while): try again
+      setTimeout(function () { if (hub === c && P.role !== 'member') { note('lobby no answer'); retry(1000 + Math.random() * 2000); } }, ANSWER);
+      c.on('open', function () { if (hub !== c) return; note('member'); P.role = 'member'; send(c, { t: 'hi' }); });
+      c.on('data', function (m) { if (m && m.t === 'n') { P.count = m.n; P.ok = true; heard = now(); } });
+      c.on('close', function () { if (hub === c) { note('lobby closed'); retry(400 + Math.random() * 2500); } });   // the lobby went away: race to take it over
+      clearInterval(tickT);
+      tickT = setInterval(function () {
+        if (hub !== c) return;
+        send(c, { t: 'hi' });
+        if (now() - heard > QUIET) { note('lobby quiet'); retry(400 + Math.random() * 2500); }   // nothing from it in a while: it's gone without a goodbye
+      }, CHECKIN);
+    });
+    pr.on('error', function (e) {
+      if (peer !== pr) return;
+      note('member error ' + (e && e.type));
+      retry(e && e.type === 'peer-unavailable' ? 300 + Math.random() * 1500 : 15000);   // the lobby had just left: take it
+    });
+  }
+  // put away in the background on a phone: let go (somebody else keeps the count); back in front: come back in
+  document.addEventListener('visibilitychange', function () { if (!started) return; if (document.hidden) stop(); else retry(200 + Math.random() * 600); });
+  window.addEventListener('pagehide', stop);
+})(HW);

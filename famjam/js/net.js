@@ -22,6 +22,7 @@ window.HW = window.HW || {};
   }
   function send(c, m) { try { if (c && c.open) c.send(m); } catch (e) { } }
   N.online = function () { return !!N.mode; };
+  N.loadLib = loadLib; N.peerOpts = peerOpts;   // (presence.js counts who's online over the same server)
   N.playing = function () { return !!N.mode && N.stage === 'game'; };
 
   /* ---------- sounds and effects: the host records each one the game makes, the guests play them back ---------- */
