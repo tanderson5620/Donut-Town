@@ -418,6 +418,11 @@ window.HW = window.HW || {};
       if (!HW.TOUCH) Fo.draw(g, 'MOVE: ARROWS  SHOOT: J  PASS: K  TURBO: L/SHIFT  PAUSE: P', cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
       UI.btns.push({ id: 'start', x: 0, y: 0, w: W, h: X.H, fn: function () { UI.show('team'); } });
       if (HW.Net) button(g, 'online', C.R - 138, C.T + 270, 128, 32, 'ONLINE', { color: '#22c4f2', size: 2, fn: function () { UI.show('online'); } });   // play the family on their own phones
+      // who's on right now (presence.js) and how many have played (count.js)
+      var Pr = HW.Presence, Ct = HW.Count;
+      if (Pr && Pr.ok && Pr.count > 0) Fo.draw(g, Pr.count + ' ONLINE NOW', C.R - 74, C.T + 314, { scale: 1, scheme: 'green', shadow: 0 });
+      var tot = Ct ? [Ct.games != null ? Ct.games + ' GAMES PLAYED' : '', Ct.players != null ? Ct.players + (Ct.players === 1 ? ' PLAYER' : ' PLAYERS') : ''].filter(Boolean).join('   ') : '';
+      if (tot) Fo.draw(g, tot, cx, HW.TOUCH ? C.B - 10 : C.B - 24, { scale: 1, scheme: 'gray', shadow: 0 });
       if (In.enter) UI.show('team');
     } else if (s === 'team') {
       drawTeamCard(g, fr);
@@ -613,6 +618,7 @@ window.HW = window.HW || {};
       Fo.draw(g, t, C.L + 20, hy + 18 + i * Math.min(20, (hh - 24) / 4), { scale: 1, scheme: i === 3 ? 'yellow' : 'white', align: 'left', shadow: 0 });
     });
     button(g, 'back', cx - 40, C.B - 30, 80, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show('title'); } });
+    var Pr = HW.Presence; if (Pr && Pr.ok && Pr.count > 0) Fo.draw(g, Pr.count === 1 ? 'JUST YOU ONLINE NOW' : Pr.count + ' PEOPLE ONLINE NOW', C.R - 90, C.B - 18, { scale: 1, scheme: 'green', shadow: 0 });
     if (In.enter) { Net.host(); UI.show('lobby'); }
   }
   function drawJoin(g, fr) {

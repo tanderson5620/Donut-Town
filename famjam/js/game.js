@@ -91,6 +91,7 @@ window.HW = window.HW || {};
     X.clearBlood();
     if (HW.TOUCH && !G.tipShown) { G.tipShown = true; G.tipT = 1.2; }   // first game on a phone: show where turbo went
     G.setup = setup; G.players = []; G.diff = HW.DIFFICULTY[setup.diff || 'normal'];
+    if (HW.Count) HW.Count.game(HW.Net && HW.Net.mode === 'guest');   // the anonymous play counter (count.js)
     QUARTER = setup.qlen || 60; OT = clamp(Math.round(QUARTER / 2), 30, 60);
     // online: everyone's game has the same players in the same order; `me` is the one this phone controls (the host's game also
     // runs the other people's players - js/net.js hands them over as each phone is ready)
@@ -311,10 +312,20 @@ window.HW = window.HW || {};
     var c = 0; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < 1.6 && q.state !== 'fall') c = Math.max(c, (1.6 - d) / 1.6 * (q.y > 0.25 ? 0.32 : 0.16) * (0.7 + q.def.stats.block / 20)); }); return c;
   }
 
+  // coming in from the baseline: off to the side of the rim, even with it or behind it, or at most a little out in front (60 degrees or
+  // more off the line down the middle of the court)
+  function baseSpot(p) { var bdx = (rimX(p.team) - p.x) * side(p.team), bdz = Math.abs(p.z - K.HZ); return bdz > 0.6 && Math.atan2(bdz, bdx) >= Math.PI / 3; }
+  var BASE_REACH = 4.5, DUNK_BUF = 0.45;
+  G.dunkReach = function (p) {
+    var t = HW.TYPES[p.def.type], reach = 2.1 + 0.22 * p.def.stats.dunk + t.dunkRange; if (sig(p, 'dunk')) reach = Math.max(reach + 2.5, K.R3 + 1.6);   // a dunker on fire takes off from way out, past the 3-point line
+    // a point guard running the baseline can go up for the reverse from about the block (4.5 m): running up or down the court is
+    // quick, and at the usual 2.6-2.9 m he was through the window in a third of a second
+    if (p.def.type === 'handler' && baseSpot(p) && X.hasAnim(p, 'dk_rev')) reach = Math.max(reach, BASE_REACH);
+    return reach;
+  };
   G.canDunk = function (p) {
-    var rx = rimX(p.team), d = Math.hypot(p.x - rx, p.z - K.HZ), t = HW.TYPES[p.def.type];
-    var reach = 2.1 + 0.22 * p.def.stats.dunk + t.dunkRange; if (sig(p, 'dunk')) reach = Math.max(reach + 2.5, K.R3 + 1.6);   // a dunker on fire takes off from way out, past the 3-point line
-    return p.hasBall && p.grounded() && !p.busy() && d < reach && d > 0.25;
+    var d = Math.hypot(p.x - rimX(p.team), p.z - K.HZ);
+    return p.hasBall && p.grounded() && !p.busy() && d < G.dunkReach(p) && d > 0.25;
   };
   G.startDunk = function (p) {
     var rx = rimX(p.team), s = side(p.team), dk = p.def.stats.dunk;
@@ -333,7 +344,7 @@ window.HW = window.HW || {};
     // middle of the basket (z = HZ), laid in with the other hand just under the rim
     // Coming in from the baseline (off to the side of the rim, even with it or behind it, or at most a little out in front: 60 degrees
     // or more off the line down the middle of the court) it's the reverse every time - under the rim and up the other side
-    var bdx = (rx - p.x) * s, bdz = Math.abs(p.z - K.HZ), baseline = bdz > 0.6 && Math.atan2(bdz, bdx) >= Math.PI / 3;
+    var baseline = baseSpot(p);
     if (p.def.type === 'handler' && X.hasAnim(p, 'dk_lay') && (baseline || Math.random() < 0.5)) {
       var lr = Math.random(), lb0 = baseline ? 'rev' : lr < 0.3 ? 'roll' : lr < 0.6 ? 'rev' : 'lay', farS = p.z > K.HZ, ls = lb0 + (farS ? '2' : '');
       if (!X.hasAnim(p, 'dk_' + ls)) { lb0 = 'lay'; ls = 'lay'; }
@@ -737,9 +748,14 @@ window.HW = window.HW || {};
     var holder = G.ball.holder, mate = G.mates(p)[0];
     // shove: the touch SHOVE button, or TURBO + PASS on a keyboard (stick turbo never turns a pass or steal into a shove)
     var shove = In.actDown || (In.passDown && In.comboTurbo);
+    if (!p.hasBall) p.dunkBuf = 0;
     if (p.hasBall) {
-      if (In.shootDown) { if (In.turbo && G.canDunk(p) && towardRim(p, In)) G.startDunk(p); else G.startShot(p); }
-      if (In.actDown && G.canDunk(p)) G.startDunk(p);   // the touch DUNK button
+      // DUNK pressed a moment before he's in range (up to DUNK_BUF s) still counts: he goes up the moment he gets there. TURBO + SHOOT
+      // on a keyboard the same, when he's charging the rim and nearly there; if he never gets in range that one turns into a jump shot
+      var near = Math.hypot(p.x - rimX(p.team), p.z - K.HZ) < G.dunkReach(p) + 1.5;
+      if (In.shootDown) { if (In.turbo && towardRim(p, In) && G.canDunk(p)) G.startDunk(p); else if (In.turbo && towardRim(p, In) && near && p.grounded() && !p.busy()) { p.dunkBuf = DUNK_BUF; p.bufShot = true; } else G.startShot(p); }
+      if (In.actDown) { if (G.canDunk(p)) G.startDunk(p); else { p.dunkBuf = DUNK_BUF; p.bufShot = false; } }   // the touch DUNK button
+      if (p.dunkBuf > 0 && p.state !== 'dunk') { if (G.canDunk(p)) { p.dunkBuf = 0; G.startDunk(p); } else if ((p.dunkBuf -= dt) <= 0) { p.dunkBuf = 0; if (p.bufShot) G.startShot(p); } }
       // let go during the step-back (online: a guest's screen still showed it, relSt -1): the shot goes up on its own at the top
       if (In.shootUp) { if (p.state === 'stepback' || p.state === 'cartwheel') p.sbRel = true; else if (p.relSt != null && p.relSt < 0) { p.relSt = null; if (p.state === 'shoot' && !p.released) p.sbAuto = true; } else G.releaseShot(p); }
       if (In.passDown) G.passTo(p, mate);
