@@ -231,8 +231,12 @@ window.HW = window.HW || {};
 
   /* ---------- actions ---------- */
   function threeFrom(p) { var d = Math.hypot(p.x - rimX(p.team), p.z - K.HZ); return d > K.R3 - 0.1 && Math.abs(p.z - K.HZ) < 6.2 || d > K.R3 + 0.3; }
+  // how long after the press the top of his jump shot comes: the green window is timed from the press, whatever he does first
+  G.shotApex = function (p) { return Math.sqrt(2 * GRAV * p.jumpH * 0.9) / GRAV; };
   G.startShot = function (p) {
     if (!p.hasBall || !p.grounded() || p.busy()) return;
+    // the shot clock starts on the press (a step-back or cartwheel first doesn't move the window): p.sht runs until he lets go
+    if (!p.sbGo && !p.cartGo) { p.sht = 0; p.relPress = null; p.tApex = G.shotApex(p); }
     var rx0 = rimX(p.team), dx0 = rx0 - p.x, dz0 = K.HZ - p.z, dd0 = Math.hypot(dx0, dz0) || 1, ux = dx0 / dd0, uz = dz0 / dd0;
     var along = p.vx * ux + p.vz * uz, across = Math.abs(p.vz * ux - p.vx * uz);
     // a 3-point shooter pulling up from deep while moving side to side (across the line to the rim): the Harden step-back first -
@@ -246,13 +250,13 @@ window.HW = window.HW || {};
       p.state = 'cartwheel'; p.st = 0; p.cartFrom = { x: p.x, z: p.z }; p.sbRel = false; p.face = -side(p.team); p.vx = p.vz = 0; p.dm = null; Au.whoosh(5); return;
     }
     p.cart = !!p.cartGo;
-    p.state = 'shoot'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH * 0.9); p.y = 0.001; p.released = false; p.tApex = p.vy / GRAV; p.relSt = null; p.stepT = !!p.sbGo;
+    p.state = 'shoot'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH * 0.9); p.y = 0.001; p.released = false; p.tApex = p.vy / GRAV; p.stepT = !!p.sbGo;
     // a 3-point shooter pulling up while moving away from the basket shoots a fadeaway: leaning back, knee kicked out, drifting away
     p.fade = p.def.type === 'shooter' && !p.sbGo && -along > 1.0;
     p.face = side(p.team); Au.jump();
   };
   // the cartwheel: 0.8 s round the wheel and about 1.7 m away from the rim (the frames turn him back toward it at the end), then the
-  // one-handed chuck. Let go of SHOOT during it and the shot goes up on its own, like after the step-back
+  // one-handed chuck. Let go of SHOOT during it and the shot goes up on its own, like after the step-back (judged on when he let go)
   var CART_P = 0.15, CW_T = 0.8;
   function cartwheel(p, dt) {
     p.face = -side(p.team); p.vx = p.st < 0.72 * CW_T ? p.face * 2.6 : 0; p.vz = 0; p.vy = 0; p.y = 0;
@@ -264,7 +268,8 @@ window.HW = window.HW || {};
     }
   }
   // the step-back: gather (0-0.08 s), the hop back (0.08-0.28, ~0.7 m and a little air), land square, then the jump shot at 0.34 s.
-  // Let go of SHOOT during it and the shot goes up on its own at the top of the jump (a decent look, not a perfect one)
+  // Let go of SHOOT during it and the shot goes up on its own at the top of the jump, judged on when he let go (timed from the press,
+  // the same as any jump shot: the green window doesn't wait for the move)
   var SB_T = 0.34;
   function stepback(p, dt) {
     var t = p.st, hop = t > 0.08 && t < 0.28, sb = p.sb;
@@ -284,9 +289,9 @@ window.HW = window.HW || {};
     var b = G.ball, rx = rimX(p.team), sp = p.cart && p.cartFrom || p, d = Math.hypot(sp.x - rx, sp.z - K.HZ), three = d > K.R3 - 0.1 && Math.abs(sp.z - K.HZ) < 6.2 || d > K.R3 + 0.3;
     var s = p.def.stats, pm;
     if (three) pm = 0.16 + 0.05 * s.tp; else if (d > 4.5) pm = 0.34 + 0.035 * s.tp; else if (d > 2.2) pm = 0.48 + 0.025 * Math.max(s.tp, s.dunk); else pm = 0.68 + 0.02 * s.dunk;
-    // release timing: the top of the jump is the sweet spot (wider for shooters from deep)
-    // online, a guest's release is timed by how far into the jump his own screen showed it (p.relSt), not when it reached the host
-    var rst = p.relSt != null && p.relSt >= 0 ? (p.sbAuto ? p.relSt : Math.min(p.relSt, p.st)) : p.st; p.relSt = null; p.sbAuto = false;
+    // release timing, from the press of SHOOT: the top of a jump shot is the sweet spot (wider for shooters from deep), and a step-back
+    // or cartwheel first doesn't move it. Online, a guest's release is timed on his own phone, press to let-go (p.relPress)
+    var rst = p.relPress != null ? p.relPress : p.sht != null ? p.sht : p.st; p.relPress = null; p.sht = null; p.sbAuto = false;
     var off = Math.abs(rst - p.tApex) / p.tApex, win = 0.16 * (1 + (s.tp - 5) * 0.06) * (three && p.def.type === 'shooter' ? 1.6 : 1), quality = off < win ? 'green' : off < win * 2.5 ? 'ok' : 'bad';
     if (!p.human) quality = Math.random() < 0.35 * G.diff.shoot ? 'green' : 'ok';
     if (sig(p, 'tp')) quality = 'green';   // a shooter on fire can't miss the window
@@ -696,6 +701,13 @@ window.HW = window.HW || {};
   G.move = move;
   function physics(p, dt) {
     p.st += dt;
+    if (p.sht != null) { if (p.state === 'shoot' || p.state === 'stepback' || p.state === 'cartwheel') p.sht += dt; else { p.sht = null; p.relPress = null; } }   // the shot clock (from the press)
+    // held too long (counted from the press, the same as any jump shot): judged as let go right then; still on the step-back or
+    // cartwheel, or still rising, it goes up at the top of the jump (online, a guest's own let-go can still come in before that)
+    if (p.human && p.sht != null && p.relPress == null && p.hasBall && !p.released && p.sht > p.tApex * (p.remote ? 1.95 : 1.7)) {
+      p.relPress = p.sht;
+      if (p.state === 'stepback' || p.state === 'cartwheel') p.sbRel = true; else if (p.st < p.tApex) p.sbAuto = true; else G.releaseShot(p);
+    }
     if (p.hitT > 0) p.hitT -= dt;
     if (p.taunt && (p.taunt.t += dt) > 2) p.taunt = null;
     if (p.pending && p.state !== 'pass') p.pending = null;   // knocked out of a fancy pass (shoved, fell, new possession): the move is off
@@ -726,7 +738,7 @@ window.HW = window.HW || {};
     if (p.state === 'shoot' && p.fade && p.y > 0) { p.vx = (p.x > rimX(p.team) ? 1 : -1) * 2.0; p.vz *= 0.9; }   // the fadeaway drifts away from the rim
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
     if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump' || p.state === 'hammer') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = p.shimmy ? 'shimmy' : 'idle'; p.st = 0; p.shimmy = false; if (p.fade) p.vx *= 0.15; p.fade = false; if (p.state === 'shimmy') { p.vx = p.vz = 0; } } } }
-    if (p.state === 'shoot' && p.hasBall && !p.released && p.sbAuto && p.st >= p.tApex) { p.relSt = p.tApex * 1.45; G.releaseShot(p); }   // let go during the step-back
+    if (p.state === 'shoot' && p.hasBall && !p.released && p.sbAuto && p.st >= p.tApex) G.releaseShot(p);   // let go during the step-back or cartwheel: up it goes
     if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * (p.remote ? 1.95 : 1.7)) G.releaseShot(p);   // a guest's release is on its way: wait longer for it
     if (p.state === 'pass') updatePending(p);
     if ((p.state === 'pass' && p.st > (p.passStyle ? FANCY[p.passStyle].dur : 0.3) && p.grounded()) || (p.state === 'steal' && p.st > 0.3) || (p.state === 'shove' && p.st > 0.35) || (p.state === 'cheer' && p.st > 1.5) || (p.state === 'shimmy' && p.st > 1.4)) p.state = 'idle';
@@ -756,8 +768,14 @@ window.HW = window.HW || {};
       if (In.shootDown) { if (In.turbo && towardRim(p, In) && G.canDunk(p)) G.startDunk(p); else if (In.turbo && towardRim(p, In) && near && p.grounded() && !p.busy()) { p.dunkBuf = DUNK_BUF; p.bufShot = true; } else G.startShot(p); }
       if (In.actDown) { if (G.canDunk(p)) G.startDunk(p); else { p.dunkBuf = DUNK_BUF; p.bufShot = false; } }   // the touch DUNK button
       if (p.dunkBuf > 0 && p.state !== 'dunk') { if (G.canDunk(p)) { p.dunkBuf = 0; G.startDunk(p); } else if ((p.dunkBuf -= dt) <= 0) { p.dunkBuf = 0; if (p.bufShot) G.startShot(p); } }
-      // let go during the step-back (online: a guest's screen still showed it, relSt -1): the shot goes up on its own at the top
-      if (In.shootUp) { if (p.state === 'stepback' || p.state === 'cartwheel') p.sbRel = true; else if (p.relSt != null && p.relSt < 0) { p.relSt = null; if (p.state === 'shoot' && !p.released) p.sbAuto = true; } else G.releaseShot(p); }
+      // let go: judged on how long after the press (a guest's comes with his own timing); during the step-back or cartwheel the shot
+      // goes up on its own at the top of the jump
+      if (In.shootUp) {
+        if (p.sht != null && p.relPress == null) p.relPress = p.sht;
+        if (p.state === 'stepback' || p.state === 'cartwheel') p.sbRel = true;
+        else if (p.state === 'shoot' && (p.stepT || p.cart) && !p.released && p.st < p.tApex) p.sbAuto = true;   // (just off the move: at the top, not off the floor)
+        else G.releaseShot(p);
+      }
       if (In.passDown) G.passTo(p, mate);
     } else if (holder && holder.team === p.team) {
       // arcade teamwork: PASS calls for the ball, SHOOT tells your teammate to shoot; you can shove a defender off him

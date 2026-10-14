@@ -215,21 +215,20 @@ window.HW = window.HW || {};
     sendLobby();
   };
   // before the host's game step: each guest's buttons for this frame. A press and its release never land in the same step, and
-  // a release carries how far into his jump the guest SAW the shooter when he let go, so the shot is judged on what he saw
+  // a release carries how long the guest held SHOOT on his own phone, press to let-go, so the shot is judged on what he did
   N.pre = function () {
     if (N.mode !== 'host' || N.stage !== 'game') return;
     conns.forEach(function (k) {
       var I = k.inp, f = {}; I.shootDown = I.shootUp = I.passDown = I.actDown = false; if (!k.player) { I.q = []; return; }
       while (I.q.length) {
         var e = I.q[0], n = typeof e === 'string' ? e : e[0]; if (f[n] || (n === 'su' && f.sd)) break; f[n] = 1; I.q.shift();
-        if (n === 'sd') I.shootDown = true; else if (n === 'su') { I.shootUp = true; if (typeof e !== 'string' && e[1] !== null) k.player.relSt = +e[1]; } else if (n === 'pd') I.passDown = true; else if (n === 'ad') I.actDown = true;
+        if (n === 'sd') I.shootDown = true; else if (n === 'su') { I.shootUp = true; if (typeof e !== 'string' && e[1] !== null && +e[1] >= 0 && k.player.sht != null) k.player.relPress = +e[1]; } else if (n === 'pd') I.passDown = true; else if (n === 'ad') I.actDown = true;
       }
     });
   };
   // after it: hand this frame's sounds to each guest and send them the picture (up to 60 times a second)
   N.post = function () {
     if (N.mode !== 'host' || N.stage !== 'game') { N.ev = []; return; }
-    conns.forEach(function (k) { if (k.player) k.player.relSt = null; });
     var ev = N.ev; N.ev = [];
     conns.forEach(function (k) { if (k.ready) { for (var i = 0; i < ev.length; i++) k.pend.push(ev[i]); if (k.pend.length > 300) k.pend.splice(0, k.pend.length - 300); } });
     var now = performance.now(); if (now - lastSnap < 15) return; lastSnap = now;
@@ -357,8 +356,9 @@ window.HW = window.HW || {};
     if (N.mode !== 'guest' || N.stage !== 'game' || !host || !G.human) return;
     var In = HW.In, U = UI(), e = [], me = G.human;
     if (U.screen === 'paused') { In.shootDown = In.shootUp = In.passDown = In.actDown = false; }
-    if (In.shootDown) e.push('sd');
-    if (In.shootUp) e.push(['su', me.state === 'shoot' && me.hasBall && !me.released ? r3(me.st) : me.state === 'stepback' || me.state === 'cartwheel' ? -1 : null]);   // -1: let go during the step-back (or the cartwheel)
+    // (the shot meter on this phone runs off the same press: me.pressAt)
+    if (In.shootDown) { e.push('sd'); me.pressAt = me.hasBall ? performance.now() : null; }
+    if (In.shootUp) { e.push(['su', me.pressAt != null ? r3((performance.now() - me.pressAt) / 1000) : null]); me.pressAt = null; }
     if (In.passDown) e.push('pd'); if (In.actDown) e.push('ad');
     var mx = U.screen ? 0 : Math.round(In.mx * 100) / 100, mz = U.screen ? 0 : Math.round(In.mz * 100) / 100, tb = In.turbo ? 1 : 0, ct = In.comboTurbo ? 1 : 0;
     var key = mx + ',' + mz + ',' + tb + ct, now = performance.now();
