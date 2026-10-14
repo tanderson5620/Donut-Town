@@ -201,6 +201,7 @@ window.HW = window.HW || {};
   A.buzzer = function () { tone(220, 0.9, 'sawtooth', 0.22); tone(233, 0.9, 'sawtooth', 0.18); };
   A.beep = function (hi) { tone(hi ? 880 : 440, hi ? 0.35 : 0.15, 'square', 0.12); };
   A.click = function () { tone(1200, 0.05, 'square', 0.06); };
+  A.chime = function () { tone(784, 0.16, 'sine', 0.16); tone(1175, 0.3, 'sine', 0.14, null, 0.12); tone(1568, 0.4, 'triangle', 0.06, null, 0.12); };   // a pop-up (someone came online, an invite)
   A.hover = function () { if (throttle('h', 50)) tone(900, 0.03, 'sine', 0.04); };
   // Lisa's smack: a bull-whip crack (Epidemic Sound, supplied by the owner; trimmed so the crack is right at the start)
   // the arm bar: a sharp crack (the elbow), a dull pop under it

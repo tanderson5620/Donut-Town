@@ -32,11 +32,12 @@ window.HW = window.HW || {};
     // SEND INVITE button answers the finger lifting off it here
     function shareTap(x, y) {
       var p = toCanvas(x, y), b = UI.btns.filter(function (q) { return q.id === 'share'; })[0];
-      if (b && UI.screen === 'lobby' && HW.Net && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) HW.Net.share();
+      if (b && UI.screen === 'lobby' && !UI.popOn && HW.Net && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) HW.Net.share();
     }
     cv.addEventListener('touchend', function (e) { var t = e.changedTouches[0]; if (t) shareTap(t.clientX, t.clientY); });
     cv.addEventListener('click', function (e) { shareTap(e.clientX, e.clientY); });
     UI.initTouch();
+    if (HW.Presence) { HW.Presence.onArrive = arrived; HW.Presence.onInvite = invited; }
   };
   UI.firstGesture = function () {
     Au.init(); if (UI.fsTried || !HW.TOUCH) return; UI.fsTried = true;
@@ -398,9 +399,82 @@ window.HW = window.HW || {};
   }
   function blink(n) { return Math.floor(UI.t * (n || 2.5)) % 2 === 0; }
 
+  /* ---------- invites (presence.js): someone else came online - invite them? - and someone invited you - join? ---------- */
+  // ask: someone came on (pending until you're on a menu); got: an invite to a room; want: INVITE pressed, sending it once the room's
+  // up; sent: the room we invited people to; no: invites turned down; snooze: NOT NOW holds off the next "came online" for a while
+  var INV = UI.inv = { ask: null, got: null, want: false, sent: null, no: {}, snooze: 0, key: null };
+  function nowMs() { return performance.now(); }
+  function arrived(n, first) {
+    if (HW.Net && HW.Net.playing() || nowMs() < INV.snooze) return;
+    INV.ask = { t: nowMs(), n: n + (INV.ask ? INV.ask.n : 0), first: first && !INV.ask, ppl: HW.Net ? HW.Net.people.length : 0 };
+  }
+  // an invite can be taken unless you're already in someone's room or have people in yours (or a game on)
+  function canTake(code) {
+    var Net = HW.Net; if (!Net || INV.no[code]) return false;
+    if (!Net.mode) return true;
+    if (Net.mode !== 'host' || Net.code === code || Net.stage !== 'lobby' && Net.stage !== 'connecting' || Net.people.length > 1) return false;
+    return !(INV.sent && INV.sent === Net.code && code > Net.code);   // two of you invited each other at once: the lower room code's host stays put
+  }
+  function invited(code) { if (canTake(code)) { INV.got = { code: code, t: nowMs() }; INV.ask = null; } }
+  function sendInvite() {
+    var Net = HW.Net, n = HW.Presence ? HW.Presence.invite(Net.code) : 0; INV.sent = Net.code; INV.want = false;
+    Net.note = n ? 'INVITE SENT!' : 'NOBODY ELSE IS ONLINE RIGHT NOW'; Net.noteUntil = nowMs() + 4000;
+  }
+  function inviteThem() {
+    var Net = HW.Net; INV.ask = null;
+    if (Net.mode === 'host' && Net.stage === 'lobby' && Net.code) { sendInvite(); return; }
+    if (HW.Jam.phase !== 'menu') HW.Jam.players = [];
+    Net.host(); UI.show('lobby'); INV.want = true;   // sent as soon as the room has its code
+  }
+  function joinThem(code) {
+    INV.got = null; INV.ask = null;
+    if (HW.Jam.phase !== 'menu') HW.Jam.players = [];
+    if (HW.Net.mode) HW.Net.leave();
+    UI.code = code; UI.show('join'); HW.Net.join(code);
+  }
+  // which pop-up this screen gets, if any (invites go stale after a minute and a half, "came online" after three, or once they've gone)
+  function popFor(s) {
+    var Net = HW.Net, Pr = HW.Presence, t = nowMs();
+    if (!Net || !Pr) return null;
+    if (INV.want && (Net.mode !== 'host' || Net.stage !== 'connecting' && Net.stage !== 'lobby')) INV.want = false;
+    if (INV.want && Net.mode === 'host' && Net.stage === 'lobby' && Net.code) sendInvite();
+    if (Net.playing()) { INV.ask = INV.got = null; return null; }
+    if (INV.got && (t - INV.got.t > 90000 || !canTake(INV.got.code))) INV.got = null;
+    if (INV.ask && (t - INV.ask.t > 180000 || Pr.ok && Pr.count < 2 || t < INV.snooze || Net.mode === 'guest' || Net.mode === 'host' && (Net.people.length > INV.ask.ppl || Pr.count <= Net.people.length))) INV.ask = null;   // (or they came straight into the room with the link: everyone on is in it)
+    if (INV.got && /^(title|team|matchup|online|lobby|results|paused|neterr)$/.test(s)) return { kind: 'got', code: INV.got.code };
+    var hosting = Net.mode === 'host' && Net.stage === 'lobby' && Net.code && Net.people.length < 4;
+    if (INV.ask && (/^(title|team|online|results)$/.test(s) && !Net.mode || s === 'lobby' && hosting)) return { kind: 'ask', n: INV.ask.n, first: INV.ask.first, hosting: !!hosting };
+    return null;
+  }
+  // the pop-up: the screen dimmed behind a card with two buttons (Enter = the green one, Esc = no)
+  function drawPop(g, pop) {
+    var W = X.W, H = X.H, fr = Math.floor(UI.t * 12);
+    g.fillStyle = 'rgba(2,3,16,0.7)'; g.fillRect(0, 0, W, H);
+    var bw = Math.min(480, W - 40), bh = 196, x = Math.round((W - bw) / 2), y = Math.round((H - bh) / 2) - 6, cx = Math.round(W / 2);
+    bevel(g, x, y, bw, bh, '#141a6a', CY, 3);
+    var got = pop.kind === 'got', head = got ? 'YOU\'RE INVITED!' : pop.first ? (pop.n > 1 ? pop.n + ' OTHERS ARE ON!' : 'SOMEONE ELSE IS ON!') : pop.n > 1 ? pop.n + ' PEOPLE JUST CAME ON!' : 'SOMEONE JUST CAME ON!';
+    var hs = 4; while (hs > 2 && Fo.measure(head, hs) > bw - 30) hs--;
+    flaming(g, head, cx, y + 42, { scale: hs, scheme: got ? 'fire' : 'yellow', outline: 2, shadow: 2 }, fr);
+    var line = got ? 'JOIN THEIR GAME?' : pop.hosting ? 'INVITE THEM TO YOUR ROOM?' : 'INVITE THEM TO PLAY?';
+    var ls = Fo.measure(line, 2) <= bw - 30 ? 2 : 1;
+    Fo.draw(g, line, cx, y + 86, { scale: ls, scheme: 'white' });
+    Fo.draw(g, got ? 'SOMEONE ONLINE INVITED YOU TO ROOM ' + pop.code : 'THEY GET A POP-UP TO JOIN YOUR GAME', cx, y + 112, { scale: 1, scheme: 'cyan', shadow: 0 });
+    var b2 = Math.round((bw - 50) / 2), by = y + bh - 58;
+    var yes = got ? function () { joinThem(pop.code); } : inviteThem;
+    var no = got ? function () { INV.no[pop.code] = 1; INV.got = null; } : function () { INV.ask = null; INV.snooze = nowMs() + 300000; };
+    button(g, 'popyes', x + 18, by, b2, 42, got ? 'JOIN' : 'INVITE', { color: '#1fb04c', size: 2, fn: yes });
+    button(g, 'popno', x + bw - 18 - b2, by, b2, 42, got ? 'NO THANKS' : 'NOT NOW', { on: false, size: 2, fn: no });
+    if (In.enter) yes(); else if (In.pauseDown) no();
+  }
+
   UI.drawMenu = function (g, dt) {
     UI.t += dt; UI.btns = []; var s = UI.screen, st = UI.st, T = HW.TEAMS;
     var fr = Math.floor(UI.t * 12);
+    // a pop-up over this screen takes the input: the screen under it is drawn without any
+    var pop = popFor(s), held = null, pk = pop && pop.kind + (pop.code || ''), fresh = pk !== INV.key;
+    if (pk && fresh) { Au.chime && Au.chime(); try { if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) navigator.vibrate([70, 50, 70]); } catch (e) { } }
+    INV.key = pk; UI.popOn = !!pop;
+    if (pop) { held = { tap: In.tap, enter: In.enter, esc: In.pauseDown }; In.tap = null; In.enter = false; In.pauseDown = false; In.nav = null; In.digits.length = 0; }
     if (s === 'title') {
       var C = card(g, '#141a6a'), W = X.W, cx = Math.round((C.L + C.R) / 2);
       g.drawImage(rays(C), C.L, C.T);
@@ -451,6 +525,7 @@ window.HW = window.HW || {};
     else if (s === 'join') drawJoin(g, fr);
     else if (s === 'lobby') drawLobby(g, fr);
     else if (s === 'neterr') drawNetErr(g, fr);
+    if (pop && UI.screen === s) { UI.btns = []; if (!fresh) { In.tap = held.tap; In.enter = held.enter; In.pauseDown = held.esc; } drawPop(g, pop); }   // (not the press that brought it up: Esc pausing the game)
     if (In.tap) { for (var i = UI.btns.length - 1; i >= 0; i--) { var b = UI.btns[i]; if (!b.disabled && In.tap.x >= b.x && In.tap.x <= b.x + b.w && In.tap.y >= b.y && In.tap.y <= b.y + b.h) { Au.click(); b.fn && b.fn(); break; } } }
   };
 
@@ -801,6 +876,9 @@ window.HW = window.HW || {};
       g.drawImage(a, ax, ay - a.height / 2 | 0);
       Fo.draw(g, p.me ? 'YOU' : p.human && p.lbl ? p.lbl : String(p.def.num), off < 0 ? ax + a.width + 2 : ax - 2, ay, { scale: 1, scheme: p.me ? 'green' : 'white', align: off < 0 ? 'left' : 'right', shadow: 0 });
     });
+    // an invite came in during a game against the CPU: it waits on the pause menu
+    var ia = INV.got && performance.now() - INV.got.t;
+    if (INV.got && !(HW.Net && HW.Net.mode) && ia < 12000 && Math.floor(ia / 400) % 3 < 2) Fo.draw(g, 'GAME INVITE! PAUSE TO JOIN IT', cx, by + bh + 26, { scale: 1, scheme: 'green' });
     // callouts: big flaming arcade text that pops in
     var maxW = W - S.l - S.r - 30, cy = 112;
     G.callouts.forEach(function (c, i) {
