@@ -443,7 +443,7 @@ window.HW = window.HW || {};
     if (INV.ask && (t - INV.ask.t > 180000 || Pr.ok && Pr.count < 2 || t < INV.snooze || Net.mode === 'guest' || Net.mode === 'host' && (Net.people.length > INV.ask.ppl || Pr.count <= Net.people.length))) INV.ask = null;   // (or they came straight into the room with the link: everyone on is in it)
     if (INV.got && /^(title|team|matchup|online|lobby|results|paused|neterr)$/.test(s)) return { kind: 'got', code: INV.got.code };
     var hosting = Net.mode === 'host' && Net.stage === 'lobby' && Net.code && Net.people.length < 4;
-    if (INV.ask && (/^(title|team|online|results)$/.test(s) && !Net.mode || s === 'lobby' && hosting)) return { kind: 'ask', n: INV.ask.n, first: INV.ask.first, hosting: !!hosting };
+    if (INV.ask && (/^(title|team|online|results|paused)$/.test(s) && !Net.mode || s === 'lobby' && hosting)) return { kind: 'ask', n: INV.ask.n, first: INV.ask.first, hosting: !!hosting };
     return null;
   }
   // the pop-up: the screen dimmed behind a card with two buttons (Enter = the green one, Esc = no)
@@ -876,9 +876,9 @@ window.HW = window.HW || {};
       g.drawImage(a, ax, ay - a.height / 2 | 0);
       Fo.draw(g, p.me ? 'YOU' : p.human && p.lbl ? p.lbl : String(p.def.num), off < 0 ? ax + a.width + 2 : ax - 2, ay, { scale: 1, scheme: p.me ? 'green' : 'white', align: off < 0 ? 'left' : 'right', shadow: 0 });
     });
-    // an invite came in during a game against the CPU: it waits on the pause menu
-    var ia = INV.got && performance.now() - INV.got.t;
-    if (INV.got && !(HW.Net && HW.Net.mode) && ia < 12000 && Math.floor(ia / 400) % 3 < 2) Fo.draw(g, 'GAME INVITE! PAUSE TO JOIN IT', cx, by + bh + 26, { scale: 1, scheme: 'green' });
+    // an invite came in, or someone came online, during a game against the CPU: it waits on the pause menu
+    var iv = INV.got || INV.ask, ia = iv && performance.now() - iv.t;
+    if (iv && !(HW.Net && HW.Net.mode) && ia < 12000 && Math.floor(ia / 400) % 3 < 2) Fo.draw(g, INV.got ? 'GAME INVITE! PAUSE TO JOIN IT' : 'SOMEONE CAME ONLINE! PAUSE TO INVITE THEM', cx, by + bh + 26, { scale: 1, scheme: 'green' });
     // callouts: big flaming arcade text that pops in
     var maxW = W - S.l - S.r - 30, cy = 112;
     G.callouts.forEach(function (c, i) {
