@@ -508,7 +508,7 @@ window.HW = window.HW || {};
     if (q.hasBall) G.drop(q, p.face * 1.2, 2.6, 0);
     q.state = 'fall'; q.st = 0; q.fallT = 99; q.abBy = p; q.hurtT = 0; q.vx = q.vz = q.vy = 0; q.y = 0; q.dk = null; q.pending = null; q.dm = null; q.dunkFace = false; q.tongue = false;
     q.face = p.face; q.x = clamp(p.x + p.face * p.ab.gap, -K.HL - 0.6, K.HL + 0.6); q.z = clamp(p.z - 0.04, 0.3, K.CD - 0.3);   // (just in front of him, so his face shows)
-    G.cine = { p: p, q: q, t: 0, dur: AB_T, kind: 'armbar', slow: AB_T / 2.5 };
+    G.cine = { p: p, q: q, t: 0, dur: AB_T + AB_UP, kind: 'armbar' };   // a close-up of the two of them while the rest of the game waits
     G.say('ARM BAR!', '#ff5a4a', 1.6, 1.3); Au.shove(); Au.hup && isGuy(p) && Au.hup();
   };
   function snapArm(p) {
@@ -517,6 +517,17 @@ window.HW = window.HW || {};
     G.hitstop = Math.max(G.hitstop || 0, 0.12); X.shake = Math.max(X.shake, 1.2); Au.snap && Au.snap();
     if (isGuy(q)) Au.scream && Au.scream(); else Au.painF && Au.painF();
     G.say('SNAP!', '#ffffff', 1.4, 1.6);
+  }
+  // the arm bar's close-up: 2.5 s from the grab through the snap to him getting back up (AB_RATE), and only the two of them move -
+  // nobody else, not the ball, not the game clock or the shot clock - so it can't cost either team anything. Then play goes on
+  var AB_RATE = (AB_T + AB_UP) / (2.5 - 0.12);   // (the 0.12 s freeze-frame on the snap is part of the 2.5)
+  function updateArmbarCine(dt) {
+    var c = G.cine, p = c.p, q = c.q, d = dt * AB_RATE;
+    if (p.state !== 'armbar') { G.cine = null; return; }
+    p.st += d; updateArmbar(p, d); if (q) q.st += d;
+    animate(p, d); if (q) animate(q, d);
+    c.t = p.st; X.camX += (X.camClamp(p.x) - X.camX) * (1 - Math.exp(-6 * dt));   // (the camera slides over to them as it zooms in)
+    if (p.state !== 'armbar') G.cine = null;   // he's up: play on
   }
   function updateArmbar(p, dt) {
     var ab = p.ab, q = ab && ab.q, u = p.st / AB_T; p.vx = p.vz = p.vy = 0; p.y = 0;
@@ -640,12 +651,11 @@ window.HW = window.HW || {};
     if (G.hitstop > 0) { G.hitstop -= dt; return; }   // freeze-frame on a hard hit
     // going on fire: a 2 s golden power-up with the camera zoomed in on him while everything else waits
     if (G.pu) { updatePowerup(dt); return; }
+    if (G.cine && G.cine.kind === 'armbar') { updateArmbarCine(dt); return; }   // the arm bar: everything else waits
     if (G.cine) {   // the slow-motion dunks (everything slows equally, so nobody gets a better chance at it): under the legs all the way up
       // to the slam; off the backboard only from the toss until it's back in his hand
       var cp = G.cine.p, cu = cp.dk ? cp.st / cp.dk.T : 1, ck = G.cine.kind, bsi = G.ball.shotInfo;
-      if (ck === 'armbar') {   // the arm bar: slow from the grab until the hold is done
-        if (cp.state !== 'armbar' || cp.st >= AB_T) G.cine = null; else { dt *= G.cine.slow; G.cine.t = cp.st; }
-      } else if (ck === 'roll' || ck === 'rev') {   // the layups: slow until the ball drops through (the finger roll from the top of his rise)
+      if (ck === 'roll' || ck === 'rev') {   // the layups: slow until the ball drops through (the finger roll from the top of his rise)
         var lfly = G.ball.state === 'shot' && bsi && bsi.by === cp && bsi.lay === ck;
         if (!lfly && !(cp.dk && cp.dk.lay === ck)) G.cine = null;
         else { dt *= ck === 'roll' && !lfly && cu < 0.45 ? 1 : lfly && G.cine.flySlow || G.cine.slow; G.cine.t = cp.st; }
