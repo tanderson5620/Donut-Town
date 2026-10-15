@@ -37,7 +37,7 @@ window.HW = window.HW || {};
     cv.addEventListener('touchend', function (e) { var t = e.changedTouches[0]; if (t) shareTap(t.clientX, t.clientY); });
     cv.addEventListener('click', function (e) { shareTap(e.clientX, e.clientY); });
     UI.initTouch();
-    if (HW.Presence) { HW.Presence.onArrive = arrived; HW.Presence.onInvite = invited; }
+    if (HW.Presence) { HW.Presence.onArrive = arrived; HW.Presence.onInvite = invited; HW.Presence.describe = function () { return { nm: UI.who() || '', dv: HW.TOUCH ? 'p' : 'c', st: myState() }; }; }
   };
   UI.firstGesture = function () {
     Au.init(); if (UI.fsTried || !HW.TOUCH) return; UI.fsTried = true;
@@ -404,9 +404,20 @@ window.HW = window.HW || {};
   // up; sent: the room we invited people to; no: invites turned down; snooze: NOT NOW holds off the next "came online" for a while
   var INV = UI.inv = { ask: null, got: null, want: false, sent: null, no: {}, snooze: 0, key: null };
   function nowMs() { return performance.now(); }
-  function arrived(n, first) {
+  /* who you are, for who's online and challenges: one of the family, picked once on this phone (WHO ARE YOU?, the 'who' screen);
+     '-' when skipped. Sent round with the presence check-ins along with what you're doing */
+  var WHO = 'famjam.who';
+  UI.who = function () { try { var v = localStorage.getItem(WHO); return v && HW.PLAYERS[v] ? v : null; } catch (e) { return null; } };
+  UI.whoAsked = function () { try { return !!localStorage.getItem(WHO); } catch (e) { return true; } };
+  function setWho(id) { try { localStorage.setItem(WHO, id || '-'); } catch (e) { } if (HW.Presence && HW.Presence.update) HW.Presence.update(); }
+  function nameOf(id) { var d = id && HW.PLAYERS[id]; return d ? d.first.toUpperCase() : ''; }
+  // m: on the menus, c: playing the CPU, h: hosting a room, r: in someone's room, g: in an online game
+  function myState() { var Net = HW.Net, G = HW.Jam; if (Net && Net.playing()) return 'g'; if (Net && Net.mode === 'host') return 'h'; if (Net && Net.mode === 'guest') return 'r'; return G.players.length && G.phase !== 'menu' ? 'c' : 'm'; }
+  UI.presTick = function () { var s = myState(); if (s !== UI.lastSt) { UI.lastSt = s; if (HW.Presence && HW.Presence.update) HW.Presence.update(); } };   // (main loop: a change shows on the others' lists right away)
+  function arrived(n, first, names, ids) {
     if (HW.Net && HW.Net.playing() || nowMs() < INV.snooze) return;
-    INV.ask = { t: nowMs(), n: n + (INV.ask ? INV.ask.n : 0), first: first && !INV.ask, ppl: HW.Net ? HW.Net.people.length : 0 };
+    var a = INV.ask;
+    INV.ask = { t: nowMs(), n: n + (a ? a.n : 0), first: first && !a, ppl: HW.Net ? HW.Net.people.length : 0, names: (a ? a.names : []).concat(names || []), ids: (a ? a.ids : []).concat(ids || []) };
   }
   // an invite can be taken unless you're already in someone's room or have people in yours (or a game on)
   function canTake(code) {
@@ -415,17 +426,22 @@ window.HW = window.HW || {};
     if (Net.mode !== 'host' || Net.code === code || Net.stage !== 'lobby' && Net.stage !== 'connecting' || Net.people.length > 1) return false;
     return !(INV.sent && INV.sent === Net.code && code > Net.code);   // two of you invited each other at once: the lower room code's host stays put
   }
-  function invited(code) { if (canTake(code)) { INV.got = { code: code, t: nowMs() }; INV.ask = null; } }
+  function invited(code, fr) { if (canTake(code)) { INV.got = { code: code, t: nowMs(), fr: HW.PLAYERS[fr] ? fr : '' }; INV.ask = null; } }
+  // send the room's code: to one person (to: their presence tag) or everyone else online
   function sendInvite() {
-    var Net = HW.Net, n = HW.Presence ? HW.Presence.invite(Net.code) : 0; INV.sent = Net.code; INV.want = false;
-    Net.note = n ? 'INVITE SENT!' : 'NOBODY ELSE IS ONLINE RIGHT NOW'; Net.noteUntil = nowMs() + 4000;
+    var Net = HW.Net, w = INV.want || {}, n = HW.Presence ? HW.Presence.invite(Net.code, w.to || null) : 0; INV.sent = Net.code; INV.want = false;
+    Net.note = n ? (w.nm ? 'CHALLENGE SENT TO ' + w.nm + '!' : 'INVITE SENT!') : w.to ? 'THEY JUST WENT OFFLINE' : 'NOBODY ELSE IS ONLINE RIGHT NOW'; Net.noteUntil = nowMs() + 4000;
   }
-  function inviteThem() {
-    var Net = HW.Net; INV.ask = null;
+  // invite (to: one person's tag, nm: their name) - into the room you're hosting, or a new one, sent as soon as it has its code
+  function inviteThem(to, nm) {
+    var Net = HW.Net, a = INV.ask; INV.ask = null;
+    if (to === undefined && a && a.ids && a.ids.length === 1) { to = a.ids[0]; nm = a.names && a.names.length === 1 ? a.names[0] && nameOf(a.names[0]) : ''; }   // one person came on: just them
+    INV.want = { to: to || null, nm: nm || '' };
     if (Net.mode === 'host' && Net.stage === 'lobby' && Net.code) { sendInvite(); return; }
     if (HW.Jam.phase !== 'menu') HW.Jam.players = [];
-    Net.host(); UI.show('lobby'); INV.want = true;   // sent as soon as the room has its code
+    Net.host(); UI.show('lobby');
   }
+  UI.challenge = inviteThem;
   function joinThem(code) {
     INV.got = null; INV.ask = null;
     if (HW.Jam.phase !== 'menu') HW.Jam.players = [];
@@ -440,10 +456,17 @@ window.HW = window.HW || {};
     if (INV.want && Net.mode === 'host' && Net.stage === 'lobby' && Net.code) sendInvite();
     if (Net.playing()) { INV.ask = INV.got = null; return null; }
     if (INV.got && (t - INV.got.t > 90000 || !canTake(INV.got.code))) INV.got = null;
-    if (INV.ask && (t - INV.ask.t > 180000 || Pr.ok && Pr.count < 2 || t < INV.snooze || Net.mode === 'guest' || Net.mode === 'host' && (Net.people.length > INV.ask.ppl || Pr.count <= Net.people.length))) INV.ask = null;   // (or they came straight into the room with the link: everyone on is in it)
-    if (INV.got && /^(title|team|matchup|online|lobby|results|paused|neterr)$/.test(s)) return { kind: 'got', code: INV.got.code };
+    // "came online" goes when it's old, when they've really gone (not seen for 10 s - the count dips for a moment whenever a phone
+    // reconnects to the lobby), or when they're busy: in a room (yours too, if they came straight in with the link) or an online game
+    if (INV.ask) {
+      var a = INV.ask, live = (Pr.ok ? Pr.people : []).filter(function (q) { return a.ids.indexOf(q.id) >= 0; });
+      if (live.length || a.seenT == null) a.seenT = t;
+      var gone = !live.length && t - a.seenT > 10000, busy = live.length && live.every(function (q) { return q.st === 'r' || q.st === 'g'; });
+      if (t - a.t > 180000 || t < INV.snooze || Net.mode === 'guest' || gone || busy) INV.ask = null;
+    }
+    if (INV.got && /^(title|team|matchup|online|who|lobby|results|paused|neterr)$/.test(s)) return { kind: 'got', code: INV.got.code, fr: INV.got.fr };
     var hosting = Net.mode === 'host' && Net.stage === 'lobby' && Net.code && Net.people.length < 4;
-    if (INV.ask && (/^(title|team|online|results|paused)$/.test(s) && !Net.mode || s === 'lobby' && hosting)) return { kind: 'ask', n: INV.ask.n, first: INV.ask.first, hosting: !!hosting };
+    if (INV.ask && (/^(title|team|online|results|paused)$/.test(s) && !Net.mode || s === 'lobby' && hosting)) return { kind: 'ask', n: INV.ask.n, first: INV.ask.first, hosting: !!hosting, nm: INV.ask.n === 1 && INV.ask.names.length === 1 ? nameOf(INV.ask.names[0]) : '' };
     return null;
   }
   // the pop-up: the screen dimmed behind a card with two buttons (Enter = the green one, Esc = no)
@@ -452,17 +475,18 @@ window.HW = window.HW || {};
     g.fillStyle = 'rgba(2,3,16,0.7)'; g.fillRect(0, 0, W, H);
     var bw = Math.min(480, W - 40), bh = 196, x = Math.round((W - bw) / 2), y = Math.round((H - bh) / 2) - 6, cx = Math.round(W / 2);
     bevel(g, x, y, bw, bh, '#141a6a', CY, 3);
-    var got = pop.kind === 'got', head = got ? 'YOU\'RE INVITED!' : pop.first ? (pop.n > 1 ? pop.n + ' OTHERS ARE ON!' : 'SOMEONE ELSE IS ON!') : pop.n > 1 ? pop.n + ' PEOPLE JUST CAME ON!' : 'SOMEONE JUST CAME ON!';
+    var got = pop.kind === 'got', who = got ? nameOf(pop.fr) : pop.nm;   // (named when they picked who they are)
+    var head = got ? (who ? who + ' CHALLENGES YOU!' : 'YOU\'RE INVITED!') : who ? who + (pop.first ? ' IS ON!' : ' JUST CAME ON!') : pop.first ? (pop.n > 1 ? pop.n + ' OTHERS ARE ON!' : 'SOMEONE ELSE IS ON!') : pop.n > 1 ? pop.n + ' PEOPLE JUST CAME ON!' : 'SOMEONE JUST CAME ON!';
     var hs = 4; while (hs > 2 && Fo.measure(head, hs) > bw - 30) hs--;
     flaming(g, head, cx, y + 42, { scale: hs, scheme: got ? 'fire' : 'yellow', outline: 2, shadow: 2 }, fr);
-    var line = got ? 'JOIN THEIR GAME?' : pop.hosting ? 'INVITE THEM TO YOUR ROOM?' : 'INVITE THEM TO PLAY?';
+    var line = got ? 'JOIN THEIR GAME?' : who ? 'CHALLENGE ' + who + (pop.hosting ? ' TO YOUR ROOM?' : '?') : pop.hosting ? 'INVITE THEM TO YOUR ROOM?' : 'INVITE THEM TO PLAY?';
     var ls = Fo.measure(line, 2) <= bw - 30 ? 2 : 1;
     Fo.draw(g, line, cx, y + 86, { scale: ls, scheme: 'white' });
-    Fo.draw(g, got ? 'SOMEONE ONLINE INVITED YOU TO ROOM ' + pop.code : 'THEY GET A POP-UP TO JOIN YOUR GAME', cx, y + 112, { scale: 1, scheme: 'cyan', shadow: 0 });
+    Fo.draw(g, got ? (who || 'SOMEONE ONLINE') + ' INVITED YOU TO ROOM ' + pop.code : 'THEY GET A POP-UP TO JOIN YOUR GAME', cx, y + 112, { scale: 1, scheme: 'cyan', shadow: 0 });
     var b2 = Math.round((bw - 50) / 2), by = y + bh - 58;
-    var yes = got ? function () { joinThem(pop.code); } : inviteThem;
+    var yes = got ? function () { joinThem(pop.code); } : function () { inviteThem(); };
     var no = got ? function () { INV.no[pop.code] = 1; INV.got = null; } : function () { INV.ask = null; INV.snooze = nowMs() + 300000; };
-    button(g, 'popyes', x + 18, by, b2, 42, got ? 'JOIN' : 'INVITE', { color: '#1fb04c', size: 2, fn: yes });
+    button(g, 'popyes', x + 18, by, b2, 42, got ? 'JOIN' : who ? 'CHALLENGE' : 'INVITE', { color: '#1fb04c', size: 2, fn: yes });
     button(g, 'popno', x + bw - 18 - b2, by, b2, 42, got ? 'NO THANKS' : 'NOT NOW', { on: false, size: 2, fn: no });
     if (In.enter) yes(); else if (In.pauseDown) no();
   }
@@ -504,7 +528,7 @@ window.HW = window.HW || {};
         Fo.draw(g, ot, Math.min(obx + obw / 2, C.R - 4 - Fo.measure(ot, os) / 2), oby + obh + (os === 2 ? 14 : 10), { scale: os, scheme: 'green', shadow: os === 2 ? 2 : 0 });
       }
       // how many have played (count.js)
-      var tot = Ct ? [Ct.games != null ? Ct.games + ' GAMES PLAYED' : '', Ct.players != null ? Ct.players + (Ct.players === 1 ? ' PLAYER' : ' PLAYERS') : ''].filter(Boolean).join('   ') : '';
+      var tot = Ct ? [Ct.games != null ? Ct.games + ' GAMES PLAYED' + (Ct.owner != null ? ' (' + Ct.owner + ' BY YOU)' : '') : '', Ct.players != null ? Ct.players + (Ct.players === 1 ? ' PLAYER' : ' PLAYERS') : ''].filter(Boolean).join('   ') : '';
       if (tot) Fo.draw(g, tot, cx, HW.TOUCH ? C.B - 10 : C.B - 24, { scale: 1, scheme: 'gray', shadow: 0 });
       if (HW.Notify && HW.Notify.marked) Fo.draw(g, 'GOT IT: THIS DEVICE WON\'T SEND YOU NOTIFICATIONS', C.L + 10, HW.TOUCH ? C.B - 24 : C.B - 38, { scale: 1, scheme: 'green', shadow: 0, align: 'left' });   // (opened with ?me; clear of the ONLINE corner)
       if (In.enter) UI.show('team');
@@ -532,6 +556,7 @@ window.HW = window.HW || {};
     } else if (s === 'results') {
       drawResults(g, fr);
     } else if (s === 'online') drawOnline(g, fr);
+    else if (s === 'who') drawWho(g, fr);
     else if (s === 'join') drawJoin(g, fr);
     else if (s === 'lobby') drawLobby(g, fr);
     else if (s === 'neterr') drawNetErr(g, fr);
@@ -690,6 +715,7 @@ window.HW = window.HW || {};
     if (cur) lines.push(cur); return lines;
   }
   function drawOnline(g, fr) {
+    if (!UI.whoAsked()) { UI.whoNext = 'online'; UI.screen = 'who'; drawWho(g, fr); return; }   // the first time: who are you?
     var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net;
     flaming(g, 'PLAY ONLINE', cx, C.T + 36, { scale: 4, scheme: 'fire', outline: 2, shadow: 2 }, fr);
     Fo.draw(g, 'THE FAMILY ON THEIR OWN PHONES, FROM ANYWHERE', cx, C.T + 72, { scale: 1, scheme: 'cyan', shadow: 0 });
@@ -699,14 +725,57 @@ window.HW = window.HW || {};
     Fo.draw(g, 'GET A CODE TO SEND', cx - bw / 2 - 8, by + bh + 13, { scale: 1, scheme: 'white', shadow: 0 });
     Fo.draw(g, 'TYPE THE HOST\'S CODE', cx + bw / 2 + 8, by + bh + 13, { scale: 1, scheme: 'white', shadow: 0 });
     var hy = by + bh + 28, hh = C.B - hy - 40; bevel(g, C.L + 6, hy, C.W - 12, hh, '#000', CY, 3);
-    ['1. ONE PERSON HOSTS AND SENDS THE CODE OR THE INVITE LINK', '2. EVERYONE ELSE JOINS AND PICKS WHO THEY PLAY', '3. THE HOST STARTS IT. ANY EMPTY SPOTS ARE CPU', 'UP TO 4 PEOPLE, 2 ON A TEAM'].forEach(function (t, i) {
+    var Pr = HW.Presence, others = Pr && Pr.ok ? Pr.people : [];
+    if (others.length) drawOnNow(g, C, hy, hh, others);   // who's on, each with a CHALLENGE button
+    else ['1. ONE PERSON HOSTS AND SENDS THE CODE OR THE INVITE LINK', '2. EVERYONE ELSE JOINS AND PICKS WHO THEY PLAY', '3. THE HOST STARTS IT. ANY EMPTY SPOTS ARE CPU', 'UP TO 4 PEOPLE, 2 ON A TEAM'].forEach(function (t, i) {
       Fo.draw(g, t, C.L + 20, hy + 18 + i * Math.min(20, (hh - 24) / 4), { scale: 1, scheme: i === 3 ? 'yellow' : 'white', align: 'left', shadow: 0 });
     });
     button(g, 'back', cx - 40, C.B - 30, 80, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show('title'); } });
+    // who you are (change it), bottom left
+    var me = UI.who(), mw = Math.min(150, cx - 52 - C.L - 6);
+    button(g, 'whoami', C.L + 6, C.B - 30, mw, 24, me ? 'YOU: ' + nameOf(me) : 'WHO ARE YOU?', { on: !!me, color: '#7a3cc8', size: 1, fn: function () { UI.whoNext = 'online'; UI.show('who'); } });
     // who's on: big at the bottom right if it fits beside BACK
-    var Pr = HW.Presence;
     if (Pr && Pr.ok && Pr.count > 0) { var pt = Pr.count === 1 ? 'JUST YOU ONLINE NOW' : Pr.count + ' PEOPLE ONLINE NOW', ps = Fo.measure(pt, 2) <= C.R - 10 - (cx + 52) ? 2 : 1; Fo.draw(g, pt, C.R - 10, C.B - 18, { scale: ps, scheme: 'green', shadow: ps === 2 ? 2 : 0, align: 'right' }); }
     if (In.enter) { Net.host(); UI.show('lobby'); }
+  }
+  // the ON NOW list on the online screen: everyone else online - their face and name if they picked who they are, what they're up
+  // to, and a CHALLENGE button (you host a room and it pops up on their screen); CHALLENGE ALL sends it to everyone who's free
+  var DOING = { m: 'ON THE MENUS', c: 'PLAYING THE CPU', h: 'HOSTING A ROOM', r: 'IN SOMEONE\'S ROOM', g: 'IN AN ONLINE GAME' };
+  function drawOnNow(g, C, hy, hh, others) {
+    var free = others.filter(function (q) { return q.st !== 'r' && q.st !== 'g'; }), rowH = Math.floor((hh - 30) / 34) >= Math.min(others.length, Math.floor((hh - 30) / 30)) ? 34 : 30, rows = Math.max(1, Math.floor((hh - 30) / rowH)), x0 = C.L + 18, bw = 132;
+    Fo.draw(g, 'ON NOW', x0, hy + 14, { scale: 1, scheme: 'yellow', align: 'left', shadow: 0 });
+    if (free.length > 1) button(g, 'chall', C.R - 16 - bw, hy + 5, bw, 20, 'CHALLENGE ALL', { color: '#e0302a', size: 1, fn: function () { inviteThem(null, ''); } });
+    others.slice(0, others.length > rows ? rows - 1 : rows).forEach(function (q, i) {
+      var y = hy + 28 + i * rowH, nm = nameOf(q.nm), busy = q.st === 'r' || q.st === 'g', fx = x0;
+      if (nm) { var f = miniFace(q.nm, rowH - 6); g.drawImage(f, fx, y); fx += f.width + 8; }
+      else { g.fillStyle = '#2a2d5c'; g.fillRect(fx, y + 2, rowH - 8, rowH - 8); Fo.draw(g, '?', fx + (rowH - 8) / 2, y + rowH / 2 - 1, { scale: 2, scheme: 'white', shadow: 0 }); fx += rowH; }
+      var w1 = Fo.draw(g, nm || 'SOMEONE', fx, y + 9, { scale: 2, scheme: nm ? 'white' : 'gray', align: 'left', shadow: 0 });
+      Fo.draw(g, (q.dv === 'c' ? 'ON A COMPUTER, ' : 'ON A PHONE, ') + DOING[q.st || 'm'], fx, y + 22, { scale: 1, scheme: busy ? 'gray' : 'green', align: 'left', shadow: 0 });
+      button(g, 'ch' + q.id, C.R - 16 - bw, y + 2, bw, rowH - 6, busy ? 'BUSY' : 'CHALLENGE', { color: '#1fb04c', size: 1, disabled: busy, fn: function () { inviteThem(q.id, nm); } });
+    });
+    if (others.length > rows) Fo.draw(g, '+' + (others.length - rows + 1) + ' MORE ON', x0, hy + 28 + (rows - 1) * rowH + 12, { scale: 1, scheme: 'gray', align: 'left', shadow: 0 });
+  }
+  // WHO ARE YOU? - pick yourself from the family once on this phone, so the others see who's on and can challenge you
+  function drawWho(g, fr) {
+    var C = card(g), cx = Math.round((C.L + C.R) / 2), T = HW.TEAMS, cur = UI.who();
+    flaming(g, 'WHO ARE YOU?', cx, C.T + 28, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
+    Fo.draw(g, 'SO THE FAMILY CAN SEE WHO\'S ON AND CHALLENGE YOU', cx, C.T + 56, { scale: 1, scheme: 'cyan', shadow: 0 });
+    var NF = T.length, pw = Math.floor((C.W - 4 * (NF + 1)) / NF), py = C.T + 68, maxR = 0;
+    T.forEach(function (Tm) { maxR = Math.max(maxR, Tm.roster.length); });
+    var rowH = Math.min(36, Math.floor((C.B - 36 - py - 26) / maxR)), done = function (id) { setWho(id); UI.show(UI.whoNext || 'online'); };
+    T.forEach(function (Tm, ti) {
+      var x = C.L + 4 + ti * (pw + 4);
+      bevel(g, x, py, pw, 26 + Tm.roster.length * rowH + 4, '#06081e', Tm.color, 3);
+      Fo.draw(g, Tm.name.toUpperCase(), x + pw / 2, py + 14, { scale: 2, color: Tm.color });
+      Tm.roster.forEach(function (id, r) {
+        var y = py + 26 + r * rowH, f = miniFace(id, rowH - 4), d = HW.PLAYERS[id];
+        if (cur === id) { g.fillStyle = blink(2) ? '#ffe14d' : '#ffb000'; g.fillRect(x + 5, y, pw - 10, rowH - 1); g.fillStyle = '#06081e'; g.fillRect(x + 7, y + 2, pw - 14, rowH - 5); }
+        g.drawImage(f, x + 10, y + 2);
+        Fo.draw(g, d.first, x + 16 + f.width, y + rowH / 2, nameFit(d.first, pw - f.width - 30, { scheme: 'white', align: 'left', shadow: 0 }));
+        UI.btns.push({ id: 'who' + id, x: x + 4, y: y, w: pw - 8, h: rowH - 1, fn: function () { done(id); } });
+      });
+    });
+    button(g, 'whoskip', cx - 60, C.B - 30, 120, 24, cur ? 'BACK' : 'SKIP', { on: false, size: 1, fn: function () { if (!cur) setWho('-'); UI.show(UI.whoNext || 'online'); } });
   }
   function drawJoin(g, fr) {
     var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net, code = UI.code || '', busy = Net.mode === 'guest' && Net.stage === 'connecting';
@@ -894,7 +963,7 @@ window.HW = window.HW || {};
     });
     // an invite came in, or someone came online, during a game against the CPU: it waits on the pause menu
     var iv = INV.got || INV.ask, ia = iv && performance.now() - iv.t;
-    if (iv && !(HW.Net && HW.Net.mode) && ia < 12000 && Math.floor(ia / 400) % 3 < 2) Fo.draw(g, INV.got ? 'GAME INVITE! PAUSE TO JOIN IT' : 'SOMEONE CAME ONLINE! PAUSE TO INVITE THEM', cx, by + bh + 26, { scale: 1, scheme: 'green' });
+    if (iv && !(HW.Net && HW.Net.mode) && ia < 12000 && Math.floor(ia / 400) % 3 < 2) Fo.draw(g, INV.got ? (nameOf(INV.got.fr) ? nameOf(INV.got.fr) + ' CHALLENGES YOU! PAUSE TO JOIN' : 'GAME INVITE! PAUSE TO JOIN IT') : INV.ask.n === 1 && INV.ask.names.length === 1 && nameOf(INV.ask.names[0]) ? nameOf(INV.ask.names[0]) + ' CAME ONLINE! PAUSE TO CHALLENGE' : 'SOMEONE CAME ONLINE! PAUSE TO INVITE THEM', cx, by + bh + 26, { scale: 1, scheme: 'green' });
     // callouts: big flaming arcade text that pops in
     var maxW = W - S.l - S.r - 30, cy = 112;
     G.callouts.forEach(function (c, i) {

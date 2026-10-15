@@ -29,6 +29,7 @@ window.HW = window.HW || {};
   function loop(ts) {
     var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts; if (HW.dtOverride) dt = HW.dtOverride;
     UI.readInput();
+    if (UI.presTick) UI.presTick();   // (who's online: what this phone is doing, when it changes)
     var Net = HW.Net, live = Net && Net.playing();
     // online the game never stops for one phone's menu: II just opens it over the game
     if (live) { if (In.pauseDown && (!UI.screen || UI.screen === 'paused')) UI.screen = UI.screen ? null : 'paused'; }
