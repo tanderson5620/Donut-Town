@@ -26,7 +26,8 @@ window.HW = window.HW || {};
     }, 500);
   };
   function send(n) {
-    var msg = 'Someone just opened FAM JAM on ' + (HW.TOUCH ? 'a phone' : 'a computer') + (n > 1 ? ' - ' + n + ' online now' : '') + '. Tap to play.';
+    var who = get('famjam.who'), d = who && HW.PLAYERS && HW.PLAYERS[who];   // (the family member they picked on the ONLINE screen, if they have)
+    var msg = (d ? d.first : 'Someone') + ' just opened FAM JAM on ' + (HW.TOUCH ? 'a phone' : 'a computer') + (n > 1 ? ' - ' + n + ' online now' : '') + '. Tap to play.';
     set(LAST, String(Date.now())); N.sent = true;
     // a plain POST (title and the tap-through link as query parameters, no custom headers), so the browser sends it as is
     fetch(API + '?title=' + encodeURIComponent('FAM JAM') + '&tags=basketball&click=' + encodeURIComponent(GAME), { method: 'POST', body: msg, mode: 'no-cors' }).catch(function () { });
