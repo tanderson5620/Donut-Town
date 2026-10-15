@@ -244,20 +244,24 @@ window.HW = window.HW || {};
     if (!p.sbGo && p.def.type === 'shooter' && threeFrom(p) && across > 1.5 && across > Math.abs(along)) {
       p.state = 'stepback'; p.st = 0; p.sb = { ux: ux, uz: uz }; p.sbRel = false; p.face = side(p.team); p.dm = null; (Au.dribble || Au.bounce)(5); return;
     }
-    // now and then (CART_P of their other threes) a 3-point shooter cartwheels off away from the rim first, one-handed, then chucks
-    // it one-handed - the same jump, release window, odds (from where he started) and blocks as his jump shot
+    // now and then (CART_P, 1 in 20 of their other threes) a 3-point shooter cartwheels off away from the rim first, one-handed, then
+    // chucks it one-handed - and it's money: nobody can steal it, shove him, contest it or block it, and it always goes in
     if (!p.sbGo && !p.cartGo && p.def.type === 'shooter' && threeFrom(p) && -along <= 1.0 && X.hasAnim(p, 'cartwheel') && Math.random() < CART_P) {
       p.state = 'cartwheel'; p.st = 0; p.cartFrom = { x: p.x, z: p.z }; p.sbRel = false; p.face = -side(p.team); p.vx = p.vz = 0; p.dm = null; Au.whoosh(5); return;
     }
     p.cart = !!p.cartGo;
     p.state = 'shoot'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH * 0.9); p.y = 0.001; p.released = false; p.tApex = p.vy / GRAV; p.stepT = !!p.sbGo;
-    // a 3-point shooter pulling up while moving away from the basket shoots a fadeaway: leaning back, knee kicked out, drifting away
+    // a 3-point shooter pulling up while moving away from the basket shoots a fadeaway: leaning back, knee kicked out, drifting away;
+    // running at it, the one-foot three (LaMelo style): off one foot, the other knee driving up, carried a little forward by his run -
+    // a three like any other (the odds from where he took off)
     p.fade = p.def.type === 'shooter' && !p.sbGo && -along > 1.0;
+    p.onefoot = p.def.type === 'shooter' && !p.sbGo && !p.cartGo && along > 1.0 && threeFrom(p) && X.hasAnim(p, 'shoot_onefoot');
+    p.shotFrom = { x: p.x, z: p.z };
     p.face = side(p.team); Au.jump();
   };
   // the cartwheel: 0.8 s round the wheel and about 1.7 m away from the rim (the frames turn him back toward it at the end), then the
   // one-handed chuck. Let go of SHOOT during it and the shot goes up on its own, like after the step-back (judged on when he let go)
-  var CART_P = 0.15, CW_T = 0.8;
+  var CART_P = 0.05, CW_T = 0.8;
   function cartwheel(p, dt) {
     p.face = -side(p.team); p.vx = p.st < 0.72 * CW_T ? p.face * 2.6 : 0; p.vz = 0; p.vy = 0; p.y = 0;
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6);
@@ -286,7 +290,7 @@ window.HW = window.HW || {};
     if (p.state !== 'shoot' || p.released || !p.hasBall) return;
     p.released = true; p.st2 = 0;
     // (after a cartwheel the odds are the ones from where he started it)
-    var b = G.ball, rx = rimX(p.team), sp = p.cart && p.cartFrom || p, d = Math.hypot(sp.x - rx, sp.z - K.HZ), three = d > K.R3 - 0.1 && Math.abs(sp.z - K.HZ) < 6.2 || d > K.R3 + 0.3;
+    var b = G.ball, rx = rimX(p.team), sp = p.cart && p.cartFrom || p.onefoot && p.shotFrom || p, d = Math.hypot(sp.x - rx, sp.z - K.HZ), three = d > K.R3 - 0.1 && Math.abs(sp.z - K.HZ) < 6.2 || d > K.R3 + 0.3;
     var s = p.def.stats, pm;
     if (three) pm = 0.16 + 0.05 * s.tp; else if (d > 4.5) pm = 0.34 + 0.035 * s.tp; else if (d > 2.2) pm = 0.48 + 0.025 * Math.max(s.tp, s.dunk); else pm = 0.68 + 0.02 * s.dunk;
     // release timing, from the press of SHOOT: the top of a jump shot is the sweet spot (wider for shooters from deep), and a step-back
@@ -304,16 +308,21 @@ window.HW = window.HW || {};
     var deep = Math.max(0, d - (K.R3 + 1.0)), deepF = Math.exp(-0.42 * deep); pm *= deepF;
     if (p.onFire) pm = Math.max(pm, (sig(p, 'tp') ? 0.99 : 0.94) * Math.exp(-0.3 * Math.max(0, d - (K.R3 + 2.5))));
     pm = clamp(pm, deep > 3 ? 0.005 : 0.04, 0.97);
-    var make = Math.random() < pm;
+    var make = p.cart || Math.random() < pm;   // (the cartwheel three always goes in)
     // a 3-point shooter who knows it's good does a shoulder shimmy once he lands, about 2 in 10 of his made threes
     p.shimmy = make && three && p.def.type === 'shooter' && Math.random() < 0.2;
     p.hasBall = false; b.holder = null; b.state = 'shot'; b.last = p;
-    b.shotInfo = { by: p, team: p.team, three: three, sb: !!p.stepT, make: make, quality: quality, t: 0, T: 0.7 + d * 0.055, x0: b.x, y0: b.y, z0: b.z, rx: rx, arc: 1.4 + d * 0.13, missX: rand(-0.35, 0.35), missZ: rand(-0.3, 0.3) };
+    b.shotInfo = { by: p, team: p.team, three: three, sb: !!p.stepT, cw: !!p.cart, of: !!p.onefoot, sure: !!(p.cart || p.stepT), make: make, quality: quality, t: 0, T: 0.7 + d * 0.055, x0: b.x, y0: b.y, z0: b.z, rx: rx, arc: 1.4 + d * 0.13, missX: rand(-0.35, 0.35), missZ: rand(-0.3, 0.3) };
     p.stats.fga++; if (three) p.stats.tpa++;
     if (p.human && quality === 'green') G.say('GREEN!', '#5cff7a', 0.7, 0.6);
     Au.whoosh(6);
   };
+  // a shooter in his move: the step-back (it makes space: no steal on the way, no contest, no block) and the cartwheel (all that, and
+  // it always goes in) - from the press of SHOOT until the ball's gone
+  function guarded(h) { return !!h && (h.state === 'cartwheel' || h.state === 'stepback' || h.state === 'shoot' && !h.released && (h.cart || h.stepT)); }
+  G.guarded = guarded;
   function contest(p) {
+    if (p.cart || p.stepT) return 0;
     var c = 0; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < 1.6 && q.state !== 'fall') c = Math.max(c, (1.6 - d) / 1.6 * (q.y > 0.25 ? 0.32 : 0.16) * (0.7 + q.def.stats.block / 20)); }); return c;
   }
 
@@ -464,7 +473,7 @@ window.HW = window.HW || {};
   }
   G.trySteal = function (p) {
     if (p.cd.steal > 0 || p.busy()) return; p.cd.steal = 0.55; p.state = 'steal'; p.st = 0; Au.swipe ? Au.swipe() : Au.whoosh(3);   // every swipe whooshes
-    var h = G.ball.holder; if (!h || h.team === p.team || dist(p, h) > 1.8) return;
+    var h = G.ball.holder; if (!h || h.team === p.team || dist(p, h) > 1.8 || guarded(h)) return;   // (not off a shooter in his step-back or cartwheel)
     p.face = h.x >= p.x ? 1 : -1;
     var c = 0.03 + 0.03 * p.def.stats.steal - 0.01 * h.def.stats.speed + (Math.hypot(h.vx, h.vz) < 0.5 ? 0.2 : 0) + (p.human ? 0.1 : 0) - (h.state === 'shoot' ? 0.1 : 0) - 0.015 * Math.max(0, h.def.stats.str - p.def.stats.str) + (sig(p, 'steal') ? 0.3 : 0);
     if (!p.human) c *= G.diff.steal * 0.75;   // the computer gets less of the boost
@@ -476,7 +485,7 @@ window.HW = window.HW || {};
     if (p.cd.shove > 0 || p.busy()) return; p.cd.shove = 0.9; p.state = 'shove'; p.st = 0;
     // bruisers (STR 9+, on fire counts) don't just push: a roundhouse kick, a Superman punch or a kick to the shins
     p.shoveStyle = p.def.stats.str >= 9 ? pick(['kick', 'punch', 'shin']) : null;
-    var tgt = null, bd = 1.6; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < bd && q.state !== 'fall') { bd = d; tgt = q; } });
+    var tgt = null, bd = 1.6; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < bd && q.state !== 'fall' && !guarded(q)) { bd = d; tgt = q; } });
     Au.shove(); Au.shoveYell && Au.shoveYell(((HW.FAMILY || {})[p.id] || {}).sex === 'f'); if (!tgt) return;
     p.face = tgt.x >= p.x ? 1 : -1; p.stats.shoves++;
     var dx = (tgt.x - p.x) / (bd || 1), dz = (tgt.z - p.z) / (bd || 1), str = p.def.stats.str, fs = sig(p, 'str'), wall = sig(tgt, 'str') && !fs;
@@ -498,7 +507,7 @@ window.HW = window.HW || {};
   // takes him down, both legs across him, pulls the wrist into his chest and bridges - SNAP. His man is down for 10 s, and stays down
   // through every stoppage (baskets, quarter breaks: G.lineup leaves him where he lies); then he gets up and plays on
   var ARMBAR_P = 0.05, AB_T = 1.4, AB_SNAP = 0.62, AB_UP = 0.6, HURT = 10;
-  function canArmbar(p, q) { return p.grounded() && q.grounded() && !q.hurtT && !G.cine && !G.pu && !G.show && G.phase === 'play' && X.hasAnim(p, 'armbar') && X.hasAnim(q, 'armbarred'); }
+  function canArmbar(p, q) { return p.grounded() && q.grounded() && !q.hurtT && !guarded(q) && !G.cine && !G.pu && !G.show && G.phase === 'play' && X.hasAnim(p, 'armbar') && X.hasAnim(q, 'armbarred'); }
   function abGap(p, q) {   // how far ahead of him his man lies, so the arm reaches his chest (from the sprites' hand points)
     var a = X.animPoint(p.id, 'armbar', 5, 'hand'), b = X.animPoint(q.id, 'armbarred', 5, 'hand');
     return a && b ? clamp(a.x - b.x, 0.5, 1.3) : 0.85;
@@ -549,7 +558,7 @@ window.HW = window.HW || {};
     if (pts === 3 && sig(p, 'tp')) for (var fi = 0; fi < 6; fi++) X.flame(rimX(team) + (Math.random() - 0.5) * 0.5, K.RIM_H - 0.3, K.HZ, 4, 0.5);
     p.streak++; if (!p.onFire && p.streak >= 3) { p.onFire = true; G.puQueue = p; Au.fire(); }   // he powers up as soon as he's back on his feet
     G.players.forEach(function (q) { if (q.team !== team) { if (q.onFire) { G.say(q.def.first.toUpperCase() + ' COOLS OFF', '#9ad0ff', 1.2, 0.7); if (q.ssj) X.powerDown(q); } q.onFire = false; q.ssj = 0; q.streak = 0; if (G.puQueue === q) G.puQueue = null; } });
-    var txt = !dunk && info && info.lay && info.by === p && HW.PHRASES[info.lay] ? pick(HW.PHRASES[info.lay]) : dunk ? (pts === 3 ? '3-POINT DUNK!' : pick(HW.PHRASES.dunk)) : pts === 3 ? (info && info.sb ? 'STEP-BACK THREE!' : pick(HW.PHRASES.three)) : info && info.quality === 'green' ? pick(HW.PHRASES.swish) : pick(HW.PHRASES.two);
+    var txt = !dunk && info && info.lay && info.by === p && HW.PHRASES[info.lay] ? pick(HW.PHRASES[info.lay]) : dunk ? (pts === 3 ? '3-POINT DUNK!' : pick(HW.PHRASES.dunk)) : pts === 3 ? (info && info.cw ? 'CARTWHEEL THREE!' : info && info.sb ? 'STEP-BACK THREE!' : info && info.of ? 'ONE-FOOT THREE!' : pick(HW.PHRASES.three)) : info && info.quality === 'green' ? pick(HW.PHRASES.swish) : pick(HW.PHRASES.two);
     G.say(txt, dunk ? '#ff7a1a' : pts === 3 ? '#ffb347' : '#ffe14d', 1.5, dunk ? 1.3 : 1);
     Au.cheer(pts === 3 || dunk); X.hype = Math.max(X.hype, dunk || pts === 3 ? 3 : 1.5);
     // a fan in the stands yells "baba booey!" after a three: always the first one of the game, then about 1 in 3
@@ -749,8 +758,9 @@ window.HW = window.HW || {};
     if (p.state === 'pass' && p.passStyle === 'moon' && p.st < 0.75) { p.vx = -p.face * 1.8; p.vz *= 0.85; }   // moonwalking backward toward his man
     if (p.state === 'dougie') { p.face = -side(p.team); p.vx = p.face * 1.3; p.vz = 0; if (p.st > DOUGIE_T) { p.state = 'idle'; p.vx = 0; } }   // side-stepping back up the court
     if (p.state === 'shoot' && p.fade && p.y > 0) { p.vx = (p.x > rimX(p.team) ? 1 : -1) * 2.0; p.vz *= 0.9; }   // the fadeaway drifts away from the rim
+    if (p.state === 'shoot' && p.onefoot && p.y > 0) { p.vx = (p.x > rimX(p.team) ? -1 : 1) * 0.9; p.vz *= 0.85; }   // the one-footer carries on a little toward it
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
-    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump' || p.state === 'hammer') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = p.shimmy ? 'shimmy' : 'idle'; p.st = 0; p.shimmy = false; if (p.fade) p.vx *= 0.15; p.fade = false; if (p.state === 'shimmy') { p.vx = p.vz = 0; } } } }
+    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump' || p.state === 'hammer') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = p.shimmy ? 'shimmy' : 'idle'; p.st = 0; p.shimmy = false; if (p.fade || p.onefoot) p.vx *= 0.15; p.fade = false; p.onefoot = false; if (p.state === 'shimmy') { p.vx = p.vz = 0; } } } }
     if (p.state === 'shoot' && p.hasBall && !p.released && p.sbAuto && p.st >= p.tApex) G.releaseShot(p);   // let go during the step-back or cartwheel: up it goes
     if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * (p.remote ? 1.95 : 1.7)) G.releaseShot(p);   // a guest's release is on its way: wait longer for it
     if (p.state === 'pass') updatePending(p);
@@ -823,7 +833,7 @@ window.HW = window.HW || {};
       });
       // swat it out of a shooter's hands on the way up: you, in the air, close enough to reach the ball
       var sh = b.holder;
-      if (sh.state === 'shoot' && !sh.released && sh.y > 0.1) G.opps(sh).forEach(function (q) {
+      if (sh.state === 'shoot' && !sh.released && sh.y > 0.1 && !guarded(sh)) G.opps(sh).forEach(function (q) {
         if (!q.human || b.holder !== sh || q.y < 0.15 || q.cd.block) return;
         var d = Math.hypot(q.x - sh.x, q.z - sh.z);
         if (d < 1.5 && b.y < q.y + q.reach + 0.7) { q.cd.block = 1; if (Math.random() < G.humanBlock(q, d)) G.blocked(q, sh, null); }
@@ -843,7 +853,7 @@ window.HW = window.HW || {};
       // blocks: anyone off the floor near the ball in its flight (goaltending is legal here); one try per jump. You get a wide reach
       // and good odds when you're right on him (G.humanBlock); computer blockers need to be closer and get worse odds
       G.opps(s.by).forEach(function (q) {
-        if (b.state !== 'shot' || s.lay || q.y < 0.15 || q.cd.block) return;
+        if (b.state !== 'shot' || s.lay || s.sure || q.y < 0.15 || q.cd.block) return;   // (not a step-back or cartwheel three)
         var hum = q.human, d = Math.hypot(q.x - b.x, q.z - b.z);
         if (u < (hum ? 0.6 : 0.45) && d < (hum ? 1.6 : 1.0) + (sig(q, 'block') ? 0.5 : 0) && b.y < q.y + q.reach + (hum ? 0.7 : 0.35)) {
           q.cd.block = 1;
@@ -917,7 +927,7 @@ window.HW = window.HW || {};
       case 'stepback': if (X.hasAnim(p, 'stepback')) { p.anim = 'stepback'; p.frame = p.st < 0.08 ? 0 : p.st < 0.26 ? 1 : 2; } else { p.anim = 'shoot'; p.frame = 0; } p.dir = 'R'; return;
       case 'shimmy': p.anim = 'shimmy'; p.dir = 'F'; p.frame = (p.st * 11) % 6; return;   // the shoulder shimmy after a made three
       case 'dougie': p.anim = p.dougie || 'dougie'; p.dir = 'R'; p.frame = Math.floor(p.st * 16 / 1.4) % 16; return;   // a 1.4 s beat-cycle
-      case 'shoot': p.anim = p.cart && X.hasAnim(p, 'shoot_chuck') ? 'shoot_chuck' : p.fade && X.hasAnim(p, 'shoot_fade') ? 'shoot_fade' : 'shoot'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
+      case 'shoot': p.anim = p.cart && X.hasAnim(p, 'shoot_chuck') ? 'shoot_chuck' : p.fade && X.hasAnim(p, 'shoot_fade') ? 'shoot_fade' : p.onefoot && X.hasAnim(p, 'shoot_onefoot') ? 'shoot_onefoot' : 'shoot'; if (p.dir === 'B' || p.anim === 'shoot_onefoot') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
       case 'jump': p.anim = 'jump'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.vy > 2 ? 1 : 2; return;
       case 'pass': if (p.passStyle) { var F = FANCY[p.passStyle]; p.anim = 'pass_' + p.passStyle; p.dir = p.passStyle === 'back' ? 'W' : 'R'; p.frame = frameAt(F, p.st); }
         else { p.anim = 'pass'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); } return;

@@ -421,6 +421,15 @@ ANIMS.shoot_fade = { n: 5, dirs: ['R', 'F'], f: function (t, i) { return [
   { lean: -0.38, rs: 2.55, re: 1.4, ls: 2.3, le: 1.0, rt: 1.0, rk: 0.85, lt: -0.15, lk: 0.3, air: 1 },
   { lean: -0.48, rs: 2.55, re: 0.15, ls: 2.2, le: 0.6, rt: 1.15, rk: 0.55, lt: -0.2, lk: 0.35, air: 1 },
   { lean: -0.42, rs: 2.35, re: 0.4, ls: 1.6, le: 0.5, rt: 0.95, rk: 0.7, lt: -0.15, lk: 0.3, air: 1 }][i]; } };
+// 3-point shooters running at the basket: the one-foot three (LaMelo style) - he rises off his far foot, the near knee driving up and
+// forward and staying up through the shot, leaning a touch into it with his run, the far leg hanging straight under him; the same
+// five beats and high release as his jump shot (gather, rise, top, release, follow-through)
+ANIMS.shoot_onefoot = { n: 5, dirs: ['R'], f: function (t, i) { return [
+  { crouch: 0.22, lean: 0.24, rs: 1.25, re: 1.7, ls: 1.25, le: 1.7, rz: 0.1, lz: 0.1, rt: 0.85, rk: 1.25, lt: 0.25, lk: 0.75 },
+  { crouch: 0.02, lean: 0.12, rs: 2.2, re: 1.3, ls: 2.1, le: 1.3, rt: 1.15, rk: 1.15, lt: -0.02, lk: 0.1, air: 1 },
+  { lean: 0.08, rs: 2.75, re: 1.5, ls: 2.4, le: 1.0, rt: 1.25, rk: 1.1, lt: -0.04, lk: 0.12, air: 1 },
+  { lean: 0.1, rs: 3.0, re: 0.15, ls: 2.5, le: 0.6, rt: 1.2, rk: 1.05, lt: -0.04, lk: 0.14, air: 1 },
+  { lean: 0.16, rs: 2.75, re: 0.45, ls: 1.9, le: 0.5, rt: 1.0, rk: 0.95, lt: -0.02, lk: 0.16, air: 1 }][i]; } };
 // the shimmy after a made three: shoulders shaking back and forth, elbows out, chest up, a little bounce (twice per loop)
 ANIMS.shimmy = { n: 6, dirs: ['F'], f: function (t, i) { var s = Math.sin(i / 6 * Math.PI * 4); return { crouch: 0.1 + 0.05 * Math.abs(s), twist: 0.5 * s, rs: 0.45 + 0.45 * s, ls: 0.45 - 0.45 * s, re: 1.75, le: 1.75, rz: 0.6, lz: 0.6, chx: -0.12, rt: 0.2, lt: 0.2, rk: 0.35, lk: 0.35 }; } };
 // the Harden step-back (3-point shooters moving side to side): gather the dribble low with the lead leg out front, the hop back off
