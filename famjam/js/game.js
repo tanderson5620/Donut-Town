@@ -555,7 +555,8 @@ window.HW = window.HW || {};
     // a fan in the stands yells "baba booey!" after a three: always the first one of the game, then about 1 in 3
     if (pts === 3 && !dunk && (!G.babaDone || Math.random() < 0.35) && Au.baba && Au.baba()) G.babaDone = true;
     G.hoopFx[team === 0 ? 1 : 0] = 1;
-    G.players.forEach(function (q) { if (q.team === team && q.state !== 'dunk' && q.state !== 'shimmy' && q.state !== 'dougie') { q.state = 'cheer'; q.st = 0; } });
+    // (not a man lying on the floor: knocked down, or hurt from an arm bar - he stays down, his injury still counting)
+    G.players.forEach(function (q) { if (q.team === team && q.state !== 'dunk' && q.state !== 'shimmy' && q.state !== 'dougie' && q.state !== 'fall' && !(q.hurtT > 0)) { q.state = 'cheer'; q.st = 0; } });
     G.phase = 'scored'; G.phaseT = 1.6; G.nextPoss = 1 - team;
   };
   G.missed = function (info) { info.by.streak = 0; };
@@ -601,7 +602,7 @@ window.HW = window.HW || {};
   // times (whip cracks) and walks off
   var TW = { len: 5.0, walk: 0.45, slow0: 0.45, slow1: 2.5, hits: [2.5, 3.15, 3.8, 4.45], leave: 4.6, quarter: 3.0, extra: 1.6, end: 4.0 };
   G.TW = TW;
-  function twerker(lisa) { return G.players.filter(function (q) { return q.def.powerup === 'twerk' && X.hasAnim(q, 'twerk') && (!lisa || q.def.cameo && X.hasAnim(q, 'twerk_hard') && X.hasAnim({ id: q.def.cameo }, 'spank')); })[0] || null; }
+  function twerker(lisa) { return G.players.filter(function (q) { return q.def.powerup === 'twerk' && !(q.hurtT > 0) && !q.abBy && X.hasAnim(q, 'twerk') && (!lisa || q.def.cameo && X.hasAnim(q, 'twerk_hard') && X.hasAnim({ id: q.def.cameo }, 'spank')); })[0] || null; }
   function startShow(p, kind, len) {
     G.show = { p: p, t: 0, len: len, kind: kind, zoom: kind === 'pu', hit: 0 }; p.face = p.x > 0 ? 1 : -1; p.vx = p.vz = 0; p.dm = null;   // rear toward midcourt, where Lisa comes from
     // with everyone on screen (a quarter's start, the buzzer) he steps up to the near sideline, in front of them all, so nobody's in
@@ -742,6 +743,8 @@ window.HW = window.HW || {};
       if (p.hurtT > 0 && (p.hurtT -= dt) <= 0) { p.hurtT = 0; p.abBy = null; p.state = 'idle'; p.flash = 0.8; }
       return;
     }
+    // (on his feet with time still on the injury - something stood him up early: it runs out all the same, so the badge never sticks)
+    if (p.hurtT > 0 && (p.hurtT -= dt) <= 0) { p.hurtT = 0; p.abBy = null; }
     if (p.state === 'fall') { var fr = p.y > 0 ? 1.2 : 6; p.vx *= Math.max(0, 1 - fr * dt); p.vz *= Math.max(0, 1 - fr * dt); if (p.st > (p.fallT || 1.3)) { p.state = 'idle'; p.flash = 0.6; p.fallT = 0; } }
     if (p.state === 'pass' && p.passStyle === 'moon' && p.st < 0.75) { p.vx = -p.face * 1.8; p.vz *= 0.85; }   // moonwalking backward toward his man
     if (p.state === 'dougie') { p.face = -side(p.team); p.vx = p.face * 1.3; p.vz = 0; if (p.st > DOUGIE_T) { p.state = 'idle'; p.vx = 0; } }   // side-stepping back up the court
