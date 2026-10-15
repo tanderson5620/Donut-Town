@@ -488,16 +488,25 @@ window.HW = window.HW || {};
       if (C.W >= 520) Fo.draw(g, 'VS', cx, C.T + 230, { scale: 3, scheme: 'red' });
       else Fo.draw(g, T[0].name + ' VS ' + T[1].name, cx, C.T + 230, { scale: 2, scheme: 'red' });
       Fo.draw(g, '2 ON 2 ARCADE BASKETBALL', cx, C.T + 258, { scale: 1, scheme: 'cyan' });
-      if (blink()) Fo.draw(g, HW.TOUCH ? 'TAP TO START' : 'CLICK OR PRESS ENTER', cx, C.T + 286, { scale: 2, scheme: 'yellow' });
+      var go = HW.TOUCH ? 'TAP TO START' : 'CLICK TO START';
+      if (blink()) Fo.draw(g, go, cx, C.T + 286, { scale: 2, scheme: 'yellow' });
       if (!HW.TOUCH) Fo.draw(g, 'MOVE: ARROWS  SHOOT: J  PASS: K  TURBO: L/SHIFT  PAUSE: P', cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
       UI.btns.push({ id: 'start', x: 0, y: 0, w: W, h: X.H, fn: function () { UI.show('team'); } });
-      if (HW.Net) button(g, 'online', C.R - 138, C.T + 270, 128, 32, 'ONLINE', { color: '#22c4f2', size: 2, fn: function () { UI.show('online'); } });   // play the family on their own phones
-      // who's on right now (presence.js) and how many have played (count.js)
-      var Pr = HW.Presence, Ct = HW.Count;
-      if (Pr && Pr.ok && Pr.count > 0) Fo.draw(g, Pr.count + ' ONLINE NOW', C.R - 74, C.T + 314, { scale: 1, scheme: 'green', shadow: 0 });
+      // the ONLINE button (play the family on their own phones) and who's on right now (presence.js), as big as fits in the
+      // bottom-right corner beside TAP TO START
+      var Pr = HW.Presence, Ct = HW.Count, colR = C.R - 8, colW = colR - (cx + Fo.measure(go, 2) / 2 + 14);
+      var obw = Math.round(Math.max(110, Math.min(200, colW))), big = obw >= 168, obh = big ? 46 : 34, obx = colR - obw, oby = C.T + 244;
+      if (HW.Net) button(g, 'online', obx, oby, obw, obh, 'ONLINE', { color: '#22c4f2', size: big ? 3 : 2, fn: function () { UI.show('online'); } });
+      if (Pr && Pr.ok && Pr.count > 0) {
+        var ot = Pr.count + ' ONLINE NOW', os = 2;
+        if (Fo.measure(ot, 2) > colW + 8) ot = Pr.count + ' ONLINE';
+        if (Fo.measure(ot, 2) > colW + 8) { ot = Pr.count + ' ONLINE NOW'; os = 1; }
+        Fo.draw(g, ot, Math.min(obx + obw / 2, C.R - 4 - Fo.measure(ot, os) / 2), oby + obh + (os === 2 ? 14 : 10), { scale: os, scheme: 'green', shadow: os === 2 ? 2 : 0 });
+      }
+      // how many have played (count.js)
       var tot = Ct ? [Ct.games != null ? Ct.games + ' GAMES PLAYED' : '', Ct.players != null ? Ct.players + (Ct.players === 1 ? ' PLAYER' : ' PLAYERS') : ''].filter(Boolean).join('   ') : '';
       if (tot) Fo.draw(g, tot, cx, HW.TOUCH ? C.B - 10 : C.B - 24, { scale: 1, scheme: 'gray', shadow: 0 });
-      if (HW.Notify && HW.Notify.marked) Fo.draw(g, 'GOT IT: THIS DEVICE WON\'T SEND YOU NOTIFICATIONS', cx, HW.TOUCH ? C.B - 24 : C.B - 38, { scale: 1, scheme: 'green', shadow: 0 });   // (opened with ?me)
+      if (HW.Notify && HW.Notify.marked) Fo.draw(g, 'GOT IT: THIS DEVICE WON\'T SEND YOU NOTIFICATIONS', C.L + 10, HW.TOUCH ? C.B - 24 : C.B - 38, { scale: 1, scheme: 'green', shadow: 0, align: 'left' });   // (opened with ?me; clear of the ONLINE corner)
       if (In.enter) UI.show('team');
     } else if (s === 'team') {
       drawTeamCard(g, fr);
@@ -694,7 +703,9 @@ window.HW = window.HW || {};
       Fo.draw(g, t, C.L + 20, hy + 18 + i * Math.min(20, (hh - 24) / 4), { scale: 1, scheme: i === 3 ? 'yellow' : 'white', align: 'left', shadow: 0 });
     });
     button(g, 'back', cx - 40, C.B - 30, 80, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show('title'); } });
-    var Pr = HW.Presence; if (Pr && Pr.ok && Pr.count > 0) Fo.draw(g, Pr.count === 1 ? 'JUST YOU ONLINE NOW' : Pr.count + ' PEOPLE ONLINE NOW', C.R - 90, C.B - 18, { scale: 1, scheme: 'green', shadow: 0 });
+    // who's on: big at the bottom right if it fits beside BACK
+    var Pr = HW.Presence;
+    if (Pr && Pr.ok && Pr.count > 0) { var pt = Pr.count === 1 ? 'JUST YOU ONLINE NOW' : Pr.count + ' PEOPLE ONLINE NOW', ps = Fo.measure(pt, 2) <= C.R - 10 - (cx + 52) ? 2 : 1; Fo.draw(g, pt, C.R - 10, C.B - 18, { scale: ps, scheme: 'green', shadow: ps === 2 ? 2 : 0, align: 'right' }); }
     if (In.enter) { Net.host(); UI.show('lobby'); }
   }
   function drawJoin(g, fr) {
