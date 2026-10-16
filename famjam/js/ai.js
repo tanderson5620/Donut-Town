@@ -36,7 +36,9 @@ window.HW = window.HW || {};
     a.hold += dt;
     if (a.t <= 0) {
       a.t = 0.25 + Math.random() * 0.15;
-      a.side = opp.who && opp.who.z > p.z ? -1 : 1;
+      // attack the side away from his man - only switching when the man is clearly on the other side (it used to flip back and forth
+      // every quarter second with the man square in front of him, and he stuttered on the spot)
+      if (opp.who && Math.abs(opp.who.z - p.z) > 0.5) a.side = opp.who.z > p.z ? -1 : 1; else if (!a.side) a.side = p.z > K.HZ ? 1 : -1;
       var open = opp.d > 1.5, late = G.shot < 3.5;
       if (G.canDunk(p) && a.hold > 0.5 && (open ? Math.random() < 0.4 + p.def.stats.dunk * 0.02 : Math.random() < 0.06 + p.def.stats.dunk * 0.01) * G.diff.shoot) { G.startDunk(p); return; }
       if (mate && a.hold > 0.7 && !late && !mate.human) {
@@ -51,9 +53,13 @@ window.HW = window.HW || {};
         if (Math.random() < base) { a.relAt = 0.82 + Math.random() * 0.3; G.startShot(p); return; }
       }
     }
+    // where he takes it: up the floor to the elbow on his side, then at the rim - the elbow is only on the way (it used to be where he
+    // stopped: the spot is 5.3 m out and he only went on inside 5 m, so he stood there, a sitting duck for a steal, until he passed,
+    // shot or the shot clock ran out - the bigs, out of range there, for up to 20 s). A shooter spots up on the wing behind the arc for
+    // his shot first and drives if it isn't there after a few seconds
     var tx, tz;
-    if (type === 'shooter' && d < 6.2 && a.hold < 3) { tx = rx - s * 6.4; tz = K.HZ + (a.side || 1) * 4.2; }
-    else if (d > 5) { tx = rx - s * 4.5; tz = K.HZ + (a.side || 1) * 2.8; }
+    if (type === 'shooter' && a.hold < 3) { tx = rx - s * 6.4; tz = K.HZ + (a.side || 1) * 4.2; }
+    else if (d > 6.5) { tx = rx - s * 4.5; tz = K.HZ + (a.side || 1) * 2.8; }
     else { tx = rx - s * 0.9; tz = K.HZ + (a.side || 1) * 0.8; }
     goTo(p, tx, tz, d > 3.5, dt);
   }
