@@ -29,7 +29,7 @@ window.HW = window.HW || {};
     }
     a.t -= dt;
     // a pass is on its way to him: go meet it instead of drifting off to his spot
-    if (b.state === 'pass' && b.pass && b.pass.to === p) { goTo(p, b.pass.x1, b.pass.z1, false, dt); return; }
+    if (b.state === 'pass' && b.pass && b.pass.to === p) { goTo(p, b.pass.ax != null ? b.pass.ax : b.pass.x1, b.pass.az != null ? b.pass.az : b.pass.z1, false, dt); return; }   // meet it where it was thrown
     // floor balance: the moment a shot of his team's goes up (a jumper, a layup or a dunk), the team's safety - the slower one, or his
     // partner if he's the one shooting - gets back on D before the other team has it, until somebody does
     if (G.backMan(p.team) === p) a.safe = true; else if (b.holder) a.safe = false;   // (somebody's got it: normal again)

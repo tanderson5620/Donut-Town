@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=26';   // (the faces carry it too)
+  var SHEET_V = '?v=27';   // (the faces carry it too)
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -557,6 +557,10 @@ window.HW = window.HW || {};
         zmax = Math.max(1.35, Math.min(2.0, 0.92 * W / span)); zf = { x: (ga.x + gq.x) / 2 - (pp.face || 1) * 0.75 * ga.s - X.shakeX, y: ga.y - 0.5 * ga.s - X.shakeY };
       }
       za = vic ? e((vic.t - J.WIN.zoom0) / J.WIN.zoomT) : u < 0.25 ? e(u / 0.25) : u > D - 0.3 ? e((D - u) / 0.3) : 1; zk = 1 + (zmax - 1) * za;
+      if (cine && pu.kind === 'kick' && pu.q) {   // the low blow: the two of them in frame, the shooter in the air and his man taking it
+        var kq = X.proj(pu.q.x, 0, pu.q.z), kspan = Math.abs(gd.x - kq.x) + 2.2 * gd.s;
+        zmax = Math.min(zmax, Math.max(1.25, 0.9 * W / kspan)); zf = { x: (gd.x + kq.x) / 2 - X.shakeX, y: zf.y };
+      }
       if (cine && pu.kind === 'board' && ball) {
         // off the glass: in close on the ball itself as it leaves his hand, tightest as it hits the board, back out as it comes back to
         // him - full view again the moment it's in his hand (u = how far through the dunk he is)
@@ -624,7 +628,7 @@ window.HW = window.HW || {};
     X.drawParts(g, dt);
     // a man down from an arm bar: a red-cross badge over him counting down the seconds until he's back up
     players.forEach(function (p) {
-      if (!(p.hurtT > 0) || !HW.Font) return; var gp = X.proj(p.x, 0, p.z), bx = gp.x - X.shakeX, by = gp.y - 0.95 * gp.s - X.shakeY, r = Math.max(9, 0.17 * gp.s);
+      if (!(p.hurtT > 0) || !HW.Font || HW.Jam && HW.Jam.cine && HW.Jam.cine.kind === 'kick' && HW.Jam.cine.q === p) return; var gp = X.proj(p.x, 0, p.z), bx = gp.x - X.shakeX, by = gp.y - 0.95 * gp.s - X.shakeY, r = Math.max(9, 0.17 * gp.s);   // (not over the low blow's close-up)
       g.fillStyle = 'rgba(0,0,0,0.55)'; g.beginPath(); g.arc(bx, by, r + 3, 0, 6.283); g.fill(); g.fillStyle = '#e8141e'; g.beginPath(); g.arc(bx, by, r, 0, 6.283); g.fill();
       g.fillStyle = '#fff'; g.fillRect(bx - r * 0.55, by - r * 0.18, r * 1.1, r * 0.36); g.fillRect(bx - r * 0.18, by - r * 0.55, r * 0.36, r * 1.1);
       HW.Font.draw(g, String(Math.ceil(p.hurtT)), bx + r + 4, by, { scale: 2, scheme: 'white', align: 'left', outline: 1, shadow: 1 });
