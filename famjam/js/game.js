@@ -35,14 +35,17 @@ window.HW = window.HW || {};
     if (isGuy(src) && !o.block) Au.trash && Au.trash();   // and the guy who did it talks trash now and then (not on a block)
     if (q && !isGuy(q)) Au.painF && Au.painF();   // a woman takes the hit with a pained grunt
   };
-  // what the crowd yells when p flattens q: family trash talk when it fits (aunt/uncle on a niece/nephew, cousin on cousin, a woman
-  // dropping a guy), mixed in with the plain knockdown calls; never the same line twice in a row
+  // what the crowd yells when p flattens q: family trash talk when it fits (aunt/uncle on a niece/nephew and back, cousin on cousin,
+  // brother or sister on a sibling, in-laws, anyone on someone who married in, a woman dropping a guy), mixed in with the plain
+  // knockdown calls; never the same line twice in a row
   var lastLine = '', catchBag = {};
   function knockLine(p, q) {
     var P = HW.PHRASES, F = HW.FAMILY || {}, a = F[p.id], b = F[q.id], fam = [];
     if (a && b && a.fam !== b.fam) {
-      if (a.gen === 1 && b.gen === 2) fam = fam.concat(a.sex === 'f' ? P.aunt : P.uncle, a.sex === 'f' ? P.aunt : P.uncle);   // listed twice: the family lines come up most
-      if (a.gen === 2 && b.gen === 2) fam = fam.concat(P.cousin, P.cousin);
+      var rel = a.gen === 1 && b.gen === 2 ? (a.sex === 'f' ? P.aunt : P.uncle) : a.gen === 2 && b.gen === 1 ? (b.sex === 'f' ? P.toAunt : P.toUncle)
+        : a.gen === 2 ? P.cousin : a.blood && b.blood ? P.sibling : P.inlaw;
+      fam = fam.concat(rel, rel);   // listed twice: the family lines come up most
+      if (!b.blood) fam = fam.concat(P.marriedIn);
     }
     if (a && b && a.sex === 'f' && b.sex === 'm') fam = fam.concat(P.girlBeatsGuy);
     var pool = fam.length && Math.random() < 0.75 ? fam : P.shove.concat(fam), line;
