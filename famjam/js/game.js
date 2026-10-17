@@ -185,11 +185,12 @@ window.HW = window.HW || {};
     if (!ib.at && (d < 0.15 || ib.t > 3)) { ib.at = true; p.x = ib.x; p.z = ib.z; }
     if (!ib.at) { var v = Math.min(INB.walk, d * 6) / d; p.vx = dx * v; p.vz = dz * v; if (Math.abs(dx) > 0.2) p.face = dx > 0 ? 1 : -1; return; }
     p.vx = p.vz = 0; p.face = side(ib.team); ib.ht += dt;
-    if (ib.ht >= (p.human ? INB.auto : INB.hold)) G.inbPass();
+    if (ib.ht >= (ib.ask ? 0.12 : p.human ? INB.auto : INB.hold)) G.inbPass();   // (asked for on the way out: in it goes as soon as he's squared up)
   }
   // in it goes: a plain chest pass to his partner (or he walks it in himself if his partner's on the floor)
   G.inbPass = function () {
     var ib = G.inb; if (!ib || G.ball.holder !== ib.p) return;
+    if (!ib.at) { ib.ask = true; return; }   // not out on the baseline yet: PASS (his, or his partner calling for it) waits until he is
     var to = ib.to; if (!to || to.state === 'fall' || to.hurtT > 0) { G.inb = null; G.phase = 'play'; return; }
     ib.p.face = to.x >= ib.p.x ? 1 : -1; launchPass(ib.p, to, null); G.ball.pass.inb = true; G.inb = null; G.phase = 'play';   // (an inbound pass reaches him: see the catch)
   };
@@ -538,6 +539,7 @@ window.HW = window.HW || {};
   function frameStart(F, i) { if (!F.w) return F.dur * i / F.n; var a = 0, t = 0; F.w.forEach(function (w, k) { t += w; if (k < i) a += w; }); return F.dur * a / t; }
   function frameAt(F, st) { for (var i = F.n - 1; i > 0; i--) if (st >= frameStart(F, i)) return i; return 0; }
   G.passTo = function (p, to) {
+    if (G.inb && G.inb.p === p) { G.inbPass(); return; }   // the inbounder only throws it in from the baseline
     if (!p.hasBall || !to || p.state === 'dunk' || p.pending || to.hurtT > 0) return;
     var air = p.state === 'shoot';
     if (air) { if (p.released) return; p.state = 'idle'; }
