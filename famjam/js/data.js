@@ -110,6 +110,8 @@ window.HW = window.HW || {};
   HW.PHRASES = {
     two: ['BUCKET!', 'COUNT IT!', 'MONEY!', 'NOTHING BUT NET!', 'IN YOUR FACE!'],
     three: ['FROM DOWNTOWN!', 'RAIN MAKER!', 'FROM THE PARKING LOT!', 'SPLASH!'],
+    // a shooter's cartwheel three: his own trash talk, every time
+    cart: ['FUCK YEAH!', 'SUCK IT!', "I'M HOT SHIT!", 'BUTTER THOSE BISCUITS!'],
     swish: ['SWISH!', 'NOT A TOUCH!', 'PURE BUTTER!'],
     dunk: ['KABOOM!', 'RIM WRECKER!', 'SLAM-A-LAMA!', 'HAMMER TIME!', 'THUNDER DUNK!'],
     // the Ball Handlers' layups: the plain one, the finger roll, the reverse
