@@ -442,6 +442,16 @@ ANIMS.shoot_onefoot = { n: 5, dirs: ['R'], f: function (t, i) { return [
   { lean: 0.08, rs: 2.75, re: 1.5, ls: 2.4, le: 1.0, rt: 1.25, rk: 1.1, lt: -0.04, lk: 0.12, air: 1 },
   { lean: 0.1, rs: 3.0, re: 0.15, ls: 2.5, le: 0.6, rt: 1.2, rk: 1.05, lt: -0.04, lk: 0.14, air: 1 },
   { lean: 0.16, rs: 2.75, re: 0.45, ls: 1.9, le: 0.5, rt: 1.0, rk: 0.95, lt: -0.02, lk: 0.16, air: 1 }][i]; } };
+// the 3-point shooters' jump shot, Steph Curry style: a quick one-motion release - the ball low at his hip on the gather, lifted in
+// one smooth motion up past his face (both hands on it, by IK on the ball's own path) to a set point just above his forehead, and let
+// go early, on the way up (the game times the green window there), the guide hand peeling off, the feet kicking a little apart and
+// forward; then the high follow-through. The game carries its ball between his palms (meta.hand) until it leaves
+ANIMS.shoot_steph = { n: 5, dirs: ['R', 'F'], armOver: true, f: function (t, i) { return [
+  { crouch: 0.26, lean: 0.22, rs: 0.6, re: 1.2, rz: 0.1, ls: 0.6, le: 1.3, lz: 0.1, rt: 0.5, lt: 0.5, rk: 1.0, lk: 1.0, bx: -0.08, by: -0.42, bz: 0.3, g0: 1, g1: 1 },
+  { crouch: 0.04, lean: 0.08, rs: 1.5, re: 1.9, rz: 0.1, ls: 1.4, le: 1.8, lz: 0.1, rt: 0.12, lt: 0.08, rk: 0.25, lk: 0.25, bx: -0.06, by: 0.14, bz: 0.32, g0: 1, g1: 1, air: 1 },
+  { lean: 0.02, rs: 2.4, re: 1.9, rz: 0.1, ls: 2.2, le: 1.6, lz: 0.1, rt: 0.1, lt: 0.05, rk: 0.3, lk: 0.25, ra: 0.08, la: 0.08, bx: -0.1, by: 0.42, bz: 0.22, g0: 1, g1: 1, air: 1 },
+  { lean: -0.02, rs: 2.7, re: 0.4, rz: 0.08, ls: 2.0, le: 0.8, lz: 0.4, rt: 0.25, lt: 0.15, rk: 0.45, lk: 0.35, ra: 0.12, la: 0.12, bx: -0.08, by: 0.75, bz: 0.36, g0: 1, g1: 0, air: 1 },
+  { lean: 0.0, rs: 2.85, re: 0.05, rz: 0.08, ls: 1.6, le: 0.6, lz: 0.35, rt: 0.2, lt: 0.12, rk: 0.5, lk: 0.45, ra: 0.1, la: 0.1, air: 1 }][i]; } };
 // the shimmy after a made three: shoulders shaking back and forth, elbows out, chest up, a little bounce (twice per loop)
 ANIMS.shimmy = { n: 6, dirs: ['F'], f: function (t, i) { var s = Math.sin(i / 6 * Math.PI * 4); return { crouch: 0.1 + 0.05 * Math.abs(s), twist: 0.5 * s, rs: 0.45 + 0.45 * s, ls: 0.45 - 0.45 * s, re: 1.75, le: 1.75, rz: 0.6, lz: 0.6, chx: -0.12, rt: 0.2, lt: 0.2, rk: 0.35, lk: 0.35 }; } };
 // the Harden step-back (3-point shooters moving side to side): gather the dribble low with the lead leg out front, the hop back off
