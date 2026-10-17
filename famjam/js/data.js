@@ -135,7 +135,7 @@ window.HW = window.HW || {};
   };
 
   // a player's catchphrase: it takes the place of exactly one of every `every` of their knockdown taunts, whatever the matchup
-  HW.CATCHPHRASE = { kenny: { line: 'HOOCHIE MAMA!', every: 10 }, lisa: { line: 'WOOOO WEEEEEE!', every: 5 }, bianca: { line: 'NO SHOES ON THE CARPET!', every: 3 } };
+  HW.CATCHPHRASE = { kenny: { line: 'HOOCHIE MAMA!', every: 10 }, lisa: { line: 'WOOOO WEEEEEE!', every: 5 }, bianca: { line: 'NO SHOES ON THE CARPET!', every: 3 }, rox: { line: 'YOU CHICKEN SHIT!', every: 4 } };
 
   // lines that come with a 2 s taunt over normal play: the crotch chop (twice) or pointing off at the kiddie table
   HW.TAUNTS = { "WHO'S YOUR UNCLE?!?!": 'chop', "WHO'S YOUR AUNTIE?!?!": 'chop', "KIDDIE TABLE'S OVER THERE!": 'point' };
