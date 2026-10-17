@@ -100,7 +100,7 @@ window.HW = window.HW || {};
     // runs the other people's players - js/net.js hands them over as each phone is ready)
     var me = setup.me || setup.human;
     setup.teams.forEach(function (ids, team) { ids.forEach(function (id, i) { var p = new Player(id, team, i, id === me); p.me = id === me; p.lbl = setup.humans ? setup.humans[id] || null : null; G.players.push(p); if (p.me) G.human = p; }); });
-    G.pu = null; G.puQueue = null; G.cine = null; G.babaDone = false;
+    G.pu = null; G.puQueue = null; G.cine = null; G.babaDone = false; G.inb = null;
     if (X.teamColors) X.teamColors([G.team(0).color, G.team(1).color]);   // the paint under each hoop in the two families' colors
     G.humanTeam = G.human.team; G.score = [0, 0]; G.q = 1; G.callouts = []; G.ball = { x: 0, y: 1, z: 7, vx: 0, vy: 0, vz: 0, state: 'loose', holder: null, visible: true, fire: false };
     G.beginQuarter();
@@ -138,9 +138,65 @@ window.HW = window.HW || {};
   };
 
   var WHISTLE_LONG = 1.02;   // sfx/whistle.mp3: two short blasts, the long one starts 1.02 s in
+  // after a basket (or a shot-clock violation) nobody gets reset: the other team takes it out under the basket it was just scored on
+  // and passes it in (phase 'inbound', G.inb), while the team that scored has to get back on D. The one nearest the baseline takes
+  // it out (a computer player when he can, so you bring it up), walks out with it, and once he's there throws it in to his partner
+  // (you: PASS calls for it, or it comes on its own). The clocks wait for the pass; he can't be stripped or shoved out there
+  // after: the moment for the ball to drop and the call before it; hold: his moment at the spot; auto: a person taking it out has
+  // this long to throw it in
+  var INB = { after: 0.9, hold: 0.45, auto: 2.5, walk: 6.5 };
+  // whose shot is up for this team right now (a jumper in the air or on its way, a layup or a dunk), if anyone's: his partner gets back
+  // (an online guest has no shot info: the host sends who shot, b.upBy)
+  G.shooterUp = function (team) {
+    var b = G.ball, by = b.shotInfo ? b.shotInfo.by : b.upBy;
+    if (b.state === 'shot' && by && by.team === team) return by;
+    if (b.holder && b.holder.team === team && (b.holder.state === 'dunk' || b.holder.state === 'shoot' || b.holder.state === 'stepback' || b.holder.state === 'cartwheel')) return b.holder;
+    return null;
+  };
+  // the team's safety: the slower of the two (his real speed, not on fire), who has the farthest to make up getting back
+  G.safetyOf = function (team) {
+    var t = G.players.filter(function (q) { return q.team === team; }); if (t.length < 2) return null;
+    var a = t[0].def.base.speed, c = t[1].def.base.speed; return a < c || a === c && t[0].slot < t[1].slot ? t[0] : t[1];
+  };
+  // who gets back right now: when a shot of this team's is up (or has just come off the rim), its safety - or, if he's the one who
+  // shot, his partner
+  G.backMan = function (team) {
+    var b = G.ball, by = b.shotInfo ? b.shotInfo.by : b.upBy, up = G.shooterUp(team) || (b.state === 'loose' && by && by.team === team ? by : null);
+    if (!up) return null; var sf = G.safetyOf(team);
+    return sf && sf !== up ? sf : G.mates(up)[0] || null;
+  };
+  G.startInbound = function (team) {
+    var s = side(team), up = function (q) { return !(q.hurtT > 0) && !q.abBy; };
+    var mine = G.players.filter(function (q) { return q.team === team && up(q); });
+    if (mine.length < 2) { G.lineup(team, false); G.phase = 'play'; return; }   // (his partner's down from an arm bar: the old way)
+    var bx = -s * (K.HL + 0.35);
+    var inb = mine.slice().sort(function (a, c) { return (a.human - c.human) || Math.abs(a.x - bx) - Math.abs(c.x - bx); })[0], to = mine[0] === inb ? mine[1] : mine[0];
+    G.players.forEach(function (p) { if (p.state === 'cheer') { p.state = 'idle'; p.st = 0; } });
+    if (inb.state !== 'fall' && inb.state !== 'dunk') { inb.state = 'idle'; inb.st = 0; }
+    G.give(inb); G.poss = team; G.shot = 24;
+    G.inb = { p: inb, to: to, team: team, x: bx, z: K.HZ + (inb.z > K.HZ ? 2.4 : -2.4), t: 0, at: false, ht: 0 };
+    G.phase = 'inbound';
+  };
+  function updateInbound(dt) {
+    var ib = G.inb, p = ib.p;
+    if (G.ball.holder !== p) { G.inb = null; G.phase = 'play'; return; }   // it's in (or it was taken off him somehow): play on
+    ib.t += dt;
+    if (p.state === 'fall' || p.state === 'dunk') return;   // (still getting up, or coming down off the rim)
+    var dx = ib.x - p.x, dz = ib.z - p.z, d = Math.hypot(dx, dz);
+    if (!ib.at && (d < 0.15 || ib.t > 3)) { ib.at = true; p.x = ib.x; p.z = ib.z; }
+    if (!ib.at) { var v = Math.min(INB.walk, d * 6) / d; p.vx = dx * v; p.vz = dz * v; if (Math.abs(dx) > 0.2) p.face = dx > 0 ? 1 : -1; return; }
+    p.vx = p.vz = 0; p.face = side(ib.team); ib.ht += dt;
+    if (ib.ht >= (p.human ? INB.auto : INB.hold)) G.inbPass();
+  }
+  // in it goes: a plain chest pass to his partner (or he walks it in himself if his partner's on the floor)
+  G.inbPass = function () {
+    var ib = G.inb; if (!ib || G.ball.holder !== ib.p) return;
+    var to = ib.to; if (!to || to.state === 'fall' || to.hurtT > 0) { G.inb = null; G.phase = 'play'; return; }
+    ib.p.face = to.x >= ib.p.x ? 1 : -1; launchPass(ib.p, to, null); G.ball.pass.inb = true; G.inb = null; G.phase = 'play';   // (an inbound pass reaches him: see the catch)
+  };
   G.beginQuarter = function () {
     G.clock = G.q > 4 ? OT : QUARTER; G.lineup(G.q % 2 === 1 ? G.humanTeam : 1 - G.humanTeam, true);
-    G.phase = 'tip'; G.phaseT = 2.4; G.whistled = false; G.show = null;
+    G.phase = 'tip'; G.phaseT = 2.4; G.whistled = false; G.show = null; G.inb = null;
     var tp = twerker(false); if (tp) { startShow(tp, 'solo', TW.quarter); G.phaseT += TW.extra; }   // Gator twerks before every tip-off
     if (G.q >= 4) Au.sfx && Au.sfx(G.q > 4 ? 'overtime' : 'final_round'); G.say(G.q > 4 ? 'OVERTIME!' : ['1ST QUARTER', '2ND QUARTER', '3RD QUARTER', '4TH QUARTER'][G.q - 1], '#fff', 2);
   };
@@ -330,7 +386,7 @@ window.HW = window.HW || {};
   };
   // a shooter in his move: the step-back (it makes space: no steal on the way, no contest, no block) and the cartwheel (all that, and
   // it always goes in) - from the press of SHOOT until the ball's gone
-  function guarded(h) { return !!h && (h.state === 'cartwheel' || h.state === 'stepback' || h.state === 'shoot' && !h.released && (h.cart || h.stepT)); }
+  function guarded(h) { return !!h && (h.state === 'cartwheel' || h.state === 'stepback' || h.state === 'shoot' && !h.released && (h.cart || h.stepT) || !!G.inb && G.inb.p === h); }
   G.guarded = guarded;
   function contest(p) {
     if (p.cart || p.stepT) return 0;
@@ -592,7 +648,7 @@ window.HW = window.HW || {};
     G.hoopFx[team === 0 ? 1 : 0] = 1;
     // (not a man lying on the floor: knocked down, or hurt from an arm bar - he stays down, his injury still counting)
     G.players.forEach(function (q) { if (q.team === team && q.state !== 'dunk' && q.state !== 'shimmy' && q.state !== 'dougie' && q.state !== 'fall' && !(q.hurtT > 0)) { q.state = 'cheer'; q.st = 0; } });
-    G.phase = 'scored'; G.phaseT = 1.6; G.nextPoss = 1 - team;
+    G.phase = 'scored'; G.phaseT = INB.after; G.nextPoss = 1 - team;
   };
   G.missed = function (info) { info.by.streak = 0; };
   // your odds on a block try: 75-95% right on him (by block rating), dropping off toward the edge of your reach
@@ -710,12 +766,13 @@ window.HW = window.HW || {};
     }
     if (G.show) updateShow(dt);   // the quarter-start / game-end twerk (everyone else stands still: they're waiting anyway)
     // (not while a slow-motion move or its ball is still playing out: the finger roll is still up in the air when he lands)
-    if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall' && pq.state !== 'dougie' && !G.cine) { G.puQueue = null; startPowerup(pq); return; } }
+    if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play' || G.phase === 'inbound') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall' && pq.state !== 'dougie' && !G.cine) { G.puQueue = null; startPowerup(pq); return; } }
     if (G.tipT > 0 && (G.tipT -= dt) <= 0) G.say('STICK PAST THE RING = TURBO!', '#5cff7a', 3.5, 0.55);
-    var live = G.phase === 'play';
+    var live = G.phase === 'play', moving = live || G.phase === 'inbound';   // (during the inbound everyone moves; the clocks wait)
     // the ref's whistle (recorded): tweet, tweet, then the long blast lands right on GO
     if (G.phase === 'tip') { G.phaseT -= dt; if (!G.whistled && G.phaseT <= WHISTLE_LONG) { G.whistled = true; Au.sfx && Au.sfx('whistle', 0.85); } if (G.phaseT <= 0) { G.phase = 'play'; G.say('GO!', '#5cff7a', 0.8, 1.3); Au.sfx && Au.sfx('go'); } }
-    else if (G.phase === 'scored') { G.phaseT -= dt; if (G.phaseT <= 0 && !(G.puQueue && G.phaseT > -2) && !(G.players.some(function (q) { return q.state === 'dougie'; }) && G.phaseT > -1.5)) { G.lineup(G.nextPoss, false); G.phase = 'play'; } }   // a power-up still to come holds the restart, and a Dougie gets a moment to finish
+    else if (G.phase === 'scored') { G.phaseT -= dt; if (G.phaseT <= 0 && !(G.puQueue && G.phaseT > -2) && !(G.players.some(function (q) { return q.state === 'dougie'; }) && G.phaseT > -1.5)) G.startInbound(G.nextPoss); }   // a power-up still to come holds the restart, and a Dougie gets a moment to finish
+    else if (G.phase === 'inbound' && G.inb) updateInbound(dt);
     else if (G.phase === 'break') { G.phaseT -= dt; if (G.phaseT <= 0) { G.q++; G.beginQuarter(); } }
     else if (G.phase === 'over') { G.phaseT -= dt; }
     if (live) {
@@ -729,7 +786,8 @@ window.HW = window.HW || {};
     (G.flip ? G.players : G.players.slice().reverse()).forEach(function (p) {
       for (var k in p.cd) p.cd[k] = Math.max(0, p.cd[k] - dt);
       p.flash = Math.max(0, p.flash - dt);
-      if (p.human) humanControl(p, dt, p.inp || In, live); else HW.JamAI.update(p, dt, live);   // p.inp: a guest's buttons, online
+      if (G.inb && G.inb.p === p) { if (p.human && ((p.inp || In).passDown)) G.inbPass(); }   // (the game walks the inbounder out; a person throws it in with PASS)
+      else if (p.human) humanControl(p, dt, p.inp || In, moving); else HW.JamAI.update(p, dt, moving);   // p.inp: a guest's buttons, online
       physics(p, dt);
     });
     separate();
@@ -843,7 +901,7 @@ window.HW = window.HW || {};
     } else if (holder && holder.team === p.team) {
       // arcade teamwork: PASS calls for the ball, SHOOT tells your teammate to shoot; you can shove a defender off him
       if (shove) G.tryShove(p); else if (In.passDown) G.passTo(holder, p);
-      if (In.shootDown) { if (G.canDunk(holder)) G.startDunk(holder); else G.startShot(holder); holder.ai.autoRelease = true; }
+      if (In.shootDown && !(G.inb && G.inb.p === holder)) { if (G.canDunk(holder)) G.startDunk(holder); else G.startShot(holder); holder.ai.autoRelease = true; }
     } else {
       if (In.shootDown) G.jump(p);
       if (shove) G.tryShove(p); else if (In.passDown) G.trySteal(p);
@@ -919,7 +977,7 @@ window.HW = window.HW || {};
       if (thief && Math.random() < (thief.human ? 0.75 : 0.5 * G.diff.steal) * ps.safe * (sig(thief, 'steal') ? 1.6 : 1)) { thief.stats.steals++; G.give(thief); hl('steal', thief, 'INTERCEPTION'); G.say('INTERCEPTED!', '#7ee0ff', 1.1); Au.steal(); Au.laugh && Au.laugh(); Au.catch(); return; }
       // the receiver catches it as soon as it reaches him near the end of the flight
       if (v > 0.7 && ps.to.state !== 'fall' && dist(ps.to, b) < 0.8 && b.y < ps.to.y + ps.to.reach) v = 1;
-      if (v >= 1) { if (ps.to.state !== 'fall' && dist(ps.to, b) < 1.6) { G.give(ps.to); ps.to.assist = { by: ps.from, t: G.t }; Au.catch(); } else { b.state = 'loose'; b.vy = 0; } }
+      if (v >= 1) { if (ps.to.state !== 'fall' && dist(ps.to, b) < (ps.inb ? 2.8 : 1.6)) { G.give(ps.to); ps.to.assist = { by: ps.from, t: G.t }; Au.catch(); } else { b.state = 'loose'; b.vy = 0; } }
       return;
     }
     // loose ball physics + pickups

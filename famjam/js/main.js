@@ -33,7 +33,7 @@ window.HW = window.HW || {};
     var Net = HW.Net, live = Net && Net.playing();
     // online the game never stops for one phone's menu: II just opens it over the game
     if (live) { if (In.pauseDown && (!UI.screen || UI.screen === 'paused')) UI.screen = UI.screen ? null : 'paused'; }
-    else if (In.pauseDown && (G.phase === 'play' || G.phase === 'tip' || G.phase === 'scored')) { UI.prevPhase = G.phase; G.phase = 'paused'; UI.screen = 'paused'; }
+    else if (In.pauseDown && (G.phase === 'play' || G.phase === 'tip' || G.phase === 'scored' || G.phase === 'inbound')) { UI.prevPhase = G.phase; G.phase = 'paused'; UI.screen = 'paused'; }
     else if (In.pauseDown && UI.screen === 'paused') { UI.screen = null; G.phase = UI.prevPhase; }
     if (live && Net.mode === 'guest') Net.guestFrame();   // a guest doesn't run the game: it shows the host's
     else {

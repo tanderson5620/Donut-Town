@@ -21,6 +21,7 @@ window.HW = window.HW || {};
     G = HW.Jam;
     var b = G.ball, a = p.ai;
     if (!live || p.state === 'fall' || p.state === 'dunk' || p.state === 'stepback' || p.state === 'cartwheel' || p.pending) { G.move(p, 0, 0, false, dt); return; }
+    if (G.phase === 'inbound' && G.inb && p.state !== 'shoot') { inbound(p, a, dt, G.inb); return; }
     if (p.state === 'shoot') {
       G.move(p, 0, 0, false, dt);
       if (p.hasBall && !p.released && p.st >= p.tApex * (a.relAt || 1)) G.releaseShot(p);
@@ -29,6 +30,10 @@ window.HW = window.HW || {};
     a.t -= dt;
     // a pass is on its way to him: go meet it instead of drifting off to his spot
     if (b.state === 'pass' && b.pass && b.pass.to === p) { goTo(p, b.pass.x1, b.pass.z1, false, dt); return; }
+    // floor balance: the moment a shot of his team's goes up (a jumper, a layup or a dunk), the team's safety - the slower one, or his
+    // partner if he's the one shooting - gets back on D before the other team has it, until somebody does
+    if (G.backMan(p.team) === p) a.safe = true; else if (b.holder) a.safe = false;   // (somebody's got it: normal again)
+    if (a.safe) { safety(p, a, dt); return; }
     if (b.holder === p) withBall(p, a, dt);
     else if (b.holder && b.holder.team === p.team) offBall(p, a, dt, b.holder);
     else if (b.holder) defend(p, a, dt, b.holder);
@@ -77,8 +82,32 @@ window.HW = window.HW || {};
     goTo(p, tx, tz, d > 3.5, dt);
   }
 
+  // the inbound after a basket: the man getting it comes to a spot a few meters in from the baseline, on the side away from his man;
+  // the team that just scored gets back - each defender runs for his spot in front of the basket they defend (the man who'll
+  // bring it up has the length of the court to go)
+  function inbound(p, a, dt, ib) {
+    var rx = rimX(ib.team), s = rx > 0 ? 1 : -1;
+    if (p === ib.p) { G.move(p, 0, 0, false, dt); return; }
+    if (p.team === ib.team) {
+      var o = nearest(p, G.opps(p)), zs = o.who && o.who.z > K.HZ ? -1 : 1;
+      goTo(p, -s * (K.HL - 3.4), K.HZ + zs * 3, true, dt); return;
+    }
+    var mate = G.mates(p)[0], hi = !mate || mate.human || p.slot < mate.slot;   // (one high, one low)
+    goTo(p, rx - s * (hi ? 6.2 : 2.6), K.HZ + (hi ? 0 : (p.z > K.HZ ? 1.6 : -1.6)), true, dt);
+  }
+
+  // the safety: back to the top of the key at his own end (only a rebound that comes right to him is his)
+  function safety(p, a, dt) {
+    var b = G.ball, dr = rimX(1 - p.team), sd = dr > 0 ? -1 : 1;
+    if (b.state === 'loose' && Math.hypot(p.x - b.x, p.z - b.z) < 2.2) { loose(p, a, dt); return; }
+    goTo(p, dr + sd * 5.6, K.HZ, true, dt);
+  }
+
   function offBall(p, a, dt, holder) {
     var rx = rimX(p.team), s = rx > 0 ? 1 : -1;
+    // the team's safety (the slower one) trails the play at the top of the arc instead of going deep: halfway back already when the
+    // shot goes up
+    if (G.safetyOf(p.team) === p) { goTo(p, rx - s * 7.6, K.HZ + (holder.z > K.HZ ? -1.4 : 1.4), dist(p, { x: rx - s * 7.6, z: K.HZ }) > 5, dt); return; }
     a.spotT -= dt;
     if (!a.spot || a.spotT <= 0) {
       var z = holder.z > K.HZ ? -1 : 1, type = p.def.type;
