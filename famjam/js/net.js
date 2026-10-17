@@ -257,7 +257,7 @@ window.HW = window.HW || {};
       pu: G.pu ? [P.indexOf(G.pu.p), r3(G.pu.t), G.pu.boom ? 1 : 0, G.pu.dur, G.pu.tw || 0] : 0,
       sh: G.show ? [P.indexOf(G.show.p), r3(G.show.t), G.show.kind === 'pu' ? 1 : G.show.kind === 'win' ? 2 : 0, G.show.len] : 0,
       ci: G.cine ? [P.indexOf(G.cine.p), r3(G.cine.t), r3(G.cine.dur), G.cine.kind, G.cine.q ? P.indexOf(G.cine.q) : -1] : 0,
-      b: [r3(b.x), r3(b.y), r3(b.z), r3(b.vx), b.visible ? 1 : 0, b.baked ? 1 : 0, b.behind ? 1 : 0, b.inFront ? 1 : 0, b.fire ? 1 : 0, r3(b.swoosh), r3(b.spin), b.holder ? P.indexOf(b.holder) : -1, b.state, b.rollSpin || 0],
+      b: [r3(b.x), r3(b.y), r3(b.z), r3(b.vx), b.visible ? 1 : 0, b.baked ? 1 : 0, b.behind ? 1 : 0, b.inFront ? 1 : 0, b.fire ? 1 : 0, r3(b.swoosh), r3(b.spin), b.holder ? P.indexOf(b.holder) : -1, b.state, b.rollSpin || 0, b.shotInfo && (b.state === 'shot' || b.state === 'loose') ? P.indexOf(b.shotInfo.by) : -1],   // (who shot: the GET BACK cue)
       p: P.map(function (p) {
         return [r3(p.x), r3(p.y), r3(p.z), r3(p.vy), p.anim, p.dir, Math.round((p.frame || 0) * 100) / 100, p.face, p.state, r3(p.st), r3(p.ssj), p.onFire ? 1 : 0, r3(p.flash), r3(p.hitT), (p.tongue ? 1 : 0) | (p.dunkFace ? 2 : 0), p.hasBall ? 1 : 0, Math.round(p.turbo),
           p.released ? 1 : 0, r3(p.tApex), p.dk ? [r3(p.dk.T), p.dk.style || 0] : 0, p.jamArm ? [r3(p.jamArm.x), r3(p.jamArm.y), r3(p.jamArm.z)] : 0,
@@ -353,7 +353,7 @@ window.HW = window.HW || {};
     if (bb && b) {
       var lb = nb && Math.abs(nb[0] - bb[0]) < 3 && Math.abs(nb[1] - bb[1]) < 3;
       b.x = lb ? L(bb[0], nb[0], f) : bb[0]; b.y = lb ? L(bb[1], nb[1], f) : bb[1]; b.z = lb ? L(bb[2], nb[2], f) : bb[2];
-      b.vx = bb[3]; b.visible = !!bb[4]; b.baked = !!bb[5]; b.behind = !!bb[6]; b.inFront = !!bb[7]; b.fire = !!bb[8]; b.swoosh = bb[9]; b.spin = bb[10]; b.holder = bb[11] >= 0 ? P[bb[11]] : null; b.state = bb[12]; b.rollSpin = bb[13] || 0;
+      b.vx = bb[3]; b.visible = !!bb[4]; b.baked = !!bb[5]; b.behind = !!bb[6]; b.inFront = !!bb[7]; b.fire = !!bb[8]; b.swoosh = bb[9]; b.spin = bb[10]; b.holder = bb[11] >= 0 ? P[bb[11]] : null; b.state = bb[12]; b.rollSpin = bb[13] || 0; b.upBy = bb[14] >= 0 ? P[bb[14]] : null;
     }
     G.pu = s.pu ? { p: P[s.pu[0]], t: n && n.pu ? L(s.pu[1], n.pu[1], f) : s.pu[1], boom: !!s.pu[2], dur: s.pu[3], tw: s.pu[4] } : null;
     var cam = G.show && G.show.cam;   // Gator's twerk show: keep Lisa's walk-on (G.showCameo) from one update to the next
