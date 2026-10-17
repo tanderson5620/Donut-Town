@@ -28,7 +28,7 @@ window.HW = window.HW || {};
   /* ---------- sounds and effects: the host records each one the game makes, the guests play them back ---------- */
   var AU = ['sfx', 'whoosh', 'scream', 'punch', 'painF', 'laugh', 'jump', 'hup', 'dribble', 'catch', 'bounce', 'yell', 'wow', 'trash', 'swipe', 'steal', 'shoveYell', 'powerup', 'passWhoosh', 'net', 'land', 'incoming', 'help', 'happy', 'fireball', 'fire', 'ew', 'cheer', 'charge', 'buzzer', 'board', 'baba', 'thud', 'shove', 'shatter', 'rim', 'dunk', 'slap', 'snap'];
   var FX = ['burst', 'flame', 'ring', 'crater', 'blood', 'powerFlash', 'powerDown'];
-  var orig = { a: {}, x: {} }, depth = 0;
+  var orig = { a: {}, x: {}, r: {} }, depth = 0;
   function enc(args) {
     var out = []; for (var i = 0; i < args.length; i++) { var a = args[i]; out.push(a && a.def && a.id ? { p: G.players.indexOf(a) } : typeof a === 'number' ? r3(a) : a); }
     return out;
@@ -39,17 +39,25 @@ window.HW = window.HW || {};
     obj[name] = function () { if (N.rec && depth === 0) N.ev.push([kind, name, enc(arguments)]); depth++; try { return f.apply(this, arguments); } finally { depth--; } };
   }
   AU.forEach(function (n) { wrap(Au, n, 'a'); }); FX.forEach(function (n) { wrap(X, n, 'x'); });
+  if (HW.Replay) wrap(HW.Replay, 'mark', 'r');   // the highlights for the final scoreboard's reel (replay.js): the guests keep the same ones
   function play(s) {
     if (s.fired) return; s.fired = true; if (!s.ev) return;
     var me = G.human, win = s.g[6] > s.g[7] ? 0 : 1;
     s.ev.forEach(function (e) {
-      var obj = e[0] === 'a' ? Au : X, fn = orig[e[0]][e[1]]; if (!fn) return;
+      var obj = e[0] === 'a' ? Au : e[0] === 'x' ? X : HW.Replay, fn = orig[e[0]] && orig[e[0]][e[1]]; if (!fn) return;
       var args = (e[2] || []).map(function (a) { return a && typeof a === 'object' && !Array.isArray(a) && 'p' in a ? G.players[a.p] : a; });
       if (args.some(function (a) { return a === undefined; }) && e[0] === 'x') return;
       if (e[1] === 'sfx' && (args[0] === 'you_win' || args[0] === 'you_lose') && me) args[0] = win === me.team ? 'you_win' : 'you_lose';   // the announcer calls it for your team
       try { fn.apply(obj, args); N.played[e[1]] = (N.played[e[1]] || 0) + 1; } catch (er) { }
     });
   }
+  // an effect played again on other players (the final scoreboard's highlight reel draws on copies of them): ps stands in for G.players
+  N.fx = function (e, ps) {
+    var fn = orig.x[e[1]]; if (e[0] !== 'x' || !fn) return;
+    var args = (e[2] || []).map(function (a) { return a && typeof a === 'object' && !Array.isArray(a) && 'p' in a ? ps[a.p] : a; });
+    if (args.some(function (a) { return a === undefined; })) return;
+    try { fn.apply(X, args); } catch (er) { }
+  };
 
   /* ---------- shared ---------- */
   N.leave = function () {
@@ -247,7 +255,7 @@ window.HW = window.HW || {};
       g: [r3(G.t), G.phase, r3(G.phaseT), G.q, r3(G.clock), r3(G.shot), G.score[0], G.score[1], r3(X.camX), r3(X.shake), r3(X.hype), r3(G.hoopFx[0]), r3(G.hoopFx[1])],
       co: G.callouts.map(function (c) { return [c.text, c.color, c.life, r3(c.t), c.size]; }),
       pu: G.pu ? [P.indexOf(G.pu.p), r3(G.pu.t), G.pu.boom ? 1 : 0, G.pu.dur, G.pu.tw || 0] : 0,
-      sh: G.show ? [P.indexOf(G.show.p), r3(G.show.t), G.show.kind === 'pu' ? 1 : 0, G.show.len] : 0,
+      sh: G.show ? [P.indexOf(G.show.p), r3(G.show.t), G.show.kind === 'pu' ? 1 : G.show.kind === 'win' ? 2 : 0, G.show.len] : 0,
       ci: G.cine ? [P.indexOf(G.cine.p), r3(G.cine.t), r3(G.cine.dur), G.cine.kind, G.cine.q ? P.indexOf(G.cine.q) : -1] : 0,
       b: [r3(b.x), r3(b.y), r3(b.z), r3(b.vx), b.visible ? 1 : 0, b.baked ? 1 : 0, b.behind ? 1 : 0, b.inFront ? 1 : 0, b.fire ? 1 : 0, r3(b.swoosh), r3(b.spin), b.holder ? P.indexOf(b.holder) : -1, b.state, b.rollSpin || 0],
       p: P.map(function (p) {
@@ -305,6 +313,7 @@ window.HW = window.HW || {};
   }
   function arrive(s) {
     var now = performance.now() / 1000; snaps.push(s);
+    if (HW.Replay && s.g) HW.Replay.frame(s.g[0], s, s.ev);   // (kept for the highlight reel as it comes in)
     // the host's clock against ours: the quickest delivery lately is the best guess at the real offset
     offs.push(now - s.ht); if (offs.length > 120) offs.shift();
     off = Infinity; for (var i = 0; i < offs.length; i++) off = Math.min(off, offs[i]);
@@ -321,7 +330,8 @@ window.HW = window.HW || {};
     if (s0.ht <= rt) play(s0);
     apply(s0, s1, s1 && s1.ht > s0.ht ? Math.max(0, Math.min(1, (rt - s0.ht) / (s1.ht - s0.ht))) : 0);
   };
-  function apply(s, n, f) {
+  // (rep: the highlight reel drawing a picture from earlier, not the game going on)
+  function apply(s, n, f, rep) {
     var g = s.g, ng = n && n.g, P = G.players, U = UI();
     G.t = ng ? L(g[0], ng[0], f) : g[0]; G.phase = g[1]; G.phaseT = g[2]; G.q = g[3]; G.clock = ng && ng[3] === g[3] ? L(g[4], ng[4], f) : g[4]; G.shot = g[5]; G.score = [g[6], g[7]];
     X.camX = ng && Math.abs(ng[8] - g[8]) < 2.5 ? L(g[8], ng[8], f) : g[8];
@@ -347,10 +357,12 @@ window.HW = window.HW || {};
     }
     G.pu = s.pu ? { p: P[s.pu[0]], t: n && n.pu ? L(s.pu[1], n.pu[1], f) : s.pu[1], boom: !!s.pu[2], dur: s.pu[3], tw: s.pu[4] } : null;
     var cam = G.show && G.show.cam;   // Gator's twerk show: keep Lisa's walk-on (G.showCameo) from one update to the next
-    G.show = s.sh ? { p: P[s.sh[0]], t: n && n.sh ? L(s.sh[1], n.sh[1], f) : s.sh[1], len: s.sh[3], kind: s.sh[2] ? 'pu' : 'solo', zoom: !!s.sh[2], cam: cam } : null;
+    G.show = s.sh ? { p: P[s.sh[0]], t: n && n.sh ? L(s.sh[1], n.sh[1], f) : s.sh[1], len: s.sh[3], kind: s.sh[2] === 1 ? 'pu' : s.sh[2] === 2 ? 'win' : 'solo', zoom: s.sh[2] === 1, cam: cam } : null;
+    if (s.sh && s.sh[2] === 2) G.vic = true;   // Gator's victory twerk: his song for the stats screen too
     G.cine = s.ci ? { p: P[s.ci[0]], t: s.ci[1], dur: s.ci[2], kind: s.ci[3], q: s.ci[4] >= 0 ? P[s.ci[4]] : null } : null;
-    if (G.phase !== 'over' && U.screen === 'results') U.screen = null;   // the host started a rematch
+    if (!rep && G.phase !== 'over' && U.screen === 'results') U.screen = null;   // the host started a rematch
   }
+  N.snap = snap; N.apply = apply;   // (the highlight reel keeps and replays the same pictures)
   // the guest's stick and buttons go to the host when they change (and a few times a second anyway)
   function sendInput() {
     if (N.mode !== 'guest' || N.stage !== 'game' || !host || !G.human) return;

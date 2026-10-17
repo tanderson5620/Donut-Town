@@ -406,6 +406,7 @@ window.HW = window.HW || {};
     if (pools.length > 6) pools.shift();
   };
   X.clearBlood = function () { pools = []; craters = []; rings = []; };
+  X.clearFx = function () { parts = []; pools = []; craters = []; rings = []; };   // (between the highlights replayed on the final scoreboard)
   // impact crater where a body slams into the floor: a dark dent with cracks running out of it
   var craters = [], rings = [];
   X.crater = function (x, z, r) {
@@ -530,17 +531,19 @@ window.HW = window.HW || {};
   // full scene, back to front; `things` are players + ball, each with x,z
   X.drawScene = function (g, t, dt, players, ball, hoopFx) {
     X.t = t; X.lookUp = false;
-    var pu = HW.Jam && (HW.Jam.pu || HW.Jam.cine), zk = 1, za = 0, zf = null, cine = pu && !HW.Jam.pu;
-    if (pu) {   // the power-up camera: zoom in on him, hold, ease back out
-      var D = pu.dur || HW.Jam.PU.dur, u = pu.t, e = function (v) { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+    var J = HW.Jam, pu = J && (J.pu || J.cine), zk = 1, za = 0, zf = null, cine = pu && !J.pu;
+    // Gator's victory twerk at the final buzzer: the same close-up as his power-up, coming in slowly and staying in
+    var vic = !pu && J && J.show && J.show.kind === 'win' && J.WIN ? J.show : null;
+    if (pu || vic) {   // the power-up camera: zoom in on him, hold, ease back out
+      var D = pu ? pu.dur || J.PU.dur : 0, u = pu ? pu.t : 0, e = function (v) { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
       // zoom so he fills about 3/4 of the screen from his shoes to the tips of the hair, never showing past the edge of the scene
-      var pp = pu.p, gd = X.proj(pp.x, 0, pp.z), top = pp.headTop !== undefined ? pp.headTop - X.shakeY : gd.y - 2.3 * gd.s, fig = Math.max(40, gd.y - X.shakeY - top + 0.35 * gd.s);
+      var pp = (pu || vic).p, gd = X.proj(pp.x, 0, pp.z), top = pp.headTop !== undefined ? pp.headTop - X.shakeY : gd.y - 2.3 * gd.s, fig = Math.max(40, gd.y - X.shakeY - top + 0.35 * gd.s);
       // the slow-motion dunk: the whole of him in the air, from his sneakers to his hair, so the ball going under his leg is plain
       var feet = cine ? X.proj(pp.x, pp.y, pp.z).y - X.shakeY : 0, body = Math.max(40, feet - top + 0.1 * gd.s);
       var zmax = cine ? Math.max(1.3, Math.min(1.6, 0.75 * H / body)) : Math.max(1.5, Math.min(2.6, 0.92 * H / fig));
       zf = cine ? { x: gd.x - X.shakeX, y: (feet + top) / 2 } : { x: gd.x - X.shakeX, y: (gd.y - X.shakeY + top - 0.35 * gd.s) / 2 };
-      var shw = HW.Jam.show;
-      if (!cine && pu.tw && shw && shw.cam) {
+      var shw = J.show;
+      if (pu && !cine && pu.tw && shw && shw.cam) {
         // Gator's twerk: the two of them side-on in frame (his rear, her hand); into the normal power-up it eases back onto him alone
         var lx = X.proj(shw.cam.spot, 0, pp.z).x - X.shakeX, mid = (gd.x - X.shakeX + lx) / 2, span = Math.abs(gd.x - X.shakeX - lx) + 1.3 * gd.s;
         var ltop = shw.cam.headTop !== undefined ? shw.cam.headTop - X.shakeY : top, fig2 = Math.max(fig, gd.y - X.shakeY - Math.min(top, ltop) + 0.3 * gd.s);
@@ -553,7 +556,7 @@ window.HW = window.HW || {};
         var aq = pu.q || pp, ga = X.proj(pp.x, 0, pp.z), gq = X.proj(aq.x, 0, aq.z), span = Math.abs(ga.x - gq.x) + 3.4 * ga.s;
         zmax = Math.max(1.35, Math.min(2.0, 0.92 * W / span)); zf = { x: (ga.x + gq.x) / 2 - (pp.face || 1) * 0.75 * ga.s - X.shakeX, y: ga.y - 0.5 * ga.s - X.shakeY };
       }
-      za = u < 0.25 ? e(u / 0.25) : u > D - 0.3 ? e((D - u) / 0.3) : 1; zk = 1 + (zmax - 1) * za;
+      za = vic ? e((vic.t - J.WIN.zoom0) / J.WIN.zoomT) : u < 0.25 ? e(u / 0.25) : u > D - 0.3 ? e((D - u) / 0.3) : 1; zk = 1 + (zmax - 1) * za;
       if (cine && pu.kind === 'board' && ball) {
         // off the glass: in close on the ball itself as it leaves his hand, tightest as it hits the board, back out as it comes back to
         // him - full view again the moment it's in his hand (u = how far through the dunk he is)
@@ -585,10 +588,10 @@ window.HW = window.HW || {};
     var T0 = HW.Jam && HW.Jam.TW, hitAt = -1; if (cm) T0.hits.forEach(function (h) { if (sh.t >= h && sh.t < h + 0.55) hitAt = h; });
     var smack = hitAt >= 0 ? X.buttWorld(sh.p) : null, smackAt = null;
     if (smack) { var sp = X.proj(smack.x, smack.y + 0.35, sh.p.z); smackAt = pu ? { x: (sp.x - zf.x) * zk + tx, y: (sp.y - zf.y) * zk + ty } : { x: sp.x, y: sp.y }; }
-    if (pu) {
+    if (pu || vic) {
       g.restore(); g.imageSmoothingEnabled = true;
       // dim the edges so he owns the screen, darker while he charges
-      var vg = g.createRadialGradient(W / 2, H * 0.52, H * 0.25, W / 2, H * 0.52, W * 0.62), dark = (cine ? 0.35 : pu.boom ? 0.5 : 0.7) * za;
+      var vg = g.createRadialGradient(W / 2, H * 0.52, H * 0.25, W / 2, H * 0.52, W * 0.62), dark = (vic ? 0.55 : cine ? 0.35 : pu.boom ? 0.5 : 0.7) * za;
       vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,8,' + dark + ')'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
     }
     // the slow motion in Gator's twerk: cinema bars in and out, and SMACK! where her hand lands
@@ -608,7 +611,8 @@ window.HW = window.HW || {};
     // a reverse layup is drawn in front of the net all the way, even once he's under the rim on its far side (the net would cover his
     // face for the whole finish), the ball in his hands in front of him too
     var revUp = function (p) { return p && p.state === 'dunk' && /^dk_rev/.test(p.anim || ''); };
-    var items = players.map(function (p) { return { z: revUp(p) ? Math.min(p.z, K.HZ - 0.36) : p.z, draw: function () { X.drawPlayer(g, p); } }; });
+    var vic = HW.Jam && HW.Jam.show && HW.Jam.show.kind === 'win' ? HW.Jam.show.p : null;   // Gator in front of everyone for his victory twerk
+    var items = players.map(function (p) { return { z: p === vic ? -9 : revUp(p) ? Math.min(p.z, K.HZ - 0.36) : p.z, draw: function () { X.drawPlayer(g, p); } }; });
     [-1, 1].forEach(function (side) {
       items.push({ z: K.HZ + 0.75, draw: function () { drawHoopBack(g, side); drawRim(g, side, false); } });
       items.push({ z: K.HZ - 0.35, draw: function () { drawRim(g, side, true, hoopFx[side > 0 ? 1 : 0]); } });
