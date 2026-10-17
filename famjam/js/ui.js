@@ -895,7 +895,7 @@ window.HW = window.HW || {};
   // the final scoreboard, over the game's highlights replaying behind it (replay.js; the plain card if there are none); it fades in
   function drawResults(g, fr, dt) {
     var G = HW.Jam, T = [G.team(0), G.team(1)], w = G.score[0] > G.score[1] ? 0 : 1, Rp = HW.Replay, reel = !!(Rp && Rp.draw(g, dt || 0));
-    var C = card(g, null, reel ? 'rgba(8,10,46,0.38)' : null), cx = Math.round((C.L + C.R) / 2);
+    var C = card(g, null, reel ? 'rgba(8,10,46,0.28)' : null), cx = Math.round((C.L + C.R) / 2);
     var hc = reel && Rp.now(); if (hc) {   // a TV-style REPLAY tag, and whose highlight it is when there's room left of the title
       var rt = Fo.canvas('REPLAY', { scale: 1, scheme: 'white', shadow: 0 }), rx = C.L + 8, ry = C.T + 8;
       g.fillStyle = '#000'; g.fillRect(rx - 1, ry - 1, rt.width + 18, rt.height + 8); g.fillStyle = '#d8141e'; g.fillRect(rx, ry, rt.width + 16, rt.height + 6);
@@ -905,7 +905,7 @@ window.HW = window.HW || {};
     }
     flaming(g, T[w].name + ' WIN!', cx, C.T + 30, { scale: C.W > 560 ? 4 : 3, color: T[w].color, outline: 2, shadow: 2 }, fr);
     Fo.draw(g, G.score[0] + ' - ' + G.score[1], cx, C.T + 70, { scale: 3, scheme: 'white' });
-    var px = C.L + 6, pw = C.W - 12, py = C.T + 90, ph = 160; if (reel) seeBevel(g, px, py, pw, ph, 'rgba(0,0,0,0.58)', CY, 3); else bevel(g, px, py, pw, ph, '#000', CY, 3);
+    var px = C.L + 6, pw = C.W - 12, py = C.T + 90, ph = 160; if (reel) seeBevel(g, px, py, pw, ph, 'rgba(0,0,0,0.45)', CY, 3); else bevel(g, px, py, pw, ph, '#000', CY, 3);
     var cols = [['PTS', 0.44], ['FG', 0.52], ['3PT', 0.6], ['AST', 0.68], ['DNK', 0.76], ['STL', 0.84], ['BLK', 0.92]];
     Fo.draw(g, 'PLAYER', px + 46, py + 14, { scale: 1, scheme: 'cyan', align: 'left' });
     cols.forEach(function (c) { Fo.draw(g, c[0], px + pw * c[1], py + 14, { scale: 1, scheme: 'cyan' }); });
