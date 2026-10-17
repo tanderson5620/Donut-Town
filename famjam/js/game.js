@@ -288,16 +288,17 @@ window.HW = window.HW || {};
   }
 
   /* ---------- actions ---------- */
-  function threeFrom(p) { var d = Math.hypot(p.x - rimX(p.team), p.z - K.HZ); return d > K.R3 - 0.1 && Math.abs(p.z - K.HZ) < 6.2 || d > K.R3 + 0.3; }
+  function threeFrom(p, at) { at = at || p; var d = Math.hypot(at.x - rimX(p.team), at.z - K.HZ); return d > K.R3 - 0.1 && Math.abs(at.z - K.HZ) < 6.2 || d > K.R3 + 0.3; }
+  // a three is a three by where he left the floor (where he started a cartwheel), not where he let go - he can drift in the air, so
+  // rising from behind the line and letting go inside it still counts 3, and a fadeaway from inside it that drifts out is still a 2
+  function takeoff(p) { return p.state !== 'shoot' ? p : p.cart && p.cartFrom || p.shotFrom || p; }
   // how long after the press the top of his jump shot comes: the green window is timed from the press, whatever he does first
   G.shotApex = function (p) { return Math.sqrt(2 * GRAV * p.jumpH * 0.9) / GRAV; };
   // the green window, as a share of that time either side of the top: wider for better shooters, and half again more (x1.6) for a
-  // 3-point shooter's three (from where he started, after a cartwheel or a one-footer); ok out to 2.5 times it, bad beyond. The game
-  // judges the release and the shot meter draws its zones from this, so what you see is what counts
+  // 3-point shooter's three (by where he took off); ok out to 2.5 times it, bad beyond. The game judges the release and the shot meter
+  // draws its zones from this, so what you see is what counts
   G.shotWin = function (p) {
-    var sp = p.cart && p.cartFrom || p.onefoot && p.shotFrom || p, d = Math.hypot(sp.x - rimX(p.team), sp.z - K.HZ);
-    var three = d > K.R3 - 0.1 && Math.abs(sp.z - K.HZ) < 6.2 || d > K.R3 + 0.3;
-    return 0.16 * (1 + (p.def.stats.tp - 5) * 0.06) * (three && p.def.type === 'shooter' ? 1.6 : 1);
+    return 0.16 * (1 + (p.def.stats.tp - 5) * 0.06) * (threeFrom(p, takeoff(p)) && p.def.type === 'shooter' ? 1.6 : 1);
   };
   G.startShot = function (p) {
     if (!p.hasBall || !p.grounded() || p.busy()) return;
@@ -355,8 +356,8 @@ window.HW = window.HW || {};
   G.releaseShot = function (p) {
     if (p.state !== 'shoot' || p.released || !p.hasBall) return;
     p.released = true; p.st2 = 0;
-    // (after a cartwheel the odds are the ones from where he started it)
-    var b = G.ball, rx = rimX(p.team), sp = p.cart && p.cartFrom || p.onefoot && p.shotFrom || p, d = Math.hypot(sp.x - rx, sp.z - K.HZ), three = d > K.R3 - 0.1 && Math.abs(sp.z - K.HZ) < 6.2 || d > K.R3 + 0.3;
+    // (after a cartwheel the odds are the ones from where he started it; 3 or 2 goes by where he took off)
+    var b = G.ball, rx = rimX(p.team), sp = p.cart && p.cartFrom || p.onefoot && p.shotFrom || p, d = Math.hypot(sp.x - rx, sp.z - K.HZ), three = threeFrom(p, takeoff(p));
     var s = p.def.stats, pm;
     if (three) pm = 0.16 + 0.05 * s.tp; else if (d > 4.5) pm = 0.34 + 0.035 * s.tp; else if (d > 2.2) pm = 0.48 + 0.025 * Math.max(s.tp, s.dunk); else pm = 0.68 + 0.02 * s.dunk;
     // release timing, from the press of SHOOT: the top of a jump shot is the sweet spot (wider for shooters from deep), and a step-back
@@ -466,7 +467,7 @@ window.HW = window.HW || {};
       k.slam = true; var lb = G.ball, lrx = rimX(p.team), lfl = k.lay === 'roll' ? { T: 1.0 } : k.lay === 'rev' ? { T: 0.42, arc: 0.15 } : { T: 0.55, arc: 0.45 };
       if (k.lay === 'roll') lfl.arc = 2 * K.RIM_H - (lb.y + K.RIM_H + 0.12) / 2;   // up to twice the rim's height
       p.hasBall = false; lb.holder = null; lb.state = 'shot'; lb.last = p; lb.baked = lb.behind = false;
-      lb.shotInfo = { by: p, team: p.team, three: false, make: true, quality: 'green', lay: k.lay, t: 0, T: lfl.T, x0: lb.x, y0: lb.y, z0: lb.z, rx: lrx, arc: lfl.arc, missX: 0, missZ: 0 };
+      lb.shotInfo = { by: p, team: p.team, three: !!k.three, make: true, quality: 'green', lay: k.lay, t: 0, T: lfl.T, x0: lb.x, y0: lb.y, z0: lb.z, rx: lrx, arc: lfl.arc, missX: 0, missZ: 0 };
       // the reverse goes up off the glass on the side he finished on (kisses the board just in front of it, then drops in)
       if (k.lay === 'rev') lb.shotInfo.bank = { x: side(p.team) * (K.BOARDX - 0.12), y: K.RIM_H + 0.42, z: K.HZ + (k.z1 - K.HZ) * 0.55, f: 0.55 };
       Au.whoosh(k.lay === 'roll' ? 8 : 5);
