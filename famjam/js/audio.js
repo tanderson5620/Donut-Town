@@ -8,7 +8,7 @@ window.HW = window.HW || {};
   // audio unless the page asks for a 'playback' session (iOS 17+). So: ask for playback, unlock on every kind of tap, play a
   // silent blip to open the output, and resume whenever the context gets suspended (tab switch, phone call)
   // bump when a sound file is replaced under the same name, so phones fetch the new one instead of a saved copy
-  var SFX_V = '?v=2';
+  var SFX_V = '?v=3';
   A.init = function () {
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { }
     if (A.ctx) { if (A.ctx.state !== 'running') A.ctx.resume(); musKick(); return; }
@@ -30,7 +30,7 @@ window.HW = window.HW || {};
   // music, streamed by <audio> elements fed into the mix so it follows the master volume and can fade (all from Epidemic Sound,
   // supplied by the owner): on the menus before a game, a coin flip each time between "Bang Bang" by Matt Large and "Talk About
   // It" (instrumental) by Ira Moon; from the final buzzer through the stats screen, "Plenty Bands" (instrumental) by Enophi - or,
-  // when Gator's team wins, "spot" by Cushy (from its drop, sfx/gator_music.mp3: his victory twerk, then the stats under it).
+  // when Gator's team wins, "spot" by Cushy (from the top of the song, sfx/gator_music.mp3: his victory twerk, then the stats under it).
   // An iPhone only lets a media element start inside a tap, so every tap (A.init)
   // starts the wanted track and primes the others once (play, then pause) so they can start on their own later, like at the buzzer
   var TRACKS = { menu: 'sfx/menu_music.mp3' + SFX_V, menu2: 'sfx/menu_music2.mp3' + SFX_V, post: 'sfx/post_music.mp3' + SFX_V, gator: 'sfx/gator_music.mp3' + SFX_V }, mus = {}, musAsk = null, musWant = null, MUS_VOL = 0.8;

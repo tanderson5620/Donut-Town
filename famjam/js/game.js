@@ -203,11 +203,11 @@ window.HW = window.HW || {};
   G.lineup = function (team, center) {
     // a man down from an arm bar stays down where he lies (a hold still going finishes now); everyone else lines up
     G.players.forEach(function (p) { if (p.state === 'armbar' && p.ab) { if (!p.ab.snap) snapArm(p); if (p.ab.q.abBy === p) p.ab.q.abBy = null; p.ab = null; } });
-    if (G.cine && G.cine.kind === 'armbar') G.cine = null;
+    if (G.cine && (G.cine.kind === 'armbar' || G.cine.kind === 'kick')) G.cine = null;
     var down = function (p) { return p.hurtT > 0; };
     var s = side(team), off = G.players.filter(function (p) { return p.team === team && !down(p); }), def = G.players.filter(function (p) { return p.team !== team && !down(p); });
     if (!off.length) { off = G.players.filter(function (p) { return p.team === team; }); off.forEach(function (p) { p.hurtT = 0; p.abBy = null; }); }   // nobody left to bring it up: he shakes it off
-    G.players.forEach(function (p) { if (down(p)) return; p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.impact = null; p.hitT = 0; p.tongue = false; p.dunkFace = false; p.jamArm = null; if (!p.onFire) p.ssj = 0; });
+    G.players.forEach(function (p) { if (down(p)) return; p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.impact = null; p.hitT = 0; p.tongue = false; p.dunkFace = false; p.jamArm = null; p.kick = null; p.nut = false; p.nutAt = null; if (!p.onFire) p.ssj = 0; });
     var hand = off.slice().sort(function (a, b) { return (b.human - a.human) || (b.def.type === 'handler') - (a.def.type === 'handler'); })[0];
     var bx = center ? -s * 1.5 : -s * 8.5;
     hand.x = bx; hand.z = 7; off.forEach(function (p) { if (p !== hand) { p.x = bx + s * 3.5; p.z = 3; } });
@@ -317,7 +317,7 @@ window.HW = window.HW || {};
       p.state = 'cartwheel'; p.st = 0; p.cartFrom = { x: p.x, z: p.z }; p.sbRel = false; p.face = -side(p.team); p.vx = p.vz = 0; p.dm = null; Au.whoosh(5); return;
     }
     p.cart = !!p.cartGo;
-    p.state = 'shoot'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH * 0.9); p.y = 0.001; p.released = false; p.tApex = p.vy / GRAV; p.stepT = !!p.sbGo;
+    p.state = 'shoot'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH * 0.9); p.y = 0.001; p.released = false; p.tApex = p.vy / GRAV; p.stepT = !!p.sbGo; p.kick = null; p.kickRoll = false;
     // a 3-point shooter pulling up while moving away from the basket shoots a fadeaway: leaning back, knee kicked out, drifting away;
     // running at it, the one-foot three (LaMelo style): off one foot, the other knee driving up, carried a little forward by his run -
     // a three like any other (the odds from where he took off)
@@ -375,22 +375,55 @@ window.HW = window.HW || {};
     var deep = Math.max(0, d - (K.R3 + 1.0)), deepF = Math.exp(-0.42 * deep); pm *= deepF;
     if (p.onFire) pm = Math.max(pm, (sig(p, 'tp') ? 0.99 : 0.94) * Math.exp(-0.3 * Math.max(0, d - (K.R3 + 2.5))));
     pm = clamp(pm, deep > 3 ? 0.005 : 0.04, 0.97);
-    var make = p.cart || Math.random() < pm;   // (the cartwheel three always goes in)
+    var make = p.cart || !!p.kick || Math.random() < pm;   // (the cartwheel three and the low blow always go in)
     // a 3-point shooter who knows it's good does a shoulder shimmy once he lands, about 2 in 10 of his made threes
     p.shimmy = make && three && p.def.type === 'shooter' && Math.random() < 0.2;
     p.hasBall = false; b.holder = null; b.state = 'shot'; b.last = p;
-    b.shotInfo = { by: p, team: p.team, three: three, sb: !!p.stepT, cw: !!p.cart, of: !!p.onefoot, sure: !!(p.cart || p.stepT), make: make, quality: quality, t: 0, T: 0.7 + d * 0.055, x0: b.x, y0: b.y, z0: b.z, rx: rx, arc: 1.4 + d * 0.13, missX: rand(-0.35, 0.35), missZ: rand(-0.3, 0.3) };
+    b.shotInfo = { by: p, team: p.team, three: three, sb: !!p.stepT, cw: !!p.cart, of: !!p.onefoot, sure: !!(p.cart || p.stepT || p.kick), make: make, quality: quality, t: 0, T: 0.7 + d * 0.055, x0: b.x, y0: b.y, z0: b.z, rx: rx, arc: 1.4 + d * 0.13, missX: rand(-0.35, 0.35), missZ: rand(-0.3, 0.3) };
     p.stats.fga++; if (three) p.stats.tpa++;
     if (p.human && quality === 'green') G.say('GREEN!', '#5cff7a', 0.7, 0.6);
     Au.whoosh(6);
   };
   // a shooter in his move: the step-back (it makes space: no steal on the way, no contest, no block) and the cartwheel (all that, and
   // it always goes in) - from the press of SHOOT until the ball's gone
-  function guarded(h) { return !!h && (h.state === 'cartwheel' || h.state === 'stepback' || h.state === 'shoot' && !h.released && (h.cart || h.stepT) || !!G.inb && G.inb.p === h); }
+  function guarded(h) { return !!h && (h.state === 'cartwheel' || h.state === 'stepback' || h.state === 'shoot' && !h.released && (h.cart || h.stepT || h.kick) || !!G.inb && G.inb.p === h); }
   G.guarded = guarded;
   function contest(p) {
     if (p.cart || p.stepT) return 0;
     var c = 0; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < 1.6 && q.state !== 'fall') c = Math.max(c, (1.6 - d) / 1.6 * (q.y > 0.25 ? 0.32 : 0.16) * (0.7 + q.def.stats.block / 20)); }); return c;
+  }
+  // the low blow: a 3-point shooter going up with a man on him (in front, close enough to contest it) kicks his near leg out straight
+  // into the man's crotch, 1 in 50 of those jump shots (KICK_P). Just off the floor, so the foot lands at crotch height; the shot always
+  // goes in and can't be touched; his man is down for 5 s (KICK_HURT: on his knees, then on his back clutching it, a countdown over
+  // him) - and the game doesn't stop: 1 s of slow motion (KICK_SLOW: 0.4 s of play) from the kick, the camera in close on the two of
+  // them, then on at full speed
+  var KICK_P = 1 / 50, KICK_HURT = 5, KICK_HIT = 0.04, KICK_REACH = 0.85, KICK_SLOW = 0.4, KICK_RT = 1.0;
+  function kickSpot(p) { return p.x + p.face * (KICK_REACH * p.def.height / 1.89 + 0.1); }   // where his man's middle goes for the foot to land
+  function tryKick(p) {
+    if (p.def.type !== 'shooter' || p.cart || p.stepT || !p.hasBall || G.phase !== 'play' || G.cine || G.pu || G.show || !X.hasAnim(p, 'shoot_kick')) return;
+    var q = null, bd = 1.6;
+    G.opps(p).forEach(function (o) { var d = dist(p, o); if (d < bd && o.state !== 'fall' && o.state !== 'dunk' && !(o.hurtT > 0) && (o.x - p.x) * p.face > 0.15 && Math.abs(o.z - p.z) < 1.3 && X.hasAnim(o, 'nutted')) { bd = d; q = o; } });
+    if (!q || Math.random() >= (G.kickP != null ? G.kickP : KICK_P)) return;
+    p.kick = { q: q, t: 0, hit: false, x0: q.x, z0: q.z };
+    q.state = 'fall'; q.st = 0; q.fallT = 99; q.hurtT = KICK_HURT; q.nut = true; q.nutAt = null; q.abBy = null; q.vx = q.vz = 0;
+    q.dk = null; q.pending = null; q.dm = null; q.dunkFace = false; q.tongue = false; q.face = -p.face;
+    G.cine = { p: p, q: q, t: 0, dur: KICK_RT, kind: 'kick', slow: KICK_SLOW };
+    hl('knock', p, 'LOW BLOW');
+  }
+  function updateKick(p, dt) {
+    var k = p.kick, q = k.q;
+    if (p.state !== 'shoot') { if (!k.hit) landKick(p); p.kick = null; return; }   // down (or out of the shot with a pass): his man stays down
+    k.t += dt;
+    if (!k.hit) {   // his man is drawn in to the foot as it comes out (just behind him, so the foot shows on top)
+      var e = Math.min(1, k.t / KICK_HIT); q.x = clamp(k.x0 + (kickSpot(p) - k.x0) * e, -K.HL - 0.6, K.HL + 0.6); q.z = clamp(k.z0 + (p.z + 0.06 - k.z0) * e, 0.3, K.CD - 0.3);
+      if (k.t >= KICK_HIT) landKick(p);
+    }
+  }
+  function landKick(p) {
+    var k = p.kick, q = k.q; k.hit = true; q.nutAt = q.st;
+    var ex = q.x - q.face * 0.12; X.burst(ex, 0.85, q.z - 0.2, 22, ['#ffffff', '#ffe14d', '#ff5a4a'], 4, 0.5, 3); X.shake = Math.max(X.shake, 0.9);
+    Au.punch && Au.punch(); if (isGuy(q)) Au.help && Au.help(); else Au.painF && Au.painF();
+    if (G.cine && G.cine.kind === 'kick') G.cine.say = true; else G.say('LOW BLOW!', '#ff5a4a', 1.4, 1.3);   // (the call comes as the camera pulls back out: nothing over the close-up)
   }
 
   // coming in from the baseline: off to the side of the rim, even with it or behind it, or at most a little out in front (60 degrees or
@@ -527,10 +560,12 @@ window.HW = window.HW || {};
     var b = G.ball, d = dist(p, to), pr = p.def.stats.pass || 5, f = p.face, hw = style && X.handWorld(p);
     if (!style) { p.state = 'pass'; p.st = 0; p.passStyle = null; }
     p.pending = null; p.hasBall = false; b.holder = null; b.state = 'pass'; b.last = p;
-    var miss = Math.max(0, 7 - pr) * 0.12, lead = 0.2 + 0.01 * pr;
+    var miss = Math.max(0, 7 - pr) * 0.12, lead = 0.2 + 0.01 * pr, mx = (Math.random() - 0.5) * 2 * miss, mz = (Math.random() - 0.5) * miss;
+    // home: how much of the receiver's drift the ball follows on the way (PASS 9+ or on fire: all of it; 5 half, 3 a quarter)
     b.pass = { from: p, to: to, t: 0, T: Math.max(0.16, d / (15 + 0.8 * pr)), x0: hw ? hw.x : p.x + f * 0.3, y0: hw ? hw.y : 1.3 + p.y, z0: p.z - 0.2,
-      x1: to.x + to.vx * lead + (Math.random() - 0.5) * 2 * miss, z1: to.z + to.vz * lead + (Math.random() - 0.5) * miss, y1: 1.3,
-      arc: style === 'head' ? 1.1 : style === 'hike' || style === 'flip' ? 0.25 : 0.5, safe: sig(p, 'pass') ? 0 : clamp(1.3 - 0.08 * pr, 0.45, 1.2) };   // nobody picks off a passer on fire
+      x1: to.x + to.vx * lead + mx, z1: to.z + to.vz * lead + mz, y1: 1.3, mx: mx, mz: mz, home: sig(p, 'pass') ? 1 : clamp((pr - 1) / 8, 0, 1),
+      arc: style === 'head' ? 1.1 : style === 'hike' || style === 'flip' ? 0.25 : 0.5, safe: sig(p, 'pass') ? 0 : clamp(1.45 - 0.11 * pr, 0.35, 1.2) };   // nobody picks off a passer on fire
+    b.pass.ax = b.pass.x1; b.pass.az = b.pass.z1;   // where it was thrown (the receiver meets it there; the homing does the rest)
     if (style && Au.passWhoosh) Au.passWhoosh(); else Au.whoosh(style ? 6 : 4);   // a trick pass gets the big recorded whoosh
   }
   function updatePending(p) {
@@ -726,7 +761,7 @@ window.HW = window.HW || {};
   function startPowerup(p) {
     var tw = twerker(true) === p ? TW.len : 0;
     G.pu = { p: p, t: 0, boom: false, tw: tw, dur: tw || PU.dur }; G.callouts = []; hl(tw ? 'twerk' : 'powerup', p, 'ON FIRE'); p.state = 'powerup'; p.st = 0; p.vx = p.vz = 0; p.dm = null; p.pending = null; p.trail = null;
-    if (tw) { startShow(p, 'pu', tw); Au.sfx && Au.sfx('gator_cushy', 1.5); }   // 5 s of "spot" by Cushy over the whole thing, from its drop - loud from the first frame (up front: the crowd ducks under it)
+    if (tw) { startShow(p, 'pu', tw); Au.sfx && Au.sfx('gator_cushy', 1.5); }   // 5 s of "spot" by Cushy over the whole thing, from the top of the song - loud from the first frame (up front: the crowd ducks under it)
     else { Au.charge && Au.charge(); Au.fireball && Au.fireball(); Au.yell && Au.yell(!isGuy(p)); }
   }
   function updatePowerup(dt) {
@@ -754,7 +789,8 @@ window.HW = window.HW || {};
     // going on fire: a 2 s golden power-up with the camera zoomed in on him while everything else waits
     if (G.pu) { updatePowerup(dt); return; }
     if (G.cine && G.cine.kind === 'armbar') { updateArmbarCine(dt); return; }   // the arm bar: everything else waits
-    if (G.cine) {   // the slow-motion dunks (everything slows equally, so nobody gets a better chance at it): under the legs all the way up
+    if (G.cine && G.cine.kind === 'kick') { if ((G.cine.t += dt) >= G.cine.dur) { if (G.cine.say) G.say('LOW BLOW!', '#ff5a4a', 1.4, 1.3); G.cine = null; } else dt *= G.cine.slow; }   // the low blow: 1 s of slow motion, everyone
+    else if (G.cine) {   // the slow-motion dunks (everything slows equally, so nobody gets a better chance at it): under the legs all the way up
       // to the slam; off the backboard only from the toss until it's back in his hand
       var cp = G.cine.p, cu = cp.dk ? cp.st / cp.dk.T : 1, ck = G.cine.kind, bsi = G.ball.shotInfo;
       if (ck === 'roll' || ck === 'rev') {   // the layups: slow until the ball drops through (the finger roll from the top of his rise)
@@ -847,7 +883,8 @@ window.HW = window.HW || {};
     // arm-barred: glued to the man who has the arm until the snap; then down for HURT seconds whatever the clock is doing
     if (p.state === 'fall' && (p.abBy || p.hurtT > 0)) {
       p.vx = p.vz = 0; if (p.abBy && p.abBy.state !== 'armbar' && !p.hurtT) { p.abBy = null; p.fallT = p.st + 0.6; }   // the hold was broken before the snap
-      if (p.hurtT > 0 && (p.hurtT -= dt) <= 0) { p.hurtT = 0; p.abBy = null; p.state = 'idle'; p.flash = 0.8; }
+      if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; } }   // (kicked up in the air contesting)
+      if (p.hurtT > 0 && (p.hurtT -= dt) <= 0) { p.hurtT = 0; p.abBy = null; p.nut = false; p.nutAt = null; p.state = 'idle'; p.flash = 0.8; }
       return;
     }
     // (on his feet with time still on the injury - something stood him up early: it runs out all the same, so the badge never sticks)
@@ -859,6 +896,8 @@ window.HW = window.HW || {};
     if (p.state === 'shoot' && p.onefoot && p.y > 0) { p.vx = (p.x > rimX(p.team) ? -1 : 1) * 0.9; p.vz *= 0.85; }   // the one-footer carries on a little toward it
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
     if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump' || p.state === 'hammer') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = p.shimmy ? 'shimmy' : 'idle'; p.st = 0; p.shimmy = false; if (p.fade || p.onefoot) p.vx *= 0.15; p.fade = false; p.onefoot = false; if (p.state === 'shimmy') { p.vx = p.vz = 0; } } } }
+    if (p.state === 'shoot' && !p.kickRoll && p.vy > 0 && p.y > 0.08) { p.kickRoll = true; tryKick(p); }
+    if (p.kick) updateKick(p, dt);
     if (p.state === 'shoot' && p.hasBall && !p.released && p.sbAuto && p.st >= p.tApex) G.releaseShot(p);   // let go during the step-back or cartwheel: up it goes
     if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * (p.remote ? 1.95 : 1.7)) G.releaseShot(p);   // a guest's release is on its way: wait longer for it
     if (p.state === 'pass') updatePending(p);
@@ -967,6 +1006,13 @@ window.HW = window.HW || {};
     if (b.state === 'through') { b.y += b.vy * dt; b.vy -= GRAV * 0.5 * dt; b.inFront = true; if (b.y < 0.15) { b.y = 0.15; b.vy = 0; } return; }
     if (b.state === 'pass') {
       var ps = b.pass, v = Math.min(1, (ps.t += dt) / ps.T);
+      // heat-seeking, by the passer's PASS: the ball bends toward where the receiver will be when it gets there, so however he drifts
+      // a great passer's ball finds him (the aim swings at most 30 m/s, so a receiver who cuts back gets a curve, not a jump)
+      if (ps.home > 0 && ps.to.state !== 'fall') {
+        var rem = Math.max(0, ps.T - ps.t), wx = ps.ax + (ps.to.x + ps.to.vx * rem + ps.mx - ps.ax) * ps.home, wz = ps.az + (ps.to.z + ps.to.vz * rem + ps.mz - ps.az) * ps.home;
+        var sw = Math.hypot(wx - ps.x1, wz - ps.z1), cap = 30 * dt; if (sw > cap) { wx = ps.x1 + (wx - ps.x1) * cap / sw; wz = ps.z1 + (wz - ps.z1) * cap / sw; }
+        ps.x1 = wx; ps.z1 = wz;
+      }
       var px = ps.x0 + (ps.x1 - ps.x0) * v, pz = ps.z0 + (ps.z1 - ps.z0) * v, py = ps.y0 + (ps.y1 - ps.y0) * v + ps.arc * 4 * v * (1 - v);
       b.vx = (px - b.x) / dt; b.vz = (pz - b.z) / dt; b.vy = (py - b.y) / dt; b.x = px; b.z = pz; b.y = py;
       // interceptions
@@ -977,7 +1023,7 @@ window.HW = window.HW || {};
       if (thief && Math.random() < (thief.human ? 0.75 : 0.5 * G.diff.steal) * ps.safe * (sig(thief, 'steal') ? 1.6 : 1)) { thief.stats.steals++; G.give(thief); hl('steal', thief, 'INTERCEPTION'); G.say('INTERCEPTED!', '#7ee0ff', 1.1); Au.steal(); Au.laugh && Au.laugh(); Au.catch(); return; }
       // the receiver catches it as soon as it reaches him near the end of the flight
       if (v > 0.7 && ps.to.state !== 'fall' && dist(ps.to, b) < 0.8 && b.y < ps.to.y + ps.to.reach) v = 1;
-      if (v >= 1) { if (ps.to.state !== 'fall' && dist(ps.to, b) < (ps.inb ? 2.8 : 1.6)) { G.give(ps.to); ps.to.assist = { by: ps.from, t: G.t }; Au.catch(); } else { b.state = 'loose'; b.vy = 0; } }
+      if (v >= 1) { if (ps.to.state !== 'fall' && (dist(ps.to, b) < (ps.inb ? 2.8 : 1.6) || ps.home >= 1 && dist(ps.to, b) < 3)) { G.give(ps.to); ps.to.assist = { by: ps.from, t: G.t }; Au.catch(); } else { b.state = 'loose'; b.vy = 0; } }   // (a full homer always gets there)
       return;
     }
     // loose ball physics + pickups
@@ -1016,6 +1062,10 @@ window.HW = window.HW || {};
       }
       case 'armbar': p.anim = 'armbar'; p.dir = 'R'; p.frame = p.st < AB_T ? Math.min(7, Math.floor(p.st / AB_T * 8)) : 8 + Math.min(3, Math.floor((p.st - AB_T) / (AB_UP / 4))); return;
       case 'fall':
+        if (p.nut && X.hasAnim(p, 'nutted')) {   // the low blow: up contesting until the foot lands, then down - and rocking on his back
+          var tn = p.nutAt == null ? -1 : p.st - p.nutAt; p.anim = 'nutted'; p.dir = 'R';
+          p.frame = tn < 0 ? 0 : tn < 0.1 ? 1 : tn < 0.3 ? 2 : tn < 0.5 ? 3 : tn < 0.9 ? 4 : tn < 1.1 ? 5 : 6 + Math.floor((G.t || 0) * 3) % 4; return;
+        }
         if ((p.abBy || p.hurtT > 0) && X.hasAnim(p, 'armbarred')) {   // under the arm bar (in step with him), then lying there clutching the elbow
           var by = p.abBy; p.anim = 'armbarred'; p.dir = 'R';
           p.frame = by && by.state === 'armbar' && by.st < AB_T ? Math.min(7, Math.floor(by.st / AB_T * 8)) : 8 + Math.floor((G.t || 0) * 3) % 4; return;
@@ -1025,7 +1075,8 @@ window.HW = window.HW || {};
       case 'stepback': if (X.hasAnim(p, 'stepback')) { p.anim = 'stepback'; p.frame = p.st < 0.08 ? 0 : p.st < 0.26 ? 1 : 2; } else { p.anim = 'shoot'; p.frame = 0; } p.dir = 'R'; return;
       case 'shimmy': p.anim = 'shimmy'; p.dir = 'F'; p.frame = (p.st * 11) % 6; return;   // the shoulder shimmy after a made three
       case 'dougie': p.anim = p.dougie || 'dougie'; p.dir = 'R'; p.frame = Math.floor(p.st * 16 / 1.4) % 16; return;   // a 1.4 s beat-cycle
-      case 'shoot': p.anim = p.cart && X.hasAnim(p, 'shoot_chuck') ? 'shoot_chuck' : p.fade && X.hasAnim(p, 'shoot_fade') ? 'shoot_fade' : p.onefoot && X.hasAnim(p, 'shoot_onefoot') ? 'shoot_onefoot' : 'shoot'; if (p.dir === 'B' || p.anim === 'shoot_onefoot') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
+      case 'shoot': if (p.kick && X.hasAnim(p, 'shoot_kick')) { p.anim = 'shoot_kick'; p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : p.kick.t < KICK_HIT ? 1 : 2; return; }
+        p.anim = p.cart && X.hasAnim(p, 'shoot_chuck') ? 'shoot_chuck' : p.fade && X.hasAnim(p, 'shoot_fade') ? 'shoot_fade' : p.onefoot && X.hasAnim(p, 'shoot_onefoot') ? 'shoot_onefoot' : 'shoot'; if (p.dir === 'B' || p.anim === 'shoot_onefoot') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
       case 'jump': p.anim = 'jump'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.vy > 2 ? 1 : 2; return;
       case 'pass': if (p.passStyle) { var F = FANCY[p.passStyle]; p.anim = 'pass_' + p.passStyle; p.dir = p.passStyle === 'back' ? 'W' : 'R'; p.frame = frameAt(F, p.st); }
         else { p.anim = 'pass'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); } return;

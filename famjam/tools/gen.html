@@ -74,6 +74,18 @@ function apply(A, p) {
   if (p.knees) [0, 1].forEach(function (k) { handOnKnee(A, k, p.knees); });
   // a ball held in one hand or both (the layups that switch hands)
   if (p.g0 || p.g1) holdBall(A, p);
+  // cup: both hands clutching the front of the shorts (the low blow)
+  if (p.cup) cupHands(A, p);
+}
+// both palms onto the front of the shorts (arm IK, the pose's own rs / rz / re as the start)
+function cupHands(A, p) {
+  [0, 1].forEach(function (k) {
+    A.root.updateMatrixWorld(true);
+    var sh = A.sh[k], el = A.el[k], s = k ? 1 : -1, ry = k ? -(p.ly || 0) : p.ry || 0, x0 = k ? [p.ls || 0, p.lz || 0, p.le || 0] : [p.rs || 0, p.rz || 0, p.re || 0];
+    var goal = A.hips.localToWorld(new V3(-s * 0.045, -0.14, 0.16));
+    ik(A, x0, function (x) { sh.rotation.set(-x[0], ry, s * (0.12 + x[1])); el.rotation.x = -x[2]; }, function () { return A.palm[k].getWorldPosition(new V3()); }, goal, [-3, -0.7, 0.05], [3.4, 0.45, 2.6]);
+  });
+  A.root.updateMatrixWorld(true);
 }
 // the held ball rides a path of its own in front of his chest (bx, by, bz: m from the chest joint at 1.89 m tall, his left +x, up +y,
 // forward +z) and each hand on it (g0 his near / right hand, g1 his far / left one: 0 = off, 1 = on, between = reaching for it) gets
@@ -564,6 +576,28 @@ ANIMS.armbarred = { n: 12, dirs: ['R'], center: true, f: function (t, i) {
     abPose(ABV, { re: -0.3, neck: -0.55, rt: 1.2, rk: 0.6, lt: 0.9, lk: 0.5, ls: 2.6, le: 0.2 }),
     abPose(ABV, { re: -0.25, neck: -0.45, rt: 1.0, rk: 1.1, lt: 0.5, lk: 0.9 }),
     abPose(ABV, { re: -0.2, neck: -0.35, rt: 0.8, rk: 1.2, lt: 0.6, lk: 1.0 })][i];
+} };
+// the 3-point shooter's low blow (1 in 50 contested jump shots): just off the floor his near leg snaps out straight in front of him into
+// his man's crotch, and stays out through the rise and the release - the same arms and five beats as the jump shot (gather, chamber,
+// leg out with the ball set, release, follow-through with the leg coming back)
+ANIMS.shoot_kick = { n: 5, dirs: ['R'], f: function (t, i) { return [
+  { crouch: 0.28, lean: 0.2, rs: 1.25, re: 1.7, ls: 1.25, le: 1.7, rt: 0.5, lt: 0.5, rk: 1.0, lk: 1.0, rz: 0.1, lz: 0.1 },
+  { crouch: 0.02, lean: -0.05, rs: 2.2, re: 1.3, ls: 2.1, le: 1.3, rt: 1.35, rk: 1.7, lt: -0.05, lk: 0.25, air: 1 },
+  { lean: -0.2, rs: 2.75, re: 1.5, ls: 2.4, le: 1.0, rt: 1.2, rk: 0.04, lt: -0.1, lk: 0.3, air: 1 },
+  { lean: -0.24, rs: 3.0, re: 0.15, ls: 2.5, le: 0.6, rt: 1.2, rk: 0.04, lt: -0.1, lk: 0.3, air: 1 },
+  { lean: -0.1, rs: 2.75, re: 0.45, ls: 1.9, le: 0.5, rt: 0.75, rk: 0.7, lt: 0.0, lk: 0.3, air: 1 }][i]; } };
+// the one it happens to: up contesting (0), the foot lands - hips jerk back, knees knock, both hands to the crotch (1), doubled over
+// (2), the knees go (3), down on his knees (4), tipping back (5), then on his back curled up clutching it, rocking (6-9)
+var NUTD = abPose(AB_DOWN, { cup: 1, rs: 0.6, re: 0.9, ls: 0.6, le: 0.9, chx: 0.25, neck: 0.35, rk: 2.0, lk: 2.0 });
+ANIMS.nutted = { n: 10, dirs: ['R'], center: true, f: function (t, i) {
+  if (i >= 6) { var s = [0.14, 0.05, -0.12, -0.05][i - 6]; return abPose(NUTD, { roll: s, rt: 1.35 + s, lt: 1.25 - s }); }
+  return [
+    { crouch: 0.04, lean: 0.05, rs: 2.75, re: 0.25, rz: 0.15, ls: 2.65, le: 0.3, lz: 0.15, rt: 0.1, rk: 0.2, lt: 0.05, lk: 0.2 },
+    { cup: 1, crouch: 0.1, lean: 0.4, rs: 0.5, re: 0.8, ls: 0.5, le: 0.8, rt: 0.45, rk: 0.6, lt: 0.4, lk: 0.6, ra: -0.12, la: -0.12, neck: -0.25 },
+    { cup: 1, crouch: 0.2, lean: 0.85, rs: 0.4, re: 0.9, ls: 0.4, le: 0.9, rt: 0.8, rk: 1.1, lt: 0.75, lk: 1.1, ra: -0.15, la: -0.15, neck: -0.35 },
+    { cup: 1, crouch: 0.38, lean: 0.75, rs: 0.4, re: 0.9, ls: 0.4, le: 0.9, rt: 0.85, rk: 1.75, lt: 0.85, lk: 1.75, ra: -0.12, la: -0.12, neck: -0.3 },
+    { cup: 1, crouch: 0.52, lean: 0.55, rs: 0.4, re: 0.9, ls: 0.4, le: 0.9, rt: 0.15, rk: 1.6, lt: 0.15, lk: 1.6, neck: -0.2 },
+    { cup: 1, flip: -0.75, lift: -0.35, slide: -0.2, lean: 0.5, rs: 0.5, re: 0.9, ls: 0.5, le: 0.9, rt: 1.3, rk: 1.9, lt: 1.2, lk: 1.9, neck: 0.1 }][i];
 } };
 // the far-hand layups and the reverses carry their own ball, rendered in 3D with him up to the release (ball: in which hand, or on the
 // reverse's own path; until when); the near-hand ones leave it to the game
