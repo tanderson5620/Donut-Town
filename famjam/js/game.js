@@ -265,6 +265,9 @@ window.HW = window.HW || {};
     if (G.show && G.show.p === p && G.show.t < G.show.len) { b.x = p.x + p.face * 0.6; b.y = 0.15; b.z = p.z - 0.3; return; }   // set down for the twerk
     if (p.state === 'cartwheel' || (p.state === 'shoot' && p.cart)) { var cw = X.ballWorld(p); if (cw) { b.x = cw.x; b.y = Math.max(0.2, cw.y); b.z = p.z - 0.2; b.baked = cw.baked; b.inFront = !cw.baked; return; } }
     if (p.state === 'stepback') { var hs = X.handWorld(p); b.x = hs ? hs.x : p.x + p.face * 0.3; b.y = hs ? Math.max(0.2, hs.y) : p.y + 1.1; b.z = p.z - 0.25; return; }
+    if (p.state === 'shoot' && p.anim === 'shoot_steph') {   // (the one-motion lift: in his hands from the hip up to the set point)
+      var sa = X.handWorld(p, false), sc = X.handWorld(p, true); if (sa && sc) { b.x = (sa.x + sc.x) / 2; b.y = Math.max(0.3, (sa.y + sc.y) / 2 + 0.06); b.z = p.z - 0.2; return; }
+    }
     if (p.state === 'shoot' || p.state === 'dunk') { b.x = p.x + p.face * 0.12; b.y = p.y + p.def.height + 0.2; b.z = p.z - 0.15; return; }
     if (p.state === 'pass' && p.pending) { var hw = X.handWorld(p); if (hw) { b.x = hw.x; b.y = Math.max(0.15, hw.y); b.z = p.z - 0.25; } return; }   // in his hand through a fancy pass
     if (p.state === 'pass' || p.state === 'fall') return;
@@ -295,6 +298,11 @@ window.HW = window.HW || {};
   function takeoff(p) { return p.state !== 'shoot' ? p : p.cart && p.cartFrom || p.shotFrom || p; }
   // how long after the press the top of his jump shot comes: the green window is timed from the press, whatever he does first
   G.shotApex = function (p) { return Math.sqrt(2 * GRAV * p.jumpH * 0.9) / GRAV; };
+  // the 3-point shooters' quick release (Steph Curry's one-motion shot): their sweet spot comes on the way up, QUICK of the way to the
+  // top of the jump (everyone else's is the top), so their green window starts right by the start of the shot meter - and the
+  // computer's shooters let it go there, before a man closing out can get a hand up
+  var QUICK = 0.45;
+  G.relFrac = function (p) { return p.def.type === 'shooter' ? QUICK : 1; };
   // the green window, as a share of that time either side of the top: wider for better shooters, and half again more (x1.6) for a
   // 3-point shooter's three (by where he took off); ok out to 2.5 times it, bad beyond. The game judges the release and the shot meter
   // draws its zones from this, so what you see is what counts
@@ -364,7 +372,7 @@ window.HW = window.HW || {};
     // release timing, from the press of SHOOT: the top of a jump shot is the sweet spot (wider for shooters from deep), and a step-back
     // or cartwheel first doesn't move it. Online, a guest's release is timed on his own phone, press to let-go (p.relPress)
     var rst = p.relPress != null ? p.relPress : p.sht != null ? p.sht : p.st; p.relPress = null; p.sht = null; p.sbAuto = false;
-    var off = Math.abs(rst - p.tApex) / p.tApex, win = G.shotWin(p), quality = off < win ? 'green' : off < win * 2.5 ? 'ok' : 'bad';
+    var off = Math.abs(rst - p.tApex * G.relFrac(p)) / p.tApex, win = G.shotWin(p), quality = off < win ? 'green' : off < win * 2.5 ? 'ok' : 'bad';
     if (!p.human) quality = Math.random() < (G.diff.green != null ? G.diff.green : 0.35) ? 'green' : 'ok';   // the computer's timing: 40 / 60 / 80% green by difficulty
     if (sig(p, 'tp')) quality = 'green';   // a shooter on fire can't miss the window
     if (quality === 'green') pm += 0.28; else if (quality === 'bad') pm *= 0.55;
@@ -862,7 +870,7 @@ window.HW = window.HW || {};
     // cartwheel, or still rising, it goes up at the top of the jump (online, a guest's own let-go can still come in before that)
     if (p.human && p.sht != null && p.relPress == null && p.hasBall && !p.released && p.sht > p.tApex * (p.remote ? 1.95 : 1.7)) {
       p.relPress = p.sht;
-      if (p.state === 'stepback' || p.state === 'cartwheel') p.sbRel = true; else if (p.st < p.tApex) p.sbAuto = true; else G.releaseShot(p);
+      if (p.state === 'stepback' || p.state === 'cartwheel') p.sbRel = true; else if (p.st < p.tApex * G.relFrac(p)) p.sbAuto = true; else G.releaseShot(p);
     }
     if (p.hitT > 0) p.hitT -= dt;
     if (p.taunt && (p.taunt.t += dt) > 2) p.taunt = null;
@@ -900,7 +908,7 @@ window.HW = window.HW || {};
     if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump' || p.state === 'hammer') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = p.shimmy ? 'shimmy' : 'idle'; p.st = 0; p.shimmy = false; if (p.fade || p.onefoot) p.vx *= 0.15; p.fade = false; p.onefoot = false; if (p.state === 'shimmy') { p.vx = p.vz = 0; } } } }
     if (p.state === 'shoot' && !p.kickRoll && p.vy > 0 && p.y > 0.08) { p.kickRoll = true; tryKick(p); }
     if (p.kick) updateKick(p, dt);
-    if (p.state === 'shoot' && p.hasBall && !p.released && p.sbAuto && p.st >= p.tApex) G.releaseShot(p);   // let go during the step-back or cartwheel: up it goes
+    if (p.state === 'shoot' && p.hasBall && !p.released && p.sbAuto && p.st >= p.tApex * G.relFrac(p)) G.releaseShot(p);   // let go during the step-back or cartwheel: up it goes (a shooter's on the way up)
     if (p.state === 'shoot' && p.hasBall && !p.released && p.st > p.tApex * (p.remote ? 1.95 : 1.7)) G.releaseShot(p);   // a guest's release is on its way: wait longer for it
     if (p.state === 'pass') updatePending(p);
     if ((p.state === 'pass' && p.st > (p.passStyle ? FANCY[p.passStyle].dur : 0.3) && p.grounded()) || (p.state === 'steal' && p.st > 0.3) || (p.state === 'shove' && p.st > 0.35) || (p.state === 'cheer' && p.st > 1.5) || (p.state === 'shimmy' && p.st > 1.4)) p.state = 'idle';
@@ -935,7 +943,7 @@ window.HW = window.HW || {};
       if (In.shootUp) {
         if (p.sht != null && p.relPress == null) p.relPress = p.sht;
         if (p.state === 'stepback' || p.state === 'cartwheel') p.sbRel = true;
-        else if (p.state === 'shoot' && (p.stepT || p.cart) && !p.released && p.st < p.tApex) p.sbAuto = true;   // (just off the move: at the top, not off the floor)
+        else if (p.state === 'shoot' && (p.stepT || p.cart) && !p.released && p.st < p.tApex * G.relFrac(p)) p.sbAuto = true;   // (just off the move: at the top, not off the floor)
         else G.releaseShot(p);
       }
       if (In.passDown) G.passTo(p, mate);
@@ -1078,6 +1086,10 @@ window.HW = window.HW || {};
       case 'shimmy': p.anim = 'shimmy'; p.dir = 'F'; p.frame = (p.st * 11) % 6; return;   // the shoulder shimmy after a made three
       case 'dougie': p.anim = p.dougie || 'dougie'; p.dir = 'R'; p.frame = Math.floor(p.st * 16 / 1.4) % 16; return;   // a 1.4 s beat-cycle
       case 'shoot': if (p.kick && X.hasAnim(p, 'shoot_kick')) { p.anim = 'shoot_kick'; p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : p.kick.t < KICK_HIT ? 1 : 2; return; }
+        if (p.def.type === 'shooter' && !p.cart && !p.fade && !p.onefoot && X.hasAnim(p, 'shoot_steph')) {   // the Steph Curry form: one motion, let go on the way up
+          p.anim = 'shoot_steph'; if (p.dir === 'B') p.dir = 'R';
+          p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.1 ? 3 : 4) : p.grounded() ? 0 : p.st < p.tApex * QUICK * 0.55 ? 1 : 2; return;
+        }
         p.anim = p.cart && X.hasAnim(p, 'shoot_chuck') ? 'shoot_chuck' : p.fade && X.hasAnim(p, 'shoot_fade') ? 'shoot_fade' : p.onefoot && X.hasAnim(p, 'shoot_onefoot') ? 'shoot_onefoot' : 'shoot'; if (p.dir === 'B' || p.anim === 'shoot_onefoot') p.dir = 'R'; p.frame = p.released ? (p.st2 = (p.st2 || 0) + dt, p.st2 < 0.12 ? 3 : 4) : (p.grounded() ? 0 : p.vy > 1 ? 1 : 2); return;
       case 'jump': p.anim = 'jump'; if (p.dir === 'B') p.dir = 'R'; p.frame = p.vy > 2 ? 1 : 2; return;
       case 'pass': if (p.passStyle) { var F = FANCY[p.passStyle]; p.anim = 'pass_' + p.passStyle; p.dir = p.passStyle === 'back' ? 'W' : 'R'; p.frame = frameAt(F, p.st); }

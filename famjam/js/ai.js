@@ -24,7 +24,7 @@ window.HW = window.HW || {};
     if (G.phase === 'inbound' && G.inb && p.state !== 'shoot') { inbound(p, a, dt, G.inb); return; }
     if (p.state === 'shoot') {
       G.move(p, 0, 0, false, dt);
-      if (p.hasBall && !p.released && p.st >= p.tApex * (a.relAt || 1)) G.releaseShot(p);
+      if (p.hasBall && !p.released && p.st >= p.tApex * G.relFrac(p) * (a.relAt || 1)) G.releaseShot(p);   // (a 3-point shooter's on the way up)
       return;
     }
     a.t -= dt;
