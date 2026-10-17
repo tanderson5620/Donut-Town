@@ -966,11 +966,6 @@ window.HW = window.HW || {};
     if (h && h.screen && h.headTop !== undefined && h.screen.x > -20 && h.screen.x < W + 20) {
       var mk = marker(P1C, 'YOU', 2), my = Math.max(64, Math.round(h.headTop - mk.height - 3 - (Math.floor(G.t * 4) % 2)));   // big bobbing YOU over your player
       g.drawImage(mk, Math.round(h.screen.x - mk.width / 2 + 1), my);
-      // floor balance: your partner's shot is up (or just came off the rim) - you're the one getting back, so an arrow toward your end
-      var home = h.team === 0 ? -X.K.RIMX : X.K.RIMX;
-      if (!h.hasBall && G.backMan && G.backMan(h.team) === h && Math.abs(h.x - home) > 7 && blink(6)) {
-        var gb = home < h.x ? '< GET BACK' : 'GET BACK >'; Fo.draw(g, gb, Math.round(h.screen.x), my - 9, { scale: 1, scheme: 'yellow', outline: 1, shadow: 0 });
-      }
       // the shot meter fills from the press of SHOOT, the same for every jump shot (a step-back or cartwheel first doesn't slow it), until
       // you let go; online a guest's runs off his own press (h.pressAt), as the host judges it
       var gst = HW.Net && HW.Net.mode === 'guest', shooting = h.hasBall && !h.released && (h.state === 'shoot' || h.state === 'stepback' || h.state === 'cartwheel');
@@ -990,7 +985,7 @@ window.HW = window.HW || {};
       if (!p.screen) return; var off = p.screen.x < S.l - 6 ? -1 : p.screen.x > W - S.r + 6 ? 1 : 0; if (!off) return;
       var ay = Math.max(74, Math.min(176, Math.round(p.screen.y - 90))), a = tri(off < 0 ? 'l' : 'r', 7, p.def.color), ax = off < 0 ? S.l + 2 : W - S.r - 2 - a.width;
       g.drawImage(a, ax, ay - a.height / 2 | 0);
-      Fo.draw(g, p.me ? (G.backMan && G.backMan(p.team) === p && blink(6) ? 'GET BACK' : 'YOU') : p.human && p.lbl ? p.lbl : String(p.def.num), off < 0 ? ax + a.width + 2 : ax - 2, ay, { scale: 1, scheme: p.me ? 'green' : 'white', align: off < 0 ? 'left' : 'right', shadow: 0 });
+      Fo.draw(g, p.me ? 'YOU' : p.human && p.lbl ? p.lbl : String(p.def.num), off < 0 ? ax + a.width + 2 : ax - 2, ay, { scale: 1, scheme: p.me ? 'green' : 'white', align: off < 0 ? 'left' : 'right', shadow: 0 });
     });
     // an invite came in, or someone came online, during a game against the CPU: it waits on the pause menu
     var iv = INV.got || INV.ask, ia = iv && performance.now() - iv.t;
