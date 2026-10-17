@@ -527,10 +527,16 @@ window.HW = window.HW || {};
         if (Fo.measure(ot, 2) > colW + 8) { ot = Pr.count + ' ONLINE NOW'; os = 1; }
         Fo.draw(g, ot, Math.min(obx + obw / 2, C.R - 4 - Fo.measure(ot, os) / 2), oby + obh + (os === 2 ? 14 : 10), { scale: os, scheme: 'green', shadow: os === 2 ? 2 : 0 });
       }
-      // how many have played (count.js)
-      var tot = Ct ? [Ct.games != null ? Ct.games + ' GAMES PLAYED' + (Ct.owner != null ? ' (' + Ct.owner + ' BY YOU)' : '') : '', Ct.players != null ? Ct.players + (Ct.players === 1 ? ' PLAYER' : ' PLAYERS') : ''].filter(Boolean).join('   ') : '';
-      if (tot) Fo.draw(g, tot, cx, HW.TOUCH ? C.B - 10 : C.B - 24, { scale: 1, scheme: 'gray', shadow: 0 });
-      if (HW.Notify && HW.Notify.marked) Fo.draw(g, 'GOT IT: THIS DEVICE WON\'T SEND YOU NOTIFICATIONS', C.L + 10, HW.TOUCH ? C.B - 24 : C.B - 38, { scale: 1, scheme: 'green', shadow: 0, align: 'left' });   // (opened with ?me; clear of the ONLINE corner)
+      // how many have played (count.js); on the owner's own devices, bottom left, also how many of those were his and how many everyone
+      // else's (the split started after the first Ct.PRE games, which can't be told apart)
+      var tot = Ct ? [Ct.games != null ? Ct.games + ' GAMES PLAYED' : '', Ct.players != null ? Ct.players + (Ct.players === 1 ? ' PLAYER' : ' PLAYERS') : ''].filter(Boolean).join('   ') : '';
+      var y0 = HW.TOUCH ? C.B - 10 : C.B - 24;
+      if (tot && Ct.owner != null && Ct.games != null) {
+        var oth = Math.max(0, Ct.games - Ct.owner - Ct.PRE);
+        Fo.draw(g, tot, C.L + 10, y0 - 14, { scale: 1, scheme: 'gray', shadow: 0, align: 'left' });
+        Fo.draw(g, Ct.owner + ' BY YOU, ' + oth + ' BY OTHERS' + (Ct.PRE ? ' (+' + Ct.PRE + ' FROM BEFORE)' : ''), C.L + 10, y0, { scale: 1, scheme: 'white', shadow: 0, align: 'left' });
+      } else if (tot) Fo.draw(g, tot, cx, y0, { scale: 1, scheme: 'gray', shadow: 0 });
+      if (HW.Notify && HW.Notify.marked) ['GOT IT: THIS DEVICE WON\'T', 'SEND YOU NOTIFICATIONS'].forEach(function (t, i) { Fo.draw(g, t, C.L + 10, C.T + 10 + i * 12, { scale: 1, scheme: 'green', shadow: 0, align: 'left' }); });   // (opened with ?me; top left, clear of the logo)
       if (In.enter) UI.show('team');
     } else if (s === 'team') {
       drawTeamCard(g, fr);

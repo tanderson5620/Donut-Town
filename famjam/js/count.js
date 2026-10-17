@@ -6,7 +6,8 @@ window.HW = window.HW || {};
 (function (HW) {
   // (owner: games started on the owner's own phones and computers - the ones marked with ?me, see notify.js - counted together, so
   // his devices can show how many of the games were his. Counting that started later than the rest)
-  var C = HW.Count = { players: null, games: null, owner: null };
+  // PRE: the games already played when his own count started (16 on the title then) - his and everyone else's, which can't be split
+  var C = HW.Count = { players: null, games: null, owner: null, PRE: 16 };
   function mine() { return !!(HW.Notify && HW.Notify.mine()); }
   // ?count=127.0.0.1:port counts on a stand-in on this machine instead (for testing; only local)
   var m = /[?&]count=(localhost|127\.0\.0\.1):(\d+)/.exec(location.search);
