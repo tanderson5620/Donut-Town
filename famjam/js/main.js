@@ -37,19 +37,25 @@ window.HW = window.HW || {};
     else if (In.pauseDown && UI.screen === 'paused') { UI.screen = null; G.phase = UI.prevPhase; }
     if (live && Net.mode === 'guest') Net.guestFrame();   // a guest doesn't run the game: it shows the host's
     else {
-      if (Net) { Net.pre(); Net.rec = live; }
+      // (every game records the sounds and effects it makes: online the guests are sent them, and the highlight reel keeps the effects)
+      if (Net) { Net.pre(); Net.rec = true; }
       if (!UI.screen || UI.screen === 'results' || live) G.update(dt, In); else G.update(0, In);
-      if (Net) { Net.rec = false; Net.post(); }
+      if (Net) { Net.rec = false; if (HW.Replay && G.players.length && G.phase !== 'menu' && Net.snap) HW.Replay.frame(G.t, function () { return Net.snap(G.t); }, Net.ev); Net.post(); }
     }
-    if (G.phase === 'over' && G.phaseT <= 0 && UI.screen !== 'results') UI.screen = 'results';
+    if (G.phase === 'over' && G.phaseT <= 0 && UI.screen !== 'results') { UI.screen = 'results'; UI.resAt = UI.t; if (HW.Replay) HW.Replay.stop(); }
     g.fillStyle = '#05050c'; g.fillRect(0, 0, X.W, X.H);
-    if (G.players.length && G.phase !== 'menu') { X.drawScene(g, G.t, UI.screen === 'paused' ? 0 : dt, G.players, G.ball, G.hoopFx); if (!(G.pu && G.pu.t > 0.12 && G.pu.t < (G.pu.dur || G.PU.dur) - 0.15) && !G.cine) UI.drawHUD(g); }   // the power-up close-up gets the whole screen
-    else { idleT += dt; X.camX = Math.sin(idleT * 0.15) * X.camMax(); X.drawScene(g, idleT, dt, [], null, [0, 0]); }
+    var vz = G.show && G.show.kind === 'win' && G.show.t > G.WIN.hud;   // Gator's victory twerk: just him and the WIN! callout
+    // (not under the stats screen: it covers the court, and its highlight reel draws its own)
+    if (UI.screen !== 'results' && G.players.length && G.phase !== 'menu') { X.drawScene(g, G.t, UI.screen === 'paused' ? 0 : dt, G.players, G.ball, G.hoopFx); if (!(G.pu && G.pu.t > 0.12 && G.pu.t < (G.pu.dur || G.PU.dur) - 0.15) && !G.cine && !vz) UI.drawHUD(g); else if (vz) UI.drawCallouts(g); }   // the power-up close-up gets the whole screen
+    else if (UI.screen !== 'results') { idleT += dt; X.camX = Math.sin(idleT * 0.15) * X.camMax(); X.drawScene(g, idleT, dt, [], null, [0, 0]); }
+    // the end of the game fades out to the final scoreboard (slowly after Gator's victory twerk), which fades in
+    var fo = G.vic ? G.WIN.fade : 0.45; if (G.phase === 'over' && UI.screen !== 'results' && G.phaseT < fo) { g.fillStyle = 'rgba(0,0,0,' + Math.min(1, 1 - G.phaseT / fo) + ')'; g.fillRect(0, 0, X.W, X.H); }
     if (UI.screen) UI.drawMenu(g, dt);
     var inMenu = !!UI.screen; if (inMenu !== UI.wasMenu) { document.body.classList.toggle('inmenu', inMenu); UI.wasMenu = inMenu; }
-    // (the crowd ducks under Gator's song in his power-up twerk)
-    if (HW.Audio.ambient) HW.Audio.ambient(G.players.length && G.phase !== 'menu' && UI.screen !== 'paused' ? (0.18 + Math.min(0.25, X.hype * 0.08)) * (G.show && G.show.kind === 'pu' ? 0.4 : 1) : 0);
-    if (HW.Audio.music) HW.Audio.music(G.phase === 'menu' ? 'menu' : G.phase === 'over' ? 'post' : null);   // menu music until tip-off, post-game music from the buzzer through the stats
+    // (the crowd ducks under Gator's song in his power-up twerk and his victory twerk)
+    if (HW.Audio.ambient) HW.Audio.ambient(G.players.length && G.phase !== 'menu' && UI.screen !== 'paused' ? (0.18 + Math.min(0.25, X.hype * 0.08)) * (G.show && (G.show.kind === 'pu' || G.show.kind === 'win') ? 0.4 : 1) : 0);
+    // menu music until tip-off, post-game music from the buzzer through the stats (Gator's song when his team won)
+    if (HW.Audio.music) HW.Audio.music(G.phase === 'menu' ? 'menu' : G.phase === 'over' ? (G.vic ? 'gator' : 'post') : null);
     UI.endFrame();
     requestAnimationFrame(loop);
   }

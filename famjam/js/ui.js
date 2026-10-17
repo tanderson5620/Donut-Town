@@ -164,12 +164,19 @@ window.HW = window.HW || {};
     g.fillStyle = '#000'; g.fillRect(x + t, y + t, w - 2 * t, h - 2 * t);
     if (fill) { g.fillStyle = fill; g.fillRect(x + t + 1, y + t + 1, w - 2 * t - 2, h - 2 * t - 2); }
   }
-  // the whole screen as one card: wood all round, cyan frame, dark blue inside. Returns the inner rectangle.
-  function card(g, fill) {
-    var S = UI.safe(), W = X.W, H = X.H; g.drawImage(wood(), 0, 0);
+  // the whole screen as one card: wood all round, cyan frame, dark blue inside. Returns the inner rectangle. see: whatever is
+  // already drawn there shows through the inside, dimmed by that color (the final scoreboard over its highlight reel)
+  function card(g, fill, see) {
+    var S = UI.safe(), W = X.W, H = X.H;
     var L = S.l + 8, R = W - S.r - 8, T = 8, B = H - Math.max(8, S.b + 2);
-    bevel(g, L, T, R - L, B - T, fill || PB);
+    if (see) { g.save(); g.beginPath(); g.rect(0, 0, W, H); g.rect(L + 5, T + 5, R - L - 10, B - T - 10); g.clip('evenodd'); }
+    g.drawImage(wood(), 0, 0); bevel(g, L, T, R - L, B - T, fill || PB);
+    if (see) { g.restore(); g.fillStyle = see; g.fillRect(L + 5, T + 5, R - L - 10, B - T - 10); }
     return { L: L + 5, R: R - 5, T: T + 5, B: B - 5, W: R - L - 10, H: B - T - 10, oL: L, oR: R };
+  }
+  function seeBevel(g, x, y, w, h, tint, col, t) {   // a bevel panel with a see-through inside
+    t = t || 4; g.save(); g.beginPath(); g.rect(x, y, w, h); g.rect(x + t + 1, y + t + 1, w - 2 * t - 2, h - 2 * t - 2); g.clip('evenodd');
+    bevel(g, x, y, w, h, null, col, t); g.restore(); g.fillStyle = tint; g.fillRect(x + t + 1, y + t + 1, w - 2 * t - 2, h - 2 * t - 2);
   }
 
   /* ---------- team emblems (procedural, bold, 64 px art shown at 2x) ---------- */
@@ -560,7 +567,7 @@ window.HW = window.HW || {};
       help.forEach(function (r, i) { var yy = hy + 18 + i * (sc === 2 ? 30 : 22) + lh; var w1 = Fo.draw(g, r[0], lx, yy, { scale: sc, scheme: 'yellow', align: 'left' }); Fo.draw(g, r[1], lx + w1 + 4 * sc, yy, { scale: sc, scheme: 'white', align: 'left' }); });
       if (In.enter) resume();
     } else if (s === 'results') {
-      drawResults(g, fr);
+      drawResults(g, fr, dt);
     } else if (s === 'online') drawOnline(g, fr);
     else if (s === 'who') drawWho(g, fr);
     else if (s === 'join') drawJoin(g, fr);
@@ -885,11 +892,20 @@ window.HW = window.HW || {};
     Fo.draw(g, G.score[1] + ' ' + T[1].name, cx + 20, y, { scale: 2, color: T[1].color, align: 'left' });
   }
 
-  function drawResults(g, fr) {
-    var G = HW.Jam, T = [G.team(0), G.team(1)], w = G.score[0] > G.score[1] ? 0 : 1, C = card(g), cx = Math.round((C.L + C.R) / 2);
+  // the final scoreboard, over the game's highlights replaying behind it (replay.js; the plain card if there are none); it fades in
+  function drawResults(g, fr, dt) {
+    var G = HW.Jam, T = [G.team(0), G.team(1)], w = G.score[0] > G.score[1] ? 0 : 1, Rp = HW.Replay, reel = !!(Rp && Rp.draw(g, dt || 0));
+    var C = card(g, null, reel ? 'rgba(8,10,46,0.38)' : null), cx = Math.round((C.L + C.R) / 2);
+    var hc = reel && Rp.now(); if (hc) {   // a TV-style REPLAY tag, and whose highlight it is when there's room left of the title
+      var rt = Fo.canvas('REPLAY', { scale: 1, scheme: 'white', shadow: 0 }), rx = C.L + 8, ry = C.T + 8;
+      g.fillStyle = '#000'; g.fillRect(rx - 1, ry - 1, rt.width + 18, rt.height + 8); g.fillStyle = '#d8141e'; g.fillRect(rx, ry, rt.width + 16, rt.height + 6);
+      g.fillStyle = Math.floor(UI.t * 2) % 2 ? '#fff' : '#ff9a9a'; g.fillRect(rx + 4, ry + rt.height / 2 + 1, 4, 4); g.drawImage(rt, rx + 11, ry + 3);
+      var tw = Fo.measure(T[w].name + ' WIN!', C.W > 560 ? 4 : 3) / 2 + 30;
+      if (hc.label && rx + Fo.measure(hc.label, 1) + 4 < cx - tw) Fo.draw(g, hc.label, rx, ry + rt.height + 16, { scale: 1, scheme: 'yellow', align: 'left' });
+    }
     flaming(g, T[w].name + ' WIN!', cx, C.T + 30, { scale: C.W > 560 ? 4 : 3, color: T[w].color, outline: 2, shadow: 2 }, fr);
     Fo.draw(g, G.score[0] + ' - ' + G.score[1], cx, C.T + 70, { scale: 3, scheme: 'white' });
-    var px = C.L + 6, pw = C.W - 12, py = C.T + 90, ph = 160; bevel(g, px, py, pw, ph, '#000', CY, 3);
+    var px = C.L + 6, pw = C.W - 12, py = C.T + 90, ph = 160; if (reel) seeBevel(g, px, py, pw, ph, 'rgba(0,0,0,0.58)', CY, 3); else bevel(g, px, py, pw, ph, '#000', CY, 3);
     var cols = [['PTS', 0.44], ['FG', 0.52], ['3PT', 0.6], ['AST', 0.68], ['DNK', 0.76], ['STL', 0.84], ['BLK', 0.92]];
     Fo.draw(g, 'PLAYER', px + 46, py + 14, { scale: 1, scheme: 'cyan', align: 'left' });
     cols.forEach(function (c) { Fo.draw(g, c[0], px + pw * c[1], py + 14, { scale: 1, scheme: 'cyan' }); });
@@ -913,6 +929,7 @@ window.HW = window.HW || {};
       button(g, 'again', cx - bw - 6, by, bw, bh, 'REMATCH', { size: 2, fn: function () { UI.screen = null; HW.Jam.start(G.setup); } });
       button(g, 'new', cx + 6, by, bw, bh, 'NEW TEAMS', { color: '#1aa6d8', size: 2, fn: function () { UI.show('team'); HW.Jam.players = []; } });
     }
+    var fin = UI.resAt != null ? (UI.t - UI.resAt) / 0.5 : 1; if (fin < 1) { g.fillStyle = 'rgba(0,0,0,' + (1 - Math.max(0, fin)) + ')'; g.fillRect(0, 0, X.W, X.H); }
   }
 
   /* ---------- in-game HUD ---------- */
@@ -973,8 +990,11 @@ window.HW = window.HW || {};
     // an invite came in, or someone came online, during a game against the CPU: it waits on the pause menu
     var iv = INV.got || INV.ask, ia = iv && performance.now() - iv.t;
     if (iv && !(HW.Net && HW.Net.mode) && ia < 12000 && Math.floor(ia / 400) % 3 < 2) Fo.draw(g, INV.got ? (nameOf(INV.got.fr) ? nameOf(INV.got.fr) + ' CHALLENGES YOU! PAUSE TO JOIN' : 'GAME INVITE! PAUSE TO JOIN IT') : INV.ask.n === 1 && INV.ask.names.length === 1 && nameOf(INV.ask.names[0]) ? nameOf(INV.ask.names[0]) + ' CAME ONLINE! PAUSE TO CHALLENGE' : 'SOMEONE CAME ONLINE! PAUSE TO INVITE THEM', cx, by + bh + 26, { scale: 1, scheme: 'green' });
-    // callouts: big flaming arcade text that pops in
-    var maxW = W - S.l - S.r - 30, cy = 112;
+    UI.drawCallouts(g);
+  };
+  // callouts: big flaming arcade text that pops in
+  UI.drawCallouts = function (g) {
+    var G = HW.Jam, W = X.W, S = UI.safe(), fr = Math.floor(G.t * 12), maxW = W - S.l - S.r - 30, cy = 112;
     G.callouts.forEach(function (c, i) {
       var sc0 = c.size >= 1.2 ? 4 : c.size >= 0.85 ? 3 : 2; while (sc0 > 1 && Fo.measure(c.text, sc0) > maxW) sc0--;
       var pop = c.t < 0.05 ? 2 : c.t < 0.11 ? 1 : 0, sc1 = sc0 + pop; if (Fo.measure(c.text, sc1) > maxW) sc1 = sc0;
