@@ -301,7 +301,7 @@ window.HW = window.HW || {};
   // the 3-point shooters' quick release (Steph Curry's one-motion shot): their sweet spot comes on the way up, QUICK of the way to the
   // top of the jump (everyone else's is the top), so their green window starts right by the start of the shot meter - and the
   // computer's shooters let it go there, before a man closing out can get a hand up
-  var QUICK = 0.45;
+  var QUICK = 0.45, QR_NEAR = 0.8, QR_U = 0.2;   // (and see the blocks: a quick release is gone before a man can close out on it)
   G.relFrac = function (p) { return p.def.type === 'shooter' ? QUICK : 1; };
   // the green window, as a share of that time either side of the top: wider for better shooters, and half again more (x1.6) for a
   // 3-point shooter's three (by where he took off); ok out to 2.5 times it, bad beyond. The game judges the release and the shot meter
@@ -390,6 +390,10 @@ window.HW = window.HW || {};
     p.hasBall = false; b.holder = null; b.state = 'shot'; b.last = p;
     b.shotInfo = { by: p, team: p.team, three: three, sb: !!p.stepT, cw: !!p.cart, of: !!p.onefoot, sure: !!(p.cart || p.stepT || p.kick), make: make, quality: quality, t: 0, T: 0.7 + d * 0.055, x0: b.x, y0: b.y, z0: b.z, rx: rx, arc: 1.4 + d * 0.13, missX: rand(-0.35, 0.35), missZ: rand(-0.3, 0.3) };
     p.stats.fga++; if (three) p.stats.tpa++;
+    // the quick release gets it off before anyone can close the space: only a man right in his face (within QR_NEAR, chest to chest)
+    // as it leaves his hands gets a try at blocking it, and only right then (the first QR_U of its flight) - nobody else gets there in
+    // time to try (it used to be anyone in the air near the ball for the first half of its flight)
+    if (G.relFrac(p) < 1 && !b.shotInfo.sure) b.shotInfo.near = G.opps(p).filter(function (q) { return q.state !== 'fall' && dist(p, q) < QR_NEAR; });
     if (p.human && quality === 'green') G.say('GREEN!', '#5cff7a', 0.7, 0.6);
     Au.whoosh(6);
   };
@@ -983,7 +987,7 @@ window.HW = window.HW || {};
       if (sh.state === 'shoot' && !sh.released && sh.y > 0.1 && !guarded(sh)) G.opps(sh).forEach(function (q) {
         if (!q.human || b.holder !== sh || q.y < 0.15 || q.cd.block) return;
         var d = Math.hypot(q.x - sh.x, q.z - sh.z);
-        if (d < 1.5 && b.y < q.y + q.reach + 0.7) { q.cd.block = 1; if (Math.random() < G.humanBlock(q, d)) G.blocked(q, sh, null); }
+        if (d < (G.relFrac(sh) < 1 ? QR_NEAR : 1.5) && b.y < q.y + q.reach + 0.7) { q.cd.block = 1; if (Math.random() < G.humanBlock(q, d)) G.blocked(q, sh, null); }   // (a shooter's quick release: only from right in his face)
       });
       return;
     }
@@ -1001,9 +1005,10 @@ window.HW = window.HW || {};
       // and good odds when you're right on him (G.humanBlock); computer blockers need to be closer and get worse odds
       G.opps(s.by).forEach(function (q) {
         if (b.state !== 'shot' || s.lay || s.sure || q.y < 0.15 || q.cd.block) return;   // (not a step-back or cartwheel three)
+        if (s.near && (s.near.indexOf(q) < 0 || u >= QR_U)) return;   // a shooter's quick release: too late to get to it
         var hum = q.human, d = Math.hypot(q.x - b.x, q.z - b.z);
         if (u < (hum ? 0.6 : 0.45) && d < (hum ? 1.6 : 1.0) + (sig(q, 'block') ? 0.5 : 0) && b.y < q.y + q.reach + (hum ? 0.7 : 0.35)) {
-          q.cd.block = 1;
+          q.cd.block = 1; s.tries = (s.tries || 0) + 1;
           if (Math.random() < (hum ? G.humanBlock(q, d) : Math.min(0.85, (0.16 + 0.035 * q.def.stats.block) * G.diff.block * (sig(q, 'block') ? 2.5 : 1)))) G.blocked(q, s.by, s);
         }
       });
