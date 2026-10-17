@@ -56,10 +56,11 @@ window.HW = window.HW || {};
     { id: 2, name: 'Stowells',  short: 'STO', color: '#b45cff', dark: '#3d0f6b', roster: ['blair', 'rox', 'lindsay', 'trent', 'justin'] }
   ];
 
+  // green: how often the computer's jump shots are timed green (a person's depend on when they let go)
   HW.DIFFICULTY = {
-    easy:   { label: 'Easy',   speed: 0.82, shoot: 0.80, steal: 0.45, react: 0.55, shove: 0.4, block: 0.5 },
-    normal: { label: 'Normal', speed: 0.95, shoot: 1.00, steal: 0.90, react: 1.0,  shove: 0.8, block: 1.0 },
-    hard:   { label: 'Hard',   speed: 1.08, shoot: 1.15, steal: 1.45, react: 1.6,  shove: 1.2, block: 1.5 }
+    easy:   { label: 'Easy',   speed: 0.82, shoot: 0.80, steal: 0.45, react: 0.55, shove: 0.4, block: 0.5, green: 0.40 },
+    normal: { label: 'Normal', speed: 0.95, shoot: 1.00, steal: 0.90, react: 1.0,  shove: 0.8, block: 1.0, green: 0.60 },
+    hard:   { label: 'Hard',   speed: 1.08, shoot: 1.15, steal: 1.45, react: 1.6,  shove: 1.2, block: 1.5, green: 0.80 }
   };
 
   // powered-up heads: faces/<id>_ssj.png (front) and faces/<id>_ssj_back.png (back of the head).
