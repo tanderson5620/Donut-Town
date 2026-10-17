@@ -40,7 +40,8 @@ window.HW = window.HW || {};
       // every quarter second with the man square in front of him, and he stuttered on the spot)
       if (opp.who && Math.abs(opp.who.z - p.z) > 0.5) a.side = opp.who.z > p.z ? -1 : 1; else if (!a.side) a.side = p.z > K.HZ ? 1 : -1;
       var open = opp.d > 1.5, late = G.shot < 3.5;
-      if (G.canDunk(p) && a.hold > 0.5 && (open ? Math.random() < 0.4 + p.def.stats.dunk * 0.02 : Math.random() < 0.06 + p.def.stats.dunk * 0.01) * G.diff.shoot) { G.startDunk(p); return; }
+      // (the difficulty scales the chance itself - it used to multiply the yes/no answer, so it made no difference)
+      if (G.canDunk(p) && a.hold > 0.5 && Math.random() < (open ? 0.4 + p.def.stats.dunk * 0.02 : 0.06 + p.def.stats.dunk * 0.01) * G.diff.shoot) { G.startDunk(p); return; }
       if (mate && a.hold > 0.7 && !late && !mate.human) {
         var mo = nearest(mate, G.opps(mate)).d, md = Math.hypot(mate.x - rx, mate.z - K.HZ);
         var pk = 0.6 + 0.08 * (p.def.stats.pass || 5);   // good passers look for the open man more
