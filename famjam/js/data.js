@@ -3,7 +3,7 @@ window.HW = window.HW || {};
 (function (HW) {
   HW.TYPES = {
     dunker:   { label: 'Dunker',          blurb: 'Huge hops, wild dunks',        jumpBonus: 0.30, greenFromDeep: 1.0, turboDrain: 1.0,  turboMult: 1.45, dunkRange: 1.2 },
-    shooter:  { label: '3-Point Shooter', blurb: 'Wide green window from deep',  jumpBonus: 0.0,  greenFromDeep: 2.0, turboDrain: 1.0,  turboMult: 1.45, dunkRange: 0 },
+    shooter:  { label: '3-Point Shooter', blurb: 'Wide green window from deep',  jumpBonus: 0.0,  greenFromDeep: 2.0, turboDrain: 0.833, turboMult: 1.45, dunkRange: 0 },   // (20% more turbo than the others: 1 / 1.2 the drain)
     handler:  { label: 'Ball Handler',    blurb: 'Fast, strong steals, crossovers', jumpBonus: 0.0, greenFromDeep: 1.0, turboDrain: 0.6, turboMult: 1.62, dunkRange: 0 },
     strength: { label: 'Max Strength',    blurb: 'Big shoves, huge blocks',      jumpBonus: 0.05, greenFromDeep: 1.0, turboDrain: 1.0,  turboMult: 1.4,  dunkRange: 0.4 }
   };
