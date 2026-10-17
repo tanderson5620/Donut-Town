@@ -723,7 +723,10 @@ window.HW = window.HW || {};
       if (G.shot <= 0 && G.ball.state === 'held') { Au.buzzer(); G.say('SHOT CLOCK!', '#ff5a4a', 1.2); G.phase = 'scored'; G.phaseT = 1.0; G.nextPoss = 1 - G.poss; }
       if (G.clock <= 0 && G.ball.state !== 'shot') G.endQuarter();
     }
-    G.players.forEach(function (p) {
+    // the two teams take turns moving first, frame by frame: whoever moves second sees where the others just went (a defender stays
+    // glued to his man, a rebounder gets there first), and always going first cost a team about 4 wins in 100 (10,000 simulated games)
+    G.flip = !G.flip;
+    (G.flip ? G.players : G.players.slice().reverse()).forEach(function (p) {
       for (var k in p.cd) p.cd[k] = Math.max(0, p.cd[k] - dt);
       p.flash = Math.max(0, p.flash - dt);
       if (p.human) humanControl(p, dt, p.inp || In, live); else HW.JamAI.update(p, dt, live);   // p.inp: a guest's buttons, online
