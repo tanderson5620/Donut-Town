@@ -567,13 +567,15 @@ window.HW = window.HW || {};
     if (pts === 3 && sig(p, 'tp')) for (var fi = 0; fi < 6; fi++) X.flame(rimX(team) + (Math.random() - 0.5) * 0.5, K.RIM_H - 0.3, K.HZ, 4, 0.5);
     p.streak++; if (!p.onFire && p.streak >= 3) { p.onFire = true; G.puQueue = p; Au.fire(); }   // he powers up as soon as he's back on his feet
     G.players.forEach(function (q) { if (q.team !== team) { if (q.onFire) { G.say(q.def.first.toUpperCase() + ' COOLS OFF', '#9ad0ff', 1.2, 0.7); if (q.ssj) X.powerDown(q); } q.onFire = false; q.ssj = 0; q.streak = 0; if (G.puQueue === q) G.puQueue = null; } });
-    // a fancy shot's own call (CARTWHEEL THREE!, REVERSE!...) only about 1 time in 4: the rest of the time the usual trash talk - hearing
-    // the move's name on every one got old. A reverse that doesn't get its call gets a plain two's line (not NOTHING BUT NET: it's off the glass)
-    var rev = !dunk && info && info.lay === 'rev' && info.by === p, fancy = !dunk && pts === 3 && info && (info.cw || info.sb || info.of);
+    // a fancy shot's own call (STEP-BACK THREE!, REVERSE!...) only about 1 time in 4: the rest of the time the usual trash talk - hearing
+    // the move's name on every one got old. A reverse that doesn't get its call gets a plain two's line (not NOTHING BUT NET: it's off the
+    // glass). A cartwheel three always gets the cartwheel's own trash talk (PHRASES.cart)
+    var cw = !dunk && pts === 3 && info && info.cw;
+    var rev = !dunk && info && info.lay === 'rev' && info.by === p, fancy = !dunk && pts === 3 && info && !info.cw && (info.sb || info.of);
     var call = (rev || fancy) && Math.random() < MOVE_CALL;
-    var txt = rev ? (call ? pick(HW.PHRASES.rev) : pick(HW.PHRASES.two.filter(function (l) { return l !== 'NOTHING BUT NET!'; })))
+    var txt = cw ? pick(HW.PHRASES.cart) : rev ? (call ? pick(HW.PHRASES.rev) : pick(HW.PHRASES.two.filter(function (l) { return l !== 'NOTHING BUT NET!'; })))
       : !dunk && info && info.lay && info.by === p && HW.PHRASES[info.lay] ? pick(HW.PHRASES[info.lay]) : dunk ? (pts === 3 ? '3-POINT DUNK!' : pick(HW.PHRASES.dunk))
-      : pts === 3 ? (call ? (info.cw ? 'CARTWHEEL THREE!' : info.sb ? 'STEP-BACK THREE!' : 'ONE-FOOT THREE!') : pick(HW.PHRASES.three)) : info && info.quality === 'green' ? pick(HW.PHRASES.swish) : pick(HW.PHRASES.two);
+      : pts === 3 ? (call ? (info.sb ? 'STEP-BACK THREE!' : 'ONE-FOOT THREE!') : pick(HW.PHRASES.three)) : info && info.quality === 'green' ? pick(HW.PHRASES.swish) : pick(HW.PHRASES.two);
     G.say(txt, dunk ? '#ff7a1a' : pts === 3 ? '#ffb347' : '#ffe14d', 1.5, dunk ? 1.3 : 1);
     Au.cheer(pts === 3 || dunk); X.hype = Math.max(X.hype, dunk || pts === 3 ? 3 : 1.5);
     // a fan in the stands yells "baba booey!" after a three: always the first one of the game, then about 1 in 3
