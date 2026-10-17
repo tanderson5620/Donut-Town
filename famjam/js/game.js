@@ -308,7 +308,7 @@ window.HW = window.HW || {};
     // or cartwheel first doesn't move it. Online, a guest's release is timed on his own phone, press to let-go (p.relPress)
     var rst = p.relPress != null ? p.relPress : p.sht != null ? p.sht : p.st; p.relPress = null; p.sht = null; p.sbAuto = false;
     var off = Math.abs(rst - p.tApex) / p.tApex, win = G.shotWin(p), quality = off < win ? 'green' : off < win * 2.5 ? 'ok' : 'bad';
-    if (!p.human) quality = Math.random() < 0.35 * G.diff.shoot ? 'green' : 'ok';
+    if (!p.human) quality = Math.random() < (G.diff.green != null ? G.diff.green : 0.35) ? 'green' : 'ok';   // the computer's timing: 40 / 60 / 80% green by difficulty
     if (sig(p, 'tp')) quality = 'green';   // a shooter on fire can't miss the window
     if (quality === 'green') pm += 0.28; else if (quality === 'bad') pm *= 0.55;
     var c = contest(p); pm -= c;
@@ -487,7 +487,7 @@ window.HW = window.HW || {};
     var h = G.ball.holder; if (!h || h.team === p.team || dist(p, h) > 1.8 || guarded(h)) return;   // (not off a shooter in his step-back or cartwheel)
     p.face = h.x >= p.x ? 1 : -1;
     var c = 0.03 + 0.03 * p.def.stats.steal - 0.01 * h.def.stats.speed + (Math.hypot(h.vx, h.vz) < 0.5 ? 0.2 : 0) + (p.human ? 0.1 : 0) - (h.state === 'shoot' ? 0.1 : 0) - 0.015 * Math.max(0, h.def.stats.str - p.def.stats.str) + (sig(p, 'steal') ? 0.3 : 0);
-    if (!p.human) c *= G.diff.steal * 0.75;   // the computer gets less of the boost
+    if (!p.human) c *= G.diff.steal * 0.75 * 0.75;   // the computer gets less of the boost, and lands a quarter fewer than it used to (its ball handlers averaged 5.5 steals a game)
     if (h.dm) c *= 0.3;   // a crossover / behind-the-back dribble protects the ball
     if (h.state === 'dunk') c = 0;
     if (Math.random() < c) { if (sig(p, 'steal')) fireBurst(h.x, 1.0, h.z, 12); p.stats.steals++; G.give(p); G.say(pick(HW.PHRASES.steal), '#7ee0ff', 1); hl('steal', p, 'STEAL'); Au.steal(); Au.laugh && Au.laugh(); }

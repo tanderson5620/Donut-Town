@@ -3,7 +3,11 @@ window.HW = window.HW || {};
 (function (HW) {
   var K = HW.GFX.K, G;
   var AI = HW.JamAI = {};
-  var RANGE = { shooter: 8.4, handler: 6.9, dunker: 4.8, strength: 4.6 };
+  // how far out each type pulls up from (plus a little for a good shooter): a 3-point shooter just behind the arc - 7.6 m with TP 10,
+  // where a three starts falling off (he used to fire from 9 m and half his threes came from too deep)
+  var RANGE = { shooter: 7.0, handler: 6.9, dunker: 4.8, strength: 4.6 };
+  // the shooter's spot: on the wing just behind the arc (6.8 m out), for WING_T seconds of the possession before he takes it inside
+  var WING_X = 5.8, WING_Z = 3.5, WING_T = 3;
   function dist(a, b) { return Math.hypot(a.x - b.x, a.z - b.z); }
   function rimX(team) { return team === 0 ? K.RIMX : -K.RIMX; }
   function nearest(p, list) { var best = null, bd = 99; list.forEach(function (q) { var d = dist(p, q); if (d < bd) { bd = d; best = q; } }); return { who: best, d: bd }; }
@@ -48,9 +52,11 @@ window.HW = window.HW || {};
         if ((opp.d < 1.3 && mo > 1.8 && Math.random() < 0.5 * pk) || (mo > 2.5 && md < d - 1.5 && Math.random() < 0.2 * pk)) { G.passTo(p, mate); return; }
       }
       if (mate && mate.human && a.hold > 2.8 && nearest(mate, G.opps(mate)).d > 2 && Math.random() < 0.25) { G.passTo(p, mate); return; }
-      var rng = RANGE[type] + (p.def.stats.tp - 5) * 0.12;
-      if (d < rng && (a.hold > 1.1 || d < 3 || late)) {
-        var base = open ? 0.45 : 0.12; if (type === 'shooter' && d > K.R3 - 0.4) base += 0.3; if (d < 3) base += 0.2; if (p.onFire) base = 0.85; if (late) base = 1;
+      var rng = RANGE[type] + (p.def.stats.tp - 5) * 0.12, spot = type === 'shooter' && a.hold < WING_T && Math.hypot(p.x - (rx - s * WING_X), p.z - (K.HZ + (a.side || 1) * WING_Z)) < 0.8;
+      // a shooter lets it go on the catch (everyone else gets set first, unless he's at the rim or the clock's running out); at the rim,
+      // or open at his spot, it goes up right away instead of him standing there with it
+      if (d < rng && (a.hold > (type === 'shooter' ? 0.3 : 1.1) || d < 3 || late)) {
+        var base = open ? 0.45 : 0.12; if (type === 'shooter' && d > K.R3 - 0.4) base += 0.3; if (d < 3) base += 0.2; if (p.onFire) base = 0.85; if (late || d < 1.8 || spot && open) base = 1;
         if (Math.random() < base) { a.relAt = 0.82 + Math.random() * 0.3; G.startShot(p); return; }
       }
     }
@@ -59,9 +65,15 @@ window.HW = window.HW || {};
     // shot or the shot clock ran out - the bigs, out of range there, for up to 20 s). A shooter spots up on the wing behind the arc for
     // his shot first and drives if it isn't there after a few seconds
     var tx, tz;
-    if (type === 'shooter' && a.hold < 3) { tx = rx - s * 6.4; tz = K.HZ + (a.side || 1) * 4.2; }
+    if (type === 'shooter' && a.hold < WING_T) { tx = rx - s * WING_X; tz = K.HZ + (a.side || 1) * WING_Z; }
     else if (d > 6.5) { tx = rx - s * 4.5; tz = K.HZ + (a.side || 1) * 2.8; }
     else { tx = rx - s * 0.9; tz = K.HZ + (a.side || 1) * 0.8; }
+    // never standing still with the ball: there with no shot, he keeps going - a covered shooter slides along the arc to the other wing
+    // (until it's time to take it inside), anyone else on to the rim
+    if (Math.hypot(p.x - tx, p.z - tz) < 0.8 && d > 2.2) {
+      if (type === 'shooter' && a.hold < WING_T) { a.side = -(a.side || 1); tz = K.HZ + a.side * WING_Z; }
+      else { if (type === 'shooter') a.hold = WING_T; tx = rx - s * 0.9; tz = K.HZ + (a.side || 1) * 0.8; }
+    }
     goTo(p, tx, tz, d > 3.5, dt);
   }
 
