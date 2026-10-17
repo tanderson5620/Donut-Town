@@ -954,9 +954,12 @@ window.HW = window.HW || {};
       var gst = HW.Net && HW.Net.mode === 'guest', shooting = h.hasBall && !h.released && (h.state === 'shoot' || h.state === 'stepback' || h.state === 'cartwheel');
       var sht = !shooting ? null : gst ? (h.pressAt != null ? (performance.now() - h.pressAt) / 1000 : null) : h.relPress == null ? h.sht : null;
       if (sht != null) {
-        var mw = 44, mx = Math.round(h.screen.x - mw / 2), yy = my - 10, prog = Math.min(1.6, sht / (h.tApex || G.shotApex(h))) / 1.6, win = 0.16 * (1 + (h.def.stats.tp - 5) * 0.06);
+        // the bar runs from the press to 1.6x the top of the jump: dark red for a bad release, amber for ok, green for green - the same
+        // window the game judges it by (G.shotWin, wider for a shooter's three); anywhere in a zone counts the same
+        var mw = 44, mx = Math.round(h.screen.x - mw / 2), yy = my - 10, prog = Math.min(1.6, sht / (h.tApex || G.shotApex(h))) / 1.6, win = G.shotWin(h);
+        var zone = function (w, col) { var a = Math.max(0, (1 - w) / 1.6), b = Math.min(1, (1 + w) / 1.6); g.fillStyle = col; g.fillRect(Math.round(mx + mw * a), yy, Math.max(2, Math.round(mw * (b - a))), 5); };
         g.fillStyle = '#000'; g.fillRect(mx - 1, yy - 1, mw + 2, 7); g.fillStyle = '#3a1010'; g.fillRect(mx, yy, mw, 5);
-        g.fillStyle = '#35e07c'; g.fillRect(Math.round(mx + mw * (1 - win) / 1.6), yy, Math.max(2, Math.round(mw * 2 * win / 1.6)), 5);
+        zone(win * 2.5, '#8a6a12'); zone(win, '#35e07c');
         var kx = Math.round(mx + mw * prog); g.fillStyle = '#000'; g.fillRect(kx - 2, yy - 3, 4, 11); g.fillStyle = '#fff'; g.fillRect(kx - 1, yy - 2, 2, 9);
       }
     }
