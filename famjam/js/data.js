@@ -123,7 +123,15 @@ window.HW = window.HW || {};
     girlBeatsGuy: ['WIMP!', 'GET UP, WIMP!', 'BEAT BY A GIRL!', 'SIT DOWN, BOY!', 'TOO WEAK!'],
     uncle: ["WHO'S YOUR UNCLE?!?!", 'SIT DOWN JUNIOR!!!', "KIDDIE TABLE'S OVER THERE!"],
     aunt: ["WHO'S YOUR AUNTIE?!?!", 'SIT DOWN JUNIOR!!!', "KIDDIE TABLE'S OVER THERE!"],
-    cousin: ['WEAKEST COUSIN I KNOW!', 'SEE YOU AT THANKSGIVING!']
+    // and the other way round: a niece or nephew flattening an uncle or aunt
+    toUncle: ['SIT DOWN, UNC!', 'OK BOOMER!', 'NAP TIME, UNC!'],
+    toAunt: ['SIT DOWN, AUNTIE!', 'OK BOOMER!', 'NAP TIME, AUNTIE!'],
+    cousin: ['WEAKEST COUSIN I KNOW!', 'SEE YOU AT THANKSGIVING!'],
+    // brother or sister on brother or sister (Alan, Karen and Rox), and the parents' generation married to them
+    sibling: ["MOM ALWAYS LIKED ME BEST!", 'TELL MOM!', "STILL MOM'S FAVORITE!"],
+    inlaw: ['IN-LAWS, OUT-LAWS!', 'SEE YOU AT THANKSGIVING!'],
+    // anyone flattening someone who married into the family (Lisa, Kenny, Blair, Bianca, Trent)
+    marriedIn: ['YOU MARRIED INTO THIS!', 'WELCOME TO THE FAMILY!']
   };
 
   // a player's catchphrase: it takes the place of exactly one of every `every` of their knockdown taunts, whatever the matchup
@@ -132,11 +140,17 @@ window.HW = window.HW || {};
   // lines that come with a 2 s taunt over normal play: the crotch chop (twice) or pointing off at the kiddie table
   HW.TAUNTS = { "WHO'S YOUR UNCLE?!?!": 'chop', "WHO'S YOUR AUNTIE?!?!": 'chop', "KIDDIE TABLE'S OVER THERE!": 'point' };
 
-  // the family tree (the Stowells aren't placed in it yet: no gen, so no uncle/aunt/cousin lines for them): Alan + Lisa Anderson -> Tyler, Carl (Bianca plays for the Andersons, no generation set: no uncle/aunt/cousin lines); Karen (Alan's sister) + Kenny Gorman -> Katelyn (Katie), Kody, Kameron.
-  // gen 1 = the parents (uncles and aunts to the other family's kids), gen 2 = the kids (cousins across the families)
+  // the family tree: Alan, Karen and Rox are brother and sisters (blood). Alan + Lisa Anderson -> Tyler, Carl (married to Bianca);
+  // Karen + Kenny Gorman -> Katelyn (Katie), Kody, Kameron; Rox + Blair Stowell -> Lindsay (married to Trent), Justin.
+  // gen 1 = the parents (uncles and aunts to the other families' kids), gen 2 = the kids and their husbands and wives (cousins across
+  // the families); blood = born into it, the rest married in; spouse = who they're married to (always on the same team, so it never
+  // meets in a knockdown - kept for the record)
   HW.FAMILY = {
-    alan: { gen: 1, sex: 'm', fam: 0 }, lisa: { gen: 1, sex: 'f', fam: 0 }, bianca: { sex: 'f', fam: 0 }, tyler: { gen: 2, sex: 'm', fam: 0 }, carl: { gen: 2, sex: 'm', fam: 0 },
-    kenny: { gen: 1, sex: 'm', fam: 1 }, karen: { gen: 1, sex: 'f', fam: 1 }, katelyn: { gen: 2, sex: 'f', fam: 1 }, kody: { gen: 2, sex: 'm', fam: 1 }, kameron: { gen: 2, sex: 'm', fam: 1 },
-    blair: { sex: 'm', fam: 2 }, rox: { sex: 'f', fam: 2 }, lindsay: { sex: 'f', fam: 2 }, trent: { sex: 'm', fam: 2 }, justin: { sex: 'm', fam: 2 }
+    alan: { gen: 1, sex: 'm', fam: 0, blood: true, spouse: 'lisa' }, lisa: { gen: 1, sex: 'f', fam: 0, spouse: 'alan' },
+    tyler: { gen: 2, sex: 'm', fam: 0, blood: true }, carl: { gen: 2, sex: 'm', fam: 0, blood: true, spouse: 'bianca' }, bianca: { gen: 2, sex: 'f', fam: 0, spouse: 'carl' },
+    karen: { gen: 1, sex: 'f', fam: 1, blood: true, spouse: 'kenny' }, kenny: { gen: 1, sex: 'm', fam: 1, spouse: 'karen' },
+    katelyn: { gen: 2, sex: 'f', fam: 1, blood: true }, kody: { gen: 2, sex: 'm', fam: 1, blood: true }, kameron: { gen: 2, sex: 'm', fam: 1, blood: true },
+    rox: { gen: 1, sex: 'f', fam: 2, blood: true, spouse: 'blair' }, blair: { gen: 1, sex: 'm', fam: 2, spouse: 'rox' },
+    lindsay: { gen: 2, sex: 'f', fam: 2, blood: true, spouse: 'trent' }, trent: { gen: 2, sex: 'm', fam: 2, spouse: 'lindsay' }, justin: { gen: 2, sex: 'm', fam: 2, blood: true }
   };
 })(window.HW);
