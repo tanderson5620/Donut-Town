@@ -233,6 +233,14 @@ window.HW = window.HW || {};
   function threeFrom(p) { var d = Math.hypot(p.x - rimX(p.team), p.z - K.HZ); return d > K.R3 - 0.1 && Math.abs(p.z - K.HZ) < 6.2 || d > K.R3 + 0.3; }
   // how long after the press the top of his jump shot comes: the green window is timed from the press, whatever he does first
   G.shotApex = function (p) { return Math.sqrt(2 * GRAV * p.jumpH * 0.9) / GRAV; };
+  // the green window, as a share of that time either side of the top: wider for better shooters, and half again more (x1.6) for a
+  // 3-point shooter's three (from where he started, after a cartwheel or a one-footer); ok out to 2.5 times it, bad beyond. The game
+  // judges the release and the shot meter draws its zones from this, so what you see is what counts
+  G.shotWin = function (p) {
+    var sp = p.cart && p.cartFrom || p.onefoot && p.shotFrom || p, d = Math.hypot(sp.x - rimX(p.team), sp.z - K.HZ);
+    var three = d > K.R3 - 0.1 && Math.abs(sp.z - K.HZ) < 6.2 || d > K.R3 + 0.3;
+    return 0.16 * (1 + (p.def.stats.tp - 5) * 0.06) * (three && p.def.type === 'shooter' ? 1.6 : 1);
+  };
   G.startShot = function (p) {
     if (!p.hasBall || !p.grounded() || p.busy()) return;
     // the shot clock starts on the press (a step-back or cartwheel first doesn't move the window): p.sht runs until he lets go
@@ -296,7 +304,7 @@ window.HW = window.HW || {};
     // release timing, from the press of SHOOT: the top of a jump shot is the sweet spot (wider for shooters from deep), and a step-back
     // or cartwheel first doesn't move it. Online, a guest's release is timed on his own phone, press to let-go (p.relPress)
     var rst = p.relPress != null ? p.relPress : p.sht != null ? p.sht : p.st; p.relPress = null; p.sht = null; p.sbAuto = false;
-    var off = Math.abs(rst - p.tApex) / p.tApex, win = 0.16 * (1 + (s.tp - 5) * 0.06) * (three && p.def.type === 'shooter' ? 1.6 : 1), quality = off < win ? 'green' : off < win * 2.5 ? 'ok' : 'bad';
+    var off = Math.abs(rst - p.tApex) / p.tApex, win = G.shotWin(p), quality = off < win ? 'green' : off < win * 2.5 ? 'ok' : 'bad';
     if (!p.human) quality = Math.random() < 0.35 * G.diff.shoot ? 'green' : 'ok';
     if (sig(p, 'tp')) quality = 'green';   // a shooter on fire can't miss the window
     if (quality === 'green') pm += 0.28; else if (quality === 'bad') pm *= 0.55;
