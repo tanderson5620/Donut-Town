@@ -146,10 +146,9 @@ window.HW = window.HW || {};
   // this long to throw it in
   var INB = { after: 0.9, hold: 0.45, auto: 2.5, walk: 6.5 };
   // whose shot is up for this team right now (a jumper in the air or on its way, a layup or a dunk), if anyone's: his partner gets back
-  // (an online guest has no shot info: the host sends who shot, b.upBy)
   G.shooterUp = function (team) {
-    var b = G.ball, by = b.shotInfo ? b.shotInfo.by : b.upBy;
-    if (b.state === 'shot' && by && by.team === team) return by;
+    var b = G.ball, s = b.shotInfo;
+    if (b.state === 'shot' && s && s.team === team) return s.by;
     if (b.holder && b.holder.team === team && (b.holder.state === 'dunk' || b.holder.state === 'shoot' || b.holder.state === 'stepback' || b.holder.state === 'cartwheel')) return b.holder;
     return null;
   };
@@ -161,7 +160,7 @@ window.HW = window.HW || {};
   // who gets back right now: when a shot of this team's is up (or has just come off the rim), its safety - or, if he's the one who
   // shot, his partner
   G.backMan = function (team) {
-    var b = G.ball, by = b.shotInfo ? b.shotInfo.by : b.upBy, up = G.shooterUp(team) || (b.state === 'loose' && by && by.team === team ? by : null);
+    var b = G.ball, s = b.shotInfo, up = G.shooterUp(team) || (b.state === 'loose' && s && s.team === team ? s.by : null);
     if (!up) return null; var sf = G.safetyOf(team);
     return sf && sf !== up ? sf : G.mates(up)[0] || null;
   };
