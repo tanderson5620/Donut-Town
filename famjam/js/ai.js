@@ -6,8 +6,8 @@ window.HW = window.HW || {};
   // how far out each type pulls up from (plus a little for a good shooter): a 3-point shooter just behind the arc - 7.6 m with TP 10,
   // where a three starts falling off (he used to fire from 9 m and half his threes came from too deep)
   var RANGE = { shooter: 7.0, handler: 6.9, dunker: 4.8, strength: 4.6 };
-  // the shooter's spot: on the wing just behind the arc (6.8 m out), for WING_T seconds of the possession before he takes it inside
-  var WING_X = 5.8, WING_Z = 3.5, WING_T = 3;
+  // the shooter's spot: on the wing just behind the arc (6.95 m out), for WING_T seconds of the possession before he takes it inside
+  var WING_X = 5.9, WING_Z = 3.67, WING_T = 4;
   function dist(a, b) { return Math.hypot(a.x - b.x, a.z - b.z); }
   function rimX(team) { return team === 0 ? K.RIMX : -K.RIMX; }
   function nearest(p, list) { var best = null, bd = 99; list.forEach(function (q) { var d = dist(p, q); if (d < bd) { bd = d; best = q; } }); return { who: best, d: bd }; }
@@ -44,23 +44,34 @@ window.HW = window.HW || {};
     var rx = rimX(p.team), s = rx > 0 ? 1 : -1, d = Math.hypot(p.x - rx, p.z - K.HZ), opp = nearest(p, G.opps(p)), mate = G.mates(p)[0], type = p.def.type;
     a.hold += dt;
     if (a.t <= 0) {
-      a.t = 0.25 + Math.random() * 0.15;
+      a.t = type === 'shooter' ? 0.1 + Math.random() * 0.08 : 0.25 + Math.random() * 0.15;   // (a shooter's trigger is quick: he looks twice as often)
       // attack the side away from his man - only switching when the man is clearly on the other side (it used to flip back and forth
       // every quarter second with the man square in front of him, and he stuttered on the spot)
       if (opp.who && Math.abs(opp.who.z - p.z) > 0.5) a.side = opp.who.z > p.z ? -1 : 1; else if (!a.side) a.side = p.z > K.HZ ? 1 : -1;
       var open = opp.d > 1.5, late = G.shot < 3.5;
       // (the difficulty scales the chance itself - it used to multiply the yes/no answer, so it made no difference)
       if (G.canDunk(p) && a.hold > 0.5 && Math.random() < (open ? 0.4 + p.def.stats.dunk * 0.02 : 0.06 + p.def.stats.dunk * 0.01) * G.diff.shoot) { G.startDunk(p); return; }
+      // a 3-point shooter shoots threes, and quickly: behind the line he lets it go the moment he's open there, with a hand nearby most of
+      // the time anyway (the quick release beats it), and now and then even right in his face (moving along the arc that's the
+      // step-back); before he looks to pass. He doesn't settle for a long two: inside the line he gets back out behind it (unless the
+      // shot clock's running out, or he's all the way in at the rim). He used to pull up from just inside the arc - 41% of his
+      // possessions ended in a long two, 11% in a three - and pass when covered
+      var rng = RANGE[type] + (p.def.stats.tp - 5) * 0.12;
+      if (type === 'shooter' && !late && d > K.R3 && d < rng && a.hold > 0.15) {
+        var pr = p.onFire || opp.d > 1.3 ? 1 : opp.d > 0.8 ? 0.7 : 0.3;
+        if (Math.random() < pr) { a.relAt = 0.82 + Math.random() * 0.3; G.startShot(p); return; }
+      }
       if (mate && a.hold > 0.7 && !late && !mate.human) {
         var mo = nearest(mate, G.opps(mate)).d, md = Math.hypot(mate.x - rx, mate.z - K.HZ);
         var pk = 0.6 + 0.08 * (p.def.stats.pass || 5);   // good passers look for the open man more
+        if (type === 'shooter') pk *= 0.5;   // (he looks twice as often: the same chance a second)
         if ((opp.d < 1.3 && mo > 1.8 && Math.random() < 0.5 * pk) || (mo > 2.5 && md < d - 1.5 && Math.random() < 0.2 * pk)) { G.passTo(p, mate); return; }
       }
       if (mate && mate.human && a.hold > 2.8 && nearest(mate, G.opps(mate)).d > 2 && Math.random() < 0.25) { G.passTo(p, mate); return; }
-      var rng = RANGE[type] + (p.def.stats.tp - 5) * 0.12, spot = type === 'shooter' && a.hold < WING_T && Math.hypot(p.x - (rx - s * WING_X), p.z - (K.HZ + (a.side || 1) * WING_Z)) < 0.8;
+      var spot = type === 'shooter' && a.hold < WING_T && Math.hypot(p.x - (rx - s * WING_X), p.z - (K.HZ + (a.side || 1) * WING_Z)) < 0.8;
       // a shooter lets it go on the catch (everyone else gets set first, unless he's at the rim or the clock's running out); at the rim,
       // or open at his spot, it goes up right away instead of him standing there with it
-      if (d < rng && (a.hold > (type === 'shooter' ? 0.3 : 1.1) || d < 3 || late)) {
+      if (!(type === 'shooter' && !late && d > 2.6) && d < rng && (a.hold > (type === 'shooter' ? 0.3 : 1.1) || d < 3 || late)) {
         var base = open ? 0.45 : 0.12; if (type === 'shooter' && d > K.R3 - 0.4) base += 0.3; if (d < 3) base += 0.2; if (p.onFire) base = 0.85; if (late || d < 1.8 || spot && open) base = 1;
         if (Math.random() < base) { a.relAt = 0.82 + Math.random() * 0.3; G.startShot(p); return; }
       }
@@ -75,7 +86,7 @@ window.HW = window.HW || {};
     else { tx = rx - s * 0.9; tz = K.HZ + (a.side || 1) * 0.8; }
     // never standing still with the ball: there with no shot, he keeps going - a covered shooter slides along the arc to the other wing
     // (until it's time to take it inside), anyone else on to the rim
-    if (Math.hypot(p.x - tx, p.z - tz) < 0.8 && d > 2.2) {
+    if (Math.hypot(p.x - tx, p.z - tz) < (type === 'shooter' && a.hold < WING_T ? 0.3 : 0.8) && d > 2.2) {   // (a shooter: right on it, behind the line - near it could still be inside)
       if (type === 'shooter' && a.hold < WING_T) { a.side = -(a.side || 1); tz = K.HZ + a.side * WING_Z; }
       else { if (type === 'shooter') a.hold = WING_T; tx = rx - s * 0.9; tz = K.HZ + (a.side || 1) * 0.8; }
     }

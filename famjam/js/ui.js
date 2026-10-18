@@ -903,6 +903,10 @@ window.HW = window.HW || {};
       var tw = Fo.measure(T[w].name + ' WIN!', C.W > 560 ? 4 : 3) / 2 + 30;
       if (hc.label && rx + Fo.measure(hc.label, 1) + 4 < cx - tw) Fo.draw(g, hc.label, rx, ry + rt.height + 16, { scale: 1, scheme: 'yellow', align: 'left' });
     }
+    // the level it was played on, top right across from the replay tag (green Easy, yellow Normal, red Hard), so a screenshot says it
+    var lv = ((G.diff && G.diff.label) || 'Normal').toUpperCase() + ' LEVEL', lvc = { 'EASY LEVEL': '#35e07c', 'HARD LEVEL': '#ff5a4a' }[lv] || '#ffd23f';
+    var lw = Fo.measure(lv, 2) + 14, lx = C.R - 10 - lw, ly = C.T + 8; g.fillStyle = '#000'; g.fillRect(lx - 2, ly - 2, lw + 4, 26); g.fillStyle = lvc; g.fillRect(lx, ly, lw, 22);
+    Fo.draw(g, lv, lx + lw / 2, ly + 11, { scale: 2, scheme: 'black', shadow: 0, outline: 0 });
     flaming(g, T[w].name + ' WIN!', cx, C.T + 30, { scale: C.W > 560 ? 4 : 3, color: T[w].color, outline: 2, shadow: 2 }, fr);
     Fo.draw(g, G.score[0] + ' - ' + G.score[1], cx, C.T + 70, { scale: 3, scheme: 'white' });
     var px = C.L + 6, pw = C.W - 12, py = C.T + 90, ph = 160; if (reel) seeBevel(g, px, py, pw, ph, 'rgba(0,0,0,0.45)', CY, 3); else bevel(g, px, py, pw, ph, '#000', CY, 3);
