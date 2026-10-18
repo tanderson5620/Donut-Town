@@ -50,7 +50,10 @@ window.HW = window.HW || {};
       if (opp.who && Math.abs(opp.who.z - p.z) > 0.5) a.side = opp.who.z > p.z ? -1 : 1; else if (!a.side) a.side = p.z > K.HZ ? 1 : -1;
       var open = opp.d > 1.5, late = G.shot < 3.5;
       // (the difficulty scales the chance itself - it used to multiply the yes/no answer, so it made no difference)
-      if (G.canDunk(p) && a.hold > 0.5 && Math.random() < (open ? 0.4 + p.def.stats.dunk * 0.02 : 0.06 + p.def.stats.dunk * 0.01) * G.diff.shoot) { G.startDunk(p); return; }
+      // at the rim everyone but a shooter finishes it: open, nearly always (the dunk or layup, 9 in 10, not the close jumper's 6);
+      // covered, more often than before (they used to settle for the jumper)
+      var fin = type !== 'shooter';
+      if (G.canDunk(p) && a.hold > (fin ? 0.3 : 0.5) && Math.random() < (fin ? (open ? 0.9 : 0.2 + p.def.stats.dunk * 0.02) : open ? 0.4 + p.def.stats.dunk * 0.02 : 0.06 + p.def.stats.dunk * 0.01) * G.diff.shoot) { G.startDunk(p); return; }
       // a 3-point shooter shoots threes, and quickly: behind the line he lets it go the moment he's open there, with a hand nearby most of
       // the time anyway (the quick release beats it), and now and then even right in his face (moving along the arc that's the
       // step-back); before he looks to pass. He doesn't settle for a long two: inside the line he gets back out behind it (unless the
@@ -73,6 +76,7 @@ window.HW = window.HW || {};
       // or open at his spot, it goes up right away instead of him standing there with it
       if (!(type === 'shooter' && !late && d > 2.6) && d < rng && (a.hold > (type === 'shooter' ? 0.3 : 1.1) || d < 3 || late)) {
         var base = open ? 0.45 : 0.12; if (type === 'shooter' && d > K.R3 - 0.4) base += 0.3; if (d < 3) base += 0.2; if (p.onFire) base = 0.85; if (late || d < 1.8 || spot && open) base = 1;
+        if (fin && !late && open && G.canDunk(p)) base = 0;   // (open at the rim: no jumper, he takes it up)
         if (Math.random() < base) { a.relAt = 0.82 + Math.random() * 0.3; G.startShot(p); return; }
       }
     }
