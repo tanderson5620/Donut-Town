@@ -368,7 +368,7 @@ window.HW = window.HW || {};
     // (after a cartwheel the odds are the ones from where he started it; 3 or 2 goes by where he took off)
     var b = G.ball, rx = rimX(p.team), sp = p.cart && p.cartFrom || p.onefoot && p.shotFrom || p, d = Math.hypot(sp.x - rx, sp.z - K.HZ), three = threeFrom(p, takeoff(p));
     var s = p.def.stats, pm;
-    if (three) pm = 0.16 + 0.05 * s.tp; else if (d > 4.5) pm = 0.34 + 0.035 * s.tp; else if (d > 2.2) pm = 0.48 + 0.025 * Math.max(s.tp, s.dunk); else pm = 0.68 + 0.02 * s.dunk;
+    if (three) pm = 0.11 + 0.05 * s.tp; else if (d > 4.5) pm = 0.34 + 0.035 * s.tp; else if (d > 2.2) pm = 0.48 + 0.025 * Math.max(s.tp, s.dunk); else pm = 0.68 + 0.02 * s.dunk;
     // release timing, from the press of SHOOT: the top of a jump shot is the sweet spot (wider for shooters from deep), and a step-back
     // or cartwheel first doesn't move it. Online, a guest's release is timed on his own phone, press to let-go (p.relPress)
     var rst = p.relPress != null ? p.relPress : p.sht != null ? p.sht : p.st; p.relPress = null; p.sht = null; p.sbAuto = false;
@@ -402,8 +402,9 @@ window.HW = window.HW || {};
   function guarded(h) { return !!h && (h.state === 'cartwheel' || h.state === 'stepback' || h.state === 'shoot' && !h.released && (h.cart || h.stepT || h.kick) || !!G.inb && G.inb.p === h); }
   G.guarded = guarded;
   function contest(p) {
-    if (p.cart || p.stepT) return 0;
-    var c = 0; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < 1.6 && q.state !== 'fall') c = Math.max(c, (1.6 - d) / 1.6 * (q.y > 0.25 ? 0.32 : 0.16) * (0.7 + q.def.stats.block / 20)); }); return c;
+    if (p.cart) return 0;
+    var c = 0; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < 1.6 && q.state !== 'fall') c = Math.max(c, (1.6 - d) / 1.6 * (q.y > 0.25 ? 0.32 : 0.16) * (0.7 + q.def.stats.block / 20)); });
+    return p.stepT ? c * 0.5 : c;   // (the step-back: still unblockable, but a hand in his face counts half)
   }
   // the low blow: a 3-point shooter going up with a man on him (in front, close enough to contest it) kicks his near leg out straight
   // into the man's crotch, 1 in 50 of those jump shots (KICK_P). Just off the floor, so the foot lands at crotch height; the shot always
