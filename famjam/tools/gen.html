@@ -376,12 +376,13 @@ ANIMS.shove_shin = { n: 4, dirs: ['R'], f: function (t, i) { return [
   { crouch: 0.12, lean: -0.15, rt: 0.75, rk: 0.15, lt: -0.05, lk: 0.3, rs: -0.3, re: 0.5, rz: 0.7, ls: 0.6, le: 0.6, lz: 0.7 },
   { crouch: 0.14, lean: -0.2, rt: 0.85, rk: 0.05, lt: -0.05, lk: 0.35, rs: -0.4, re: 0.4, rz: 0.8, ls: 0.7, le: 0.5, lz: 0.8 },
   { crouch: 0.08, lean: 0.05, rt: 0.3, rk: 0.6, rs: 0.2, re: 0.7, ls: 0.2, le: 0.7, rz: 0.4, lz: 0.4 }][i]; } };
-// the flying knee (the Max Strength players, after MMA's): a dip, then he leaps off his far foot, both arms flung back, and drives his
-// near knee up into his man's chest and face, the shin folded tight under it, the far leg trailing; then lands on his feet
+// the flying knee (the Max Strength players, after a photo of one in the UFC): a dip, then he leaps high and tucks both knees up, the
+// near thigh level and driving into his man's face with the shin hanging straight down, the far knee up beside it, feet together;
+// chest up and upright, the near arm out wide and low for balance, the far arm bent forward at head height; then lands on his feet
 ANIMS.shove_knee = { n: 4, dirs: ['R'], f: function (t, i) { return [
-  { crouch: 0.26, lean: 0.25, rs: -0.3, re: 0.6, rz: 0.2, ls: -0.4, le: 0.6, lz: 0.2, rt: 0.55, rk: 1.2, lt: 0.35, lk: 0.9 },
-  { lift: 0.3, lean: -0.05, rs: -0.85, re: 0.35, rz: 0.25, ls: -0.9, le: 0.35, lz: 0.25, rt: 1.6, rk: 2.1, lt: -0.35, lk: 0.6, neck: -0.1, air: 1 },
-  { lift: 0.42, lean: -0.18, rs: -1.05, re: 0.25, rz: 0.3, ls: -1.1, le: 0.25, lz: 0.3, rt: 1.95, rk: 2.25, lt: -0.5, lk: 0.45, neck: -0.15, air: 1 },
+  { crouch: 0.26, lean: 0.22, rs: -0.4, re: 0.5, rz: 0.25, ls: 0.8, le: 1.0, lz: 0.1, rt: 0.6, rk: 1.2, lt: 0.35, lk: 0.9 },
+  { lift: 0.3, yaw: -0.12, lean: 0.0, rs: -0.35, re: 0.3, rz: 0.75, ls: 0.9, le: 1.2, lz: 0.2, rt: 1.4, rk: 1.7, lt: 0.7, lk: 1.4, air: 1 },
+  { lift: 0.5, yaw: -0.2, lean: -0.15, rs: -0.2, re: 0.2, rz: 0.95, ls: 0.95, le: 1.15, lz: 0.25, rt: 1.65, rk: 1.65, lt: 1.2, lk: 1.5, neck: 0.1, air: 1 },
   { crouch: 0.16, lean: 0.2, rs: 0.3, re: 0.8, rz: 0.2, ls: 0.2, le: 0.8, lz: 0.2, rt: 0.6, rk: 0.9, lt: 0.2, lk: 0.6 }][i]; } };
 // the chase-down block (the dunkers, after LeBron's): flying in from behind, the near knee driving up and the far leg trailing, he
 // reaches all the way up and forward with his near hand open and pins the ball flat against the glass, the far arm swung down and

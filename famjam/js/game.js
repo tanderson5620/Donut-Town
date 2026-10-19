@@ -28,7 +28,7 @@ window.HW = window.HW || {};
     q.face = dx > 0 ? -1 : 1;                                   // he faces the hit and goes over backwards
     q.vx = dx * (3 + 2 * hard); q.vz = dz * (1.2 + hard); q.vy = Math.max(q.vy || 0, 1.2 + 2.2 * hard); if (q.y < 0.001) q.y = 0.001;
     q.hitT = 0.45; q.flash = 0.12; q.impact = { blood: o.blood || 0.7, hard: hard };
-    var hx = src ? (src.x + q.x) / 2 : q.x, hz = (src ? Math.min(src.z, q.z) : q.z) - 0.15, hy = o.y || q.y + 1.3;
+    var hx = src ? (o.onQ ? q.x + dx * 0.2 : (src.x + q.x) / 2) : q.x, hz = (src ? Math.min(src.z, q.z) : q.z) - 0.15, hy = o.y || q.y + 1.3;   // (onQ: the star on him, not between them - the flying knee stays in sight)
     X.ring(hx, hy, hz, 0.7 + 0.35 * hard); X.burst(hx, hy, hz, Math.round(10 + 8 * hard), ['#ffffff', '#ffe14d', '#ffb000'], 3 + 2 * hard, 0.35, 3);
     G.hitstop = Math.max(G.hitstop || 0, 0.05 + 0.035 * hard); X.shake = Math.max(X.shake, 0.5 + 0.3 * hard); Au.punch && Au.punch();
     if (hard >= 1.8 && isGuy(q)) Au.scream && Au.scream();   // sent flying 3+ m: he screams on the way
@@ -623,7 +623,7 @@ window.HW = window.HW || {};
       if (tgt.hasBall) G.drop(tgt, dx * 3, 3, dz * 3);
       var gap = str - tgt.def.stats.str + (fs ? 5 : 0);
       var sty = p.shoveStyle, hk = sty === 'kick' ? 0.4 : sty === 'punch' || sty === 'knee' ? 0.5 : sty === 'shin' ? -0.3 : 0;
-      G.knockDown(tgt, p, { hard: (fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6)) + hk, blood: 0.7 + Math.max(0, gap) * 0.1 + (sty === 'knee' ? 0.3 : 0), y: sty === 'kick' ? 1.6 : sty === 'knee' ? 1.45 : sty === 'shin' ? 0.35 : 1.2 });   // (the knee lands on his chin)
+      G.knockDown(tgt, p, { hard: (fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6)) + hk, blood: 0.7 + Math.max(0, gap) * 0.1 + (sty === 'knee' ? 0.3 : 0), y: sty === 'kick' ? 1.6 : sty === 'knee' ? 1.45 : sty === 'shin' ? 0.35 : 1.2, onQ: sty === 'knee' });   // (the knee lands on his chin)
       G.say(knockLine(p, tgt), '#ff8a5a', 1.2); hl('knock', p, 'KNOCKDOWN');
     } else { if (!wall) { Au.punch && Au.punch(); if (!isGuy(tgt) && Math.random() < 0.5) Au.painF && Au.painF(); } if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); }   // it lands but he stays up
   };
