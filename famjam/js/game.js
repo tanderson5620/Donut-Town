@@ -137,7 +137,7 @@ window.HW = window.HW || {};
     return c;
   };
 
-  var WHISTLE_LONG = 1.02;   // sfx/whistle.mp3: two short blasts, the long one starts 1.02 s in
+  var WHISTLE_AT = 0.03;   // sfx/whistle_2k.mp3: the ref's blast (cut from the owner's 2K shot-clock clip) starts 0.03 s in
   // after a basket (or a shot-clock violation) nobody gets reset: the other team takes it out under the basket it was just scored on
   // and passes it in (phase 'inbound', G.inb), while the team that scored has to get back on D. The one nearest the baseline takes
   // it out (a computer player when he can, so you bring it up), walks out with it, and once he's there throws it in to his partner
@@ -607,8 +607,9 @@ window.HW = window.HW || {};
   };
   G.tryShove = function (p) {
     if (p.cd.shove > 0 || p.busy()) return; p.cd.shove = 0.9; p.state = 'shove'; p.st = 0;
-    // bruisers (STR 9+, on fire counts) don't just push: a roundhouse kick, a Superman punch or a kick to the shins
-    p.shoveStyle = p.def.stats.str >= 9 ? pick(['kick', 'punch', 'shin']) : null;
+    // bruisers (STR 9+, on fire counts) don't just push: a roundhouse kick, a Superman punch or a kick to the shins - and the Max
+    // Strength players a flying knee too
+    p.shoveStyle = p.def.stats.str >= 9 ? pick(['kick', 'punch', 'shin'].concat(p.def.type === 'strength' && X.hasAnim(p, 'shove_knee') ? ['knee'] : [])) : null;
     var tgt = null, bd = 1.6; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < bd && q.state !== 'fall' && !guarded(q)) { bd = d; tgt = q; } });
     Au.shove(); Au.shoveYell && Au.shoveYell(((HW.FAMILY || {})[p.id] || {}).sex === 'f'); if (!tgt) return;
     p.face = tgt.x >= p.x ? 1 : -1; p.stats.shoves++;
@@ -621,8 +622,8 @@ window.HW = window.HW || {};
     if (Math.random() < kd) {
       if (tgt.hasBall) G.drop(tgt, dx * 3, 3, dz * 3);
       var gap = str - tgt.def.stats.str + (fs ? 5 : 0);
-      var sty = p.shoveStyle, hk = sty === 'kick' ? 0.4 : sty === 'punch' ? 0.5 : sty === 'shin' ? -0.3 : 0;
-      G.knockDown(tgt, p, { hard: (fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6)) + hk, blood: 0.7 + Math.max(0, gap) * 0.1, y: sty === 'kick' ? 1.6 : sty === 'shin' ? 0.35 : 1.2 });
+      var sty = p.shoveStyle, hk = sty === 'kick' ? 0.4 : sty === 'punch' || sty === 'knee' ? 0.5 : sty === 'shin' ? -0.3 : 0;
+      G.knockDown(tgt, p, { hard: (fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6)) + hk, blood: 0.7 + Math.max(0, gap) * 0.1 + (sty === 'knee' ? 0.3 : 0), y: sty === 'kick' ? 1.6 : sty === 'knee' ? 1.45 : sty === 'shin' ? 0.35 : 1.2 });   // (the knee lands on his chin)
       G.say(knockLine(p, tgt), '#ff8a5a', 1.2); hl('knock', p, 'KNOCKDOWN');
     } else { if (!wall) { Au.punch && Au.punch(); if (!isGuy(tgt) && Math.random() < 0.5) Au.painF && Au.painF(); } if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); }   // it lands but he stays up
   };
@@ -849,8 +850,8 @@ window.HW = window.HW || {};
     if (G.puQueue) { var pq = G.puQueue; if ((G.phase === 'scored' || G.phase === 'play' || G.phase === 'inbound') && pq.grounded() && pq.state !== 'dunk' && pq.state !== 'fall' && pq.state !== 'dougie' && !G.cine) { G.puQueue = null; startPowerup(pq); return; } }
     if (G.tipT > 0 && (G.tipT -= dt) <= 0) G.say('STICK PAST THE RING = TURBO!', '#5cff7a', 3.5, 0.55);
     var live = G.phase === 'play', moving = live || G.phase === 'inbound';   // (during the inbound everyone moves; the clocks wait)
-    // the ref's whistle (recorded): tweet, tweet, then the long blast lands right on GO
-    if (G.phase === 'tip') { G.phaseT -= dt; if (!G.whistled && G.phaseT <= WHISTLE_LONG) { G.whistled = true; Au.sfx && Au.sfx('whistle', 0.85); } if (G.phaseT <= 0) { G.phase = 'play'; G.say('GO!', '#5cff7a', 0.8, 1.3); Au.sfx && Au.sfx('go'); } }
+    // the ref's whistle (2K's, recorded): its blast lands right on GO
+    if (G.phase === 'tip') { G.phaseT -= dt; if (!G.whistled && G.phaseT <= WHISTLE_AT) { G.whistled = true; Au.sfx && Au.sfx('whistle_2k', 0.9); } if (G.phaseT <= 0) { G.phase = 'play'; G.say('GO!', '#5cff7a', 0.8, 1.3); Au.sfx && Au.sfx('go'); } }
     else if (G.phase === 'scored') { G.phaseT -= dt; if (G.phaseT <= 0 && !(G.puQueue && G.phaseT > -2) && !(G.players.some(function (q) { return q.state === 'dougie'; }) && G.phaseT > -1.5)) G.startInbound(G.nextPoss); }   // a power-up still to come holds the restart, and a Dougie gets a moment to finish
     else if (G.phase === 'inbound' && G.inb) updateInbound(dt);
     else if (G.phase === 'break') { G.phaseT -= dt; if (G.phaseT <= 0) { G.q++; G.beginQuarter(); } }
