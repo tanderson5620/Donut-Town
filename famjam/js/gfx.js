@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=28';   // (the faces carry it too)
+  var SHEET_V = '?v=29';   // (the faces carry it too)
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -621,7 +621,7 @@ window.HW = window.HW || {};
       items.push({ z: K.HZ + 0.75, draw: function () { drawHoopBack(g, side); drawRim(g, side, false); } });
       items.push({ z: K.HZ - 0.35, draw: function () { drawRim(g, side, true, hoopFx[side > 0 ? 1 : 0]); } });
     });
-    // (behind: round his back in a dunk - drawn before him, so his body covers it; baked: the under-the-legs dunk's frames draw it)
+    // (behind: round his back in a dunk - drawn before him, so his body covers it; baked: the frames draw it - under the legs, under both legs, the reverses)
     if (ball && ball.visible && !ball.baked) items.push({ z: Math.min(ball.z - 0.01 - (ball.inFront ? 0.6 : 0) + (ball.behind ? 0.4 : 0), revUp(ball.holder) && ball.inFront ? K.HZ - 0.37 : 99), draw: function () { X.drawBall(g, ball, t); } });
     items.sort(function (a, b) { return b.z - a.z; });
     items.forEach(function (it) { it.draw(); });
