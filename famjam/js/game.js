@@ -608,8 +608,8 @@ window.HW = window.HW || {};
   G.tryShove = function (p) {
     if (p.cd.shove > 0 || p.busy()) return; p.cd.shove = 0.9; p.state = 'shove'; p.st = 0;
     // bruisers (STR 9+, on fire counts) don't just push: a roundhouse kick, a Superman punch or a kick to the shins - and the Max
-    // Strength players a flying knee too
-    p.shoveStyle = p.def.stats.str >= 9 ? pick(['kick', 'punch', 'shin'].concat(p.def.type === 'strength' && X.hasAnim(p, 'shove_knee') ? ['knee'] : [])) : null;
+    // Strength players a flying knee and a jumping front kick too
+    p.shoveStyle = p.def.stats.str >= 9 ? pick(['kick', 'punch', 'shin'].concat(p.def.type === 'strength' ? ['knee', 'front'].filter(function (k) { return X.hasAnim(p, 'shove_' + k); }) : [])) : null;
     var tgt = null, bd = 1.6; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < bd && q.state !== 'fall' && !guarded(q)) { bd = d; tgt = q; } });
     Au.shove(); Au.shoveYell && Au.shoveYell(((HW.FAMILY || {})[p.id] || {}).sex === 'f'); if (!tgt) return;
     p.face = tgt.x >= p.x ? 1 : -1; p.stats.shoves++;
@@ -622,8 +622,8 @@ window.HW = window.HW || {};
     if (Math.random() < kd) {
       if (tgt.hasBall) G.drop(tgt, dx * 3, 3, dz * 3);
       var gap = str - tgt.def.stats.str + (fs ? 5 : 0);
-      var sty = p.shoveStyle, hk = sty === 'kick' ? 0.4 : sty === 'punch' || sty === 'knee' ? 0.5 : sty === 'shin' ? -0.3 : 0;
-      G.knockDown(tgt, p, { hard: (fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6)) + hk, blood: 0.7 + Math.max(0, gap) * 0.1 + (sty === 'knee' ? 0.3 : 0), y: sty === 'kick' ? 1.6 : sty === 'knee' ? 1.45 : sty === 'shin' ? 0.35 : 1.2, onQ: sty === 'knee' });   // (the knee lands on his chin)
+      var sty = p.shoveStyle, hk = sty === 'kick' ? 0.4 : sty === 'punch' || sty === 'knee' || sty === 'front' ? 0.5 : sty === 'shin' ? -0.3 : 0;
+      G.knockDown(tgt, p, { hard: (fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6)) + hk, blood: 0.7 + Math.max(0, gap) * 0.1 + (sty === 'knee' ? 0.3 : 0), y: sty === 'kick' || sty === 'front' ? 1.6 : sty === 'knee' ? 1.45 : sty === 'shin' ? 0.35 : 1.2, onQ: sty === 'knee' || sty === 'front' });   // (the knee lands on his chin, the front kick in his chest and face)
       G.say(knockLine(p, tgt), '#ff8a5a', 1.2); hl('knock', p, 'KNOCKDOWN');
     } else { if (!wall) { Au.punch && Au.punch(); if (!isGuy(tgt) && Math.random() < 0.5) Au.painF && Au.painF(); } if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); }   // it lands but he stays up
   };
