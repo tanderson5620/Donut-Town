@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=33';   // (the faces carry it too)
+  var SHEET_V = '?v=34';   // (the faces carry it too)
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;

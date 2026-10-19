@@ -392,6 +392,14 @@ ANIMS.shove_front = { n: 4, dirs: ['R'], f: function (t, i) { return [
   { lift: 0.15, lean: -0.22, rs: -0.15, re: 0.25, rz: 0.15, ls: -0.1, le: 0.3, lz: 0.15, rt: 1.6, rk: 1.9, lt: 0.0, lk: 0.35, neck: 0.15, fist: 1, air: 1 },
   { lift: 0.22, lean: -0.68, rs: -0.3, re: 0.2, rz: 0.18, ls: -0.2, le: 0.3, lz: 0.15, rt: 1.55, rk: 0.0, lt: -0.08, lk: 0.22, neck: 0.3, fist: 1, air: 1 },
   { crouch: 0.14, lean: 0.12, rs: 0.2, re: 0.5, rz: 0.15, ls: 0.15, le: 0.5, lz: 0.15, rt: 0.5, rk: 0.8, lt: 0.15, lk: 0.5, fist: 1 }][i]; } };
+// the spinning back elbow (the Max Strength players, after a photo of one in Bellator): fists up, he spins - turning his back to his
+// man - and whips round with his near arm raised level and folded tight, driving the point of the elbow into his jaw, his back to
+// you as it lands, leaning into it off a wide pivot; then he comes back round to face him (yaw: the turn, a little over a full one)
+ANIMS.shove_elbow = { n: 4, dirs: ['R'], f: function (t, i) { return [
+  { yaw: -0.8, crouch: 0.12, lean: 0.1, rs: 1.0, re: 2.0, rz: 0.15, ls: 1.0, le: 2.0, lz: 0.15, rt: 0.35, rk: 0.6, lt: -0.15, lk: 0.35, fist: 1 },
+  { yaw: -2.6, crouch: 0.14, lean: 0.12, rs: 0.6, re: 2.1, rz: 0.6, ls: 0.9, le: 1.9, lz: 0.2, rt: 0.2, rk: 0.5, lt: 0.3, lk: 0.6, fist: 1 },
+  { yaw: -4.29, crouch: 0.14, lean: 0.18, rs: 0.1, re: 2.3, rz: 1.45, ls: 0.7, le: 1.8, lz: 0.2, rt: 0.45, rk: 0.55, lt: -0.3, lk: 0.3, fist: 1 },
+  { yaw: -6.0, crouch: 0.1, lean: 0.08, rs: 0.9, re: 1.9, rz: 0.2, ls: 0.9, le: 1.9, lz: 0.15, rt: 0.3, rk: 0.5, lt: 0.0, lk: 0.4, fist: 1 }][i]; } };
 // the chase-down block (the dunkers, after LeBron's): flying in from behind, the near knee driving up and the far leg trailing, he
 // reaches all the way up and forward with his near hand open and pins the ball flat against the glass, the far arm swung down and
 // back; then comes down with it
