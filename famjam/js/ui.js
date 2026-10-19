@@ -999,8 +999,10 @@ window.HW = window.HW || {};
   };
   // callouts: big flaming arcade text that pops in
   UI.drawCallouts = function (g) {
-    var G = HW.Jam, W = X.W, S = UI.safe(), fr = Math.floor(G.t * 12), maxW = W - S.l - S.r - 30, cy = 112;
+    var G = HW.Jam, W = X.W, S = UI.safe(), fr = Math.floor(G.t * 12), maxW = W - S.l - S.r - 30, cy = 112, cy0;
+    // (a low one - BLOCKED BY JAMES! over the chase-down's close-up - goes down near the bottom, clear of the two of them)
     G.callouts.forEach(function (c, i) {
+      if (c.low) { cy0 = cy; cy = X.H - 52 - S.b; }
       var sc0 = c.size >= 1.2 ? 4 : c.size >= 0.85 ? 3 : 2; while (sc0 > 1 && Fo.measure(c.text, sc0) > maxW) sc0--;
       var pop = c.t < 0.05 ? 2 : c.t < 0.11 ? 1 : 0, sc1 = sc0 + pop; if (Fo.measure(c.text, sc1) > maxW) sc1 = sc0;
       var a = c.life - c.t < 0.3 ? Math.max(0, (c.life - c.t) / 0.3) : 1, rgbv = rgb(c.color.length === 4 ? '#' + c.color[1] + c.color[1] + c.color[2] + c.color[2] + c.color[3] + c.color[3] : c.color);
@@ -1009,6 +1011,7 @@ window.HW = window.HW || {};
       g.globalAlpha = a;
       if (hot && !pop) flaming(g, c.text, W / 2, cy, o, fr); else Fo.draw(g, c.text, W / 2, cy, o);
       g.globalAlpha = 1; cy += Fo.height({ scale: sc0 }) + 12;
+      if (c.low) cy = cy0;
     });
   };
 })(window.HW);

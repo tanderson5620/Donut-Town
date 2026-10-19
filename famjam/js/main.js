@@ -46,16 +46,20 @@ window.HW = window.HW || {};
     g.fillStyle = '#05050c'; g.fillRect(0, 0, X.W, X.H);
     var vz = G.show && G.show.kind === 'win' && G.show.t > G.WIN.hud;   // Gator's victory twerk: just him and the WIN! callout
     // (not under the stats screen: it covers the court, and its highlight reel draws its own)
-    if (UI.screen !== 'results' && G.players.length && G.phase !== 'menu') { X.drawScene(g, G.t, UI.screen === 'paused' ? 0 : dt, G.players, G.ball, G.hoopFx); if (!(G.pu && G.pu.t > 0.12 && G.pu.t < (G.pu.dur || G.PU.dur) - 0.15) && !G.cine && !vz) UI.drawHUD(g); else if (vz) UI.drawCallouts(g); }   // the power-up close-up gets the whole screen
+    if (UI.screen !== 'results' && G.players.length && G.phase !== 'menu') { X.drawScene(g, G.t, UI.screen === 'paused' ? 0 : dt, G.players, G.ball, G.hoopFx); if (!(G.pu && G.pu.t > 0.12 && G.pu.t < (G.pu.dur || G.PU.dur) - 0.15) && !G.cine && !vz) UI.drawHUD(g); else if (vz || G.cine && G.cine.kind === 'chase') UI.drawCallouts(g); }   // the power-up close-up gets the whole screen
     else if (UI.screen !== 'results') { idleT += dt; X.camX = Math.sin(idleT * 0.15) * X.camMax(); X.drawScene(g, idleT, dt, [], null, [0, 0]); }
     // the end of the game fades out to the final scoreboard (slowly after Gator's victory twerk), which fades in
     var fo = G.vic ? G.WIN.fade : 0.45; if (G.phase === 'over' && UI.screen !== 'results' && G.phaseT < fo) { g.fillStyle = 'rgba(0,0,0,' + Math.min(1, 1 - G.phaseT / fo) + ')'; g.fillRect(0, 0, X.W, X.H); }
     if (UI.screen) UI.drawMenu(g, dt);
     var inMenu = !!UI.screen; if (inMenu !== UI.wasMenu) { document.body.classList.toggle('inmenu', inMenu); UI.wasMenu = inMenu; }
-    // (the crowd ducks under Gator's song in his power-up twerk and his victory twerk)
-    if (HW.Audio.ambient) HW.Audio.ambient(G.players.length && G.phase !== 'menu' && UI.screen !== 'paused' ? (0.18 + Math.min(0.25, X.hype * 0.08)) * (G.show && (G.show.kind === 'pu' || G.show.kind === 'win') ? 0.4 : 1) : 0);
-    // menu music until tip-off, post-game music from the buzzer through the stats (Gator's song when his team won)
-    if (HW.Audio.music) HW.Audio.music(G.phase === 'menu' ? 'menu' : G.phase === 'over' ? (G.vic ? 'gator' : 'post') : null);
+    // the music: on the menus the menu songs; the NBA theme from the PLAY press (the matchup screen, loading) through the tip-off until
+    // the ball's in play; the NBA on TNT theme from the end of the 1st, 2nd and 3rd quarters until the next one's ball is in play; from
+    // the final buzzer through the stats the post-game song (Gator's when his team won)
+    var mz = UI.screen === 'matchup' || G.phase === 'tip' && G.q === 1 ? 'intro' : G.phase === 'break' && G.q < 4 || G.phase === 'tip' && G.q > 1 && G.q <= 4 ? 'tnt'
+      : G.phase === 'menu' ? 'menu' : G.phase === 'over' ? (G.vic ? 'gator' : 'post') : null;
+    // (the crowd ducks under Gator's song in his power-up twerk and his victory twerk, and under the two themes)
+    if (HW.Audio.ambient) HW.Audio.ambient(G.players.length && G.phase !== 'menu' && UI.screen !== 'paused' ? (0.18 + Math.min(0.25, X.hype * 0.08)) * (G.show && (G.show.kind === 'pu' || G.show.kind === 'win') ? 0.4 : mz === 'intro' || mz === 'tnt' ? 0.5 : 1) : 0);
+    if (HW.Audio.music) HW.Audio.music(mz);
     UI.endFrame();
     requestAnimationFrame(loop);
   }

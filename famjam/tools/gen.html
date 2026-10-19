@@ -376,6 +376,15 @@ ANIMS.shove_shin = { n: 4, dirs: ['R'], f: function (t, i) { return [
   { crouch: 0.12, lean: -0.15, rt: 0.75, rk: 0.15, lt: -0.05, lk: 0.3, rs: -0.3, re: 0.5, rz: 0.7, ls: 0.6, le: 0.6, lz: 0.7 },
   { crouch: 0.14, lean: -0.2, rt: 0.85, rk: 0.05, lt: -0.05, lk: 0.35, rs: -0.4, re: 0.4, rz: 0.8, ls: 0.7, le: 0.5, lz: 0.8 },
   { crouch: 0.08, lean: 0.05, rt: 0.3, rk: 0.6, rs: 0.2, re: 0.7, ls: 0.2, le: 0.7, rz: 0.4, lz: 0.4 }][i]; } };
+// the chase-down block (the dunkers, after LeBron's): flying in from behind, the near knee driving up and the far leg trailing, he
+// reaches all the way up and forward with his near hand open and pins the ball flat against the glass, the far arm swung down and
+// back; then comes down with it
+ANIMS.block_chase = { n: 5, dirs: ['R'], armOver: true, f: function (t, i) { return [
+  { lean: 0.25, rs: 2.3, re: 0.6, rz: 0.1, ls: 0.5, le: 0.6, lz: 0.15, rt: 1.4, rk: 1.7, lt: -0.25, lk: 0.7, neck: -0.15, air: 1 },
+  { lean: 0.32, rs: 2.75, re: 0.05, rz: 0.06, ls: -0.5, le: 0.35, lz: 0.2, rt: 1.6, rk: 1.8, lt: -0.5, lk: 1.0, neck: -0.25, air: 1 },
+  { lean: 0.34, rs: 2.8, re: 0.0, rz: 0.06, ls: -0.6, le: 0.3, lz: 0.22, rt: 1.55, rk: 1.75, lt: -0.55, lk: 1.05, neck: -0.25, air: 1 },
+  { lean: 0.26, rs: 2.5, re: 0.2, rz: 0.08, ls: -0.25, le: 0.5, lz: 0.2, rt: 1.2, rk: 1.4, lt: -0.2, lk: 0.8, neck: -0.15, air: 1 },
+  { lean: 0.12, rs: 1.4, re: 1.1, rz: 0.15, ls: 0.6, le: 0.9, lz: 0.2, rt: 0.6, rk: 0.9, lt: 0.3, lk: 0.7, air: 1 }][i]; } };
 // dunk rejection by a bruiser: in the air, bent back into a C - both fists clasped together behind his head, legs folded back - then
 // he hammers it down through the dunker
 ANIMS.block_hammer = { n: 4, dirs: ['R'], f: function (t, i) { return [

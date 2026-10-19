@@ -624,7 +624,7 @@ window.HW = window.HW || {};
         zmax = Math.max(1.35, Math.min(2.0, 0.92 * W / span)); zf = { x: (ga.x + gq.x) / 2 - (pp.face || 1) * 0.75 * ga.s - X.shakeX, y: ga.y - 0.5 * ga.s - X.shakeY };
       }
       za = vic ? e((vic.t - J.WIN.zoom0) / J.WIN.zoomT) : u < 0.25 ? e(u / 0.25) : u > D - 0.3 ? e((D - u) / 0.3) : 1; zk = 1 + (zmax - 1) * za;
-      if (cine && pu.kind === 'kick' && pu.q) {   // the low blow: the two of them in frame, the shooter in the air and his man taking it
+      if (cine && (pu.kind === 'kick' || pu.kind === 'chase') && pu.q) {   // the low blow, the chase-down: the two of them in frame
         var kq = X.proj(pu.q.x, 0, pu.q.z), kspan = Math.abs(gd.x - kq.x) + 2.2 * gd.s;
         zmax = Math.min(zmax, Math.max(1.25, 0.9 * W / kspan)); zf = { x: (gd.x + kq.x) / 2 - X.shakeX, y: zf.y };
       }

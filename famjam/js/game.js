@@ -88,7 +88,7 @@ window.HW = window.HW || {};
     this.ai = { t: 0, spot: null, spotT: 0, hold: 0 };
   }
   Player.prototype.grounded = function () { return this.y <= 0.001 && this.vy === 0; };
-  Player.prototype.busy = function () { return this.state === 'cartwheel' || this.state === 'dougie' || this.state === 'armbar' || this.state === 'stepback' || this.state === 'shimmy' || this.state === 'hammer' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
+  Player.prototype.busy = function () { return this.state === 'cartwheel' || this.state === 'dougie' || this.state === 'armbar' || this.state === 'stepback' || this.state === 'shimmy' || this.state === 'hammer' || this.state === 'chase' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
 
   G.start = function (setup) {
     X.clearBlood(); if (X.clearFx) X.clearFx(); if (HW.Replay) HW.Replay.reset(); G.vic = false;
@@ -204,7 +204,7 @@ window.HW = window.HW || {};
   G.lineup = function (team, center) {
     // a man down from an arm bar stays down where he lies (a hold still going finishes now); everyone else lines up
     G.players.forEach(function (p) { if (p.state === 'armbar' && p.ab) { if (!p.ab.snap) snapArm(p); if (p.ab.q.abBy === p) p.ab.q.abBy = null; p.ab = null; } });
-    if (G.cine && (G.cine.kind === 'armbar' || G.cine.kind === 'kick')) G.cine = null;
+    if (G.cine && (G.cine.kind === 'armbar' || G.cine.kind === 'kick' || G.cine.kind === 'chase')) G.cine = null;
     var down = function (p) { return p.hurtT > 0; };
     var s = side(team), off = G.players.filter(function (p) { return p.team === team && !down(p); }), def = G.players.filter(function (p) { return p.team !== team && !down(p); });
     if (!off.length) { off = G.players.filter(function (p) { return p.team === team; }); off.forEach(function (p) { p.hurtT = 0; p.abBy = null; }); }   // nobody left to bring it up: he shakes it off
@@ -222,7 +222,11 @@ window.HW = window.HW || {};
     var b = G.ball, prev = G.poss;
     if (b.holder && b.holder !== p) b.holder.hasBall = false;
     b.holder = p; p.hasBall = true; b.state = 'held'; b.shotInfo = null; b.pass = null; b.vx = b.vy = b.vz = 0; p.assist = null;
-    if (prev !== p.team) { G.poss = p.team; G.shot = 24; }
+    if (prev !== p.team) {
+      G.poss = p.team; G.shot = 24;
+      // the visitors bring it up: now and then the home crowd chants DE-FENSE! (about 1 possession in 4, at most every 25 s)
+      if (p.team !== G.humanTeam && (G.phase === 'play' || G.phase === 'inbound') && G.t - (G.defT || -99) > 25 && Math.random() < 0.25) { G.defT = G.t; Au.defense && Au.defense(); }
+    }
     p.ai.hold = 0; p.dribT = 0;
   };
   G.drop = function (p, vx, vy, vz) {
@@ -262,6 +266,7 @@ window.HW = window.HW || {};
       }
       hand = X.handWorld(p, left); if (hand) { b.x = hand.x; b.y = Math.max(0.2, hand.y + (k.lay === 'roll' && u > 0.3 ? 0.13 : 0)); b.z = p.z - 0.2; return; }
     }
+    if (p.state === 'chase') { var ch = X.handWorld(p); if (ch) { b.x = ch.x + p.face * 0.1; b.y = ch.y + 0.05; b.z = p.z - 0.25; b.inFront = true; return; } }   // pinned to the glass in his hand
     if (G.show && G.show.p === p && G.show.t < G.show.len) { b.x = p.x + p.face * 0.6; b.y = 0.15; b.z = p.z - 0.3; return; }   // set down for the twerk
     if (p.state === 'cartwheel' || (p.state === 'shoot' && p.cart)) { var cw = X.ballWorld(p); if (cw) { b.x = cw.x; b.y = Math.max(0.2, cw.y); b.z = p.z - 0.2; b.baked = cw.baked; b.inFront = !cw.baked; return; } }
     if (p.state === 'stepback') { var hs = X.handWorld(p); b.x = hs ? hs.x : p.x + p.face * 0.3; b.y = hs ? Math.max(0.2, hs.y) : p.y + 1.1; b.z = p.z - 0.25; return; }
@@ -366,7 +371,7 @@ window.HW = window.HW || {};
     if (p.state !== 'shoot' || p.released || !p.hasBall) return;
     p.released = true; p.st2 = 0;
     // (after a cartwheel the odds are the ones from where he started it; 3 or 2 goes by where he took off)
-    var b = G.ball, rx = rimX(p.team), sp = p.cart && p.cartFrom || p.onefoot && p.shotFrom || p, d = Math.hypot(sp.x - rx, sp.z - K.HZ), three = threeFrom(p, takeoff(p));
+    var b = G.ball, rx = rimX(p.team), sp = p.cart && p.cartFrom || p.onefoot && p.shotFrom || p, d = Math.hypot(sp.x - rx, sp.z - K.HZ), tk = takeoff(p), three = threeFrom(p, tk);
     var s = p.def.stats, pm;
     if (three) pm = 0.11 + 0.05 * s.tp; else if (d > 4.5) pm = 0.34 + 0.035 * s.tp; else if (d > 2.2) pm = 0.48 + 0.025 * Math.max(s.tp, s.dunk); else pm = 0.68 + 0.02 * s.dunk;
     // release timing, from the press of SHOOT: the top of a jump shot is the sweet spot (wider for shooters from deep), and a step-back
@@ -388,7 +393,7 @@ window.HW = window.HW || {};
     // a 3-point shooter who knows it's good does a shoulder shimmy once he lands, about 2 in 10 of his made threes
     p.shimmy = make && three && p.def.type === 'shooter' && Math.random() < 0.2;
     p.hasBall = false; b.holder = null; b.state = 'shot'; b.last = p;
-    b.shotInfo = { by: p, team: p.team, three: three, sb: !!p.stepT, cw: !!p.cart, of: !!p.onefoot, sure: !!(p.cart || p.stepT || p.kick), make: make, quality: quality, t: 0, T: 0.7 + d * 0.055, x0: b.x, y0: b.y, z0: b.z, rx: rx, arc: 1.4 + d * 0.13, missX: rand(-0.35, 0.35), missZ: rand(-0.3, 0.3) };
+    b.shotInfo = { by: p, team: p.team, three: three, sb: !!p.stepT, cw: !!p.cart, of: !!p.onefoot, sure: !!(p.cart || p.stepT || p.kick), make: make, quality: quality, dist: Math.hypot(tk.x - rx, tk.z - K.HZ), t: 0, T: 0.7 + d * 0.055, x0: b.x, y0: b.y, z0: b.z, rx: rx, arc: 1.4 + d * 0.13, missX: rand(-0.35, 0.35), missZ: rand(-0.3, 0.3) };
     p.stats.fga++; if (three) p.stats.tpa++;
     // the quick release gets it off before anyone can close the space: only a man right in his face (within QR_NEAR, chest to chest)
     // as it leaves his hands gets a try at blocking it, and only right then (the first QR_U of its flight) - nobody else gets there in
@@ -538,7 +543,7 @@ window.HW = window.HW || {};
       p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; p.tongue = false; p.dunkFace = false; p.jamArm = null;
       // after a finger roll he lands with that hand still straight up and Dougies his way back up the court (dougie: after a near-hand
       // roll, the frames flipped as he turns back, so the raised arm stays on the side it went up on; dougie2 after a far-hand one)
-      if (dg && X.hasAnim(p, dg)) { p.state = 'dougie'; p.st = 0; p.dougie = dg; p.face = -side(p.team); }
+      if (dg && X.hasAnim(p, dg)) { p.state = 'dougie'; p.st = 0; p.dougie = dg; p.face = -side(p.team); Au.dougie && Au.dougie(); }
     }
   }
   var DOUGIE_T = 2.6;   // seconds of the Dougie walk back
@@ -672,9 +677,14 @@ window.HW = window.HW || {};
   function hl(kind, p, what) { if (HW.Replay && HW.Replay.mark) HW.Replay.mark(kind, (p ? p.def.first.toUpperCase() + ' ' : '') + what); }
 
   /* ---------- scoring ---------- */
-  var MOVE_CALL = 0.25;
+  var MOVE_CALL = 0.25, BANG_D = 35 * 0.3048;   // (35 ft, in meters)
   G.scored = function (p, pts, dunk) {
     var team = p.team, info = G.ball.shotInfo;
+    // Mike Breen: a three in the last 5 s of the 4th (or overtime) that puts them ahead or ties it - the big BANG!!!; a three from 35 ft
+    // and out (where he took off) or any jump shot that drops after the buzzer - BANG!!! BANG!!!
+    var jump = !dunk && info && !info.lay && info.by === p, mine = G.score[team], theirs = G.score[1 - team];
+    var bigBang = jump && pts === 3 && G.q >= 4 && G.clock < 5 && mine <= theirs && mine + 3 >= theirs, tie = bigBang && mine + 3 === theirs;
+    var bang = !bigBang && jump && (pts === 3 && info.dist >= BANG_D || G.clock <= 0);
     var hk = dunk ? (pts === 3 ? ['dunk3', '3-POINT DUNK'] : ['dunk', 'DUNK']) : info && info.lay ? (info.lay === 'lay' ? ['lay', 'LAYUP'] : ['fancyLay', info.lay === 'rev' ? 'REVERSE LAYUP' : 'FINGER ROLL'])
       : pts === 3 ? (info && info.cw ? ['cart3', 'CARTWHEEL THREE'] : info && (info.sb || info.of) ? ['fancy3', info.sb ? 'STEP-BACK THREE' : 'ONE-FOOT THREE'] : ['three', 'THREE']) : ['two', 'BUCKET'];
     hl(hk[0], p, hk[1]);
@@ -693,7 +703,9 @@ window.HW = window.HW || {};
     var txt = cw ? pick(HW.PHRASES.cart) : rev ? (call ? pick(HW.PHRASES.rev) : pick(HW.PHRASES.two.filter(function (l) { return l !== 'NOTHING BUT NET!'; })))
       : !dunk && info && info.lay && info.by === p && HW.PHRASES[info.lay] ? pick(HW.PHRASES[info.lay]) : dunk ? (pts === 3 ? '3-POINT DUNK!' : pick(HW.PHRASES.dunk))
       : pts === 3 ? (call ? (info.sb ? 'STEP-BACK THREE!' : 'ONE-FOOT THREE!') : pick(HW.PHRASES.three)) : info && info.quality === 'green' ? pick(HW.PHRASES.swish) : pick(HW.PHRASES.two);
-    G.say(txt, dunk ? '#ff7a1a' : pts === 3 ? '#ffb347' : '#ffe14d', 1.5, dunk ? 1.3 : 1);
+    if (bigBang || bang) txt = tie ? 'BANG!!! TIE GAME!' : bigBang ? 'BANG!!!' : 'BANG!!! BANG!!!';
+    G.say(txt, dunk ? '#ff7a1a' : pts === 3 ? '#ffb347' : '#ffe14d', bigBang || bang ? 2.4 : 1.5, dunk || bigBang || bang ? 1.3 : 1);
+    if (bigBang || bang) Au.bang && Au.bang(bigBang);
     Au.cheer(pts === 3 || dunk); X.hype = Math.max(X.hype, dunk || pts === 3 ? 3 : 1.5);
     // a fan in the stands yells "baba booey!" after a three: always the first one of the game, then about 1 in 3
     if (pts === 3 && !dunk && (!G.babaDone || Math.random() < 0.35) && Au.baba && Au.baba()) G.babaDone = true;
@@ -708,6 +720,7 @@ window.HW = window.HW || {};
   // a rejected dunk: the dunker crashes to the floor and the blocker comes down with the ball
   // a stronger blocker puts him on the floor for 2 s and he leaves a little blood on the court
   G.rejectDunk = function (q, dk) {
+    if (q.def.type === 'dunker' && dk.def.type === 'handler' && X.hasAnim(q, 'block_chase')) { chaseDown(q, dk); return; }   // a dunker on a point guard
     var power = q.def.stats.str - dk.def.stats.str + (sig(q, 'str') ? 5 : 0);
     dk.dk = null; dk.vy = 0; dk.tongue = false; dk.dunkFace = false; dk.jamArm = null;
     G.blocked(q, dk, null, 'GET THAT SHIT OUT OF HERE!');
@@ -722,6 +735,20 @@ window.HW = window.HW || {};
     }
     X.hype = Math.max(X.hype, 2.6);
   };
+  // the chase-down block (after LeBron's): a dunker gets to a point guard's layup or dunk and pins it flat on the glass - 1 s of slow
+  // motion in close on the two of them (G.cine kind 'chase', play at CHASE.slow), BLOCKED BY JAMES! He comes down with the ball; the
+  // point guard just drops back to the floor empty-handed
+  var CHASE = { dur: 1.0, slow: 0.35 };
+  function chaseDown(q, dk) {
+    var sd = rimX(dk.team) > 0 ? 1 : -1;
+    dk.dk = null; dk.state = 'jump'; dk.st = 0; dk.vy = Math.min(dk.vy, 0); dk.vx *= 0.3; dk.vz *= 0.3; dk.tongue = false; dk.dunkFace = false; dk.jamArm = null;
+    // he flies in from behind him and gets his hand on it right at the glass, in front of the net
+    q.state = 'chase'; q.st = 0; q.face = q.chaseFace = sd; q.x = sd * (K.BOARDX - 0.8); q.z = Math.min(q.z, K.HZ - 0.5); q.y = Math.max(q.y, 0.95); q.vy = 1.6; q.vx = q.vz = 0; q.dm = null; q.pending = null;
+    G.blocked(q, dk, null, 'BLOCKED BY JAMES!');
+    var c = G.callouts[G.callouts.length - 1]; if (c) { c.low = true; c.life = 1.9; }   // (down at the bottom, clear of the close-up)
+    G.cine = { p: q, q: dk, t: 0, dur: CHASE.dur, kind: 'chase', slow: CHASE.slow };
+    Au.wow && Au.wow(); if (isGuy(q)) Au.hup(); X.hype = Math.max(X.hype, 3);
+  }
   // a block: the shot is dead and the blocker comes down with the ball
   G.blocked = function (q, shooter, info, text) {
     var b = G.ball; q.stats.blocks++; hl(info ? 'block' : 'reject', q, 'BLOCK');
@@ -806,7 +833,7 @@ window.HW = window.HW || {};
     // going on fire: a 2 s golden power-up with the camera zoomed in on him while everything else waits
     if (G.pu) { updatePowerup(dt); return; }
     if (G.cine && G.cine.kind === 'armbar') { updateArmbarCine(dt); return; }   // the arm bar: everything else waits
-    if (G.cine && G.cine.kind === 'kick') { if ((G.cine.t += dt) >= G.cine.dur) { if (G.cine.say) G.say('LOW BLOW!', '#ff5a4a', 1.4, 1.3); G.cine = null; } else dt *= G.cine.slow; }   // the low blow: 1 s of slow motion, everyone
+    if (G.cine && (G.cine.kind === 'kick' || G.cine.kind === 'chase')) { if ((G.cine.t += dt) >= G.cine.dur) { if (G.cine.say) G.say('LOW BLOW!', '#ff5a4a', 1.4, 1.3); G.cine = null; } else dt *= G.cine.slow; }   // the low blow and the chase-down: 1 s of slow motion, everyone
     else if (G.cine) {   // the slow-motion dunks (everything slows equally, so nobody gets a better chance at it): under the legs all the way up
       // to the slam; off the backboard only from the toss until it's back in his hand
       var cp = G.cine.p, cu = cp.dk ? cp.st / cp.dk.T : 1, ck = G.cine.kind, bsi = G.ball.shotInfo;
@@ -908,11 +935,12 @@ window.HW = window.HW || {};
     if (p.hurtT > 0 && (p.hurtT -= dt) <= 0) { p.hurtT = 0; p.abBy = null; }
     if (p.state === 'fall') { var fr = p.y > 0 ? 1.2 : 6; p.vx *= Math.max(0, 1 - fr * dt); p.vz *= Math.max(0, 1 - fr * dt); if (p.st > (p.fallT || 1.3)) { p.state = 'idle'; p.flash = 0.6; p.fallT = 0; } }
     if (p.state === 'pass' && p.passStyle === 'moon' && p.st < 0.75) { p.vx = -p.face * 1.8; p.vz *= 0.85; }   // moonwalking backward toward his man
+    if (p.state === 'chase') { p.vx = p.vz = 0; p.face = p.chaseFace || p.face; }   // the chase-down: up at the glass with it, facing the board
     if (p.state === 'dougie') { p.face = -side(p.team); p.vx = p.face * 1.3; p.vz = 0; if (p.st > DOUGIE_T) { p.state = 'idle'; p.vx = 0; } }   // side-stepping back up the court
     if (p.state === 'shoot' && p.fade && p.y > 0) { p.vx = (p.x > rimX(p.team) ? 1 : -1) * 2.0; p.vz *= 0.9; }   // the fadeaway drifts away from the rim
     if (p.state === 'shoot' && p.onefoot && p.y > 0) { p.vx = (p.x > rimX(p.team) ? -1 : 1) * 0.9; p.vz *= 0.85; }   // the one-footer carries on a little toward it
     p.x = clamp(p.x + p.vx * dt, -K.HL - 0.6, K.HL + 0.6); p.z = clamp(p.z + p.vz * dt, 0.3, K.CD - 0.3);
-    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump' || p.state === 'hammer') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = p.shimmy ? 'shimmy' : 'idle'; p.st = 0; p.shimmy = false; if (p.fade || p.onefoot) p.vx *= 0.15; p.fade = false; p.onefoot = false; if (p.state === 'shimmy') { p.vx = p.vz = 0; } } } }
+    if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.impact) slam(p); if (p.state === 'jump' || p.state === 'hammer' || p.state === 'chase') p.state = 'idle'; if (p.state === 'shoot') { if (!p.released && p.hasBall) G.releaseShot(p); p.state = p.shimmy ? 'shimmy' : 'idle'; p.st = 0; p.shimmy = false; if (p.fade || p.onefoot) p.vx *= 0.15; p.fade = false; p.onefoot = false; if (p.state === 'shimmy') { p.vx = p.vz = 0; } } } }
     if (p.state === 'shoot' && !p.kickRoll && p.vy > 0 && p.y > 0.08) { p.kickRoll = true; tryKick(p); }
     if (p.kick) updateKick(p, dt);
     if (p.state === 'shoot' && p.hasBall && !p.released && p.sbAuto && p.st >= p.tApex * G.relFrac(p)) G.releaseShot(p);   // let go during the step-back or cartwheel: up it goes (a shooter's on the way up)
@@ -1104,6 +1132,7 @@ window.HW = window.HW || {};
         else { p.anim = 'pass'; p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); } return;
       case 'steal': p.anim = 'steal'; if (p.dir === 'B') p.dir = 'R'; p.frame = Math.min(2, p.st / 0.1); return;
       case 'shove': if (p.shoveStyle) { p.anim = 'shove_' + p.shoveStyle; p.frame = Math.min(3, p.st / 0.09); } else { p.anim = 'shove'; p.frame = Math.min(2, p.st / 0.1); } p.dir = 'R'; return;
+      case 'chase': p.anim = 'block_chase'; p.dir = 'R'; p.frame = p.st < 0.05 ? 0 : p.st < 0.18 ? 1 : p.st < 0.32 ? 2 : p.vy > -1.5 ? 3 : 4; return;
       case 'hammer': p.anim = 'block_hammer'; p.dir = 'R'; p.frame = p.st < 0.12 ? 0 : p.st < 0.24 ? 1 : p.st < 0.36 ? 2 : 3; return;
       case 'cheer': p.anim = 'cheer'; p.dir = 'F'; p.frame = (G.t * 8) % 4; return;   // st is parked at -99 for the end-of-game cheer
     }
