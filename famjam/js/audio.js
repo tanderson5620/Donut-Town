@@ -31,9 +31,11 @@ window.HW = window.HW || {};
   // supplied by the owner): on the menus before a game, a coin flip each time between "Bang Bang" by Matt Large and "Talk About
   // It" (instrumental) by Ira Moon; from the final buzzer through the stats screen, "Plenty Bands" (instrumental) by Enophi - or,
   // when Gator's team wins, "spot" by Cushy (from the top of the song, sfx/gator_music.mp3: his victory twerk, then the stats under it).
+  // The NBA theme (sfx/nba_theme.mp3, supplied by the owner) from the PLAY press through the loading and the tip-off until the ball's in
+  // play; the NBA on TNT theme (sfx/tnt_theme.mp3) between quarters, from the top every time, until the next quarter's ball is in play.
   // An iPhone only lets a media element start inside a tap, so every tap (A.init)
   // starts the wanted track and primes the others once (play, then pause) so they can start on their own later, like at the buzzer
-  var TRACKS = { menu: 'sfx/menu_music.mp3' + SFX_V, menu2: 'sfx/menu_music2.mp3' + SFX_V, post: 'sfx/post_music.mp3' + SFX_V, gator: 'sfx/gator_music.mp3' + SFX_V }, mus = {}, musAsk = null, musWant = null, MUS_VOL = 0.8;
+  var TRACKS = { menu: 'sfx/menu_music.mp3' + SFX_V, menu2: 'sfx/menu_music2.mp3' + SFX_V, post: 'sfx/post_music.mp3' + SFX_V, gator: 'sfx/gator_music.mp3' + SFX_V, intro: 'sfx/nba_theme.mp3' + SFX_V, tnt: 'sfx/tnt_theme.mp3' + SFX_V }, mus = {}, musAsk = null, musWant = null, MUS_VOL = 0.8;
   function track(n) {
     if (mus[n]) return mus[n];
     var el = new Audio(TRACKS[n]), t = mus[n] = { el: el, g: null, stop: 0, primed: false };
@@ -56,7 +58,7 @@ window.HW = window.HW || {};
       }
     });
   }
-  A.music = function (n) {   // every frame: what this screen wants ('menu', 'post', 'gator') or null
+  A.music = function (n) {   // every frame: what this screen wants ('menu', 'intro', 'tnt', 'post', 'gator') or null
     n = n || null; if (n === musAsk) return; musAsk = n;
     if (n === 'menu' && Math.random() < 0.5) n = 'menu2';   // 50/50 which menu song, rolled each time the menus come up
     musWant = n;
@@ -69,7 +71,7 @@ window.HW = window.HW || {};
   };
   A.musicPlaying = function () { return Object.keys(mus).filter(function (k) { return !mus[k].el.paused && (!mus[k].g || mus[k].g.gain.value > 0.05); }).join(',') || 'none'; };
   // recorded sounds (sfx/*.mp3, Kenney CC0): an announcer and real impacts, loaded once audio is unlocked; missing ones stay silent
-  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'yell_f0', 'shout0', 'shout1', 'trash0', 'trash1', 'incoming0', 'incoming1', 'incoming2', 'incoming3', 'laugh0', 'pain_f0', 'pain_f1', 'pain_f2', 'pain_f3', 'help0', 'help1', 'help2', 'help3', 'help4', 'help5', 'help6', 'help7', 'help8', 'hup0', 'hup1', 'hup2', 'hup3', 'ew0', 'ew1', 'ew2', 'wow0', 'wow1', 'wow2', 'wow3', 'wow4', 'wow5', 'baba0', 'baba1', 'baba2', 'happy0', 'happy1', 'happy2', 'land', 'hit0', 'hit1', 'hit2', 'hit3', 'scream', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'pass_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'game_over', 'glass', 'whip', 'gator_cushy'], bufs = {}, loading = false;
+  var SFX = ['dribble0.wav', 'dribble1.wav', 'dribble2.wav', 'dribble3.wav', 'dunk0.wav', 'dunk1.wav', 'dunk2.wav', 'dunk3.wav', 'dunk4.wav', 'catch0.wav', 'catch1.wav', 'net0', 'net1', 'net2', 'net3', 'net4', 'net5', 'net6', 'net7', 'net8', 'net9', 'net10', 'net11', 'yell0', 'yell1', 'yell2', 'yell3', 'yell4', 'yell5', 'yell6', 'yell_f0', 'shout0', 'shout1', 'trash0', 'trash1', 'incoming0', 'incoming1', 'incoming2', 'incoming3', 'laugh0', 'pain_f0', 'pain_f1', 'pain_f2', 'pain_f3', 'help0', 'help1', 'help2', 'help3', 'help4', 'help5', 'help6', 'help7', 'help8', 'hup0', 'hup1', 'hup2', 'hup3', 'ew0', 'ew1', 'ew2', 'wow0', 'wow1', 'wow2', 'wow3', 'wow4', 'wow5', 'baba0', 'baba1', 'baba2', 'happy0', 'happy1', 'happy2', 'land', 'hit0', 'hit1', 'hit2', 'hit3', 'scream', 'fireball0', 'fireball1', 'shove_f0', 'shove_f1', 'shove_f2', 'shove_m0', 'shove_m1', 'shove_m2', 'shove_m3', 'shove_m4', 'shove_m5', 'shove_m6', 'shove_m7', 'pass_whoosh', 'steal1.wav', 'steal2.wav', 'crowd_a', 'crowd_b', 'cheer_made', 'whistle', 'go', 'final_round', 'overtime', 'you_win', 'you_lose', 'game_over', 'glass', 'whip', 'gator_cushy', 'bang_breen', 'bang_big', 'defense', 'dougie_song'], bufs = {}, loading = false;
   function loadSfx() {
     if (loading || !A.ctx) return; loading = true;
     SFX.forEach(function (f) {   // .mp3 unless named (the dribbles are .wav: no encoder delay, so the thump lands on the frame)
@@ -167,6 +169,16 @@ window.HW = window.HW || {};
   A.baba = function () { return line('baba', 3, 1.2, 0.6); };
   // someone goes on fire: an excited, happy "oh!" (3 takes)
   A.happy = function () { line('happy', 3, 1.1, 0.1); };
+  // Mike Breen (clips supplied by the owner): BANG! BANG! on a three from 35 ft and out or a jump shot at the buzzer; the big BANG! on a
+  // three in the last 5 s that wins it or ties it. It takes the floor: the other spoken lines (the fan's baba booey...) wait
+  A.bang = function (big) {
+    var n = big ? 'bang_big' : 'bang_breen'; if (!A.ctx || !bufs[n]) return false;
+    A.sfx(n, 1.25); voiceUntil = A.ctx.currentTime + bufs[n].duration + 0.15; return true;
+  };
+  // the home crowd chanting DE-FENSE! while the visitors bring it up
+  A.defense = function () { if (bufs.defense) A.sfx('defense', 0.85); };
+  // the Dougie: the start of the song under his walk back up the court
+  A.dougie = function () { if (bufs.dougie_song) A.sfx('dougie_song', 1.0); };
   // a knocked-down player hits the floor: a recorded body landing on boards
   A.land = function () { if (bufs.land) A.sfx('land', 0.9); else A.thud(); };
   // a guy sent flying a long way by a hit: he screams on the way (one at a time)

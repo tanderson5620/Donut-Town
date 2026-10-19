@@ -26,7 +26,7 @@ window.HW = window.HW || {};
   N.playing = function () { return !!N.mode && N.stage === 'game'; };
 
   /* ---------- sounds and effects: the host records each one the game makes, the guests play them back ---------- */
-  var AU = ['sfx', 'whoosh', 'scream', 'punch', 'painF', 'laugh', 'jump', 'hup', 'dribble', 'catch', 'bounce', 'yell', 'wow', 'trash', 'swipe', 'steal', 'shoveYell', 'powerup', 'passWhoosh', 'net', 'land', 'incoming', 'help', 'happy', 'fireball', 'fire', 'ew', 'cheer', 'charge', 'buzzer', 'board', 'baba', 'thud', 'shove', 'shatter', 'rim', 'dunk', 'slap', 'snap'];
+  var AU = ['sfx', 'whoosh', 'scream', 'punch', 'painF', 'laugh', 'jump', 'hup', 'dribble', 'catch', 'bounce', 'yell', 'wow', 'trash', 'swipe', 'steal', 'shoveYell', 'powerup', 'passWhoosh', 'net', 'land', 'incoming', 'help', 'happy', 'fireball', 'fire', 'ew', 'cheer', 'charge', 'buzzer', 'board', 'baba', 'thud', 'shove', 'shatter', 'rim', 'dunk', 'slap', 'snap', 'bang', 'defense', 'dougie'];
   var FX = ['burst', 'flame', 'ring', 'crater', 'blood', 'powerFlash', 'powerDown'];
   var orig = { a: {}, x: {}, r: {} }, depth = 0;
   function enc(args) {
@@ -253,7 +253,7 @@ window.HW = window.HW || {};
     return {
       t: 's', ht: r3(ht),
       g: [r3(G.t), G.phase, r3(G.phaseT), G.q, r3(G.clock), r3(G.shot), G.score[0], G.score[1], r3(X.camX), r3(X.shake), r3(X.hype), r3(G.hoopFx[0]), r3(G.hoopFx[1])],
-      co: G.callouts.map(function (c) { return [c.text, c.color, c.life, r3(c.t), c.size]; }),
+      co: G.callouts.map(function (c) { return [c.text, c.color, c.life, r3(c.t), c.size, c.low ? 1 : 0]; }),
       pu: G.pu ? [P.indexOf(G.pu.p), r3(G.pu.t), G.pu.boom ? 1 : 0, G.pu.dur, G.pu.tw || 0] : 0,
       sh: G.show ? [P.indexOf(G.show.p), r3(G.show.t), G.show.kind === 'pu' ? 1 : G.show.kind === 'win' ? 2 : 0, G.show.len] : 0,
       ci: G.cine ? [P.indexOf(G.cine.p), r3(G.cine.t), r3(G.cine.dur), G.cine.kind, G.cine.q ? P.indexOf(G.cine.q) : -1] : 0,
@@ -336,7 +336,7 @@ window.HW = window.HW || {};
     G.t = ng ? L(g[0], ng[0], f) : g[0]; G.phase = g[1]; G.phaseT = g[2]; G.q = g[3]; G.clock = ng && ng[3] === g[3] ? L(g[4], ng[4], f) : g[4]; G.shot = g[5]; G.score = [g[6], g[7]];
     X.camX = ng && Math.abs(ng[8] - g[8]) < 2.5 ? L(g[8], ng[8], f) : g[8];
     X.shake = Math.max(X.shake, g[9]); X.hype = Math.max(X.hype, g[10]); G.hoopFx = [g[11], g[12]];
-    G.callouts = s.co.map(function (c) { return { text: c[0], color: c[1], life: c[2], t: c[3], size: c[4] }; });
+    G.callouts = s.co.map(function (c) { return { text: c[0], color: c[1], life: c[2], t: c[3], size: c[4], low: !!c[5] }; });
     s.p.forEach(function (a, i) {
       var p = P[i], q = n && n.p[i]; if (!p) return;
       var lp = q && Math.abs(q[0] - a[0]) < 3 && Math.abs(q[2] - a[2]) < 3;   // no smoothing across a jump (a new lineup)

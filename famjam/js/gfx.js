@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=28';   // (the faces carry it too)
+  var SHEET_V = '?v=29';   // (the faces carry it too)
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -528,10 +528,77 @@ window.HW = window.HW || {};
   }
   var rollCam = { apex: 0 };
 
+  // the under-both-legs dunk's cut-in: through the tuck (his dk_both frames from CUT0 on, as many as the cut-in has) the picture cuts to
+  // the angle of the photos of the real dunk - from low in front of him looking up, turned three-quarters to us, the rim up behind him,
+  // the arena lights over him and the dark stands out of focus behind - his dk_bothc frames big in the middle with his face on top, and
+  // cinema bars; then back to the court for the slam. It runs off his anim and frame, so online guests get it too
+  var CUT0 = 7, cutBg = null, cutKey = '', cutAt = { p: null, t: 0 };
+  function bothCut(J) {
+    var c = J && J.cine, p = c && c.kind === 'both' && c.p; if (!p || p.anim !== 'dk_both') return null;
+    var sh = sheets[p.id], X2 = sh && sh.x, A = X2 && X2.meta && X2.img.naturalWidth && X2.meta.anim.dk_bothc; if (!A) return null;
+    var list = A.R || A[Object.keys(A)[0]], f = Math.floor(p.frame) - CUT0; if (f < 0 || f >= list.length) return null;
+    var m = X2.meta, fi = list[f];
+    return { p: p, sh: X2, m: m, fi: fi, sx: (fi % m.cols) * m.fw, sy: Math.floor(fi / m.cols) * m.fh, zoom: m.cam && m.cam.dk_bothc || 1, hd0: m.head[list[0]] };
+  }
+  function buildCutBack() {
+    var c = cutBg = canvas(W, H), g = c.getContext('2d'), seed = 7, rnd = function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    cutKey = W + 'x' + H;
+    var bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#04040a'); bg.addColorStop(0.45, '#0b0b16'); bg.addColorStop(1, '#16131f'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    // the stands: rows of fans drawn tiny and stretched up, so they come out soft, out of focus
+    var sc = canvas(Math.ceil(W / 11), Math.ceil(H / 11)), s = sc.getContext('2d'), shirts = ['#2a3a6a', '#6a2a2a', '#3a3a3a', '#5a4a2a', '#2a5a4a', '#4a2a5a', '#6a6a72'], skins = ['#c89070', '#8a5a3a', '#e0b090', '#6a4028'];
+    for (var y = sc.height * 0.36; y < sc.height + 2; y += 1.6) for (var x = -1; x < sc.width + 1; x += 1.1 + rnd() * 0.6) {
+      s.fillStyle = shirts[Math.floor(rnd() * shirts.length)]; s.fillRect(x, y, 0.9, 1.2); s.fillStyle = skins[Math.floor(rnd() * skins.length)]; s.fillRect(x + 0.15, y - 0.6, 0.6, 0.6);
+    }
+    // (twice through a middle size on the way up: a smooth blur, no canvas filters)
+    var md = canvas(Math.ceil(W / 4), Math.ceil(H / 4)), mg = md.getContext('2d'); mg.imageSmoothingEnabled = true; mg.drawImage(sc, 0, 0, md.width, md.height);
+    g.globalAlpha = 0.32; g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(md, 0, 0, W, H); g.globalAlpha = 1;
+    // the arena lights in a row up top
+    for (var k = 0; k < 13; k++) {
+      var lx = (0.06 + k * 0.075 + (rnd() - 0.5) * 0.02) * W, ly = (0.12 + (rnd() - 0.5) * 0.05) * H, lr = 0.035 * H;
+      var lg = g.createRadialGradient(lx, ly, 0, lx, ly, lr * 2.4); lg.addColorStop(0, 'rgba(255,252,236,1)'); lg.addColorStop(0.2, 'rgba(255,246,220,0.75)'); lg.addColorStop(1, 'rgba(255,240,210,0)');
+      g.fillStyle = lg; g.fillRect(lx - lr * 2.4, ly - lr * 2.4, lr * 4.8, lr * 4.8);
+    }
+    // the backboard, rim and net up to the left, seen from below
+    var lw = Math.max(2, 0.009 * H);
+    g.fillStyle = 'rgba(190,210,235,0.13)'; g.beginPath(); g.moveTo(0.02 * W, 0); g.lineTo(0.37 * W, 0); g.lineTo(0.35 * W, 0.27 * H); g.lineTo(0.06 * W, 0.3 * H); g.closePath(); g.fill();
+    g.strokeStyle = '#eef0f6'; g.lineWidth = lw * 1.4; g.stroke();
+    g.strokeStyle = '#e03a2e'; g.lineWidth = lw; g.strokeRect(0.165 * W, 0.17 * H, 0.08 * W, 0.09 * H);
+    g.fillStyle = '#3f6fc0'; g.beginPath(); g.moveTo(0.36 * W, 0.17 * H); g.lineTo(0.45 * W, 0); g.lineTo(0.49 * W, 0); g.lineTo(0.37 * W, 0.23 * H); g.closePath(); g.fill();   // the support arm
+    var cx = 0.205 * W, cy = 0.355 * H, rx = 0.085 * W, ry = 0.042 * H, nd = 0.27 * H;
+    g.fillStyle = '#e0601e'; g.fillRect(cx - 0.016 * W, 0.28 * H, 0.032 * W, 0.06 * H);   // the bracket
+    g.strokeStyle = 'rgba(245,245,250,0.8)'; g.lineWidth = Math.max(1, 0.0045 * H);
+    for (var n = 0; n < 16; n++) [-1, 1].forEach(function (sd) {   // the net: strings from the rim down to a narrower bottom ring, crossing in a diamond mesh
+      var a = n / 16 * 6.283, a2 = a + sd * 0.45; g.beginPath(); g.moveTo(cx + rx * Math.cos(a), cy + ry * Math.sin(a)); g.lineTo(cx + 0.55 * rx * Math.cos(a2), cy + nd + 0.5 * ry * Math.sin(a2)); g.stroke();
+    });
+    g.beginPath(); g.ellipse(cx, cy + nd, 0.55 * rx, 0.5 * ry, 0, 0, 6.283); g.stroke(); g.beginPath(); g.ellipse(cx, cy + nd * 0.48, 0.78 * rx, 0.7 * ry, 0, 0, 6.283); g.stroke();
+    g.strokeStyle = '#f05a18'; g.lineWidth = lw * 1.6; g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, 6.283); g.stroke();
+    // dark round the edges
+    var vg = g.createRadialGradient(W * 0.55, H * 0.55, H * 0.3, W * 0.55, H * 0.55, W * 0.7); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,6,0.6)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+  }
+  function drawBothCut(g, t, c) {
+    if (!cutBg || cutKey !== W + 'x' + H) buildCutBack();
+    if (cutAt.p !== c.p || t - cutAt.t > 4) cutAt = { p: c.p, t: t };   // (when it cut in: a slow push-in from there)
+    var p = c.p, e = Math.min(1, (t - cutAt.t) / 1.3), z = 1 + 0.07 * e * e * (3 - 2 * e);
+    g.save();
+    if (p.face < 0) { g.translate(W, 0); g.scale(-1, 1); }   // (going the other way the whole picture is mirrored: the rim up on the right)
+    g.translate(W / 2, H / 2); g.scale(z, z); g.translate(-W / 2, -H / 2);
+    g.drawImage(cutBg, 0, 0);
+    // him, the tuck about half the screen tall, his face on top (drawBody wants px per meter as ground.s); the camera holds where his
+    // head was as it cut in, the head itself a little over a third of the way down
+    var m = c.m, s = 0.42 * H, k = s / (m.ppm * c.zoom), o = { sh: c.sh, m: m, fi: c.fi, sx: c.sx, sy: c.sy, k: k, fx: m.fw / 2, fy: m.fh / 2, ground: { s: s } };
+    g.translate(0.6 * W, 0.4 * H - (c.hd0 ? (c.hd0[1] - o.fy) * k : -0.2 * H)); g.imageSmoothingEnabled = false;
+    drawBody(g, p, o);
+    var bp = m.ballp && m.ballp[c.fi];   // (the ball's in the frame, unless it's in front of his face: then we draw it, on top)
+    if (bp && !bp[2]) { var br = 0.15 * s, bx = (bp[0] - o.fx) * k, by = (bp[1] - o.fy) * k; g.fillStyle = '#e8742a'; g.strokeStyle = '#2a0e02'; g.lineWidth = Math.max(1, br * 0.08); g.beginPath(); g.arc(bx, by, br, 0, 6.283); g.fill(); g.stroke(); g.beginPath(); g.moveTo(bx - br, by); g.lineTo(bx + br, by); g.moveTo(bx, by - br); g.lineTo(bx, by + br); g.stroke(); }
+    g.restore(); g.imageSmoothingEnabled = true;
+    var lb = H * 0.09; g.fillStyle = '#000'; g.fillRect(0, 0, W, lb); g.fillRect(0, H - lb, W, lb);
+  }
+
   // full scene, back to front; `things` are players + ball, each with x,z
   X.drawScene = function (g, t, dt, players, ball, hoopFx) {
     X.t = t; X.lookUp = false;
     var J = HW.Jam, pu = J && (J.pu || J.cine), zk = 1, za = 0, zf = null, cine = pu && !J.pu;
+    var cut = bothCut(J); if (cut) { drawBothCut(g, t, cut); return; }
     // Gator's victory twerk at the final buzzer: the same close-up as his power-up, coming in slowly and staying in
     var vic = !pu && J && J.show && J.show.kind === 'win' && J.WIN ? J.show : null;
     if (pu || vic) {   // the power-up camera: zoom in on him, hold, ease back out
@@ -557,7 +624,7 @@ window.HW = window.HW || {};
         zmax = Math.max(1.35, Math.min(2.0, 0.92 * W / span)); zf = { x: (ga.x + gq.x) / 2 - (pp.face || 1) * 0.75 * ga.s - X.shakeX, y: ga.y - 0.5 * ga.s - X.shakeY };
       }
       za = vic ? e((vic.t - J.WIN.zoom0) / J.WIN.zoomT) : u < 0.25 ? e(u / 0.25) : u > D - 0.3 ? e((D - u) / 0.3) : 1; zk = 1 + (zmax - 1) * za;
-      if (cine && pu.kind === 'kick' && pu.q) {   // the low blow: the two of them in frame, the shooter in the air and his man taking it
+      if (cine && (pu.kind === 'kick' || pu.kind === 'chase') && pu.q) {   // the low blow, the chase-down: the two of them in frame
         var kq = X.proj(pu.q.x, 0, pu.q.z), kspan = Math.abs(gd.x - kq.x) + 2.2 * gd.s;
         zmax = Math.min(zmax, Math.max(1.25, 0.9 * W / kspan)); zf = { x: (gd.x + kq.x) / 2 - X.shakeX, y: zf.y };
       }
@@ -621,7 +688,7 @@ window.HW = window.HW || {};
       items.push({ z: K.HZ + 0.75, draw: function () { drawHoopBack(g, side); drawRim(g, side, false); } });
       items.push({ z: K.HZ - 0.35, draw: function () { drawRim(g, side, true, hoopFx[side > 0 ? 1 : 0]); } });
     });
-    // (behind: round his back in a dunk - drawn before him, so his body covers it; baked: the under-the-legs dunk's frames draw it)
+    // (behind: round his back in a dunk - drawn before him, so his body covers it; baked: the frames draw it - under the legs, under both legs, the reverses)
     if (ball && ball.visible && !ball.baked) items.push({ z: Math.min(ball.z - 0.01 - (ball.inFront ? 0.6 : 0) + (ball.behind ? 0.4 : 0), revUp(ball.holder) && ball.inFront ? K.HZ - 0.37 : 99), draw: function () { X.drawBall(g, ball, t); } });
     items.sort(function (a, b) { return b.z - a.z; });
     items.forEach(function (it) { it.draw(); });
