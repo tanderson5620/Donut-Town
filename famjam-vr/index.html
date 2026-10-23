@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- FAM JAM VR: the arcade game from ../famjam/ (its own code, art and sounds, loaded as they are) in a 3D arena for WebXR headsets.
+     Every relative path on this page points into famjam/, so the game runs exactly as it ships; only vr.js lives here. -->
+<base href="../famjam/">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#05050c">
+<title>FAM JAM VR</title>
+<meta name="description" content="FAM JAM in VR: the 2-on-2 family arcade basketball game in a 3D arena, for Meta Quest and other WebXR headsets.">
+<meta property="og:title" content="FAM JAM VR">
+<meta property="og:description" content="Andersons vs Gormans vs Stowells, courtside in VR. Open it in the Quest browser and tap ENTER VR.">
+<meta property="og:image" content="https://tanderson5620.github.io/Donut-Town/famjam/img/share.png">
+<link rel="apple-touch-icon" href="img/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; background: #05050c; overflow: hidden; color: #ecebff; font-family: "Press Start 2P", monospace; }
+  body > canvas.vr3d { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  /* the arcade picture the game draws: never shown as it is, it goes up on the jumbotron and the menu screen */
+  #game { position: fixed; left: 0; top: 0; opacity: 0; pointer-events: none; z-index: -1; }
+  #vrui { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; pointer-events: none; }
+  #vrui > * { pointer-events: auto; }
+  #vrbtn { font: inherit; font-size: 16px; padding: 14px 22px; border: 3px solid #22c4f2; border-radius: 8px; background: #262a8c; color: #fff; cursor: pointer; box-shadow: 0 4px 0 #0b0d40; }
+  #vrbtn:disabled { opacity: 0.6; cursor: default; font-size: 10px; }
+  #vrhelp { font-size: 8px; line-height: 1.8; max-width: 640px; background: rgba(5, 5, 20, 0.78); border: 2px solid #3a3f9a; border-radius: 8px; padding: 8px 12px; }
+  #vrhelp b { color: #ffd23f; font-weight: normal; }
+  #vrhelp a { color: #22c4f2; }
+  #vrhide { font: inherit; font-size: 8px; background: none; border: 0; color: #9aa0d8; cursor: pointer; }
+  body.invr #vrui { display: none; }
+  body.nohelp #vrhelp { display: none; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="vrui">
+  <button id="vrbtn" disabled>CHECKING VR...</button>
+  <div id="vrhelp">
+    <b>QUEST:</b> point at the screen and pull the trigger for the menus. In the game: left stick moves, <b>right trigger</b> shoots (hold, let go at the top),
+    <b>A</b> pass / steal, <b>B</b> shove / dunk, <b>grip</b> turbo, <b>X</b> changes your seat (upper deck, courtside, tabletop), <b>Y</b> pauses.<br>
+    <b>KEYBOARD:</b> the same keys as the arcade game (arrows or WASD, J shoot, K pass, Shift turbo, Esc pause), <b>V</b> changes your seat, drag with the right mouse button to look around.<br>
+    <a href="./">Play the regular FAM JAM</a>
+  </div>
+  <button id="vrhide">HIDE HELP</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../famjam-vr/vr.js?v=1"></script>
+</body>
+</html>
