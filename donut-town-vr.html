@@ -6032,27 +6032,121 @@ function updateWasteland(dt, head, vr) {
 const HJ = ['wrist', 'thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip'], FING = ['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'], JI = {};
 for (const f of FING) HJ.push(f + '-metacarpal', f + '-phalanx-proximal', f + '-phalanx-intermediate', f + '-phalanx-distal', f + '-tip');
 HJ.forEach((n, i) => JI[n] = i);
-const BONES = []; // [joint a, joint b, thickness]
-const chain = (names, s = 1) => { for (let i = 1; i < names.length; i++) BONES.push([JI[names[i - 1]], JI[names[i]], s]); };
-chain(HJ.slice(0, 5));
-for (const f of FING) chain(['wrist', f + '-metacarpal', f + '-phalanx-proximal', f + '-phalanx-intermediate', f + '-phalanx-distal', f + '-tip']);
-for (let i = 1; i < 4; i++) { chain([FING[i - 1] + '-metacarpal', FING[i] + '-metacarpal'], 1.5); chain([FING[i - 1] + '-phalanx-proximal', FING[i] + '-phalanx-proximal'], 1.4); }
-const HT = { hands: [], seen: false, walking: false };
 const ADD = (col, op) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false });
+const _m4 = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _q4 = new THREE.Quaternion(), _s3 = new V3(), _hx = new V3(), _hy = new V3(), _hz = new V3(), _hv = new V3(), _hu = new V3(0, 1, 0);
+// ----- realistic hand mesh: CPU-skinned from the joints every frame (~1.2k triangles per hand, one draw call plus one for the nails) -----
+// A lofted palm (thinner on the back, fleshy thenar and hypothenar pads on the palm side, webbing past the knuckles) and five tapered
+// finger tubes. Each tube ring bisects its joint (so bends stay watertight) and its frame is parallel-transported from the palm normal,
+// so fingers twist correctly as they curl. Joint creases, knuckle flush and fingertip pads are baked in vertex colours; pores come from a tiled texture.
+const HM = { SEG: 10, PR: 14, PS: 7, FR: 11 }, HM_U = [0, 0.14, 0.32, 0.52, 0.72, 0.9, 1.07]; // palm sections: wrist -> just past the knuckles
+const HM_RAD = [0.0098, 0.0105, 0.0097, 0.0100, 0.0089, 0.0089, 0.0083], HM_CAP = 0.0079;     // finger radii by ring: start, knuckle, mid, PIP, mid, DIP, mid; fingertip
+const HM_TRAD = [0.0138, 0.0136, 0.0128, 0.0124, 0.0114, 0.0112, 0.0102], HM_TCAP = 0.0098;   // the thumb
+const HM_FF = [1, 1.04, 0.97, 0.84, 1];                // width: index, middle, ring, pinky, thumb
+const HM_KIND = [0, 1, 0, 1, 0, 1, 0, 2, 2, 2, 2];     // ring type: 1 = joint (crease / knuckle), 2 = fingertip cap
+const HM_PALMV = HM.PS * HM.PR + 1, HM_NV = HM_PALMV + 5 * HM.FR * HM.SEG;
+const HM_CS = [], HM_SN = [], HM_PC = [], HM_PS = [];
+for (let j = 0; j < HM.SEG; j++) { HM_CS.push(Math.cos(j / HM.SEG * TAU)); HM_SN.push(Math.sin(j / HM.SEG * TAU)); }
+for (let j = 0; j < HM.PR; j++) { HM_PC.push(Math.cos(j / HM.PR * TAU)); HM_PS.push(Math.sin(j / HM.PR * TAU)); }
+const HM_TEX = canvasTex(128, 128, (g, w, h) => { // skin: pores, fine lines, faint blotches; multiplies the skin colour
+  g.fillStyle = '#e6e6e6'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(255,255,255,${rr(0.03, 0.07)})`; g.beginPath(); g.arc(rr(0, w), rr(0, h), rr(8, 20), 0, TAU); g.fill(); }
+  for (let i = 0; i < 700; i++) { g.fillStyle = `rgba(110,70,60,${rr(0.015, 0.05)})`; g.beginPath(); g.arc(rr(0, w), rr(0, h), rr(0.5, 1.2), 0, TAU); g.fill(); }
+  for (let i = 0; i < 50; i++) { g.strokeStyle = `rgba(120,80,70,${rr(0.02, 0.05)})`; g.lineWidth = rr(0.5, 1); const x = rr(0, w), y = rr(0, h); g.beginPath(); g.moveTo(x, y); g.lineTo(x + rr(-14, 14), y + rr(-4, 4)); g.stroke(); }
+});
+HM_TEX.wrapS = HM_TEX.wrapT = THREE.RepeatWrapping;
+const HAND_MAT = addSkinShading(STD(0xdca383, { roughness: 0.6, map: HM_TEX, vertexColors: true })), NAIL_MAT = STD(0xf0cdc2, { roughness: 0.22 });
+function makeHandMesh() {
+  const { SEG, PR, PS, FR } = HM, geo = new THREE.BufferGeometry(), pos = new Float32Array(HM_NV * 3), nor = new Float32Array(HM_NV * 3), col = new Float32Array(HM_NV * 3), uv = new Float32Array(HM_NV * 2), idx = [];
+  const sm = (a, b, x) => { x = clamp((x - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
+  const tint = (v, r, g, b, tu, tv) => { col[v * 3] = r; col[v * 3 + 1] = g; col[v * 3 + 2] = b; uv[v * 2] = tu; uv[v * 2 + 1] = tv; };
+  for (let k = 0; k < PS; k++) for (let j = 0; j < PR; j++) { // palm: a lofted ring per section, pinker on the palm side
+    const v = k * PR + j, pal = sm(-0.2, 0.7, HM_PS[j]); tint(v, lerp(1, 1.07, pal), lerp(1, 0.96, pal), lerp(1, 0.95, pal), j / PR * 3, k * 0.5);
+    if (k < PS - 1) { const a = v, b = k * PR + (j + 1) % PR, c = a + PR, d = b + PR; idx.push(a, c, b, b, c, d); }
+  }
+  tint(PS * PR, 1, 1, 1, 0, 0); for (let j = 0; j < PR; j++) idx.push(PS * PR, (PS - 1) * PR + (j + 1) % PR, (PS - 1) * PR + j); // close the knuckle end
+  for (let t = 0; t < 5; t++) for (let r = 0; r < FR; r++) for (let j = 0; j < SEG; j++) {
+    const v = HM_PALMV + (t * FR + r) * SEG + j, pal = sm(-0.3, 0.6, HM_SN[j]), kind = HM_KIND[r];
+    let cr = lerp(1, 1.07, pal), cg = lerp(1, 0.96, pal), cb = lerp(1, 0.95, pal);
+    if (kind === 1) { cr *= lerp(1.0, 0.86, pal); cg *= lerp(0.9, 0.82, pal); cb *= lerp(0.88, 0.82, pal); } // crease on the palm side, knuckle flush on the back
+    if (kind === 2) { cr *= lerp(1, 1.03, pal); cg *= lerp(1, 0.94, pal); cb *= lerp(1, 0.93, pal); }       // fingertip pad
+    tint(v, cr, cg, cb, j / SEG * 2, r * 0.3 + t * 0.17);
+    if (r < FR - 1) { const a = v, b = HM_PALMV + (t * FR + r) * SEG + (j + 1) % SEG, c = a + SEG, d = b + SEG; idx.push(a, c, b, b, c, d); }
+  }
+  const pa = new THREE.BufferAttribute(pos, 3), na = new THREE.BufferAttribute(nor, 3); pa.setUsage(THREE.DynamicDrawUsage); na.setUsage(THREE.DynamicDrawUsage);
+  geo.setAttribute('position', pa); geo.setAttribute('normal', na); geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(idx);
+  const mesh = new THREE.Mesh(geo, HAND_MAT), nails = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), NAIL_MAT, 5);
+  for (const m of [mesh, nails]) { m.frustumCulled = false; m.visible = false; scene.add(m); }
+  nails.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  return { mesh, nails, gp: pos, gn: nor, pa, na };
+}
+const HM_A = new V3(), HM_N = new V3(), HM_B = new V3(), HM_K = new V3(), HM_E = new V3(), HM_N0 = new V3(), HM_T1 = new V3(), HM_T2 = new V3(), HM_T3 = new V3(), HM_S = new V3(), HM_V = new V3(), HM_W = new V3();
+const RC = [], RT = [], RN = [], RB = [], RR = new Float32Array(HM.FR); for (let i = 0; i < HM.FR; i++) { RC.push(new V3()); RT.push(new V3()); RN.push(new V3()); RB.push(new V3()); }
+const HM_FCOL = ['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'];
+function fillTube(H, ti, P0, P1, P2, P3, rad, capR, ff, bR) {
+  const s = H.s, rc = capR * ff * s;
+  HM_T1.subVectors(P1, P0).normalize(); HM_T2.subVectors(P2, P1).normalize(); HM_T3.subVectors(P3, P2).normalize();
+  HM_E.copy(P3).addScaledVector(HM_T3, 0.002 * s); HM_S.copy(HM_E).addScaledVector(HM_T3, -rc);
+  RC[0].copy(P0).addScaledVector(HM_T1, -0.010 * s); RC[1].copy(P0); RC[2].addVectors(P0, P1).multiplyScalar(0.5); RC[3].copy(P1); RC[4].addVectors(P1, P2).multiplyScalar(0.5); RC[5].copy(P2); RC[6].addVectors(P2, HM_S).multiplyScalar(0.5);
+  RT[0].copy(HM_T1); RT[1].copy(HM_T1); RT[2].copy(HM_T1); RT[3].addVectors(HM_T1, HM_T2).normalize(); RT[4].copy(HM_T2); RT[5].addVectors(HM_T2, HM_T3).normalize(); RT[6].copy(HM_T3);
+  for (let i = 1; i <= 4; i++) { const ph = i * Math.PI / 8; RC[6 + i].copy(HM_S).addScaledVector(HM_T3, rc * Math.sin(ph)); RT[6 + i].copy(HM_T3); RR[6 + i] = rc * Math.cos(ph); }
+  for (let r = 0; r < 7; r++) RR[r] = rad[r] * ff * s;
+  RR[3] /= clamp(Math.sqrt((1 + HM_T1.dot(HM_T2)) / 2), 0.8, 1); RR[5] /= clamp(Math.sqrt((1 + HM_T2.dot(HM_T3)) / 2), 0.8, 1); // keep the thickness round a bend
+  let prev = HM_N0;
+  for (let r = 0; r < HM.FR; r++) { // parallel-transport the frame (N = palm side)
+    RN[r].copy(prev).addScaledVector(RT[r], -prev.dot(RT[r])); if (RN[r].lengthSq() < 1e-8) RN[r].copy(HM_N); RN[r].normalize(); RB[r].crossVectors(RT[r], RN[r]); prev = RN[r];
+  }
+  const pos = H.gp, nor = H.gn;
+  for (let r = 0; r < HM.FR; r++) {
+    const cap = r > 6, ph = (r - 6) * Math.PI / 8, a = RR[r], b = a * bR, cp = Math.cos(ph), sp = Math.sin(ph), base = HM_PALMV + (ti * HM.FR + r) * HM.SEG;
+    for (let j = 0; j < HM.SEG; j++) {
+      const c = HM_CS[j], sn = HM_SN[j], v = (base + j) * 3;
+      pos[v] = RC[r].x + RB[r].x * a * c + RN[r].x * b * sn; pos[v + 1] = RC[r].y + RB[r].y * a * c + RN[r].y * b * sn; pos[v + 2] = RC[r].z + RB[r].z * a * c + RN[r].z * b * sn;
+      HM_V.set(0, 0, 0).addScaledVector(RB[r], c).addScaledVector(RN[r], sn / bR).normalize(); // ellipse normal
+      if (cap) HM_V.multiplyScalar(cp).addScaledVector(RT[r], sp);
+      nor[v] = HM_V.x; nor[v + 1] = HM_V.y; nor[v + 2] = HM_V.z;
+    }
+  }
+  // nail: a flattened bead on the back of the fingertip, just before the cap starts
+  HM_W.copy(HM_S).addScaledVector(RT[6], -0.25 * rc).addScaledVector(RN[6], -(rc * bR + 0.0002));
+  const sx = rc * 0.68, sy = 0.0009, sz = rc * 0.75;
+  _m4.makeBasis(HM_V.copy(RB[6]).multiplyScalar(sx), _hy.copy(RN[6]).multiplyScalar(sy), _hz.copy(RT[6]).multiplyScalar(sz)).setPosition(HM_W); H.nails.setMatrixAt(ti, _m4);
+}
+function fillHand(H) {
+  const P = H.p, s = H.s, pos = H.gp, nor = H.gn, W = P[0], iM = P[JI['index-finger-phalanx-proximal']], pM = P[JI['pinky-finger-phalanx-proximal']];
+  HM_K.addVectors(iM, pM).multiplyScalar(0.5); HM_A.subVectors(HM_K, W); const Lp = HM_A.length() || 0.08; HM_A.divideScalar(Lp); // axis: wrist -> knuckle line
+  HM_N.copy(H.n).addScaledVector(HM_A, -H.n.dot(HM_A)).normalize(); HM_B.crossVectors(HM_A, HM_N);                                 // palm side, sideways
+  HM_K.subVectors(iM, pM); const span = HM_K.length(), thumbPlus = HM_K.dot(HM_B) > 0;                                             // which sideways direction the thumb is on
+  const wKn = span / 2 + 0.0085 * s, wW = 0.0285 * s;
+  for (let k = 0; k < HM.PS; k++) {
+    const u = HM_U[k], uu = Math.min(u, 1), end = Math.max(0, (u - 1) / 0.07), bT = Math.pow(Math.sin(Math.PI * clamp(u / 0.75, 0, 1)), 0.8), bP = Math.sin(Math.PI * clamp((u - 0.05) / 0.7, 0, 1));
+    const base = lerp(wW, wKn, uu) * (1 - 0.06 * end), wT = base + 0.013 * s * bT, wP = base + 0.003 * s * bP, wPlus = thumbPlus ? wT : wP, wMinus = thumbPlus ? wP : wT;
+    const hD = lerp(0.0125, 0.0085, uu) * s * (1 - 0.45 * end), hP0 = lerp(0.0128, 0.0088, uu) * s * (1 - 0.45 * end);
+    HM_E.copy(W).addScaledVector(HM_A, Lp * u);
+    for (let j = 0; j < HM.PR; j++) {
+      const c = HM_PC[j], sn = HM_PS[j], tw = thumbPlus ? c : -c, pad = sn > 0 ? 0.0055 * s * bT * Math.pow(Math.max(0, tw), 1.5) + 0.0035 * s * bP * Math.pow(Math.max(0, -tw), 1.5) : 0;
+      const w = c >= 0 ? wPlus : wMinus, h = sn >= 0 ? hP0 + pad : hD, x = w * Math.sign(c) * Math.pow(Math.abs(c), 0.8), y = h * Math.sign(sn) * Math.pow(Math.abs(sn), 0.8), v = (k * HM.PR + j) * 3;
+      pos[v] = HM_E.x + HM_B.x * x + HM_N.x * y; pos[v + 1] = HM_E.y + HM_B.y * x + HM_N.y * y; pos[v + 2] = HM_E.z + HM_B.z * x + HM_N.z * y;
+      HM_V.set(0, 0, 0).addScaledVector(HM_B, c / w).addScaledVector(HM_N, sn / h).normalize(); nor[v] = HM_V.x; nor[v + 1] = HM_V.y; nor[v + 2] = HM_V.z;
+    }
+  }
+  const cv = HM.PS * HM.PR * 3; pos[cv] = HM_E.x; pos[cv + 1] = HM_E.y; pos[cv + 2] = HM_E.z; nor[cv] = HM_A.x; nor[cv + 1] = HM_A.y; nor[cv + 2] = HM_A.z;
+  for (let f = 0; f < 4; f++) { const n = HM_FCOL[f]; HM_N0.copy(HM_N); fillTube(H, f, P[JI[n + '-phalanx-proximal']], P[JI[n + '-phalanx-intermediate']], P[JI[n + '-phalanx-distal']], P[JI[n + '-tip']], HM_RAD, HM_CAP, HM_FF[f], 0.88); }
+  HM_K.addScaledVector(HM_A, -HM_K.dot(HM_A)).normalize(); HM_N0.copy(HM_N).multiplyScalar(0.4).addScaledVector(HM_K, -0.9).normalize();  // thumb pad faces across the palm
+  fillTube(H, 4, P[JI['thumb-metacarpal']], P[JI['thumb-phalanx-proximal']], P[JI['thumb-phalanx-distal']], P[JI['thumb-tip']], HM_TRAD, HM_TCAP, 1, 0.95);
+}
+const HT = { hands: [], seen: false, walking: false };
 for (let i = 0; i < 2; i++) {
   const hg = renderer.xr.getHand(i); rig.add(hg); // must exist before the session starts or three never fills in the joints
-  const sph = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), PSKIN, HJ.length), bone = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 1, 8, 1), PSKIN, BONES.length);
-  for (const m of [sph, bone]) { m.frustumCulled = false; m.visible = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); }
-  HT.hands.push({ C: ctrls[i], hg, sph, bone, ok: false, p: HJ.map(() => new V3()), r: HJ.map(() => 0.008), wrist: new V3(), palm: new V3(), f: new V3(0, 0, -1), n: new V3(0, -1, 0), open: 0, thumbUp: false, hist: [], vel: new V3(), cd: 0 });
+  const hm = makeHandMesh();
+  HT.hands.push({ C: ctrls[i], hg, ...hm, s: 1, ok: false, p: HJ.map(() => new V3()), wrist: new V3(), palm: new V3(), f: new V3(0, 0, -1), n: new V3(0, -1, 0), open: 0, thumbUp: false, hist: [], vel: new V3(), cd: 0 });
 }
-const _m4 = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _q4 = new THREE.Quaternion(), _s3 = new V3(), _hx = new V3(), _hy = new V3(), _hz = new V3(), _hv = new V3(), _hu = new V3(0, 1, 0);
 function readHand(H, t) { // joints -> world positions, palm frame, finger curl, gestures
   const C = H.C; H.ok = false; C.ht = false;
   if (!C.src || !C.src.hand) return;
   const j = H.hg.joints; if (!j.wrist) return;
-  for (let k = 0; k < HJ.length; k++) { const jt = j[HJ[k]]; if (!jt || !jt.visible) return; H.p[k].setFromMatrixPosition(jt.matrix).applyMatrix4(rig.matrixWorld); H.r[k] = clamp(jt.jointRadius || 0.008, 0.005, 0.016); }
+  for (let k = 0; k < HJ.length; k++) { const jt = j[HJ[k]]; if (!jt || !jt.visible) return; H.p[k].setFromMatrixPosition(jt.matrix).applyMatrix4(rig.matrixWorld); }
   const P = H.p, W = P[0], mid = P[JI['middle-finger-phalanx-proximal']], side = C.hand === 'left' ? -1 : 1;
-  H.wrist.copy(W); H.f.subVectors(mid, W); const len = Math.max(H.f.length(), 0.05); H.f.divideScalar(len);
+  H.wrist.copy(W); H.f.subVectors(mid, W); const len = Math.max(H.f.length(), 0.05); H.f.divideScalar(len); H.s = clamp(len / 0.09, 0.8, 1.25);
   H.palm.copy(W).addScaledVector(H.f, len * 0.6);
   _hv.subVectors(P[JI['pinky-finger-phalanx-proximal']], P[JI['index-finger-phalanx-proximal']]);
   if (side > 0) H.n.crossVectors(H.f, _hv); else H.n.crossVectors(_hv, H.f);
@@ -6067,16 +6161,9 @@ function readHand(H, t) { // joints -> world positions, palm frame, finger curl,
   _m4.makeBasis(_hx, _hy, _hz).setPosition(H.palm); _inv.copy(rig.matrixWorld).invert(); C.grip.matrix.multiplyMatrices(_inv, _m4);
   C.grip.matrix.decompose(C.grip.position, C.grip.quaternion, C.grip.scale); C.grip.visible = true;
 }
-function drawHand(H) { // skeleton of spheres and tubes, two draw calls per hand
-  H.sph.visible = H.bone.visible = H.ok; if (!H.ok) return;
-  const P = H.p;
-  for (let k = 0; k < HJ.length; k++) { _s3.setScalar(H.r[k] * 1.15); _m4.compose(P[k], _q4.identity(), _s3); H.sph.setMatrixAt(k, _m4); }
-  for (let k = 0; k < BONES.length; k++) {
-    const [a, b, s] = BONES[k]; _hv.subVectors(P[b], P[a]); const l = _hv.length() || 1e-4; _hv.divideScalar(l);
-    _q4.setFromUnitVectors(_hu, _hv); _s3.set((H.r[a] + H.r[b]) * 0.55 * s, l, (H.r[a] + H.r[b]) * 0.55 * s);
-    _m4.compose(_hx.copy(P[a]).addScaledVector(_hv, l / 2), _q4, _s3); H.bone.setMatrixAt(k, _m4);
-  }
-  H.sph.instanceMatrix.needsUpdate = H.bone.instanceMatrix.needsUpdate = true;
+function drawHand(H) {
+  H.mesh.visible = H.nails.visible = H.ok; if (!H.ok) return;
+  fillHand(H); H.pa.needsUpdate = H.na.needsUpdate = H.nails.instanceMatrix.needsUpdate = true;
 }
 // ----- power moves -----
 // KAMEHAMEHA: bring both palms together at your side and hold to charge, then thrust both hands away from you. The beam
@@ -6156,7 +6243,7 @@ function fireKi(H) {
   H.cd = 0.35; sKiBlast();
 }
 function updateHands(dt, vr, head) {
-  if (!vr) { for (const H of HT.hands) if (H.ok || H.sph.visible) { H.ok = H.C.ht = false; drawHand(H); } if (KI.state !== 'idle') endBeam(); return; }
+  if (!vr) { for (const H of HT.hands) if (H.ok || H.mesh.visible) { H.ok = H.C.ht = false; drawHand(H); } if (KI.state !== 'idle') endBeam(); return; }
   rig.updateMatrixWorld(true);
   for (const H of HT.hands) { readHand(H, elapsed); drawHand(H); }
   const [L, R] = HT.hands, both = L.ok && R.ok;
