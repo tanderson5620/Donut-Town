@@ -100,7 +100,7 @@ window.HW = window.HW || {};
     // a low courtside board: dark panels with small lettering, so it frames the court instead of shouting over it
     wallC = canvas(1600, 40); var w = wallC.getContext('2d'); w.fillStyle = '#0b0b16'; w.fillRect(0, 0, 1600, 40);
     w.font = '8px "Press Start 2P", monospace'; w.textBaseline = 'middle'; w.textAlign = 'center';
-    var ads = [['FAM JAM', '#c9a53a'], ['ANDERSONS', '#c46a1c'], ['2 ON 2', '#b8407e'], ['GORMANS', '#2f6cc4'], ['TURBO!', '#47b07c'], ['STOWELLS', '#8a46c8']];
+    var ads = [['FAM JAM', '#c9a53a'], ['ANDERSONS', '#c46a1c'], ['2 ON 2', '#b8407e'], ['GORMANS', '#2f6cc4'], ['TURBO!', '#47b07c'], ['STOWELLS', '#8a46c8'], ['JOSEPH', '#2bb34b'], ['GEORGE', '#2bb34b']];
     for (var i2 = 0; i2 < 16; i2++) { var a2 = ads[i2 % ads.length], x2 = i2 * 100; w.fillStyle = '#15152a'; w.fillRect(x2 + 3, 4, 94, 32); w.fillStyle = a2[1]; w.fillRect(x2 + 3, 4, 94, 2); w.fillText(a2[0], x2 + 50, 21); }
   }
   X.hype = 0;
@@ -504,7 +504,7 @@ window.HW = window.HW || {};
     var tY = h - Math.round(0.62 * H); r.strokeStyle = '#2c3360'; r.lineWidth = 3; r.beginPath(); r.moveTo(0, tY); r.lineTo(w, tY); r.moveTo(0, tY + 16); r.lineTo(w, tY + 16); r.stroke();
     r.lineWidth = 2; r.beginPath(); for (var x2 = 0; x2 < w; x2 += 16) { r.moveTo(x2, tY); r.lineTo(x2 + 8, tY + 16); r.lineTo(x2 + 16, tY); } r.stroke();
     // championship banners: the families' colors, their letter and a year
-    var BN = [['A', '#ff8a1f', '2024'], ['G', '#3a86ff', '2025'], ['S', '#b45cff', '2026'], ['FJ', '#e63946', 'CHAMPS']];
+    var BN = [['A', '#ff8a1f', '2024'], ['G', '#3a86ff', '2025'], ['S', '#b45cff', '2026'], ['JG', '#2bb34b', '2027'], ['FJ', '#e63946', 'CHAMPS']];
     r.textAlign = 'center'; r.textBaseline = 'middle';
     for (var i = 0, bx = 70; bx < w - 50; bx += 170, i++) {
       var bn = BN[i % BN.length], by = tY + 18, bw = 44, bh = 74;
