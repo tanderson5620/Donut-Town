@@ -41,7 +41,7 @@ window.HW = window.HW || {};
   var lastLine = '', catchBag = {};
   function knockLine(p, q) {
     var P = HW.PHRASES, F = HW.FAMILY || {}, a = F[p.id], b = F[q.id], fam = [];
-    if (a && b && a.fam !== b.fam) {
+    if (a && b && a.fam !== b.fam && !a.outside && !b.outside) {
       var rel = a.gen === 1 && b.gen === 2 ? (a.sex === 'f' ? P.aunt : P.uncle) : a.gen === 2 && b.gen === 1 ? (b.sex === 'f' ? P.toAunt : P.toUncle)
         : a.gen === 2 ? P.cousin : a.blood && b.blood ? P.sibling : P.inlaw;
       fam = fam.concat(rel, rel);   // listed twice: the family lines come up most

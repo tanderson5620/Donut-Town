@@ -207,6 +207,13 @@ window.HW = window.HW || {};
       g.save(); star(25.5, 12.5); g.clip(); g.fillStyle = '#9b5de5'; g.fillRect(0, 0, 32, 64); g.restore();
       pixelize(c, { pal: ['#000000', '#ffd23f', '#5a189a', '#9b5de5'] });
       Fo.draw(g, 'S', 32, 36, { scale: 3, scheme: 'white', shadowColor: t.dark });
+    } else if (ti === 3) {
+      // a gold-rimmed green diamond with JG
+      var dia = function (r) { g.beginPath(); g.moveTo(32, 32 - r); g.lineTo(32 + r, 32); g.lineTo(32, 32 + r); g.lineTo(32 - r, 32); g.closePath(); };
+      g.fillStyle = '#000'; dia(32); g.fill(); g.fillStyle = '#ffd23f'; dia(29); g.fill(); g.fillStyle = '#0d4a1c'; dia(25); g.fill();
+      g.save(); dia(25); g.clip(); g.fillStyle = '#2bb34b'; g.fillRect(0, 0, 32, 64); g.fillStyle = '#1f8f3a'; g.fillRect(32, 0, 32, 64); g.restore();
+      pixelize(c, { pal: ['#000000', '#ffd23f', '#0d4a1c', '#2bb34b', '#1f8f3a'] });
+      Fo.draw(g, 'JG', 32, 33, { scale: 2, scheme: 'white', shadowColor: t.dark });
     } else {
       // shield with a lightning bolt and a big G
       function shield(m) { g.beginPath(); g.moveTo(8 + m, 6 + m); g.lineTo(56 - m, 6 + m); g.lineTo(56 - m, 30); g.quadraticCurveTo(56 - m, 50 - m * 0.3, 32, 61 - m * 1.3); g.quadraticCurveTo(8 + m, 50 - m * 0.3, 8 + m, 30); g.closePath(); }
@@ -629,13 +636,14 @@ window.HW = window.HW || {};
     });
     // pick a team: one button per family, the chosen one lit in its colors; under them, the family you play against (tap to switch)
     Fo.draw(g, 'PICK YOUR TEAM', mid, py + 9, { scale: 1, scheme: 'cyan', shadow: 0 });
-    var tbw = Math.min(CW, 200), tbx = Math.round(mid - tbw / 2);
+    // (four teams: the rows closer together, so the VS row still fits above the divider)
+    var tbw = Math.min(CW, 200), tbx = Math.round(mid - tbw / 2), rp = T.length > 3 ? 22 : 27, rh = T.length > 3 ? 20 : 24, r0 = T.length > 3 ? 15 : 16;
     T.forEach(function (tt, i) {
-      var on = st.team === i, by = py + 16 + i * 27;
-      button(g, 'team' + i, tbx, by, tbw, 24, tt.name.toUpperCase(), { on: on, size: 2, color: tt.color, fn: function () { if (st.team !== i) switchTeam(i - st.team); } });
-      if (on) { var ar = tri('r', 6, '#ffe14d'); g.drawImage(ar, tbx - ar.width - 3 - (Math.floor(UI.t * 3) % 2), by + 12 - (ar.height >> 1)); }
+      var on = st.team === i, by = py + r0 + i * rp;
+      button(g, 'team' + i, tbx, by, tbw, rh, tt.name.toUpperCase(), { on: on, size: 2, color: tt.color, fn: function () { if (st.team !== i) switchTeam(i - st.team); } });
+      if (on) { var ar = tri('r', 6, '#ffe14d'); g.drawImage(ar, tbx - ar.width - 3 - (Math.floor(UI.t * 3) % 2), by + (rh >> 1) - (ar.height >> 1)); }
     });
-    var oy = py + 16 + T.length * 27 + 6, ot = T[st.opp];
+    var oy = py + r0 + T.length * rp + (T.length > 3 ? 5 : 6), ot = T[st.opp];
     g.drawImage(emblem(st.team, 1), tbx + 4, oy - 6, 30, 30); g.drawImage(emblem(st.opp, 1), tbx + tbw - 34, oy - 6, 30, 30);
     flaming(g, 'VS', mid, oy + 9, { scale: 2, scheme: 'fire', outline: 1, shadow: 1 }, fr);
     button(g, 'opp', tbx, oy + 28, tbw, 24, ot.name.toUpperCase(), { on: true, size: 2, color: ot.color, fn: function () { nextOpp(1); } });
