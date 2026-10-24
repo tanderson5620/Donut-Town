@@ -39,7 +39,22 @@ window.HW = window.HW || {};
   // brother or sister on a sibling, in-laws, anyone on someone who married in, a woman dropping a guy), mixed in with the plain
   // knockdown calls; never the same line twice in a row
   var lastLine = '', catchBag = {};
+  // a grudge match (HW.RIVALS): the two of them call each other out by name - his line now (or d s from now), the comeback from the
+  // floor a beat after it
+  function rivalLine(p, q, d) {
+    var R = HW.RIVALS || {}, e = R[p.id + '|' + q.id] || R[q.id + '|' + p.id]; if (!e) return null;
+    var nm = function (o) { return (o.def.first || o.def.name).toUpperCase(); }, fill = function (l, me, them) { return l.replace(/\{them\}/g, nm(them)).replace(/\{me\}/g, nm(me)); };
+    var fresh = e.hit.filter(function (l) { return fill(l, p, q) !== lastLine; }), line = fill(pick(fresh.length ? fresh : e.hit), p, q);
+    if (e.back && e.back.length) (G.later = G.later || []).push({ at: G.t + (d || 0) + 1.1, text: fill(pick(e.back), q, p), color: q.def.color || '#ff8a5a' });
+    return line;
+  }
+  // every other hit between them (a shove he stays up through, the arm bar's snap, a low blow) gets the same name-calling
+  function grudge(p, q, d) {
+    var rv = rivalLine(p, q, d); if (!rv) return; lastLine = rv;
+    if (d) (G.later = G.later || []).push({ at: G.t + d, text: rv, color: '#ff8a5a' }); else G.say(rv, '#ff8a5a', 1.4);
+  }
   function knockLine(p, q) {
+    var rv = rivalLine(p, q); if (rv) return (lastLine = rv);
     var P = HW.PHRASES, F = HW.FAMILY || {}, a = F[p.id], b = F[q.id], fam = [];
     if (a && b && a.fam !== b.fam && !a.outside && !b.outside) {
       var rel = a.gen === 1 && b.gen === 2 ? (a.sex === 'f' ? P.aunt : P.uncle) : a.gen === 2 && b.gen === 1 ? (b.sex === 'f' ? P.toAunt : P.toUncle)
@@ -102,7 +117,7 @@ window.HW = window.HW || {};
     setup.teams.forEach(function (ids, team) { ids.forEach(function (id, i) { var p = new Player(id, team, i, id === me); p.me = id === me; p.lbl = setup.humans ? setup.humans[id] || null : null; G.players.push(p); if (p.me) G.human = p; }); });
     G.pu = null; G.puQueue = null; G.cine = null; G.babaDone = false; G.inb = null;
     if (X.teamColors) X.teamColors([G.team(0).color, G.team(1).color]);   // the paint under each hoop in the two families' colors
-    G.humanTeam = G.human.team; G.score = [0, 0]; G.q = 1; G.callouts = []; G.ball = { x: 0, y: 1, z: 7, vx: 0, vy: 0, vz: 0, state: 'loose', holder: null, visible: true, fire: false };
+    G.humanTeam = G.human.team; G.score = [0, 0]; G.q = 1; G.callouts = []; G.later = []; G.ball = { x: 0, y: 1, z: 7, vx: 0, vy: 0, vz: 0, state: 'loose', holder: null, visible: true, fire: false };
     G.beginQuarter();
   };
   // a team's name and colors: the family's, unless an online game teamed people up across the families (setup.names)
@@ -112,7 +127,7 @@ window.HW = window.HW || {};
   G.mates = function (p) { return G.players.filter(function (q) { return q.team === p.team && q !== p; }); };
   G.opps = function (p) { return G.players.filter(function (q) { return q.team !== p.team; }); };
   // sprites a game needs: its four players, plus anyone who walks on in one of their power-ups (Lisa, for Gator's)
-  G.loadIds = function (teams) { var ids = teams[0].concat(teams[1]); ids.slice().forEach(function (id) { var c = HW.PLAYERS[id].cameo; if (c && ids.indexOf(c) < 0) ids.push(c); }); return ids; };
+  G.loadIds = function (teams) { var ids = teams[0].concat(teams[1]); ids.slice().forEach(function (id) { var c = HW.PLAYERS[id].cameo; if (c && HW.PLAYERS[c] && ids.indexOf(c) < 0) ids.push(c); }); return ids; };   // (a walk-on who isn't in the game yet - Ramsey's Austin - is left out)
   // Lisa in Gator's power-up (drawn by gfx in place of the real her, if she's playing): she comes in behind him, winds up slowly and
   // smacks it (her hand lands on the back of the booty: both sprites say where), smacks it 3 more times, then walks off
   function lisaFrame(t) {
@@ -125,7 +140,7 @@ window.HW = window.HW || {};
   }
   G.showCameo = function () {
     var sh = G.show; if (!sh || sh.kind !== 'pu' || sh.t >= sh.len) return null;
-    var p = sh.p, id = p.def.cameo, f = p.face, t = sh.t; if (!id) return null;
+    var p = sh.p, id = p.def.cameo, f = p.face, t = sh.t; if (!id || !HW.PLAYERS[id] || !X.hasAnim({ id: id }, 'spank')) return null;   // (no walk-on yet: he twerks solo)
     var c = sh.cam;
     if (!c) {
       var b = X.animPoint(p.id, 'twerk_hit_hard', 0, 'butt') || X.animPoint(p.id, 'twerk_hit', 0, 'butt'), h = X.animPoint(id, 'spank', 5, 'hand'), gap = b && h ? h.x - b.x : 0.75;
@@ -197,7 +212,7 @@ window.HW = window.HW || {};
   G.beginQuarter = function () {
     G.clock = G.q > 4 ? OT : QUARTER; G.lineup(G.q % 2 === 1 ? G.humanTeam : 1 - G.humanTeam, true);
     G.phase = 'tip'; G.phaseT = 2.4; G.whistled = false; G.show = null; G.inb = null;
-    var tp = twerker(false); if (tp) { startShow(tp, 'solo', TW.quarter); G.phaseT += TW.extra; }   // Gator twerks before every tip-off
+    var tws = twerkers(), tp = tws.length ? tws[(G.q - 1) % tws.length] : null; if (tp) { startShow(tp, 'solo', TW.quarter); G.phaseT += TW.extra; }   // a twerker twerks before every tip-off (two of them in a game: they take turns)
     if (G.q >= 4) Au.sfx && Au.sfx(G.q > 4 ? 'overtime' : 'final_round'); G.say(G.q > 4 ? 'OVERTIME!' : ['1ST QUARTER', '2ND QUARTER', '3RD QUARTER', '4TH QUARTER'][G.q - 1], '#fff', 2);
   };
   // set everyone up with `team` bringing the ball up from its own end
@@ -443,6 +458,7 @@ window.HW = window.HW || {};
     var ex = q.x - q.face * 0.12; X.burst(ex, 0.85, q.z - 0.2, 22, ['#ffffff', '#ffe14d', '#ff5a4a'], 4, 0.5, 3); X.shake = Math.max(X.shake, 0.9);
     Au.punch && Au.punch(); if (isGuy(q)) Au.help && Au.help(); else Au.painF && Au.painF();
     if (G.cine && G.cine.kind === 'kick') G.cine.say = true; else G.say('LOW BLOW!', '#ff5a4a', 1.4, 1.3);   // (the call comes as the camera pulls back out: nothing over the close-up)
+    grudge(p, q, (G.cine && G.cine.kind === 'kick' ? G.cine.dur - G.cine.t : 0) + 0.5);
   }
 
   // coming in from the baseline: off to the side of the rim, even with it or behind it, or at most a little out in front (60 degrees or
@@ -625,7 +641,7 @@ window.HW = window.HW || {};
       var sty = p.shoveStyle, hk = sty === 'kick' ? 0.4 : sty === 'punch' || sty === 'knee' || sty === 'front' || sty === 'elbow' ? 0.5 : sty === 'shin' ? -0.3 : 0;
       G.knockDown(tgt, p, { hard: (fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6)) + hk, blood: 0.7 + Math.max(0, gap) * 0.1 + (sty === 'knee' ? 0.3 : 0), y: sty === 'kick' || sty === 'front' || sty === 'elbow' ? 1.6 : sty === 'knee' ? 1.45 : sty === 'shin' ? 0.35 : 1.2, onQ: sty === 'knee' || sty === 'front' || sty === 'elbow' });   // (the knee lands on his chin, the front kick in his chest and face, the elbow on his jaw)
       G.say(knockLine(p, tgt), '#ff8a5a', 1.2); hl('knock', p, 'KNOCKDOWN');
-    } else { if (!wall) { Au.punch && Au.punch(); if (!isGuy(tgt) && Math.random() < 0.5) Au.painF && Au.painF(); } if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); }   // it lands but he stays up
+    } else { if (!wall) { Au.punch && Au.punch(); if (!isGuy(tgt) && Math.random() < 0.5) Au.painF && Au.painF(); } if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); grudge(p, tgt); }   // it lands but he stays up
   };
   // the arm bar (Max Strength players, rare: 1 in 20 of the shoves that reach a man, so about 1 in 30 of all their shoves counting the
   // ones that hit nobody): in 2.5 s of slow motion he grabs the arm,
@@ -650,7 +666,7 @@ window.HW = window.HW || {};
     var ex = q.x - q.face * 0.25, ey = 0.35; X.ring(ex, ey, q.z - 0.2, 0.9); X.burst(ex, ey, q.z - 0.2, 26, ['#ffffff', '#ffe14d', '#ff5a4a'], 4, 0.5, 3);
     G.hitstop = Math.max(G.hitstop || 0, 0.12); X.shake = Math.max(X.shake, 1.2); Au.snap && Au.snap();
     if (isGuy(q)) Au.scream && Au.scream(); else Au.painF && Au.painF();
-    G.say('SNAP!', '#ffffff', 1.4, 1.6);
+    G.say('SNAP!', '#ffffff', 1.4, 1.6); grudge(p, q, 0.4);
   }
   // the arm bar's close-up: 2.5 s from the grab through the snap to him getting back up (AB_RATE), and only the two of them move -
   // nobody else, not the ball, not the game clock or the shot clock - so it can't cost either team anything. Then play goes on
@@ -778,7 +794,10 @@ window.HW = window.HW || {};
   // the song going on under it. hud: when the scoreboard and names leave the screen (the WIN! callout stays)
   var WIN = { len: 7.6, zoom0: 0.6, zoomT: 4.8, hud: 1.0, fade: 1.0, beat: 60 / 140 };
   G.WIN = WIN;
-  function twerker(lisa) { return G.players.filter(function (q) { return q.def.powerup === 'twerk' && !(q.hurtT > 0) && !q.abBy && X.hasAnim(q, 'twerk') && (!lisa || q.def.cameo && X.hasAnim(q, 'twerk_hard') && X.hasAnim({ id: q.def.cameo }, 'spank')); })[0] || null; }
+  // the twerkers (Gator, Ramsey): anyone with the twerk power-up who's up and has the sprites; pu: his power-up twerk too (the hard
+  // twerk) - with his walk-on to smack it when she's there (Gator's Lisa), solo when not (Ramsey's Austin isn't in the game yet)
+  function canTwerk(q, pu) { return q.def.powerup === 'twerk' && !(q.hurtT > 0) && !q.abBy && X.hasAnim(q, 'twerk') && (!pu || X.hasAnim(q, 'twerk_hard')); }
+  function twerkers() { return G.players.filter(function (q) { return canTwerk(q); }); }
   function startShow(p, kind, len) {
     G.show = { p: p, t: 0, len: len, kind: kind, zoom: kind === 'pu', hit: 0 }; p.face = p.x > 0 ? 1 : -1; p.vx = p.vz = 0; p.dm = null;   // rear toward midcourt, where Lisa comes from
     // with everyone on screen (a quarter's start, the buzzer) he steps up to the near sideline, in front of them all, so nobody's in
@@ -793,10 +812,11 @@ window.HW = window.HW || {};
       q.x = clamp(q.x + (dx ? Math.sign(dx) : p.x > 0 ? -1 : 1) * Math.min(need, 3.2 * dt), -K.HL - 0.5, K.HL + 0.5);
     });
     if (sh.kind === 'pu') {
-      if (!sh.swung && sh.t >= TW.hits[0] - 0.4) { sh.swung = true; Au.whoosh(9); }
+      var smacker = !!G.showCameo();   // (solo: no hand, so no smacks - just the hard pops, and the flash at the first)
+      if (smacker && !sh.swung && sh.t >= TW.hits[0] - 0.4) { sh.swung = true; Au.whoosh(9); }
       while (sh.hit < TW.hits.length && sh.t >= TW.hits[sh.hit]) {   // SMACK: a whip crack where her hand lands
         var bw = X.buttWorld(p) || { x: p.x - p.face * 0.3, y: 0.9 }, big = !sh.hit;
-        X.ring(bw.x, bw.y, p.z - 0.1, big ? 0.5 : 0.38); X.burst(bw.x, bw.y, p.z - 0.1, big ? 12 : 8, ['#ffffff', '#ffe14d', '#ffb000'], 2.5, 0.4, 3); X.shake = Math.max(X.shake, big ? 0.7 : 0.45); Au.slap && Au.slap();
+        if (smacker) { X.ring(bw.x, bw.y, p.z - 0.1, big ? 0.5 : 0.38); X.burst(bw.x, bw.y, p.z - 0.1, big ? 12 : 8, ['#ffffff', '#ffe14d', '#ffb000'], 2.5, 0.4, 3); X.shake = Math.max(X.shake, big ? 0.7 : 0.45); Au.slap && Au.slap(); }
         sh.hit++;
       }
       if (!sh.wowed && sh.t >= TW.hits[0] + 0.45) { sh.wowed = true; Au.wow && Au.wow(); }
@@ -804,7 +824,7 @@ window.HW = window.HW || {};
     if (sh.t >= sh.len) { G.show = null; if (sh.home && G.phase === 'tip') G.glide = { p: p, x: sh.home.x, z: sh.home.z }; }
   }
   function startPowerup(p) {
-    var tw = twerker(true) === p ? TW.len : 0;
+    var tw = canTwerk(p, true) ? TW.len : 0;
     G.pu = { p: p, t: 0, boom: false, tw: tw, dur: tw || PU.dur }; G.callouts = []; hl(tw ? 'twerk' : 'powerup', p, 'ON FIRE'); p.state = 'powerup'; p.st = 0; p.vx = p.vz = 0; p.dm = null; p.pending = null; p.trail = null;
     if (tw) { startShow(p, 'pu', tw); Au.sfx && Au.sfx('gator_cushy', 1.5); }   // 5 s of "spot" by Cushy over the whole thing, from the top of the song - loud from the first frame (up front: the crowd ducks under it)
     else { Au.charge && Au.charge(); Au.fireball && Au.fireball(); Au.yell && Au.yell(!isGuy(p)); }
@@ -829,6 +849,7 @@ window.HW = window.HW || {};
   G.update = function (dt, In) {
     G.t += dt; G.hoopFx = G.hoopFx.map(function (v) { return Math.max(0, v - dt * 2); });
     G.callouts.forEach(function (c) { c.t += dt; }); G.callouts = G.callouts.filter(function (c) { return c.t < c.life; });
+    G.later = (G.later || []).filter(function (c) { if (G.t < c.at) return true; G.say(c.text, c.color, 1.6); return false; });   // (a grudge's comeback)
     if (G.phase === 'menu' || G.phase === 'paused') return;
     if (G.hitstop > 0) { G.hitstop -= dt; return; }   // freeze-frame on a hard hit
     // going on fire: a 2 s golden power-up with the camera zoomed in on him while everything else waits
@@ -1168,7 +1189,7 @@ window.HW = window.HW || {};
     Au.buzzer();
     // the final buzzer: the announcer, and a guy on the winning team whoops "yeah!" over it
     if (G.q >= 4 && G.score[0] !== G.score[1]) {
-      var w = G.score[0] > G.score[1] ? 0 : 1, tg = twerker(false), gw = tg && tg.team === w;   // gw: Gator's team won - his victory twerk
+      var w = G.score[0] > G.score[1] ? 0 : 1, tws = twerkers(), tg = tws.filter(function (q) { return q.team === w; })[0] || tws[0] || null, gw = tg && tg.team === w;   // gw: a twerker's team won - his victory twerk
       G.phase = 'over'; G.phaseT = gw ? WIN.len : 4; G.vic = !!gw; if (tg) startShow(tg, gw ? 'win' : 'solo', gw ? WIN.len : TW.end); Au.sfx && Au.sfx(w === G.humanTeam ? 'you_win' : 'you_lose'); if (G.players.some(function (p) { return p.team === w && isGuy(p); })) Au.sfx && Au.sfx('shout1', 0.9, 0.7); G.say(G.team(w).name.toUpperCase() + ' WIN!', G.team(w).color, gw ? WIN.len - 0.8 : 4, 1.2); G.players.forEach(function (p) { if (p.team === w) { p.state = 'cheer'; p.st = -99; } }); Au.cheer(true); return;
     }
     G.phase = 'break'; G.phaseT = 3.2; G.say(G.q >= 4 ? 'TIED! OVERTIME' : 'END OF ' + ['1ST', '2ND', '3RD', '4TH'][G.q - 1], '#fff', 3);

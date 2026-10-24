@@ -19,7 +19,7 @@ window.HW = window.HW || {};
     lisa:    { id: 'lisa',    name: 'Lisa Anderson',    first: 'Lisa',    team: 0, type: 'strength', num: 34, color: '#ff006e', skin: '#e9b39a', hair: '#b49766', hairStyle: 'long',  photo: true, headScale: 1.45, height: 1.80, bulk: 1.2,  stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 4 } },
     katelyn: { id: 'katelyn', name: 'Katelyn Gorman',   first: 'Katelyn', team: 1, type: 'handler',  num: 7,  color: '#06d6a0', skin: '#dca592', hair: '#5c4a3e', hairStyle: 'long',  photo: true, headScale: 1.49, brow: '#5a4234', height: 1.70, bulk: 0.88, stats: { speed: 10, tp: 5, dunk: 4, steal: 9, block: 3, str: 3, pass: 10 } },
     kameron: { id: 'kameron', name: 'Kameron Gorman',   first: 'Kameron', team: 1, type: 'dunker',   num: 1,  color: '#3a86ff', skin: '#e4a387', hair: '#3a3029', hairStyle: 'short', photo: true, brow: '#4e3a2c', height: 1.96, bulk: 1.0,  stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6, pass: 5 } },
-    kody:    { id: 'kody',    name: 'Kody Gorman',      first: 'Kody',    team: 1, type: 'strength', num: 55, color: '#8338ec', skin: '#d8a68e', hair: '#5a4232', hairStyle: 'short', photo: true, headScale: 1.15, brow: '#4a3628', height: 1.92, bulk: 1.3,  stats: { speed: 4, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 3 } },
+    kody:    { id: 'kody',    name: 'Kody Gorman',      first: 'Kody',    team: 1, type: 'strength', num: 55, color: '#8338ec', skin: '#d8a68e', hair: '#5a4232', hairStyle: 'short', photo: true, headScale: 1.15, brow: '#4a3628', height: 1.92, bulk: 1.3,  cap: '#a8a8a8', capBack: '#1c1c1e', stats: { speed: 4, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 3 } },
     kenny:   { id: 'kenny',   name: 'Uncle Kenny Gorman', first: 'Uncle Kenny',  team: 1, type: 'strength', num: 44, color: '#118ab2', skin: '#d8a587', hair: '#9e9a93', hairStyle: 'short', photo: true, brow: '#7f7268', height: 1.90, bulk: 1.25, stats: { speed: 5, tp: 4, dunk: 5, steal: 5, block: 9, str: 9, pass: 4 } },
     karen:   { id: 'karen',   name: 'Karen Gorman',     first: 'Karen',   team: 1, type: 'shooter',  num: 30, color: '#2ec4b6', skin: '#e3a690', hair: '#4d4038', hairStyle: 'short', photo: true, headScale: 1.15, brow: '#3d322b', height: 1.76, bulk: 0.9,  stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4, pass: 6 } },
     // the Stowells (team 2): Blair, Rox, Lindsay, Trent, Justin
@@ -29,15 +29,15 @@ window.HW = window.HW || {};
     trent:   { id: 'trent',   name: 'Trent Stowell',    first: 'Trent',   team: 2, type: 'dunker',   num: 33, color: '#9b5de5', skin: '#e2a283', hair: '#4a3426', hairStyle: 'short', photo: true, headScale: 0.96, brow: '#3e2c20', height: 1.90, bulk: 1.05, stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6, pass: 5 } },
     justin:  { id: 'justin',  name: 'Justin Stowell',   first: 'Justin',  team: 2, type: 'strength', num: 8,  color: '#5a189a', skin: '#d8987a', hair: '#5a4535', hairStyle: 'short', photo: true, headScale: 0.94, brow: '#4a3628', height: 1.86, bulk: 1.28, stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 4 } },
     // Joseph George (team 3): Zach, Ramsey, Jake, Morgan
-    zach:    { id: 'zach',    name: 'Zach',             first: 'Zach',    team: 3, type: 'handler',  num: 5,  color: '#2ecc40', skin: '#d9a48a', hair: '#3a2a20', hairStyle: 'short', photo: true, headScale: 1.11, brow: '#3a2a20', height: 1.80, bulk: 1.05, stats: { speed: 10, tp: 5, dunk: 4, steal: 9, block: 3, str: 3, pass: 10 } },
-    ramsey:  { id: 'ramsey',  name: 'Ramsey',           first: 'Ramsey',  team: 3, type: 'strength', num: 42, color: '#196f3d', skin: '#d4987c', hair: '#2a201c', hairStyle: 'short', photo: true, headScale: 1.2,  brow: '#2a201c', height: 1.86, bulk: 1.3,  stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 4 } },
+    zach:    { id: 'zach',    name: 'Zach',             first: 'Zach',    team: 3, type: 'handler',  num: 5,  color: '#2ecc40', skin: '#d9a48a', hair: '#3a2a20', hairStyle: 'short', photo: true, headScale: 1.11, brow: '#3a2a20', height: 1.80, bulk: 1.05, cap: '#46484c', stats: { speed: 10, tp: 5, dunk: 4, steal: 9, block: 3, str: 3, pass: 10 } },
+    ramsey:  { id: 'ramsey',  name: 'Ramsey',           first: 'Ramsey',  powerup: 'twerk', cameo: 'austin', team: 3, type: 'strength', num: 42, color: '#196f3d', skin: '#d4987c', hair: '#2a201c', hairStyle: 'short', photo: true, headScale: 1.2,  brow: '#2a201c', height: 1.86, bulk: 1.3,  stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 4 } },
     jake:    { id: 'jake',    name: 'Jake',             first: 'Jake',    team: 3, type: 'dunker',   num: 24, color: '#8bc34a', skin: '#d69b80', hair: '#4a3a2e', hairStyle: 'short', photo: true, headScale: 0.94, brow: '#4a3a2e', height: 1.90, bulk: 1.22, stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6, pass: 5 } },
     morgan:  { id: 'morgan',  name: 'Morgan',           first: 'Morgan',  team: 3, type: 'shooter',  num: 14, color: '#00a86b', skin: '#d8a084', hair: '#33261e', hairStyle: 'short', photo: true, headScale: 1.0,  brow: '#33261e', height: 1.84, bulk: 0.95, stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4, pass: 6 } },
     // Flickinger (team 4): Sque, Cesar, Jahn, The Legend
     sque:    { id: 'sque',    name: 'Sque',             first: 'Sque',    team: 4, type: 'shooter',  num: 3,  color: '#ffd23f', skin: '#d9a184', hair: '#2a1e18', hairStyle: 'short', photo: true, headScale: 1.19, brow: '#2a1e18', height: 1.80, bulk: 1.0,  stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4, pass: 6 } },
     cesar:   { id: 'cesar',   name: 'Cesar',            first: 'Cesar',   team: 4, type: 'dunker',   num: 32, color: '#e85d04', skin: '#c99278', hair: '#16100c', hairStyle: 'short', photo: true, headScale: 0.98, brow: '#16100c', height: 1.90, bulk: 1.1,  stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6, pass: 5 } },
     jahn:    { id: 'jahn',    name: 'Jahn',             first: 'Jahn',    team: 4, type: 'handler',  num: 1,  color: '#ffaa00', skin: '#dba48a', hair: '#4a3a2e', hairStyle: 'short', photo: true, headScale: 1.03, brow: '#3a2a20', height: 1.78, bulk: 1.15, stats: { speed: 10, tp: 5, dunk: 4, steal: 9, block: 3, str: 3, pass: 10 } },
-    legend:  { id: 'legend',  name: 'The Legend',       first: 'The Legend', team: 4, type: 'strength', num: 99, color: '#d00000', skin: '#d99a86', hair: '#8a7a6a', hairStyle: 'short', photo: true, headScale: 0.93, brow: '#5a4a3a', height: 1.84, bulk: 1.2,  age: true, stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 4 } }
+    legend:  { id: 'legend',  name: 'The Legend',       first: 'The Legend', team: 4, type: 'strength', num: 99, color: '#d00000', skin: '#d99a86', hair: '#8a7a6a', hairStyle: 'short', photo: true, headScale: 0.93, brow: '#5a4a3a', height: 1.84, bulk: 1.2,  age: true, cap: '#d9a0dc', stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 4 } }
   };
 
   // Realistic-body extras per player: eye color, headband, and anything special (Alan: from his photo)
@@ -173,6 +173,15 @@ window.HW = window.HW || {};
 
   // a player's catchphrase: it takes the place of exactly one of every `every` of their knockdown taunts, whatever the matchup
   HW.CATCHPHRASE = { kenny: { line: 'HOOCHIE MAMA!', every: 10 }, lisa: { line: 'WOOOO WEEEEEE!', every: 5 }, bianca: { line: 'NO SHOES ON THE CARPET!', every: 3 }, rox: { line: 'YOU CHICKEN SHIT!', every: 4 } };
+
+  // grudges: when one of a pair flattens the other, he calls him out by name, every time (`hit`), and a beat later the one on the floor
+  // fires back (`back`); `{me}` / `{them}` are their names. Ramsey and Austin: on as soon as Austin is in the game
+  HW.RIVALS = {
+    'ramsey|austin': {
+      hit: ['SIT YOUR ASS DOWN, {them}!', 'EAT SHIT, {them}!', '{them}, YOU FUCKING CLOWN!', 'GET FUCKED, {them}!', 'STAY DOWN, {them}, YOU DICKHEAD!', '{them}, YOU SOFT BITCH!', 'NIGHT NIGHT, {them}, YOU PRICK!'],
+      back: ['FUCK YOU, {them}!', 'CHEAP SHOT, {them}, YOU PRICK!', "THAT ALL YOU GOT, {them}?!", "{them}, YOU'RE DEAD!", 'SUCK MY ASS, {them}!']
+    }
+  };
 
   // lines that come with a 2 s taunt over normal play: the crotch chop (twice) or pointing off at the kiddie table
   HW.TAUNTS = { "WHO'S YOUR UNCLE?!?!": 'chop', "WHO'S YOUR AUNTIE?!?!": 'chop', "KIDDIE TABLE'S OVER THERE!": 'point' };
