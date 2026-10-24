@@ -3545,6 +3545,7 @@ function movePlayer(dt, vr) {
     speed = SPRINT.on ? 3.4 * 4 : 3.4;
     const l = Math.hypot(mx, mz); if (l > 1) { mx /= l; mz /= l; }
   }
+  if (vr && HT.walking && !mx && !mz) mz = -1; // hand tracking: left thumbs-up walks forward
   if (MODE === 'bball' && BB.stance) { mx *= 1.6; mz *= 0.6; }
   if (MODE === 'bball' && (BB.poss === 'player' || BB.poss === 'dribble')) speed *= 1.6; // quick with the ball
   if (!mx && !mz) return;
@@ -4554,7 +4555,7 @@ function updatePlayerArms(vr, head) {
     }
     if (!C.arm) continue;
     const show = vr && !!C.src;
-    C.arm.upper.visible = C.arm.fore.visible = show; if (C.handModel) C.handModel.g.visible = show;
+    C.arm.upper.visible = C.arm.fore.visible = show; if (C.handModel) C.handModel.g.visible = show && !C.ht; // tracked hands are drawn from their joints
     if (!show) continue;
     // finger curl from the trigger and grip buttons
     const gp = C.src.gamepad, trig = gp && gp.buttons[0] ? gp.buttons[0].value : 0, sq = gp && gp.buttons[1] ? gp.buttons[1].value : 0;
@@ -4563,7 +4564,7 @@ function updatePlayerArms(vr, head) {
     // shoulder from the head, wrist from the controller, elbow by 2-bone IK bending down and out
     camera.getWorldDirection(_f); _f.y = 0; if (_f.lengthSq() < 1e-4) _f.set(0, 0, -1); _f.normalize(); _r.set(-_f.z, 0, _f.x);
     _S.copy(head).addScaledVector(_r, C.arm.side * 0.19).addScaledVector(_f, -0.06); _S.y -= 0.24;
-    C.grip.localToWorld(_W.set(C.arm.side * 0.015, -0.02, 0.1));
+    if (C.ht && C.wristW) _W.copy(C.wristW); else C.grip.localToWorld(_W.set(C.arm.side * 0.015, -0.02, 0.1));
     const L1 = 0.3, L2 = 0.28; _d.subVectors(_W, _S); let d = _d.length(); const dir = _d.clone().divideScalar(d || 1);
     d = Math.min(d, L1 + L2 - 0.005);
     const a = (L1 * L1 - L2 * L2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
@@ -5916,8 +5917,9 @@ function updateShots(dt) {
     if (!S.on) continue;
     S.t += dt; if (S.kind === 'glaze') S.v.y -= 6 * dt; S.m.position.addScaledVector(S.v, dt);
     const p = S.m.position; let hit = false;
-    if (S.kind === 'blaster') {
-      for (const F of FOES) if (F.state !== 'off' && F.state !== 'ko' && Math.hypot(F.g.position.x - p.x, F.g.position.z - p.z) < 0.6 && p.y > F.g.position.y && p.y < F.g.position.y + 2) { F.hitCD = 0; hitFoe(F, p.clone().addScaledVector(S.v, -0.05), 'bolt', p.clone()); hit = true; break; }
+    if (S.kind === 'blaster' || S.kind === 'ki') {
+      if (S.kind === 'ki') emit(p.x, p.y, p.z, rr(-0.4, 0.4), rr(-0.4, 0.4), rr(-0.4, 0.4), pick([0xaee9ff, 0xffffff]), 0.25, 0, -99);
+      for (const F of FOES) if (F.state !== 'off' && F.state !== 'ko' && Math.hypot(F.g.position.x - p.x, F.g.position.z - p.z) < 0.6 && p.y > F.g.position.y && p.y < F.g.position.y + 2) { F.hitCD = 0; if (S.kind === 'ki') F.hp = Math.min(F.hp, 1); hitFoe(F, p.clone().addScaledVector(S.v, -0.05), 'bolt', p.clone()); hit = true; break; }
       if (!hit) for (const B of BUGGIES) if (B.state === 'hunt' && B.g.position.distanceTo(p) < 2) { B.hp -= 1; B.char = Math.min(1, (B.char || 0) + 0.15); sSizzle(); for (let i = 0; i < 8; i++) emit(p.x, p.y, p.z, rr(-3, 3), rr(0, 3), rr(-3, 3), pick([0xfff3a0, 0xffd23f]), 0.25, -9, -99); if (B.hp <= 0) wreckBuggy(B); hit = true; break; }
       if (!hit) { const tt = turtleHitTest(p, 0); if (tt) { angerTurtle(tt); hit = true; } }
       if (!hit) for (const K of CANNONS) if (!K.dead && K.g.position.clone().setY(K.g.position.y + 1.8).distanceTo(p) < 2) { K.hp -= 1; if (K.hp <= 0) killCannon(K); hit = true; break; }
@@ -5929,7 +5931,7 @@ function updateShots(dt) {
       if (turtleHitTest(p, 0.5)) hit = true;
       if (hit || p.y < terrainH(p.x, p.z)) { glazeBoom(p.clone()); hit = true; }
     }
-    if (hit || S.t > (S.kind === 'blaster' ? 1.8 : 5)) { S.on = false; S.m.visible = false; }
+    if (hit || S.t > (S.kind === 'glaze' ? 5 : 1.8)) { S.on = false; S.m.visible = false; }
   }
 }
 // ----- fire cannons: they shoot flaming balls at helicopters over the wasteland -----
@@ -6021,6 +6023,174 @@ function updateWasteland(dt, head, vr) {
     WPN.cd -= dt;
     if (trig && WPN.cd <= 0 && WPN.model.visible && !SPRINT.on && !FADE.phase) { WPN.cd = WEAPONS[WPN.cur].rate; fireWeapon(Math.max(dt, WEAPONS[WPN.cur].rate)); }
   }
+}
+
+// ===== Hand tracking: your real hands, and Dragon Ball style power moves =====
+// three r128 updates a tracked hand's joints (renderer.xr.getHand) but never gives a hand input source a grip pose.
+// So every frame we read the joints ourselves, draw the hands, and park each controller's grip on the palm: punches,
+// pickups, the wrist HUD and the arm IK keep working. Joint math uses joint.matrix (reference space) x rig.matrixWorld.
+const HJ = ['wrist', 'thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip'], FING = ['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'], JI = {};
+for (const f of FING) HJ.push(f + '-metacarpal', f + '-phalanx-proximal', f + '-phalanx-intermediate', f + '-phalanx-distal', f + '-tip');
+HJ.forEach((n, i) => JI[n] = i);
+const BONES = []; // [joint a, joint b, thickness]
+const chain = (names, s = 1) => { for (let i = 1; i < names.length; i++) BONES.push([JI[names[i - 1]], JI[names[i]], s]); };
+chain(HJ.slice(0, 5));
+for (const f of FING) chain(['wrist', f + '-metacarpal', f + '-phalanx-proximal', f + '-phalanx-intermediate', f + '-phalanx-distal', f + '-tip']);
+for (let i = 1; i < 4; i++) { chain([FING[i - 1] + '-metacarpal', FING[i] + '-metacarpal'], 1.5); chain([FING[i - 1] + '-phalanx-proximal', FING[i] + '-phalanx-proximal'], 1.4); }
+const HT = { hands: [], seen: false, walking: false };
+const ADD = (col, op) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false });
+for (let i = 0; i < 2; i++) {
+  const hg = renderer.xr.getHand(i); rig.add(hg); // must exist before the session starts or three never fills in the joints
+  const sph = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), PSKIN, HJ.length), bone = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 1, 8, 1), PSKIN, BONES.length);
+  for (const m of [sph, bone]) { m.frustumCulled = false; m.visible = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); }
+  HT.hands.push({ C: ctrls[i], hg, sph, bone, ok: false, p: HJ.map(() => new V3()), r: HJ.map(() => 0.008), wrist: new V3(), palm: new V3(), f: new V3(0, 0, -1), n: new V3(0, -1, 0), open: 0, thumbUp: false, hist: [], vel: new V3(), cd: 0 });
+}
+const _m4 = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _q4 = new THREE.Quaternion(), _s3 = new V3(), _hx = new V3(), _hy = new V3(), _hz = new V3(), _hv = new V3(), _hu = new V3(0, 1, 0);
+function readHand(H, t) { // joints -> world positions, palm frame, finger curl, gestures
+  const C = H.C; H.ok = false; C.ht = false;
+  if (!C.src || !C.src.hand) return;
+  const j = H.hg.joints; if (!j.wrist) return;
+  for (let k = 0; k < HJ.length; k++) { const jt = j[HJ[k]]; if (!jt || !jt.visible) return; H.p[k].setFromMatrixPosition(jt.matrix).applyMatrix4(rig.matrixWorld); H.r[k] = clamp(jt.jointRadius || 0.008, 0.005, 0.016); }
+  const P = H.p, W = P[0], mid = P[JI['middle-finger-phalanx-proximal']], side = C.hand === 'left' ? -1 : 1;
+  H.wrist.copy(W); H.f.subVectors(mid, W); const len = Math.max(H.f.length(), 0.05); H.f.divideScalar(len);
+  H.palm.copy(W).addScaledVector(H.f, len * 0.6);
+  _hv.subVectors(P[JI['pinky-finger-phalanx-proximal']], P[JI['index-finger-phalanx-proximal']]);
+  if (side > 0) H.n.crossVectors(H.f, _hv); else H.n.crossVectors(_hv, H.f);
+  H.n.normalize(); // out of the palm
+  let open = 0; for (const f of FING) open += P[JI[f + '-tip']].distanceTo(W) / len; H.open = open / 4; // ~1 in a fist, ~1.8 flat
+  H.thumbUp = H.open < 1.4 && P[JI['thumb-tip']].distanceTo(W) / len > 1.3 && P[JI['thumb-tip']].y - W.y > 0.07;
+  H.hist.push({ p: H.palm.clone(), t }); while (H.hist.length > 2 && t - H.hist[0].t > 0.15) H.hist.shift();
+  const a = H.hist[0], dtt = t - a.t; if (dtt > 0.03) H.vel.subVectors(H.palm, a.p).divideScalar(dtt); else H.vel.set(0, 0, 0);
+  H.ok = C.ht = true; C.wristW = C.wristW || new V3(); C.wristW.copy(W);
+  // grip on the palm: -z along the fingers, +y toward the back of the hand
+  _hz.copy(H.f).negate(); _hy.copy(H.n).negate(); _hx.crossVectors(_hy, _hz).normalize(); _hy.crossVectors(_hz, _hx);
+  _m4.makeBasis(_hx, _hy, _hz).setPosition(H.palm); _inv.copy(rig.matrixWorld).invert(); C.grip.matrix.multiplyMatrices(_inv, _m4);
+  C.grip.matrix.decompose(C.grip.position, C.grip.quaternion, C.grip.scale); C.grip.visible = true;
+}
+function drawHand(H) { // skeleton of spheres and tubes, two draw calls per hand
+  H.sph.visible = H.bone.visible = H.ok; if (!H.ok) return;
+  const P = H.p;
+  for (let k = 0; k < HJ.length; k++) { _s3.setScalar(H.r[k] * 1.15); _m4.compose(P[k], _q4.identity(), _s3); H.sph.setMatrixAt(k, _m4); }
+  for (let k = 0; k < BONES.length; k++) {
+    const [a, b, s] = BONES[k]; _hv.subVectors(P[b], P[a]); const l = _hv.length() || 1e-4; _hv.divideScalar(l);
+    _q4.setFromUnitVectors(_hu, _hv); _s3.set((H.r[a] + H.r[b]) * 0.55 * s, l, (H.r[a] + H.r[b]) * 0.55 * s);
+    _m4.compose(_hx.copy(P[a]).addScaledVector(_hv, l / 2), _q4, _s3); H.bone.setMatrixAt(k, _m4);
+  }
+  H.sph.instanceMatrix.needsUpdate = H.bone.instanceMatrix.needsUpdate = true;
+}
+// ----- power moves -----
+// KAMEHAMEHA: bring both palms together at your side and hold to charge, then thrust both hands away from you. The beam
+// follows your hands while it lasts (sweep it!). Bigger charge = wider, longer, stronger beam.
+// KI BLAST: thrust one open palm out fast. Walk: left thumbs-up (the way you're looking).
+const KI = { state: 'idle', t: 0, charge: 0, loose: 0, cd: 0, p: 0, dir: new V3(0, 0, -1), mid: new V3(), tick: 0, snd: 0, ph: 0, hit: new Set(), end: new V3(), scorchT: 0 };
+const KI_BALL = (() => {
+  const g = new THREE.Group(), s = (r, mat) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), mat); g.add(m); return m; };
+  g.visible = false; scene.add(g);
+  return { g, core: s(1, new THREE.MeshBasicMaterial({ color: 0xffffff })), mid: s(1.5, ADD(0x7fd6ff, 0.6)), halo: s(2.2, ADD(0x2a8cff, 0.28)) };
+})();
+const KI_BEAM = (() => {
+  const g = new THREE.Group(), cyl = (mat, open) => { const geo = new THREE.CylinderGeometry(0.3, 1, 1, 14, 1, true); geo.rotateX(Math.PI / 2); geo.translate(0, 0, -0.5); // narrow at your hands, full width far away
+    const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; g.add(m); return m; };
+  const side = (c, o) => { const m = ADD(c, o); m.side = THREE.DoubleSide; return m; };
+  const core = cyl(side(0xffffff, 0.95)), shell = cyl(side(0x6fd0ff, 0.5)), halo = cyl(side(0x1f6dff, 0.22));
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), ADD(0xbfeaff, 0.8)), base = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), ADD(0xffffff, 0.55));
+  tip.frustumCulled = base.frustumCulled = false; g.add(tip, base); g.visible = false; scene.add(g);
+  return { g, core, shell, halo, tip, base };
+})();
+const sKiCharge = p => { tone(150 + p * 330, 0.28, 'triangle', 0.05, 175 + p * 360); noise(0.18, 0.03 + p * 0.03, 2400, 'bandpass'); };
+const sKiBlast = () => { tone(500, 0.18, 'sawtooth', 0.07, 1400); noise(0.2, 0.12, 3000, 'highpass', 0, 800); };
+const sKame = p => { noise(0.9, 0.3, 500, 'lowpass', 0, 3000); tone(70, 1.4, 'sawtooth', 0.2, 420); tone(210, 1.1, 'square', 0.06, 640, 0.05); sBoom(0.2 + p * 0.15); };
+const KI_SYL = ['Ka…', 'Me…', 'Ha…', 'Me…'];
+function kiAvailable(vr) { return vr && MODE === 'town' && started && !SPRINT.on && !FADE.phase && !PH.dead; }
+function kiBall(on, p, t) {
+  KI_BALL.g.visible = on; if (!on) return;
+  const r = 0.035 + 0.085 * p, pulse = 1 + Math.sin(t * 40) * 0.07; KI_BALL.g.position.copy(KI.mid); KI_BALL.g.scale.setScalar(r * pulse);
+  const m = KI.mid; for (let i = 0; i < 2; i++) { const a = rr(0, TAU), b = rr(-1, 1), d = r * rr(3, 5), c = Math.sqrt(1 - b * b); emit(m.x + Math.cos(a) * c * d, m.y + b * d, m.z + Math.sin(a) * c * d, -Math.cos(a) * c * 2.4, -b * 2.4, -Math.sin(a) * c * 2.4, pick([0x9be8ff, 0xffffff, 0x4db8ff]), 0.35, 0, -99); }
+}
+function fireKame(dir) {
+  const p = KI.p; KI.state = 'beam'; KI.t = 0; KI.tick = 0; KI.scorchT = 0; KI.hit.clear(); KI.dir.copy(dir); KI.dur = 1.2 + 2.6 * p; kiBall(false, 0, 0);
+  sKame(p); toast('KAMEHAMEHA!', 1.6);
+  for (let i = 0; i < 24; i++) emit(KI.mid.x, KI.mid.y, KI.mid.z, rr(-3, 3) + dir.x * 4, rr(-2, 3) + dir.y * 4, rr(-3, 3) + dir.z * 4, pick([0x9be8ff, 0xffffff]), rr(0.3, 0.7), 0, -99);
+}
+const _o = new V3(), _e = new V3(), _pt = new V3(), _sg = new V3();
+function kiBeamDist(a, d, len, q) { _sg.subVectors(q, a); const t = clamp(_sg.dot(d), 0, len); return _sg.copy(d).multiplyScalar(t).add(a).distanceTo(q); }
+function updateBeam(dt, hands, head) {
+  const p = KI.p, t = KI.t += dt, grow = Math.min(1, t / 0.25), fade = Math.min(1, (KI.dur - t) / 0.35), k = Math.max(0, grow * fade), r = (0.08 + 0.26 * p) * k;
+  // the beam follows your hands
+  _hv.copy(hands[0].f).add(hands[1].f).normalize(); KI.dir.lerp(_hv, Math.min(1, dt * 9)).normalize();
+  KI.mid.copy(hands[0].palm).add(hands[1].palm).multiplyScalar(0.5);
+  _o.copy(KI.mid).addScaledVector(KI.dir, 0.1);
+  let L = 80; for (let d = 2; d <= 80; d += 2) { _pt.copy(_o).addScaledVector(KI.dir, d); if (_pt.y < surfH(_pt.x, _pt.z)) { L = d; break; } }
+  _e.copy(_o).addScaledVector(KI.dir, L); KI.end.copy(_e);
+  const B = KI_BEAM; B.g.visible = true; B.g.position.copy(_o); _q4.setFromUnitVectors(new V3(0, 0, -1), KI.dir);
+  for (const [m, s] of [[B.core, 0.5], [B.shell, 1.0], [B.halo, 1.7]]) { m.quaternion.copy(_q4); const w = Math.max(0.001, r * s * (1 + Math.sin(t * 60 + s) * 0.08)); m.scale.set(w, w, L); }
+  B.tip.position.copy(_e).sub(_o); B.tip.scale.setScalar(Math.max(0.001, r * 3 * (1 + Math.sin(t * 45) * 0.12))); B.base.scale.setScalar(Math.max(0.001, r * 0.5));
+  // impact: sparks, smoke, scorch
+  for (let i = 0; i < 5; i++) emit(_e.x, _e.y, _e.z, rr(-5, 5), rr(1, 7), rr(-5, 5), pick([0xffffff, 0xbfeaff, 0xffd23f, 0x4db8ff]), rr(0.3, 0.8), -9, 0);
+  if (Math.random() < 0.5) emit(_e.x, _e.y, _e.z, rr(-1, 1), rr(1, 3), rr(-1, 1), 0x555555, rr(1, 1.8), 0.4, -99);
+  if ((KI.scorchT -= dt) <= 0 && L < 80) { KI.scorchT = 0.18; scorch(_e, 1.5 + 3 * p * grow, 0x14100c); }
+  if ((KI.snd -= dt) <= 0) { KI.snd = 0.25; tone(160, 0.35, 'sawtooth', 0.05, 230); noise(0.3, 0.07, 900, 'lowpass'); }
+  // damage, a few times a second
+  if ((KI.tick -= dt) <= 0 && grow > 0.5) {
+    KI.tick = 0.08; const hr = r + 0.7;
+    for (const F of FOES) {
+      if (F.state === 'off' || F.state === 'ko') continue;
+      if (kiBeamDist(_o, KI.dir, L, F.g.position.clone().setY(F.g.position.y + 1)) < hr) { F.char = 1; koFoe(F, KI.dir.clone().setY(0).setLength(6 + 8 * p), { up: 3 + 4 * p, tumble: 7, burnt: true }); }
+    }
+    for (const Bg of BUGGIES) if (Bg.state === 'hunt' && kiBeamDist(_o, KI.dir, L, Bg.g.position.clone().setY(Bg.g.position.y + 1)) < hr + 1.5) wreckBuggy(Bg);
+    for (const K of CANNONS) if (!K.dead && kiBeamDist(_o, KI.dir, L, K.g.position.clone().setY(K.g.position.y + 1.8)) < hr + 2) killCannon(K);
+    for (let d = 0; d <= L; d += 4) { const tt = turtleHitTest(_pt.copy(_o).addScaledVector(KI.dir, d), hr); if (tt && !KI.hit.has(tt)) { KI.hit.add(tt); tt.hitCD = 0; angerTurtle(tt); } }
+  }
+  const apart = hands[0].palm.distanceTo(hands[1].palm) > 0.55;
+  if (t >= KI.dur || apart) endBeam();
+}
+function endBeam() {
+  KI_BEAM.g.visible = false;
+  if (KI.state === 'beam') { const e = KI.end; sBoom(0.25); for (let i = 0; i < 30; i++) emit(e.x, e.y + 0.3, e.z, rr(-6, 6), rr(1, 8), rr(-6, 6), pick([0xffffff, 0xbfeaff, 0xffd23f, 0xff8a2a]), rr(0.5, 1.2), -9, 0); }
+  KI.state = 'idle'; KI.cd = 1 + KI.p; KI.charge = 0; KI.loose = 0; kiBall(false, 0, 0);
+}
+function fireKi(H) {
+  const S = SHOTS.find(s => !s.on); if (!S) return;
+  _hv.copy(H.vel).normalize(); const d = new V3().copy(H.n).multiplyScalar(0.75).addScaledVector(_hv, 0.25).normalize(); // mostly where the palm faces
+  S.on = true; S.t = 0; S.kind = 'ki'; S.m.visible = true; S.m.position.copy(H.palm).addScaledVector(d, 0.15); S.v.copy(d).multiplyScalar(55); S.m.scale.setScalar(0.1); S.m.material.color.setHex(0xaee9ff);
+  H.cd = 0.35; sKiBlast();
+}
+function updateHands(dt, vr, head) {
+  if (!vr) { for (const H of HT.hands) if (H.ok || H.sph.visible) { H.ok = H.C.ht = false; drawHand(H); } if (KI.state !== 'idle') endBeam(); return; }
+  rig.updateMatrixWorld(true);
+  for (const H of HT.hands) { readHand(H, elapsed); drawHand(H); }
+  const [L, R] = HT.hands, both = L.ok && R.ok;
+  if (!HT.seen && (L.ok || R.ok) && started) { HT.seen = true; toast('Hand tracking: palms together to charge a Kamehameha, then thrust!', 6); }
+  // left thumbs-up walks the way you're looking
+  const lh = HT.hands.find(H => H.ok && H.C.hand === 'left'); HT.walking = !!(lh && lh.thumbUp) && kiAvailable(vr) && KI.state === 'idle';
+  for (const H of HT.hands) { H.cd -= dt; if (H.C.ht) H.C.line.visible = KI.state === 'idle'; }
+  KI.cd -= dt;
+  if (!kiAvailable(vr)) { if (KI.state !== 'idle') endBeam(); KI.t = 0; return; }
+  if (!both) { if (KI.state !== 'idle') endBeam(); KI.t = 0; for (const H of HT.hands) kiBlastCheck(H, null, head); return; }
+  const dist = L.palm.distanceTo(R.palm), cupped = L.open > 1.2 && R.open > 1.2;
+  KI.mid.copy(L.palm).add(R.palm).multiplyScalar(0.5);
+  if (KI.state === 'idle') {
+    if (KI.cd <= 0 && dist < 0.2 && cupped) { KI.t += dt; if (KI.t > 0.25) { KI.state = 'charge'; KI.charge = 0; KI.loose = 0; KI.ph = 0; } } else KI.t = 0;
+    if (KI.state === 'idle') { kiBlastCheck(L, R, head); kiBlastCheck(R, L, head); }
+  }
+  if (KI.state === 'charge') {
+    KI.charge = Math.min(3, KI.charge + dt); KI.p = clamp(KI.charge / 2.5, 0, 1);
+    KI.dir.copy(L.f).add(R.f).normalize(); KI.mid.addScaledVector(KI.dir, 0.06);
+    kiBall(true, KI.p, elapsed);
+    if ((KI.snd -= dt) <= 0) { KI.snd = 0.2; sKiCharge(KI.p); }
+    const ph = Math.min(3, Math.floor(KI.charge / 0.5)); if (ph > KI.ph && ph <= 4) { KI.ph = ph; toast(KI_SYL[ph - 1], 0.8); }
+    KI.loose = dist > 0.38 ? KI.loose + dt : 0;
+    if (KI.loose > 0.3) { KI.state = 'idle'; KI.cd = 0.5; KI.charge = 0; kiBall(false, 0, 0); noise(0.3, 0.1, 1500, 'lowpass', 0, 300); } // fizzled out
+    else {
+      _hv.subVectors(KI.mid, head).normalize(); const push = (L.vel.dot(_hv) + R.vel.dot(_hv)) / 2;
+      if (push > 1.3 && KI.charge > 0.4 && dist < 0.45) fireKame(_hv.copy(L.f).add(R.f).addScaledVector(L.vel.clone().add(R.vel).normalize(), 0.8).normalize());
+    }
+  } else if (KI.state === 'beam') updateBeam(dt, HT.hands, head);
+}
+function kiBlastCheck(H, other, head) { // one open palm thrust away from you
+  if (!H || !H.ok || H.cd > 0 || H.open < 1.5 || (other && other.ok && H.palm.distanceTo(other.palm) < 0.35)) return;
+  _hv.subVectors(H.palm, head).normalize();
+  if (H.n.dot(_hv) > 0.45 && H.vel.dot(_hv) > 2.0) fireKi(H);
 }
 
 // ===== Third-person chase camera (desktop / phone; the headset stays first-person) and your avatar =====
@@ -6226,6 +6396,7 @@ let elapsed = 0;
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05); elapsed += dt;
   const vr = renderer.xr.isPresenting;
+  updateHands(dt, vr, headPos(headV));
   if (started) { if (MODE === 'town' || MODE === 'bball' || (MODE === 'turtle' && SKY.phase === 'ride')) movePlayer(dt, vr); if (MODE === 'town' || MODE === 'bball' || MODE === 'arcade') resolve(); }
   trackHands(dt);
   headPos(headV);
