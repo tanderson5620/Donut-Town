@@ -16,6 +16,9 @@ window.HW = window.HW || {};
   function isGuy(p) { return !!(p && ((HW.FAMILY || {})[p.id] || {}).sex === 'm'); }
   function sig(p, k) { return !!(p && p.onFire && top(p).indexOf(k) >= 0); }
   G.sig = sig;
+  // the bruisers: the Max Strength players and The Legend, the Battering Ram (their shoves, kicks, knees and arm bars)
+  function brute(p) { return p.def.type === 'strength' || p.def.type === 'ram'; }
+  G.brute = brute;
   function fireBurst(x, y, z, n) { X.flame(x, y, z, n, 0.6); }
   // every knockdown is a hard hit: a freeze-frame, a white impact ring and sparks, his head snaps back, the screen shakes and he's
   // launched backwards; when he slams into the floor: a cracked crater, dust, a second shake and blood where his head lands (more
@@ -103,7 +106,7 @@ window.HW = window.HW || {};
     this.ai = { t: 0, spot: null, spotT: 0, hold: 0 };
   }
   Player.prototype.grounded = function () { return this.y <= 0.001 && this.vy === 0; };
-  Player.prototype.busy = function () { return this.state === 'cartwheel' || this.state === 'dougie' || this.state === 'armbar' || this.state === 'stepback' || this.state === 'shimmy' || this.state === 'hammer' || this.state === 'chase' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
+  Player.prototype.busy = function () { return this.state === 'cartwheel' || this.state === 'dougie' || this.state === 'armbar' || this.state === 'slam' || this.state === 'stepback' || this.state === 'shimmy' || this.state === 'hammer' || this.state === 'chase' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
 
   G.start = function (setup) {
     X.clearBlood(); if (X.clearFx) X.clearFx(); if (HW.Replay) HW.Replay.reset(); G.vic = false;
@@ -223,7 +226,7 @@ window.HW = window.HW || {};
     var down = function (p) { return p.hurtT > 0; };
     var s = side(team), off = G.players.filter(function (p) { return p.team === team && !down(p); }), def = G.players.filter(function (p) { return p.team !== team && !down(p); });
     if (!off.length) { off = G.players.filter(function (p) { return p.team === team; }); off.forEach(function (p) { p.hurtT = 0; p.abBy = null; }); }   // nobody left to bring it up: he shakes it off
-    G.players.forEach(function (p) { if (down(p)) return; p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.impact = null; p.hitT = 0; p.tongue = false; p.dunkFace = false; p.jamArm = null; p.kick = null; p.nut = false; p.nutAt = null; if (!p.onFire) p.ssj = 0; });
+    G.players.forEach(function (p) { if (down(p)) return; p.vx = p.vz = p.vy = 0; p.y = 0; p.state = 'idle'; p.st = 0; p.flash = 0; p.pending = null; p.dm = null; p.trail = null; p.slam = null; p.slammed = false; p.impact = null; p.hitT = 0; p.tongue = false; p.dunkFace = false; p.jamArm = null; p.kick = null; p.nut = false; p.nutAt = null; if (!p.onFire) p.ssj = 0; });
     var hand = off.slice().sort(function (a, b) { return (b.human - a.human) || (b.def.type === 'handler') - (a.def.type === 'handler'); })[0];
     var bx = center ? -s * 1.5 : -s * 8.5;
     hand.x = bx; hand.z = 7; off.forEach(function (p) { if (p !== hand) { p.x = bx + s * 3.5; p.z = 3; } });
@@ -405,6 +408,7 @@ window.HW = window.HW || {};
     if (p.onFire) pm = Math.max(pm, (sig(p, 'tp') ? 0.99 : 0.94) * Math.exp(-0.3 * Math.max(0, d - (K.R3 + 2.5))));
     pm = clamp(pm, deep > 3 ? 0.005 : 0.04, 0.97);
     var make = p.cart || !!p.kick || Math.random() < pm;   // (the cartwheel three and the low blow always go in)
+    if (p.def.type === 'ram') make = false;   // The Legend, the Battering Ram, never makes one
     // a 3-point shooter who knows it's good does a shoulder shimmy once he lands, about 2 in 10 of his made threes
     p.shimmy = make && three && p.def.type === 'shooter' && Math.random() < 0.2;
     p.hasBall = false; b.holder = null; b.state = 'shot'; b.last = p;
@@ -474,7 +478,7 @@ window.HW = window.HW || {};
   };
   G.canDunk = function (p) {
     var d = Math.hypot(p.x - rimX(p.team), p.z - K.HZ);
-    return p.hasBall && p.grounded() && !p.busy() && d < G.dunkReach(p) && d > 0.25;
+    return p.hasBall && p.grounded() && !p.busy() && d < G.dunkReach(p) && d > 0.25 && p.def.type !== 'ram';   // (The Legend never dunks)
   };
   G.startDunk = function (p) {
     var rx = rimX(p.team), s = side(p.team), dk = p.def.stats.dunk;
@@ -625,16 +629,18 @@ window.HW = window.HW || {};
     if (p.cd.shove > 0 || p.busy()) return; p.cd.shove = 0.9; p.state = 'shove'; p.st = 0;
     // bruisers (STR 9+, on fire counts) don't just push: a roundhouse kick, a Superman punch or a kick to the shins - and the Max
     // Strength players a flying knee, a jumping front kick and a spinning back elbow too
-    p.shoveStyle = p.def.stats.str >= 9 ? pick(['kick', 'punch', 'shin'].concat(p.def.type === 'strength' ? ['knee', 'front', 'elbow'].filter(function (k) { return X.hasAnim(p, 'shove_' + k); }) : [])) : null;
+    p.shoveStyle = p.def.stats.str >= 9 ? pick(['kick', 'punch', 'shin'].concat(brute(p) ? ['knee', 'front', 'elbow'].filter(function (k) { return X.hasAnim(p, 'shove_' + k); }) : [])) : null;
     var tgt = null, bd = 1.6; G.opps(p).forEach(function (q) { var d = dist(p, q); if (d < bd && q.state !== 'fall' && !guarded(q)) { bd = d; tgt = q; } });
     Au.shove(); Au.shoveYell && Au.shoveYell(((HW.FAMILY || {})[p.id] || {}).sex === 'f'); if (!tgt) return;
     p.face = tgt.x >= p.x ? 1 : -1; p.stats.shoves++;
     var dx = (tgt.x - p.x) / (bd || 1), dz = (tgt.z - p.z) / (bd || 1), str = p.def.stats.str, fs = sig(p, 'str'), wall = sig(tgt, 'str') && !fs;
-    var kd = 0.18 + 0.065 * str - 0.03 * tgt.def.stats.str + (p.turboOn ? 0.12 : 0) + (p.def.type === 'strength' ? 0.12 : 0) - (tgt.y > 0.2 ? 0.15 : 0);
+    var kd = 0.18 + 0.065 * str - 0.03 * tgt.def.stats.str + (p.turboOn ? 0.12 : 0) + (brute(p) ? 0.12 : 0) - (tgt.y > 0.2 ? 0.15 : 0);
     if (fs) kd = 1; if (wall) kd = 0;   // power on fire: every shove flattens him, and nobody moves him
     if (!wall) { var push = (4 + str * 0.5) * (fs ? 1.7 : 1); tgt.vx += dx * push; tgt.vz += dz * push; }
     if (fs) fireBurst((p.x + tgt.x) / 2, 1.2, (p.z + tgt.z) / 2, 14);
-    if (p.def.type === 'strength' && Math.random() < ARMBAR_P && canArmbar(p, tgt)) { G.startArmbar(p, tgt); return; }
+    // The Legend: 1 in 40 of his shoves that reach a man become a flying body slam, and 1 in 15 an arm bar (everyone else's: 1 in 20)
+    if (p.def.type === 'ram' && Math.random() < SLAM_P && canSlam(p, tgt)) { G.startSlam(p, tgt); return; }
+    if (brute(p) && Math.random() < (p.def.type === 'ram' ? ARMBAR_RAM : ARMBAR_P) && canArmbar(p, tgt)) { G.startArmbar(p, tgt); return; }
     if (Math.random() < kd) {
       if (tgt.hasBall) G.drop(tgt, dx * 3, 3, dz * 3);
       var gap = str - tgt.def.stats.str + (fs ? 5 : 0);
@@ -647,7 +653,7 @@ window.HW = window.HW || {};
   // ones that hit nobody): in 2.5 s of slow motion he grabs the arm,
   // takes him down, both legs across him, pulls the wrist into his chest and bridges - SNAP. His man is down for 10 s, and stays down
   // through every stoppage (baskets, quarter breaks: G.lineup leaves him where he lies); then he gets up and plays on
-  var ARMBAR_P = 0.05, AB_T = 1.4, AB_SNAP = 0.62, AB_UP = 0.6, HURT = 10;
+  var ARMBAR_P = 0.05, ARMBAR_RAM = 1 / 15, AB_T = 1.4, AB_SNAP = 0.62, AB_UP = 0.6, HURT = 10;
   function canArmbar(p, q) { return p.grounded() && q.grounded() && !q.hurtT && !guarded(q) && !G.cine && !G.pu && !G.show && G.phase === 'play' && X.hasAnim(p, 'armbar') && X.hasAnim(q, 'armbarred'); }
   function abGap(p, q) {   // how far ahead of him his man lies, so the arm reaches his chest (from the sprites' hand points)
     var a = X.animPoint(p.id, 'armbar', 5, 'hand'), b = X.animPoint(q.id, 'armbarred', 5, 'hand');
@@ -685,6 +691,50 @@ window.HW = window.HW || {};
     if (q.abBy === p && q.state === 'fall') { q.x = clamp(p.x + p.face * ab.gap, -K.HL - 0.6, K.HL + 0.6); q.face = p.face; }
     if (u >= AB_SNAP && !ab.snap) snapArm(p);
     if (p.st >= AB_T + AB_UP) { p.state = 'idle'; p.ab = null; p.flash = 0.3; if (q.abBy === p) q.abBy = null; }
+  }
+  // The Legend's flying body slam (WWE, a splash off the top rope): 1 in 40 of his shoves that reach a man. He dips, launches and flies
+  // at him laid out flat, homing in on him wherever he runs (heat-seeking, like the passes), and comes down on top of him: his man is
+  // flattened on his back, down for 10 s like the arm bar's. 1 s from the dip to the flex, at full speed and with no close-up, so
+  // everyone else plays on around them
+  var SLAM_P = 1 / 40, SLAM_T = 1.0, SLAM_OFF = 0.1, SLAM_HIT = 0.52, SLAM_LAND = 0.66, SLAM_H = 1.4, SLAM_TOP = 0.22, SLAM_UP = 0.8;
+  var SLAM_FR = [0.1, 0.2, 0.32, 0.45, 0.58, 0.7, 0.8, 0.87, 0.93];   // where each of the 10 frames ends
+  function slamFrame(t) { for (var i = 0; i < SLAM_FR.length; i++) if (t < SLAM_FR[i]) return i; return 9; }
+  function canSlam(p, q) { return p.grounded() && q.state !== 'fall' && q.state !== 'dunk' && !(q.hurtT > 0) && !guarded(q) && !G.cine && !G.pu && !G.show && G.phase === 'play' && X.hasAnim(p, 'slam'); }
+  // the frames are centred like the arm bar's, so where his body is in each one comes from the sheet (X.frameCenter); a man flat on
+  // his back lies behind his feet, so he lands that far past him
+  function slamC(p, t) { return X.frameCenter ? X.frameCenter(p.id, 'slam', slamFrame(t)) : 0; }
+  function slamAt(p, q) { var lie = X.frameCenter ? -X.frameCenter(q.id, 'fall', 3) : 1.4; return { x: clamp(q.x + p.face * lie, -K.HL - 0.6, K.HL + 0.6), z: clamp(q.z - 0.06, 0.3, K.CD - 0.3) }; }
+  G.startSlam = function (p, q) {
+    p.state = 'slam'; p.st = 0; p.vx = p.vz = p.vy = 0; p.y = 0; p.dm = null; p.pending = null; p.face = q.x >= p.x ? 1 : -1;
+    p.slam = { q: q, hit: false, vx: p.x + p.face * slamC(p, 0), vz: p.z };
+    Au.hup && Au.hup(); Au.whoosh(9); hl('slam', p, 'BODY SLAM');
+  };
+  function updateSlam(p, dt) {
+    var s = p.slam, q = s && s.q, t = p.st;
+    if (!s) { p.state = 'idle'; p.y = 0; return; }
+    if (t >= SLAM_OFF && t < SLAM_LAND) {   // in the air: steering onto him, so he comes down right on top
+      var tg = s.fix || slamAt(p, q), left = SLAM_LAND - t, k = Math.min(1, dt / Math.max(left, dt));
+      if (!s.fix && t < 0.25 && (tg.x - s.vx) * p.face < -0.4) { p.face = -p.face; tg = slamAt(p, q); }   // (he cut back behind him: turn round)
+      s.vx += (tg.x - s.vx) * k; s.vz += (tg.z - s.vz) * k;
+      var u = (t - SLAM_OFF) / (SLAM_LAND - SLAM_OFF); p.y = SLAM_TOP * u + SLAM_H * 4 * u * (1 - u);
+    } else p.y = t < SLAM_OFF ? 0 : t < SLAM_UP ? SLAM_TOP : Math.max(0, SLAM_TOP * (1 - (t - SLAM_UP) / 0.07));   // (then on top of him, pinning, and up)
+    if (!s.hit && t >= SLAM_HIT) slamHit(p);
+    p.x = s.vx - p.face * slamC(p, t); p.z = s.vz; p.vx = p.vz = p.vy = 0;
+    if (t >= SLAM_T) { p.state = 'idle'; p.st = 0; p.y = 0; p.slam = null; p.flash = 0.3; }
+  }
+  function slamHit(p) {
+    var s = p.slam, q = s.q; s.hit = true;
+    if (q.state === 'dunk' || q.state === 'fall' || q.hurtT > 0 || guarded(q)) {   // he got away (up for a dunk, already down): a belly flop on the hardwood
+      s.fix = { x: s.vx, z: s.vz }; X.burst(s.vx, 0.2, s.vz - 0.1, 14, ['#d8c8a8', '#bfae8a', '#ffffff'], 2.5, 0.4, 2); X.shake = Math.max(X.shake, 0.6); Au.land && Au.land(); return;
+    }
+    if (q.hasBall) G.drop(q, p.face * 1.4, 2.6, 0);
+    q.state = 'fall'; q.st = 0; q.fallT = 99; q.hurtT = HURT; q.slammed = true; q.abBy = null; q.nut = false; q.vx = q.vz = 0; q.vy = Math.min(q.vy || 0, 0);
+    q.dk = null; q.pending = null; q.dm = null; q.dunkFace = false; q.tongue = false; q.face = -p.face; q.hitT = 0.45; q.flash = 0.12;
+    s.fix = slamAt(p, q); var cx = s.fix.x;
+    X.ring(cx, 0.5, q.z - 0.15, 1.1); X.burst(cx, 0.4, q.z - 0.15, 30, ['#ffffff', '#ffe14d', '#ff5a4a'], 4.5, 0.5, 3); X.crater(cx, q.z, 1.1); X.blood(cx, q.z, 1.0);
+    G.hitstop = Math.max(G.hitstop || 0, 0.08); X.shake = Math.max(X.shake, 1.4); Au.punch && Au.punch(); Au.land && Au.land();
+    if (isGuy(q)) Au.scream && Au.scream(); else Au.painF && Au.painF();
+    G.say('BODY SLAM!', '#ff5a4a', 1.6, 1.3); grudge(p, q, 0.5);
   }
   G.jump = function (p) {
     if (!p.grounded() || p.busy() || p.cd.jump > 0) return; p.state = 'jump'; p.st = 0; p.vy = Math.sqrt(2 * GRAV * p.jumpH); p.y = 0.001; p.cd.jump = 0.35; if (isGuy(p)) Au.hup(); else Au.jump();
@@ -946,11 +996,12 @@ window.HW = window.HW || {};
     if (p.state === 'stepback') { stepback(p, dt); return; }
     if (p.state === 'cartwheel') { cartwheel(p, dt); return; }
     if (p.state === 'armbar') { updateArmbar(p, dt); return; }
+    if (p.state === 'slam') { updateSlam(p, dt); return; }
     // arm-barred: glued to the man who has the arm until the snap; then down for HURT seconds whatever the clock is doing
     if (p.state === 'fall' && (p.abBy || p.hurtT > 0)) {
       p.vx = p.vz = 0; if (p.abBy && p.abBy.state !== 'armbar' && !p.hurtT) { p.abBy = null; p.fallT = p.st + 0.6; }   // the hold was broken before the snap
       if (p.y > 0 || p.vy > 0) { p.vy -= GRAV * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.vy = 0; } }   // (kicked up in the air contesting)
-      if (p.hurtT > 0 && (p.hurtT -= dt) <= 0) { p.hurtT = 0; p.abBy = null; p.nut = false; p.nutAt = null; p.state = 'idle'; p.flash = 0.8; }
+      if (p.hurtT > 0 && (p.hurtT -= dt) <= 0) { p.hurtT = 0; p.abBy = null; p.nut = false; p.nutAt = null; p.slammed = false; p.state = 'idle'; p.flash = 0.8; }
       return;
     }
     // (on his feet with time still on the injury - something stood him up early: it runs out all the same, so the badge never sticks)
@@ -973,7 +1024,7 @@ window.HW = window.HW || {};
   function separate() {
     var P = G.players;
     for (var i = 0; i < P.length; i++) for (var j = i + 1; j < P.length; j++) {
-      var a = P[i], b = P[j]; if (a.state === 'dunk' || b.state === 'dunk' || a.state === 'fall' || b.state === 'fall') continue;
+      var a = P[i], b = P[j]; if (a.state === 'dunk' || b.state === 'dunk' || a.state === 'fall' || b.state === 'fall' || a.state === 'slam' || b.state === 'slam') continue;
       // bodies bump: the stronger player holds his ground and moves the weaker one (boxing out)
       var dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
       if (d < 0.65 && d > 1e-4) { var gap = 0.65 - d, sa = a.def.stats.str, sb = b.def.stats.str, wa = sb / (sa + sb), wb = 1 - wa; a.x -= dx / d * gap * wa; a.z -= dz / d * gap * wa; b.x += dx / d * gap * wb; b.z += dz / d * gap * wb; }
@@ -1101,7 +1152,7 @@ window.HW = window.HW || {};
     if (b.z < 0.1 || b.z > K.CD + 0.5) { b.z = clamp(b.z, 0.1, K.CD + 0.5); b.vz *= -0.5; }
     if (b.noCatch > 0 || G.phase !== 'play') return;
     var best = null, bd = 0.85;
-    G.players.forEach(function (p) { if (p.state === 'fall' || p.state === 'dunk' || p.cd.catch > 0) return; var d = Math.hypot(p.x - b.x, p.z - b.z); if (d < bd && b.y < p.y + p.reach && b.y > p.y - 0.2) { bd = d; best = p; } });
+    G.players.forEach(function (p) { if (p.state === 'fall' || p.state === 'dunk' || p.state === 'slam' || p.cd.catch > 0) return; var d = Math.hypot(p.x - b.x, p.z - b.z); if (d < bd && b.y < p.y + p.reach && b.y > p.y - 0.2) { bd = d; best = p; } });
     if (best) { G.give(best); Au.catch(); }
   }
 
@@ -1128,12 +1179,14 @@ window.HW = window.HW || {};
         p.anim = 'powerup'; p.dir = 'C';
         p.frame = t < 0.2 ? 0 : t < 0.35 ? 1 : t < PU.boom ? 2 : t < PU.boom + 0.12 ? 3 : 4 + Math.floor((t - PU.boom - 0.12) / 0.08) % 4; return;
       }
+      case 'slam': p.anim = 'slam'; p.dir = 'R'; p.frame = slamFrame(p.st); return;
       case 'armbar': p.anim = 'armbar'; p.dir = 'R'; p.frame = p.st < AB_T ? Math.min(7, Math.floor(p.st / AB_T * 8)) : 8 + Math.min(3, Math.floor((p.st - AB_T) / (AB_UP / 4))); return;
       case 'fall':
         if (p.nut && X.hasAnim(p, 'nutted')) {   // the low blow: up contesting until the foot lands, then down - and rocking on his back
           var tn = p.nutAt == null ? -1 : p.st - p.nutAt; p.anim = 'nutted'; p.dir = 'R';
           p.frame = tn < 0 ? 0 : tn < 0.1 ? 1 : tn < 0.3 ? 2 : tn < 0.5 ? 3 : tn < 0.9 ? 4 : tn < 1.1 ? 5 : 6 + Math.floor((G.t || 0) * 3) % 4; return;
         }
+        if (p.slammed) { p.anim = 'fall'; p.dir = 'R'; p.frame = Math.min(3, p.st / 0.06); return; }   // body-slammed: driven flat onto his back
         if ((p.abBy || p.hurtT > 0) && X.hasAnim(p, 'armbarred')) {   // under the arm bar (in step with him), then lying there clutching the elbow
           var by = p.abBy; p.anim = 'armbarred'; p.dir = 'R';
           p.frame = by && by.state === 'armbar' && by.st < AB_T ? Math.min(7, Math.floor(by.st / AB_T * 8)) : 8 + Math.floor((G.t || 0) * 3) % 4; return;

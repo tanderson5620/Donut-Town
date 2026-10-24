@@ -5,7 +5,7 @@ window.HW = window.HW || {};
   var AI = HW.JamAI = {};
   // how far out each type pulls up from (plus a little for a good shooter): a 3-point shooter just behind the arc - 7.6 m with TP 10,
   // where a three starts falling off (he used to fire from 9 m and half his threes came from too deep)
-  var RANGE = { shooter: 7.0, handler: 6.9, dunker: 4.8, strength: 4.6 };
+  var RANGE = { shooter: 7.0, handler: 6.9, dunker: 4.8, strength: 4.6, ram: 0 };   // (The Legend never shoots unless the clock makes him)
   // the shooter's spot: on the wing just behind the arc (6.95 m out), for WING_T seconds of the possession before he takes it inside
   var WING_X = 5.9, WING_Z = 3.67, WING_T = 4;
   function dist(a, b) { return Math.hypot(a.x - b.x, a.z - b.z); }
@@ -43,6 +43,12 @@ window.HW = window.HW || {};
   function withBall(p, a, dt) {
     var rx = rimX(p.team), s = rx > 0 ? 1 : -1, d = Math.hypot(p.x - rx, p.z - K.HZ), opp = nearest(p, G.opps(p)), mate = G.mates(p)[0], type = p.def.type;
     a.hold += dt;
+    // The Legend, the Battering Ram, can't score: he brings it up and gives it to his partner (PASS 10) the moment he can, and only throws
+    // one up himself when the shot clock is about to go
+    if (type === 'ram') {
+      if (a.t <= 0) { a.t = 0.15 + Math.random() * 0.1; if (G.shot < 1.2) { G.startShot(p); return; } if (mate && a.hold > 0.35) { G.passTo(p, mate); return; } }
+      goTo(p, rx - s * 6, K.HZ + (a.side || 1) * 2.5, false, dt); return;
+    }
     if (a.t <= 0) {
       a.t = type === 'shooter' ? 0.1 + Math.random() * 0.08 : 0.25 + Math.random() * 0.15;   // (a shooter's trigger is quick: he looks twice as often)
       // attack the side away from his man - only switching when the man is clearly on the other side (it used to flip back and forth
@@ -145,7 +151,10 @@ window.HW = window.HW || {};
       p.face = holder.x >= p.x ? 1 : -1;
       if (dh < 1.5 && a.t <= 0) {
         a.t = (1.3 + Math.random() * 1.2) / G.diff.react;
-        if (p.def.type === 'strength' && Math.random() < 0.3 * G.diff.shove) G.tryShove(p); else G.trySteal(p);
+        // (The Legend: STEAL 0, he just runs through you - 8 times in 10 on Normal. Hunting the ball or shoving twice as often won 20
+        // of 20 simulated games by 40-60 points; this way his team won 14 of 20, 45-41 on average)
+        if (p.def.type === 'ram') { if (Math.random() < 0.8 * G.diff.shove) G.tryShove(p); }
+        else if (p.def.type === 'strength' && Math.random() < 0.3 * G.diff.shove) G.tryShove(p); else G.trySteal(p);
       }
       if (holder.state === 'shoot' && dh < 2.2 && p.grounded() && !a.jumped && Math.random() < (0.35 + 0.05 * p.def.stats.block) * G.diff.block) { a.jumped = true; G.jump(p); }
       // meet a dunker in the air: go up as he takes off if he's coming past

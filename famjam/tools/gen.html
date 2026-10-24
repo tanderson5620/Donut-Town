@@ -669,6 +669,20 @@ ANIMS.nutted = { n: 10, dirs: ['R'], center: true, f: function (t, i) {
     { cup: 1, crouch: 0.52, lean: 0.55, rs: 0.4, re: 0.9, ls: 0.4, le: 0.9, rt: 0.15, rk: 1.6, lt: 0.15, lk: 1.6, neck: -0.2 },
     { cup: 1, flip: -0.75, lift: -0.35, slide: -0.2, lean: 0.5, rs: 0.5, re: 0.9, ls: 0.5, le: 0.9, rt: 1.3, rk: 1.9, lt: 1.2, lk: 1.9, neck: 0.1 }][i];
 } };
+// The Legend's flying body slam (WWE, a splash): dip, launch, laid out flat face down in the air with his arms spread wide and his
+// shins kicked up behind him, down on top of his man, pinning him, then up on a knee and a double-biceps flex. 1 s in the game,
+// which flies him (the height and the homing are the game's: these frames stay near the floor, centred like the arm bar's)
+ANIMS.slam = { n: 10, dirs: ['R'], center: true, f: function (t, i) { return [
+  { crouch: 0.3, lean: 0.35, rs: -0.5, re: 0.3, rz: 0.3, ls: -0.5, le: 0.3, lz: 0.3, rt: 0.6, rk: 1.1, lt: 0.6, lk: 1.1 },
+  { flip: 0.45, lift: 0.05, rs: 1.2, re: 0.4, rz: 0.9, ls: 1.2, le: 0.4, lz: 0.9, rt: -0.2, rk: 0.2, lt: -0.1, lk: 0.3, neck: -0.25, air: 1 },
+  { flip: 1.0, lift: -0.25, rs: 1.0, re: 0.5, rz: 1.25, ls: 1.0, le: 0.5, lz: 1.25, rt: -0.15, rk: 0.6, lt: -0.15, lk: 0.7, ra: 0.25, la: 0.25, neck: -0.45, air: 1 },
+  { flip: 1.45, lift: -0.5, rs: 0.9, re: 0.6, rz: 1.4, ls: 0.9, le: 0.6, lz: 1.4, rt: -0.1, rk: 0.9, lt: -0.1, lk: 1.0, ra: 0.35, la: 0.35, neck: -0.55, air: 1 },
+  { flip: 1.52, lift: -0.55, rs: 1.25, re: 0.35, rz: 1.2, ls: 1.25, le: 0.35, lz: 1.2, rt: 0.0, rk: 0.6, lt: 0.0, lk: 0.6, ra: 0.3, la: 0.3, neck: -0.4, air: 1 },
+  { flip: 1.57, lift: -0.62, rs: 1.4, re: 0.5, rz: 0.9, ls: 1.4, le: 0.5, lz: 0.9, rt: 0.05, rk: 0.25, lt: 0.05, lk: 0.25, ra: 0.25, la: 0.25, neck: -0.2, air: 1 },
+  { flip: 1.57, lift: -0.62, rs: 1.6, re: 1.2, rz: 0.6, ls: 1.6, le: 1.2, lz: 0.6, rt: 0.1, rk: 0.3, lt: 0.1, lk: 0.3, neck: -0.3, air: 1 },
+  { flip: 0.9, lift: -0.45, rs: 1.2, re: 0.2, ls: 1.2, le: 0.2, rt: 1.2, rk: 1.8, lt: 1.0, lk: 1.6, neck: -0.3, air: 1 },
+  { flip: 0.3, crouch: 0.4, lean: 0.4, rs: 0.5, re: 0.6, ls: 0.4, le: 0.6, rt: 1.2, rk: 1.9, lt: 1.0, lk: 1.6 },
+  { crouch: 0.05, lean: -0.05, rs: 0.6, re: 1.9, rz: 1.2, ls: 0.6, le: 1.9, lz: 1.2, rt: 0.1, rk: 0.15, lt: 0.1, lk: 0.15, fist: 1, neck: -0.2 }][i]; } };
 // the far-hand layups and the reverses carry their own ball, rendered in 3D with him up to the release (ball: in which hand, or on the
 // reverse's own path; until when); the near-hand ones leave it to the game
 var LAY_BALL = { lay2: { hand: 1, until: 0.66 }, roll: { hand: 0, roll: [0.3, 0.64], until: 0.66 }, roll2: { hand: 1, roll: [0.3, 0.64], until: 0.66 }, rev: { hold: true, until: 0.66 }, rev2: { hold: true, until: 0.66 } };
