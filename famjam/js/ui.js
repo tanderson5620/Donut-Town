@@ -345,6 +345,7 @@ window.HW = window.HW || {};
     g.fillStyle = Fo.shade(col, 0.45); g.fillRect(1, 1, w, sc);
     g.drawImage(t, 1 + 2 * sc, 1 + sc); return spr[key] = c;
   }
+  UI.emblem = emblem; UI.flaming = flaming; UI.bigBall = function () { return bigBall(); };   // (the menu art, for the promo poster)
 
   /* ---------- buttons ---------- */
   function button(g, id, x, y, w, h, label, o) {
@@ -398,8 +399,9 @@ window.HW = window.HW || {};
   /* ---------- menus ---------- */
   UI.overlay = function () { var G = HW.Jam; return G.phase === 'menu' || G.phase === 'paused' || UI.screen === 'results' || UI.screen === 'paused'; };
   UI.show = function (s) {
-    if ((s === 'title' || s === 'team') && HW.Net && HW.Net.mode) HW.Net.leave();   // back to the menus: off line
-    UI.screen = s; if (s !== 'results' && s !== 'paused') HW.Jam.phase = 'menu'; if (s === 'team') fixPicks();
+    if ((s === 'title' || s === 'team' || s === 'fams') && HW.Net && HW.Net.mode) HW.Net.leave();   // back to the menus: off line
+    if (s === 'fams' && UI.screen !== 'fams') { UI.famStep = UI.famStepNext || 0; UI.famCur = null; } UI.famStepNext = 0;
+    UI.screen = s; if (s !== 'results' && s !== 'paused') HW.Jam.phase = 'menu'; if (s === 'team' || s === 'fams') fixPicks();
   };
   var DIFFS = ['easy', 'normal', 'hard'];
   UI.memo = {};
@@ -412,6 +414,8 @@ window.HW = window.HW || {};
   // who you play against (one of the other families)
   function fixOpp() { var st = UI.st; if (st.opp == null || st.opp === st.team || !HW.TEAMS[st.opp]) st.opp = st.team === 0 ? 1 : 0; }
   function nextOpp(dir) { var st = UI.st, n = HW.TEAMS.length; do { st.opp = (st.opp + dir + n) % n; } while (st.opp === st.team); Au.click(); }
+  // the family you play as (your two players remembered per family)
+  function setTeam(ti) { var st = UI.st, was = st.team; if (ti === was) return; UI.memo[st.team] = { picks: st.picks.slice(), ctrl: st.ctrl }; st.team = ti; if (st.opp === st.team) st.opp = was; st.picks = []; fixPicks(); }
   function switchTeam(dir) { var st = UI.st, was = st.team; UI.memo[st.team] = { picks: st.picks.slice(), ctrl: st.ctrl }; st.team = (st.team + dir + HW.TEAMS.length) % HW.TEAMS.length; if (st.opp === st.team) st.opp = was; st.picks = []; fixPicks(); Au.click(); }
   function cycle(slot, dir) {
     var st = UI.st, r = HW.TEAMS[st.team].roster, cur = st.picks[slot], other = st.picks[1 - slot], i = r.indexOf(cur);
@@ -536,7 +540,7 @@ window.HW = window.HW || {};
       var go = HW.TOUCH ? 'TAP TO START' : 'CLICK TO START';
       if (blink()) Fo.draw(g, go, cx, C.T + 286, { scale: 2, scheme: 'yellow' });
       if (!HW.TOUCH) Fo.draw(g, 'MOVE: ARROWS  SHOOT: J  PASS: K  TURBO: L/SHIFT  PAUSE: P', cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
-      UI.btns.push({ id: 'start', x: 0, y: 0, w: W, h: X.H, fn: function () { UI.show('team'); } });
+      UI.btns.push({ id: 'start', x: 0, y: 0, w: W, h: X.H, fn: function () { UI.show('fams'); } });
       // the ONLINE button (play the family on their own phones) and who's on right now (presence.js), as big as fits in the
       // bottom-right corner beside TAP TO START
       var Pr = HW.Presence, Ct = HW.Count, colR = C.R - 8, colW = colR - (cx + Fo.measure(go, 2) / 2 + 14);
@@ -558,7 +562,9 @@ window.HW = window.HW || {};
         Fo.draw(g, Ct.owner + ' BY YOU, ' + oth + ' BY OTHERS' + (Ct.PRE ? ' (+' + Ct.PRE + ' FROM BEFORE)' : ''), C.L + 10, y0, { scale: 1, scheme: 'white', shadow: 0, align: 'left' });
       } else if (tot) Fo.draw(g, tot, cx, y0, { scale: 1, scheme: 'gray', shadow: 0 });
       if (HW.Notify && HW.Notify.marked) ['GOT IT: THIS DEVICE WON\'T', 'SEND YOU NOTIFICATIONS'].forEach(function (t, i) { Fo.draw(g, t, C.L + 10, C.T + 10 + i * 12, { scale: 1, scheme: 'green', shadow: 0, align: 'left' }); });   // (opened with ?me; top left, clear of the logo)
-      if (In.enter) UI.show('team');
+      if (In.enter) UI.show('fams');
+    } else if (s === 'fams') {
+      drawFams(g, fr);
     } else if (s === 'team') {
       drawTeamCard(g, fr);
     } else if (s === 'matchup') {
@@ -641,20 +647,16 @@ window.HW = window.HW || {};
       arrowBtn(g, 'up' + slot, ax, py + 6, 38, 40, 'u', function () { cycle(slot, -1); });
       arrowBtn(g, 'dn' + slot, ax, py + 50, 38, 40, 'd', function () { cycle(slot, 1); });
     });
-    // pick a team: one button per family, the chosen one lit in its colors; under them, the family you play against (tap to switch)
-    Fo.draw(g, 'PICK YOUR TEAM', mid, py + 9, { scale: 1, scheme: 'cyan', shadow: 0 });
-    // (four or five teams: the rows closer together - five a little flatter - so the VS row still fits above the divider)
-    var nT = T.length, tbw = Math.min(CW, 200), tbx = Math.round(mid - tbw / 2), rp = nT > 4 ? 19 : nT > 3 ? 22 : 27, rh = nT > 4 ? 17 : nT > 3 ? 20 : 24, r0 = nT > 3 ? 15 : 16;
-    T.forEach(function (tt, i) {
-      var on = st.team === i, by = py + r0 + i * rp;
-      button(g, 'team' + i, tbx, by, tbw, rh, tt.name.toUpperCase(), { on: on, size: 2, sx: squeeze(tt.name.toUpperCase(), tbw - 8), sy: nT > 4 ? 1.5 : undefined, color: tt.color, fn: function () { if (st.team !== i) switchTeam(i - st.team); } });
-      if (on) { var ar = tri('r', 6, '#ffe14d'); g.drawImage(ar, tbx - ar.width - 3 - (Math.floor(UI.t * 3) % 2), by + (rh >> 1) - (ar.height >> 1)); }
-    });
-    var oy = py + r0 + nT * rp + (nT > 3 ? 5 : 6), ot = T[st.opp];
-    g.drawImage(emblem(st.team, 1), tbx + 4, oy - 6, 30, 30); g.drawImage(emblem(st.opp, 1), tbx + tbw - 34, oy - 6, 30, 30);
-    flaming(g, 'VS', mid, oy + 9, { scale: 2, scheme: 'fire', outline: 1, shadow: 1 }, fr);
-    button(g, 'opp', tbx, oy + 28, tbw, 24, ot.name.toUpperCase(), { on: true, size: 2, sx: squeeze(ot.name.toUpperCase(), tbw - 34), color: ot.color, fn: function () { nextOpp(1); } });
-    var al = tri('l', 5, '#ffe14d'), arr = tri('r', 5, '#ffe14d'); g.drawImage(al, tbx + 5, oy + 40 - (al.height >> 1)); g.drawImage(arr, tbx + tbw - 5 - arr.width, oy + 40 - (arr.height >> 1));
+    // your family and the one you play (tap either to pick again on the family screen); the big arrows on the card edges still step
+    // through the families
+    var tbw = Math.min(CW, 200), tbx = Math.round(mid - tbw / 2), ot = T[st.opp];
+    Fo.draw(g, 'YOUR FAMILY', mid, py + 10, { scale: 1, scheme: 'cyan', shadow: 0 });
+    button(g, 'myfam', tbx, py + 18, tbw, 28, t.name.toUpperCase(), { on: true, size: 2, sx: squeeze(t.name.toUpperCase(), tbw - 10), color: t.color, fn: function () { UI.famStepNext = 0; UI.show('fams'); } });
+    var oy = py + 64;
+    g.drawImage(emblem(st.team, 1), tbx + 2, oy - 14, 36, 36); g.drawImage(emblem(st.opp, 1), tbx + tbw - 38, oy - 14, 36, 36);
+    flaming(g, 'VS', mid, oy + 4, { scale: 2, scheme: 'fire', outline: 1, shadow: 1 }, fr);
+    button(g, 'opp', tbx, oy + 26, tbw, 28, ot.name.toUpperCase(), { on: true, size: 2, sx: squeeze(ot.name.toUpperCase(), tbw - 10), color: ot.color, fn: function () { UI.famStepNext = 1; UI.show('fams'); } });
+    if (blink()) Fo.draw(g, 'TAP A TEAM TO CHANGE IT', mid, oy + 68, { scale: 1, scheme: 'gray', shadow: 0 });
     // big arrows on the card edges switch team
     arrowBtn(g, 'tprev', C.oL - 6, C.T + 58, aw + 8, 90, 'l', function () { switchTeam(-1); }, true);
     arrowBtn(g, 'tnext', C.oR - aw - 2, C.T + 58, aw + 8, 90, 'r', function () { switchTeam(1); }, true);
@@ -686,6 +688,43 @@ window.HW = window.HW || {};
     if (In.enter) UI.matchup();
   }
 
+  // PICK YOUR FAMILY, then WHO DO YOU PLAY?: every family side by side (two rows past six), each with its emblem, name and players'
+  // faces - tap one (or arrows + Enter); then the team card for your two players
+  function drawFams(g, fr) {
+    var C = card(g), cx = Math.round((C.L + C.R) / 2), T = HW.TEAMS, st = UI.st, step = UI.famStep || 0, n = T.length;
+    flaming(g, step ? 'WHO DO YOU PLAY?' : 'PICK YOUR FAMILY', cx, C.T + 26, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
+    Fo.draw(g, step ? 'TAP THE FAMILY YOU WANT TO TAKE ON' : 'TAP YOUR TEAM', cx, C.T + 52, { scale: 1, scheme: 'cyan', shadow: 0 });
+    var cols = n <= 6 ? n : Math.ceil(n / 2), rowsN = Math.ceil(n / cols), gap = 5, top = C.T + 62, bot = C.B - 34;
+    var cw = Math.floor((C.W - 8 - (cols - 1) * gap) / cols), ch = Math.floor((bot - top - (rowsN - 1) * gap) / rowsN), maxR = 0;
+    T.forEach(function (Tm) { maxR = Math.max(maxR, Tm.roster.length); });
+    var ok = function (ti) { return !step || ti !== st.team; };
+    if (UI.famCur == null || !ok(UI.famCur)) UI.famCur = step ? (st.opp !== st.team ? st.opp : (st.team + 1) % n) : st.team;
+    var choose = function (ti) {
+      if (!ok(ti)) return;
+      if (!step) { setTeam(ti); UI.famStep = 1; UI.famCur = null; Au.click(); }
+      else { st.opp = ti; Au.click(); UI.show('team'); }
+    };
+    T.forEach(function (Tm, ti) {
+      var x = C.L + 4 + (ti % cols) * (cw + gap), y = top + Math.floor(ti / cols) * (ch + gap), mine = step && ti === st.team, cur = UI.famCur === ti;
+      bevel(g, x, y, cw, ch, '#06081e', Tm.color, 3);
+      var es = Math.min(36, ch * 0.2) | 0; g.drawImage(emblem(ti, 1), Math.round(x + cw / 2 - es / 2), y + 5, es, es);
+      Fo.draw(g, Tm.name.toUpperCase(), x + cw / 2, y + es + 13, titleFit(Tm.name.toUpperCase(), cw - 8, { color: Tm.color }));
+      var ly = y + es + 24, rowH = Math.max(14, Math.min(30, Math.floor((y + ch - 4 - ly) / maxR)));
+      Tm.roster.forEach(function (id, r) {
+        var f = miniFace(id, rowH - 3), d = HW.PLAYERS[id], yy = ly + r * rowH;
+        g.drawImage(f, x + 8, yy + 1); Fo.draw(g, d.first, x + 13 + f.width, yy + rowH / 2, nameFit(d.first, cw - f.width - 20, { scheme: 'white', align: 'left', shadow: 0 }));
+      });
+      if (mine) { g.fillStyle = 'rgba(5,6,20,0.62)'; g.fillRect(x + 3, y + 3, cw - 6, ch - 6); tab(g, x + cw / 2, y + ch / 2, 'YOUR TEAM', '#ffd23f', true); }
+      else if (cur) { var gl = blink(2) ? '#ffe14d' : '#ffb000'; g.fillStyle = gl; g.fillRect(x, y, cw, 3); g.fillRect(x, y + ch - 3, cw, 3); g.fillRect(x, y, 3, ch); g.fillRect(x + cw - 3, y, 3, ch); }
+      if (!step && ti === st.team) tab(g, x + cw / 2, y + ch - 10, 'LAST PICKED', '#5a5e7a', false);
+      UI.btns.push({ id: 'fam' + ti, x: x, y: y, w: cw, h: ch, disabled: !!mine, fn: function () { choose(ti); } });
+    });
+    button(g, 'fback', cx - 50, C.B - 28, 100, 22, 'BACK', { on: false, size: 1, fn: function () { if (step) { UI.famStep = 0; UI.famCur = null; } else UI.show('title'); } });
+    // keys: left / right (up / down a row) move the highlight, Enter picks it
+    var mv = In.nav === 'ArrowLeft' ? -1 : In.nav === 'ArrowRight' ? 1 : In.nav === 'ArrowUp' ? -cols : In.nav === 'ArrowDown' ? cols : 0;
+    if (mv) { var c = UI.famCur; for (var k = 0; k < n; k++) { c = ((c + mv) % n + n) % n; if (ok(c)) break; } UI.famCur = c; Au.click(); }
+    if (In.enter) choose(UI.famCur);
+  }
   // a player's name at scale 2, squeezed to half width (same height) when it won't fit w (UNCLE KENNY on a small phone)
   function nameFit(text, w, o) { o.sy = 2; o.sx = Fo.measure(text, 2) + 4 <= w ? 2 : 1; return o; }
   function drawMatchup(g, fr) {
@@ -950,7 +989,7 @@ window.HW = window.HW || {};
       button(g, 'new', cx + 6, by, bw, bh, 'NEW TEAMS', { color: '#1aa6d8', size: 2, fn: function () { Net.toLobby(); } });
     } else {
       button(g, 'again', cx - bw - 6, by, bw, bh, 'REMATCH', { size: 2, fn: function () { UI.screen = null; HW.Jam.start(G.setup); } });
-      button(g, 'new', cx + 6, by, bw, bh, 'NEW TEAMS', { color: '#1aa6d8', size: 2, fn: function () { UI.show('team'); HW.Jam.players = []; } });
+      button(g, 'new', cx + 6, by, bw, bh, 'NEW TEAMS', { color: '#1aa6d8', size: 2, fn: function () { UI.show('fams'); HW.Jam.players = []; } });
     }
     var fin = UI.resAt != null ? (UI.t - UI.resAt) / 0.5 : 1; if (fin < 1) { g.fillStyle = 'rgba(0,0,0,' + (1 - Math.max(0, fin)) + ')'; g.fillRect(0, 0, X.W, X.H); }
   }

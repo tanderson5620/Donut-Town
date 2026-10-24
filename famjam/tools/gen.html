@@ -1122,6 +1122,7 @@ window.genHead = function (id, back, opt) {
   // ears and eyelids use a plain skin material: give them the face's darker, ruddier tone so they don't glow orange
   A.head.traverse(function (o) { var mt = o.material; if (o.isMesh && mt && mt.emissive && mt.emissive.getHex() === 0x0b0503 && !mt.map && !mt.skinning) { mt.color.copy(new THREE.Color(d.skin).convertSRGBToLinear()).multiplyScalar(0.74); mt.color.r *= 1.06; } });
   if (A.pony) { if (back) A.pony.rotation.x = -0.25; else A.pony.visible = false; }
+  if (d.cap && !opt.nocap) addCap(A, d);
   // catchlights on the eyes (toward the key light)
   A.face.eyes.forEach(function (e) { var cl = new THREE.Mesh(new THREE.CircleGeometry(0.0016, 10), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false })); cl.position.set(-0.0035, 0.0012, 0.0127); e.parent.add(cl); });
   scene.add(A.root); A.root.rotation.y = back ? Math.PI + 0.35 : -(opt.turn === undefined ? 0.3 : opt.turn); A.head.rotation.set(opt.tilt || 0.03, 0, opt.roll || 0.035);
@@ -1138,6 +1139,40 @@ window.genHead = function (id, back, opt) {
   var pal = palette([px], opt.colors || 64), idx = indexed(px, w, h, pal, 2, opt.dither === undefined ? 8 : opt.dither, opt.outline ? 1 : 0);
   return { w: w, h: h, pal: [[0, 0, 0, 0], OUTLINE.concat(255)].concat(pal.map(function (c) { return c.concat(255); })), idx: b64(idx) };
 };
+// a ball cap on the rendered head (players whose photo wears one: `cap` in data.js), so the back of the head matches the photo:
+// six-panel crown over the hair, sitting low at the back, the snapback opening with its strap, the button on top and the brim
+function addCap(A, d) {
+  var col = new THREE.Color(d.cap).convertSRGBToLinear().multiplyScalar(0.72), dark = col.clone().multiplyScalar(0.55), H = A.head, RZ = 0.099, C = 56, ROWS = 16;
+  var crownM = new THREE.MeshStandardMaterial({ color: col, roughness: 1, side: THREE.DoubleSide }), seamM = new THREE.MeshStandardMaterial({ color: dark, roughness: 0.9, side: THREE.DoubleSide });
+  function pt(ph, ny, inf) {   // the skull (athlete.js's head sculpt, top half), pushed out over the hair
+    var th = Math.acos(Math.max(-1, Math.min(1, ny))), nx = Math.sin(th) * Math.sin(ph), nz = Math.sin(th) * Math.cos(ph);
+    return new THREE.Vector3(nx * HD.rx + nx * inf, HD.cy + ny * HD.ry + ny * inf, HD.cz + (nz > 0 ? Math.pow(nz, 0.8) : nz) * RZ + nz * inf);
+  }
+  function edge(ph) { return 0.5 - 0.44 * sm(0.12, 1, Math.abs(ph) / Math.PI); }   // where the crown stops: the forehead in front, low at the back
+  function opening(ph, ny) { return Math.PI - Math.abs(ph) < 0.4 && ny < edge(ph) + 0.2; }   // the snapback's arch at the back
+  var pos = [], idx = [], sidx = [], bidx = [], backM = d.capBack ? new THREE.MeshStandardMaterial({ color: new THREE.Color(d.capBack).convertSRGBToLinear().multiplyScalar(0.72), roughness: 1, side: THREE.DoubleSide }) : null;   // (a trucker's mesh back)
+  for (var r = 0; r <= ROWS; r++) for (var c = 0; c <= C; c++) {
+    var ph = c / C * Math.PI * 2 - Math.PI, e = edge(ph), ny = 1 - (1 - e) * r / ROWS;
+    var p = pt(ph, ny, 0.042 - 0.019 * Math.pow(r / ROWS, 1.5)); pos.push(p.x, p.y, p.z);   // (well over the hair on top, snug at the band)
+  }
+  for (var r2 = 0; r2 < ROWS; r2++) for (var c2 = 0; c2 < C; c2++) {
+    var ph2 = (c2 + 0.5) / C * Math.PI * 2 - Math.PI, ny2 = 1 - (1 - edge(ph2)) * (r2 + 0.5) / ROWS; if (opening(ph2, ny2)) continue;
+    var a = r2 * (C + 1) + c2, b = a + 1, cc = a + C + 1, dd = cc + 1, panel = Math.abs(((ph2 + Math.PI) / (Math.PI / 3)) % 1 - 0.5) > 0.47;   // (seams between six panels)
+    (panel ? sidx : backM && Math.abs(ph2) > 1.25 ? bidx : idx).push(a, cc, b, b, cc, dd);
+  }
+  [[idx, crownM], [sidx, seamM]].concat(backM ? [[bidx, backM]] : []).forEach(function (e) { var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(e[0]); g.computeVertexNormals(); H.add(new THREE.Mesh(g, e[1])); });
+  // the strap across the bottom of the opening, and the button on top
+  var sp = [], si = [], SC = 12;
+  for (var k = 0; k <= SC; k++) { var phs = Math.PI - 0.4 + 0.8 * k / SC; phs = phs > Math.PI ? phs - Math.PI * 2 : phs; var e2 = edge(phs); [e2 + 0.005, e2 + 0.06].forEach(function (yy) { var q = pt(phs, yy, 0.024); sp.push(q.x, q.y, q.z); }); }
+  for (var k2 = 0; k2 < SC; k2++) { var a2 = k2 * 2; si.push(a2, a2 + 1, a2 + 2, a2 + 1, a2 + 3, a2 + 2); }
+  var sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3)); sg.setIndex(si); sg.computeVertexNormals(); H.add(new THREE.Mesh(sg, seamM));
+  var btn = new THREE.Mesh(new THREE.SphereGeometry(0.007, 10, 8), crownM); btn.position.copy(pt(0, 1, 0.044)); H.add(btn);
+  // the brim, out over the forehead and a little down
+  var bp = [], bi = [], BC = 16;
+  for (var j = 0; j <= BC; j++) { var phb = -0.95 + 1.9 * j / BC, root = pt(phb, edge(phb), 0.022), out = root.clone().add(new THREE.Vector3(Math.sin(phb) * 0.03, -0.012, 0.075 * Math.cos(phb * 0.8))); bp.push(root.x, root.y, root.z, out.x, out.y, out.z); }
+  for (var j2 = 0; j2 < BC; j2++) { var a3 = j2 * 2; bi.push(a3, a3 + 1, a3 + 2, a3 + 1, a3 + 3, a3 + 2); }
+  var bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3)); bg.setIndex(bi); bg.computeVertexNormals(); H.add(new THREE.Mesh(bg, crownM));
+}
 // each photo head's shape (height / width), to cut the arm layers to it
 var PHOTO_ASPECT = {};
 window.ready = Promise.all([new Promise(function (res) { HW.Athlete.whenReady(res); })].concat(Object.keys(HW.PLAYERS).map(function (id) {
