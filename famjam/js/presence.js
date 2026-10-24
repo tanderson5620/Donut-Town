@@ -8,7 +8,8 @@
    Each check-in also says who it is - the family member that phone picked (WHO ARE YOU? in ui.js), phone or computer, and what it's
    doing (on the menus, playing the CPU, hosting a room, in someone's room, in an online game; P.describe) - and the lobby sends the
    list round (P.people), so the ONLINE screen can show who's on and challenge one of them: an invite with a "to" goes to that
-   phone alone. */
+   phone alone. Someone hosting a room that has space also sends its code (rm), so the others can see the open games and join one
+   straight from the ONLINE screen. */
 window.HW = window.HW || {};
 (function (HW) {
   var P = HW.Presence = { count: 0, ok: false, role: null, log: [], onInvite: null, onArrive: null, people: [], describe: null };
@@ -16,10 +17,11 @@ window.HW = window.HW || {};
   var LOBBY = 'famjam-lobby-v1', CHECKIN = 2000, DROP = 9000, QUIET = 7000, ANSWER = 6000;
   var peer = null, members = {}, hub = null, retryT = null, tickT = null, heard = 0, started = false, seen = null, FORGET = 60000;
   var TAG = P.tag = Math.random().toString(36).slice(2, 10);
-  // who this phone is and what it's doing (filled in by ui.js): { nm: name or '', dv: 'p' phone / 'c' computer, st: m/c/h/r/g }
-  function me() { var d = {}; try { d = P.describe ? P.describe() || {} : {}; } catch (e) { } return { nm: String(d.nm || '').slice(0, 16), dv: d.dv === 'c' ? 'c' : 'p', st: String(d.st || 'm').slice(0, 1) }; }
-  function hi() { var d = me(); return { t: 'hi', id: TAG, nm: d.nm, dv: d.dv, st: d.st }; }
-  function clean(m) { return { nm: String(m.nm || '').slice(0, 16), dv: m.dv === 'c' ? 'c' : 'p', st: String(m.st || 'm').slice(0, 1) }; }
+  // who this phone is and what it's doing (filled in by ui.js): { nm: name or '', dv: 'p' phone / 'c' computer, st: m/c/h/r/g, rm: the
+  // code of the room it's hosting while there's space in it, or '' }
+  function me() { var d = {}; try { d = P.describe ? P.describe() || {} : {}; } catch (e) { } return clean(d); }
+  function hi() { var d = me(); return { t: 'hi', id: TAG, nm: d.nm, dv: d.dv, st: d.st, rm: d.rm }; }
+  function clean(m) { return { nm: String(m.nm || '').slice(0, 16), dv: m.dv === 'c' ? 'c' : 'p', st: String(m.st || 'm').slice(0, 1), rm: /^\d{4}$/.test(m.rm) ? m.rm : '' }; }
   function opts() { return HW.Net && HW.Net.peerOpts ? HW.Net.peerOpts() : { debug: 0 }; }
   function now() { return Date.now(); }
   function send(c, m) { try { if (c && c.open) c.send(m); } catch (e) { } }
@@ -60,8 +62,8 @@ window.HW = window.HW || {};
   // the lobby: drop anyone not heard from in a while, and send everyone the count (every 2 s, so they know it's still here)
   function sweep() { var t = now(); Object.keys(members).forEach(function (k) { if (t - members[k].t > DROP) { try { members[k].c.close(); } catch (e) { } delete members[k]; } }); recount(); }
   function recount() {
-    var d = me(), ids = [TAG], who = [{ id: TAG, nm: d.nm, dv: d.dv, st: d.st }];
-    Object.keys(members).forEach(function (k) { var q = members[k]; if (ids.indexOf(q.id) < 0) { ids.push(q.id); who.push({ id: q.id, nm: q.who ? q.who.nm : '', dv: q.who ? q.who.dv : 'p', st: q.who ? q.who.st : 'm' }); } });   // (a phone that reconnected is only on once)
+    var d = me(), ids = [TAG], who = [{ id: TAG, nm: d.nm, dv: d.dv, st: d.st, rm: d.rm }];
+    Object.keys(members).forEach(function (k) { var q = members[k]; if (ids.indexOf(q.id) < 0) { ids.push(q.id); who.push({ id: q.id, nm: q.who ? q.who.nm : '', dv: q.who ? q.who.dv : 'p', st: q.who ? q.who.st : 'm', rm: q.who ? q.who.rm : '' }); } });   // (a phone that reconnected is only on once)
     P.count = ids.length; Object.keys(members).forEach(function (k) { send(members[k].c, { t: 'n', n: P.count, ids: ids, who: who }); }); heardWho(who); counted(ids);
   }
   // everybody else on, as the lobby last said: [{ id, nm, dv, st }]

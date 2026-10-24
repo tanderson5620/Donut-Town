@@ -186,7 +186,7 @@ window.HW = window.HW || {};
 
   /* ---------- sprites ---------- */
   // bump when sprite sheets are re-rendered under the same names, so a phone fetches the new image and frame data together
-  var SHEET_V = '?v=36';   // (the faces carry it too)
+  var SHEET_V = '?v=37';   // (the faces carry it too)
   var sheets = {}, faces = {};
   X.loadPlayer = function (id) {
     if (sheets[id]) return sheets[id].ready;
@@ -307,6 +307,12 @@ window.HW = window.HW || {};
     var m = S.meta, A = m.anim[anim], list = A.R || A[Object.keys(A)[0]], fi = list[Math.min(idx, list.length - 1)], pt = key === 'butt' ? m.butt && m.butt[fi] : m.hand[fi]; if (!pt) return null;
     var off = m.off && m.off[fi], fx = m.feet[0] + (off ? off[0] : 0), fy = m.feet[1] + (off ? off[1] : 0);
     return { x: (pt[0] - fx) / m.ppm, y: (fy - pt[1]) / m.ppm };
+  };
+  // where the body is in frame idx of an anim rendered centred (the arm bar, a fall, the body slam): meters ahead of the feet, facing right
+  X.frameCenter = function (id, anim, idx) {
+    var sh = sheets[id]; if (!sh) return 0; var S = sh.meta && sh.meta.anim[anim] ? sh : sh.x && sh.x.meta && sh.x.meta.anim[anim] ? sh.x : null; if (!S) return 0;
+    var m = S.meta, A = m.anim[anim], list = A.R || A[Object.keys(A)[0]], fi = list[Math.min(idx, list.length - 1)], off = m.off && m.off[fi];
+    return off ? -off[0] / m.ppm : 0;
   };
   // the polished floor mirrors the players faintly, like the arcade's glossy hardwood
   X.drawReflection = function (g, p) {

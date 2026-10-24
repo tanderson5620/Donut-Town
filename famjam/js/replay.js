@@ -11,7 +11,7 @@ window.HW = window.HW || {};
   // per kind: how good it is (the best are kept), and how long before and after the moment it's marked at to show
   var KIND = {
     dunk: [5, 3.0, 1.4], dunk3: [7, 3.2, 1.4], three: [4, 2.6, 1.3], fancy3: [5, 3.2, 1.3], cart3: [6, 3.4, 1.3], lay: [3, 2.6, 1.3], fancyLay: [4, 3.4, 1.3],
-    two: [1, 2.2, 1.2], block: [4, 1.9, 1.4], reject: [5, 2.6, 1.6], knock: [3, 1.3, 1.9], hammer: [6, 1.6, 2.6], steal: [2, 1.3, 1.1], armbar: [6, 0.6, 3.1],
+    two: [1, 2.2, 1.2], block: [4, 1.9, 1.4], reject: [5, 2.6, 1.6], knock: [3, 1.3, 1.9], hammer: [6, 1.6, 2.6], steal: [2, 1.3, 1.1], armbar: [6, 0.6, 3.1], slam: [6, 0.9, 2.2],
     powerup: [4, 0.25, 2.3], twerk: [6, 0.25, 5.3]
   };
   var buf = [], pend = [], fx = [], lastT = -1e9, done = false, play = null;
