@@ -32,7 +32,12 @@ window.HW = window.HW || {};
     zach:    { id: 'zach',    name: 'Zach',             first: 'Zach',    team: 3, type: 'handler',  num: 5,  color: '#2ecc40', skin: '#d9a48a', hair: '#3a2a20', hairStyle: 'short', photo: true, headScale: 1.11, brow: '#3a2a20', height: 1.80, bulk: 1.05, stats: { speed: 10, tp: 5, dunk: 4, steal: 9, block: 3, str: 3, pass: 10 } },
     ramsey:  { id: 'ramsey',  name: 'Ramsey',           first: 'Ramsey',  team: 3, type: 'strength', num: 42, color: '#196f3d', skin: '#e2a48a', hair: '#2a201c', hairStyle: 'short', photo: true, headScale: 1.01, brow: '#2a201c', height: 1.86, bulk: 1.3,  stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 4 } },
     jake:    { id: 'jake',    name: 'Jake',             first: 'Jake',    team: 3, type: 'dunker',   num: 24, color: '#8bc34a', skin: '#d69b80', hair: '#4a3a2e', hairStyle: 'short', photo: true, headScale: 0.94, brow: '#4a3a2e', height: 1.90, bulk: 1.22, stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6, pass: 5 } },
-    morgan:  { id: 'morgan',  name: 'Morgan',           first: 'Morgan',  team: 3, type: 'shooter',  num: 14, color: '#00a86b', skin: '#d8a084', hair: '#33261e', hairStyle: 'short', photo: true, headScale: 1.0,  brow: '#33261e', height: 1.84, bulk: 0.95, stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4, pass: 6 } }
+    morgan:  { id: 'morgan',  name: 'Morgan',           first: 'Morgan',  team: 3, type: 'shooter',  num: 14, color: '#00a86b', skin: '#d8a084', hair: '#33261e', hairStyle: 'short', photo: true, headScale: 1.0,  brow: '#33261e', height: 1.84, bulk: 0.95, stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4, pass: 6 } },
+    // Flickinger (team 4): Sque, Cesar, Jahn, The Legend
+    sque:    { id: 'sque',    name: 'Sque',             first: 'Sque',    team: 4, type: 'shooter',  num: 3,  color: '#ffd23f', skin: '#d9a184', hair: '#2a1e18', hairStyle: 'short', photo: true, headScale: 1.19, brow: '#2a1e18', height: 1.80, bulk: 1.0,  stats: { speed: 6, tp: 10, dunk: 3, steal: 4, block: 3, str: 4, pass: 6 } },
+    cesar:   { id: 'cesar',   name: 'Cesar',            first: 'Cesar',   team: 4, type: 'dunker',   num: 32, color: '#e85d04', skin: '#c99278', hair: '#16100c', hairStyle: 'short', photo: true, headScale: 0.98, brow: '#16100c', height: 1.90, bulk: 1.1,  stats: { speed: 7, tp: 3, dunk: 10, steal: 4, block: 6, str: 6, pass: 5 } },
+    jahn:    { id: 'jahn',    name: 'Jahn',             first: 'Jahn',    team: 4, type: 'handler',  num: 1,  color: '#ffaa00', skin: '#dba48a', hair: '#4a3a2e', hairStyle: 'short', photo: true, headScale: 1.03, brow: '#3a2a20', height: 1.78, bulk: 1.15, stats: { speed: 10, tp: 5, dunk: 4, steal: 9, block: 3, str: 3, pass: 10 } },
+    legend:  { id: 'legend',  name: 'The Legend',       first: 'The Legend', team: 4, type: 'strength', num: 99, color: '#d00000', skin: '#d99a86', hair: '#8a7a6a', hairStyle: 'short', photo: true, headScale: 0.93, brow: '#5a4a3a', height: 1.84, bulk: 1.2,  age: true, stats: { speed: 5, tp: 3, dunk: 6, steal: 5, block: 8, str: 10, pass: 4 } }
   };
 
   // Realistic-body extras per player: eye color, headband, and anything special (Alan: from his photo)
@@ -55,7 +60,11 @@ window.HW = window.HW || {};
     zach:    { iris: '#4a3a2a' },
     ramsey:  { iris: '#4a3a2a' },
     jake:    { iris: '#5a4a3a', glasses: true },
-    morgan:  { iris: '#4a3a2a' }
+    morgan:  { iris: '#4a3a2a' },
+    sque:    { iris: '#4a3020' },
+    cesar:   { iris: '#3a2a1c' },
+    jahn:    { iris: '#5a4a32' },
+    legend:  { iris: '#5a5a4a' }
   };
   Object.keys(LOOK).forEach(function (id) { HW.PLAYERS[id].look = LOOK[id]; });
 
@@ -63,7 +72,8 @@ window.HW = window.HW || {};
     { id: 0, name: 'Andersons', short: 'AND', color: '#ff8a1f', dark: '#7a3a00', roster: ['carl', 'tyler', 'alan', 'lisa', 'bianca'] },
     { id: 1, name: 'Gormans',   short: 'GOR', color: '#3a86ff', dark: '#10306b', roster: ['katelyn', 'kameron', 'kody', 'kenny', 'karen'] },
     { id: 2, name: 'Stowells',  short: 'STO', color: '#b45cff', dark: '#3d0f6b', roster: ['blair', 'rox', 'lindsay', 'trent', 'justin'] },
-    { id: 3, name: 'Joseph George', short: 'JG', color: '#2bb34b', dark: '#0d4a1c', roster: ['zach', 'ramsey', 'jake', 'morgan'] }
+    { id: 3, name: 'Joseph George', short: 'JG', color: '#2bb34b', dark: '#0d4a1c', roster: ['zach', 'ramsey', 'jake', 'morgan'] },
+    { id: 4, name: 'Flickinger', short: 'FLK', color: '#ff7b00', dark: '#5a2400', roster: ['sque', 'cesar', 'jahn', 'legend'] }
   ];
 
   // green: how often the computer's jump shots are timed green (a person's depend on when they let go)
@@ -76,7 +86,7 @@ window.HW = window.HW || {};
   // powered-up heads: faces/<id>_ssj.png (front) and faces/<id>_ssj_back.png (back of the head).
   // [x, y] = where the original image's top-left corner sits inside the bigger powered-up canvas, in original-image pixels
   // where each photo's mouth is (fraction of the photo across, down): the tongue on the free-throw-line dunk comes out here
-  HW.MOUTH = { carl: [0.50, 0.80], tyler: [0.50, 0.76], alan: [0.52, 0.74], lisa: [0.60, 0.82], bianca: [0.46, 0.78], katelyn: [0.58, 0.83], kameron: [0.47, 0.81], kody: [0.55, 0.77], kenny: [0.50, 0.79], karen: [0.60, 0.81], blair: [0.52, 0.75], rox: [0.56, 0.72], lindsay: [0.41, 0.74], trent: [0.52, 0.78], justin: [0.50, 0.73], zach: [0.57, 0.76], ramsey: [0.31, 0.80], jake: [0.57, 0.69], morgan: [0.35, 0.49] };
+  HW.MOUTH = { carl: [0.50, 0.80], tyler: [0.50, 0.76], alan: [0.52, 0.74], lisa: [0.60, 0.82], bianca: [0.46, 0.78], katelyn: [0.58, 0.83], kameron: [0.47, 0.81], kody: [0.55, 0.77], kenny: [0.50, 0.79], karen: [0.60, 0.81], blair: [0.52, 0.75], rox: [0.56, 0.72], lindsay: [0.41, 0.74], trent: [0.52, 0.78], justin: [0.50, 0.73], zach: [0.57, 0.76], ramsey: [0.31, 0.80], jake: [0.57, 0.69], morgan: [0.35, 0.49], sque: [0.59, 0.82], cesar: [0.44, 0.81], jahn: [0.48, 0.77], legend: [0.62, 0.77] };
   // and where the mouth is on a powered-up face that's a different photo from the normal one (Carl's scowl), same units
   HW.MOUTH_SSJ = { carl: [0.59, 0.72] };
   // a face for the slow-motion dunks (another photo: Carl's yell), from the slow motion until he lands: faces/<id>_dunk.png and,
@@ -101,7 +111,11 @@ window.HW = window.HW || {};
     zach: [63, 144],
     ramsey: [65, 177],
     jake: [60, 171],
-    morgan: [66, 162]
+    morgan: [66, 162],
+    sque: [66, 161],
+    cesar: [67, 171],
+    jahn: [74, 183],
+    legend: [72, 129]
   };
   HW.SSJ_PAD_BACK = {
     carl: [49, 78],
@@ -122,7 +136,11 @@ window.HW = window.HW || {};
     zach: [52, 77],
     ramsey: [50, 76],
     jake: [50, 76],
-    morgan: [46, 76]
+    morgan: [46, 76],
+    sque: [45, 75],
+    cesar: [48, 71],
+    jahn: [50, 78],
+    legend: [49, 73]
   };
 
   // Derived physical numbers for a player definition.
@@ -172,6 +190,8 @@ window.HW = window.HW || {};
     rox: { gen: 1, sex: 'f', fam: 2, blood: true, spouse: 'blair' }, blair: { gen: 1, sex: 'm', fam: 2, spouse: 'rox' },
     lindsay: { gen: 2, sex: 'f', fam: 2, blood: true, spouse: 'trent' }, trent: { gen: 2, sex: 'm', fam: 2, spouse: 'lindsay' }, justin: { gen: 2, sex: 'm', fam: 2, blood: true },
     // Joseph George: not related to the other three families (outside: plain knockdown calls both ways)
-    zach: { sex: 'm', fam: 3, outside: true }, ramsey: { sex: 'm', fam: 3, outside: true }, jake: { sex: 'm', fam: 3, outside: true }, morgan: { sex: 'm', fam: 3, outside: true }
+    zach: { sex: 'm', fam: 3, outside: true }, ramsey: { sex: 'm', fam: 3, outside: true }, jake: { sex: 'm', fam: 3, outside: true }, morgan: { sex: 'm', fam: 3, outside: true },
+    // Flickinger: not related to the families either
+    sque: { sex: 'm', fam: 4, outside: true }, cesar: { sex: 'm', fam: 4, outside: true }, jahn: { sex: 'm', fam: 4, outside: true }, legend: { sex: 'm', fam: 4, outside: true }
   };
 })(window.HW);
