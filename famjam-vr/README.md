@@ -27,9 +27,9 @@ Press **X** (or click the right stick, or **V** on a keyboard) to switch seats:
 | | Quest Touch | Keyboard |
 | --- | --- | --- |
 | Move | left stick (or right stick) | arrows / WASD |
-| Shoot (hold, let go at the top) | right trigger | J / Space |
-| Pass / steal | A | K |
-| Shove / dunk | B | turbo + pass |
+| Shoot (hold, let go at the top) | A | J / Space |
+| Pass / steal | B | K |
+| Shove / dunk | right trigger | turbo + pass |
 | Turbo | grip or left trigger (works like Shift: + pass shoves, + shoot at the rim dunks) | Shift / L |
 | Pause | Y | Esc / P |
 | Change seat | X or right-stick click | V |
