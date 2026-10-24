@@ -731,11 +731,12 @@
     } else {
       In.touchMove.x = mv[0]; In.touchMove.y = -mv[1];   // (stick forward = up the court, away from you)
       In.keys.ShiftRight = grips || lt;   // (turbo exactly like the keyboard's Shift: TURBO + PASS shoves, TURBO + SHOOT at the rim dunks)
-      var was = !!prev.rt; prev.rt = rt; down('lt', lt);
-      if (rt && !was) { In.shootHeld = true; In.shootDown = true; shooting = true; }
-      else if (!rt && was && shooting) { In.shootHeld = false; In.shootUp = true; shooting = false; }
-      if (down('A', A)) In.passDown = true;
-      if (down('B', B)) In.actDown = true;
+      // A shoots (hold it, let go at the top), B passes or steals, the trigger shoves (or dunks with the ball)
+      var was = !!prev.A; prev.A = A; down('lt', lt);
+      if (A && !was) { In.shootHeld = true; In.shootDown = true; shooting = true; }
+      else if (!A && was && shooting) { In.shootHeld = false; In.shootUp = true; shooting = false; }
+      if (down('B', B)) In.passDown = true;
+      if (down('rt', rt)) In.actDown = true;
       prev.nav = '';
     }
     if (down('Y', Yb)) In.pauseDown = true;
