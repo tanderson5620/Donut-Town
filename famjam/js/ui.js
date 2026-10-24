@@ -214,6 +214,13 @@ window.HW = window.HW || {};
       g.save(); dia(25); g.clip(); g.fillStyle = '#2bb34b'; g.fillRect(0, 0, 32, 64); g.fillStyle = '#1f8f3a'; g.fillRect(32, 0, 32, 64); g.restore();
       pixelize(c, { pal: ['#000000', '#ffd23f', '#0d4a1c', '#2bb34b', '#1f8f3a'] });
       Fo.draw(g, 'JG', 32, 33, { scale: 2, scheme: 'white', shadowColor: t.dark });
+    } else if (ti === 4) {
+      // a gold-rimmed orange hexagon with a big F
+      var hex = function (r) { g.beginPath(); for (var q = 0; q < 6; q++) { var an = Math.PI / 6 + q * Math.PI / 3; g.lineTo(32 + r * Math.cos(an), 32 + r * Math.sin(an)); } g.closePath(); };
+      g.fillStyle = '#000'; hex(32); g.fill(); g.fillStyle = '#ffd23f'; hex(29); g.fill(); g.fillStyle = '#5a2400'; hex(25.5); g.fill();
+      g.save(); hex(25.5); g.clip(); g.fillStyle = '#ff7b00'; g.fillRect(0, 0, 32, 64); g.fillStyle = '#e0600a'; g.fillRect(32, 0, 32, 64); g.restore();
+      pixelize(c, { pal: ['#000000', '#ffd23f', '#5a2400', '#ff7b00', '#e0600a'] });
+      Fo.draw(g, 'F', 32, 33, { scale: 3, scheme: 'white', shadowColor: t.dark });
     } else {
       // shield with a lightning bolt and a big G
       function shield(m) { g.beginPath(); g.moveTo(8 + m, 6 + m); g.lineTo(56 - m, 6 + m); g.lineTo(56 - m, 30); g.quadraticCurveTo(56 - m, 50 - m * 0.3, 32, 61 - m * 1.3); g.quadraticCurveTo(8 + m, 50 - m * 0.3, 8 + m, 30); g.closePath(); }
@@ -350,7 +357,7 @@ window.HW = window.HW || {};
     g.fillStyle = Fo.shade(base, 0.55); g.fillRect(x + 1, y + 1, w - 3, h - 3);
     g.fillStyle = base; g.fillRect(x + 2, y + 2, w - 4, h - 4);
     var hh = (h - 4) >> 1; g.fillStyle = Fo.shade(base, -0.2); g.fillRect(x + 2, y + 2 + hh, w - 4, h - 4 - hh);
-    Fo.draw(g, label, x + w / 2, y + h / 2, { scale: o.size || 2, scheme: lit ? 'white' : 'gray' });
+    Fo.draw(g, label, x + w / 2, y + h / 2, { scale: o.size || 2, sx: o.sx, sy: o.sy, scheme: lit ? 'white' : 'gray' });
     g.globalAlpha = 1;
   }
   function arrowBtn(g, id, x, y, w, h, dir, fn, boxed) {
@@ -636,17 +643,17 @@ window.HW = window.HW || {};
     });
     // pick a team: one button per family, the chosen one lit in its colors; under them, the family you play against (tap to switch)
     Fo.draw(g, 'PICK YOUR TEAM', mid, py + 9, { scale: 1, scheme: 'cyan', shadow: 0 });
-    // (four teams: the rows closer together, so the VS row still fits above the divider)
-    var tbw = Math.min(CW, 200), tbx = Math.round(mid - tbw / 2), rp = T.length > 3 ? 22 : 27, rh = T.length > 3 ? 20 : 24, r0 = T.length > 3 ? 15 : 16;
+    // (four or five teams: the rows closer together - five a little flatter - so the VS row still fits above the divider)
+    var nT = T.length, tbw = Math.min(CW, 200), tbx = Math.round(mid - tbw / 2), rp = nT > 4 ? 19 : nT > 3 ? 22 : 27, rh = nT > 4 ? 17 : nT > 3 ? 20 : 24, r0 = nT > 3 ? 15 : 16;
     T.forEach(function (tt, i) {
       var on = st.team === i, by = py + r0 + i * rp;
-      button(g, 'team' + i, tbx, by, tbw, rh, tt.name.toUpperCase(), { on: on, size: 2, color: tt.color, fn: function () { if (st.team !== i) switchTeam(i - st.team); } });
+      button(g, 'team' + i, tbx, by, tbw, rh, tt.name.toUpperCase(), { on: on, size: 2, sx: squeeze(tt.name.toUpperCase(), tbw - 8), sy: nT > 4 ? 1.5 : undefined, color: tt.color, fn: function () { if (st.team !== i) switchTeam(i - st.team); } });
       if (on) { var ar = tri('r', 6, '#ffe14d'); g.drawImage(ar, tbx - ar.width - 3 - (Math.floor(UI.t * 3) % 2), by + (rh >> 1) - (ar.height >> 1)); }
     });
-    var oy = py + r0 + T.length * rp + (T.length > 3 ? 5 : 6), ot = T[st.opp];
+    var oy = py + r0 + nT * rp + (nT > 3 ? 5 : 6), ot = T[st.opp];
     g.drawImage(emblem(st.team, 1), tbx + 4, oy - 6, 30, 30); g.drawImage(emblem(st.opp, 1), tbx + tbw - 34, oy - 6, 30, 30);
     flaming(g, 'VS', mid, oy + 9, { scale: 2, scheme: 'fire', outline: 1, shadow: 1 }, fr);
-    button(g, 'opp', tbx, oy + 28, tbw, 24, ot.name.toUpperCase(), { on: true, size: 2, color: ot.color, fn: function () { nextOpp(1); } });
+    button(g, 'opp', tbx, oy + 28, tbw, 24, ot.name.toUpperCase(), { on: true, size: 2, sx: squeeze(ot.name.toUpperCase(), tbw - 34), color: ot.color, fn: function () { nextOpp(1); } });
     var al = tri('l', 5, '#ffe14d'), arr = tri('r', 5, '#ffe14d'); g.drawImage(al, tbx + 5, oy + 40 - (al.height >> 1)); g.drawImage(arr, tbx + tbw - 5 - arr.width, oy + 40 - (arr.height >> 1));
     // big arrows on the card edges switch team
     arrowBtn(g, 'tprev', C.oL - 6, C.T + 58, aw + 8, 90, 'l', function () { switchTeam(-1); }, true);
@@ -776,6 +783,10 @@ window.HW = window.HW || {};
     });
     if (others.length > rows) Fo.draw(g, '+' + (others.length - rows + 1) + ' MORE ON', x0, hy + 28 + (rows - 1) * rowH + 12, { scale: 1, scheme: 'gray', align: 'left', shadow: 0 });
   }
+  // a button label too wide for its button: squeezed narrower (1.5 or 1 wide, the height kept)
+  function squeeze(text, w) { var m = Fo.measure(text, 2); return m <= w ? undefined : m * 0.75 <= w ? 1.5 : 1; }
+  // a column's team name: big when it fits, squeezed narrower, then small
+  function titleFit(text, w, o) { var m = Fo.measure(text, 2); o.scale = 2; if (m > w) { if (m / 2 * 1.5 <= w) o.sx = 1.5; else o.scale = 1; } return o; }
   // WHO ARE YOU? - pick yourself from the family once on this phone, so the others see who's on and can challenge you
   function drawWho(g, fr) {
     var C = card(g), cx = Math.round((C.L + C.R) / 2), T = HW.TEAMS, cur = UI.who();
@@ -787,7 +798,7 @@ window.HW = window.HW || {};
     T.forEach(function (Tm, ti) {
       var x = C.L + 4 + ti * (pw + 4);
       bevel(g, x, py, pw, 26 + Tm.roster.length * rowH + 4, '#06081e', Tm.color, 3);
-      Fo.draw(g, Tm.name.toUpperCase(), x + pw / 2, py + 14, { scale: 2, color: Tm.color });
+      Fo.draw(g, Tm.name.toUpperCase(), x + pw / 2, py + 14, titleFit(Tm.name.toUpperCase(), pw - 8, { color: Tm.color }));
       Tm.roster.forEach(function (id, r) {
         var y = py + 26 + r * rowH, f = miniFace(id, rowH - 4), d = HW.PLAYERS[id];
         if (cur === id) { g.fillStyle = blink(2) ? '#ffe14d' : '#ffb000'; g.fillRect(x + 5, y, pw - 10, rowH - 1); g.fillStyle = '#06081e'; g.fillRect(x + 7, y + 2, pw - 14, rowH - 5); }
@@ -848,7 +859,7 @@ window.HW = window.HW || {};
     HW.TEAMS.forEach(function (T, ti) {
       var x = C.L + 4 + ti * (pw + 4);
       bevel(g, x, py, pw, ph, '#06081e', T.color, 3);
-      Fo.draw(g, T.name.toUpperCase(), x + pw / 2, py + 15, { scale: 2, color: T.color });
+      Fo.draw(g, T.name.toUpperCase(), x + pw / 2, py + 15, titleFit(T.name.toUpperCase(), pw - 8, { color: T.color }));
       T.roster.forEach(function (id, r) {
         var d = HW.PLAYERS[id], y = py + 27 + r * rowH, who = Net.claimedBy(id), me = !!who && who === Net.me, f = miniFace(id, rowH - 3);
         if (me) { g.fillStyle = blink(2) ? '#ffe14d' : '#ffb000'; g.fillRect(x + 5, y, pw - 10, rowH - 1); g.fillStyle = '#06081e'; g.fillRect(x + 7, y + 2, pw - 14, rowH - 5); }

@@ -120,7 +120,7 @@
   // the low courtside boards (gfx.js buildWall), lettered in the arcade font
   function paintAds(c) {
     var w = c.getContext('2d'); w.fillStyle = '#0b0b16'; w.fillRect(0, 0, c.width, c.height);
-    var ads = [['FAM JAM', '#c9a53a'], ['ANDERSONS', '#c46a1c'], ['2 ON 2', '#b8407e'], ['GORMANS', '#2f6cc4'], ['TURBO!', '#47b07c'], ['STOWELLS', '#8a46c8'], ['JOSEPH GEORGE', '#2bb34b']];
+    var ads = [['FAM JAM', '#c9a53a'], ['ANDERSONS', '#c46a1c'], ['2 ON 2', '#b8407e'], ['GORMANS', '#2f6cc4'], ['TURBO!', '#47b07c'], ['STOWELLS', '#8a46c8'], ['JOSEPH GEORGE', '#2bb34b'], ['FLICKINGER', '#ff7b00']];
     for (var i = 0; i < 16; i++) {
       var a = ads[i % ads.length], x = i * 128; w.fillStyle = '#15152a'; w.fillRect(x + 4, 6, 120, 40); w.fillStyle = a[1]; w.fillRect(x + 4, 6, 120, 3);
       Fo.draw(w, a[0], x + 64, 28, { scale: 1, color: a[1], shadow: 0 });
@@ -129,7 +129,7 @@
   var SKIN = ['#f2c9a8', '#e8b48f', '#d9a27c', '#c48a62', '#a56d47', '#7d4e32', '#5c3822', '#f0bfa0'];
   var HAIR = ['#17110d', '#2a1c13', '#3f2a1b', '#5e4027', '#8a6438', '#b8935c', '#7c7c7c', '#cfc6b4', '#22180f'];
   var SHIRT = ['#262a35', '#363b4a', '#4a4e5b', '#1c1f2b', '#5a2630', '#2c4838', '#646874', '#8a8e97', '#cfcfd3', '#7a302f', '#2e3d6c', '#ad5638', '#c39639', '#23507a', '#161616', '#e6e6e6', '#5b3f6e', '#3f6a62'];
-  var TEAMC = ['#ff8a1f', '#3a86ff', '#b45cff', '#2bb34b'];
+  var TEAMC = ['#ff8a1f', '#3a86ff', '#b45cff', '#2bb34b', '#ff7b00'];
   // a strip of seated fans, 8 m of seats (16 of them) across 1024 px; cheer: on their feet with their arms up; back: the same fans seen
   // from behind (the near stands from the upper deck)
   function paintCrowd(cheer, seed, back) {
@@ -362,13 +362,13 @@
     var glow = new THREE.SpriteMaterial({ map: ctex(radial([[0, 'rgba(255,252,236,1)'], [0.2, 'rgba(255,244,215,0.7)'], [1, 'rgba(255,236,200,0)']])), blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
     [2, 12].forEach(function (z) { for (var x = -15; x <= 15; x += 6) { var sp = new THREE.Sprite(glow); sp.position.set(x, 16.6, -z); sp.scale.set(3.2, 3.2, 1); world.add(sp); lampSprites.push(sp); arenaOnly.push(sp); } });
     // banners hung over the far stands
-    var BN = [['A', '#ff8a1f', '2024'], ['G', '#3a86ff', '2025'], ['S', '#b45cff', '2026'], ['JG', '#2bb34b', '2027'], ['FJ', '#e63946', 'CHAMPS']];
+    var BN = [['A', '#ff8a1f', '2024'], ['G', '#3a86ff', '2025'], ['S', '#b45cff', '2026'], ['JG', '#2bb34b', '2027'], ['F', '#ff7b00', '2028'], ['FJ', '#e63946', 'CHAMPS']];
     BN.forEach(function (bn, i) {
       var c = cnv(96, 160), g = c.getContext('2d'); g.fillStyle = bn[1]; g.beginPath(); g.moveTo(0, 0); g.lineTo(96, 0); g.lineTo(96, 136); g.lineTo(48, 160); g.lineTo(0, 136); g.closePath(); g.fill();
       g.fillStyle = 'rgba(255,255,255,0.85)'; g.fillRect(6, 8, 84, 4); g.fillRect(6, 112, 84, 4);
       Fo.draw(g, bn[0], 48, 56, { scale: 5, scheme: 'white' }); Fo.draw(g, bn[2], 48, 92, { scale: 1, scheme: 'white' });
       var m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 3.66), new THREE.MeshBasicMaterial({ map: ctex(c), transparent: true, alphaTest: 0.3, side: THREE.DoubleSide }));
-      m.position.set((i - (BN.length - 1) / 2) * 6, 11.5, -27.5); world.add(m); arenaOnly.push(m);
+      m.position.set((i - (BN.length - 1) / 2) * 5, 11.5, -27.5); world.add(m); arenaOnly.push(m);
     });
   }
   // the screens: the menu screen in front of you (the arcade picture, pointed at with the controllers), the callouts (BANG!!!,
