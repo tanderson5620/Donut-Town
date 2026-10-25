@@ -537,6 +537,8 @@ window.HW = window.HW || {};
     }
     if (k.style) { var nf = DK_FRAMES[k.style] || 12; p.anim = 'dk_' + k.style; p.dir = k.style === 'flex' ? 'C' : 'R'; p.frame = Math.min(nf - 1, Math.round(Math.min(u, 0.9) / 0.9 * (nf - 1))); p.jamArm = k.style === 'jam' && u > 0.25 && u < DUNK_SLAM ? { x: k.x1, y: K.RIM_H + 0.25, z: k.z1 - 0.1 } : null; }
     else { p.anim = 'dunk'; p.dir = 'R'; p.frame = u < 0.12 ? 0 : u < 0.3 ? 1 : u < 0.5 ? 2 : u < 0.64 ? 3 : u < 0.82 ? 4 : 5; }
+    // the ball got away from him on the way up (whatever took it): no basket, he just comes down empty-handed
+    if (u >= DUNK_SLAM && !k.slam && G.ball.holder !== p) { k.slam = true; k.empty = true; if (G.cine && G.cine.p === p) G.cine = null; p.tongue = false; p.hasBall = false; }
     if (u >= DUNK_SLAM && !k.slam && k.lay) {   // a layup: the ball leaves his hand (it can't be blocked from here on, just like a dunk)
       k.slam = true; var lb = G.ball, lrx = rimX(p.team), lfl = k.lay === 'roll' ? { T: 1.0 } : k.lay === 'rev' ? { T: 0.42, arc: 0.15 } : { T: 0.55, arc: 0.45 };
       if (k.lay === 'roll') lfl.arc = 2 * K.RIM_H - (lb.y + K.RIM_H + 0.12) / 2;   // up to twice the rim's height
@@ -559,7 +561,7 @@ window.HW = window.HW || {};
       if (shatter) { G.say('SHATTERED!', '#9ad0ff', 1.6, 1.2); Au.shatter(); Au.sfx && Au.sfx('glass'); X.burst(b.x + side(p.team) * 0.5, 3.4, K.HZ, 70, ['#cfe9ff', '#ffffff', '#9ad0ff'], 6, 1.6); }
     }
     if (u >= 1) {
-      var dg = k.lay === 'roll' && k.slam && (k.style === 'roll2' ? 'dougie2' : 'dougie');
+      var dg = k.lay === 'roll' && k.slam && !k.empty && (k.style === 'roll2' ? 'dougie2' : 'dougie');
       p.state = 'idle'; p.y = 0; p.vy = 0; p.dk = null; p.tongue = false; p.dunkFace = false; p.jamArm = null;
       // after a finger roll he lands with that hand still straight up and Dougies his way back up the court (dougie: after a near-hand
       // roll, the frames flipped as he turns back, so the raised arm stays on the side it went up on; dougie2 after a far-hand one)
@@ -647,7 +649,7 @@ window.HW = window.HW || {};
       var sty = p.shoveStyle, hk = sty === 'kick' ? 0.4 : sty === 'punch' || sty === 'knee' || sty === 'front' || sty === 'elbow' ? 0.5 : sty === 'shin' ? -0.3 : 0;
       G.knockDown(tgt, p, { hard: (fs ? 2 : clamp(0.9 + gap * 0.08, 0.7, 1.6)) + hk, blood: 0.7 + Math.max(0, gap) * 0.1 + (sty === 'knee' ? 0.3 : 0), y: sty === 'kick' || sty === 'front' || sty === 'elbow' ? 1.6 : sty === 'knee' ? 1.45 : sty === 'shin' ? 0.35 : 1.2, onQ: sty === 'knee' || sty === 'front' || sty === 'elbow' });   // (the knee lands on his chin, the front kick in his chest and face, the elbow on his jaw)
       G.say(knockLine(p, tgt), '#ff8a5a', 1.2); hl('knock', p, 'KNOCKDOWN');
-    } else { if (!wall) { Au.punch && Au.punch(); if (!isGuy(tgt) && Math.random() < 0.5) Au.painF && Au.painF(); } if (tgt.hasBall && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); grudge(p, tgt); }   // it lands but he stays up
+    } else { if (!wall) { Au.punch && Au.punch(); if (!isGuy(tgt) && Math.random() < 0.5) Au.painF && Au.painF(); } if (tgt.hasBall && tgt.state !== 'dunk' && Math.random() < 0.25) G.drop(tgt, dx * 2.5, 2.5, dz * 2.5); grudge(p, tgt); }   // it lands but he stays up (a dunker who stays up keeps the ball and finishes)
   };
   // the arm bar (Max Strength players, rare: 1 in 20 of the shoves that reach a man, so about 1 in 30 of all their shoves counting the
   // ones that hit nobody): in 2.5 s of slow motion he grabs the arm,

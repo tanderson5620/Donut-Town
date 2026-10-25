@@ -15,7 +15,8 @@ window.HW = window.HW || {};
   UI.initInput = function (cv) {
     UI.cv = cv;
     window.addEventListener('keydown', function (e) {
-      if (e.repeat) return; var k = e.code; In.keys[k] = true; Au.init();
+      if (HW.PS && HW.PS.keydown(e)) { Au.init(); return; }   // (a PlayStation's browser: a button set up for the game, ps.js)
+      if (e.repeat) return; var k = HW.PS ? HW.PS.code(e) : e.code; In.keys[k] = true; Au.init();   // (older browsers have only key numbers)
       if (k === 'KeyJ' || k === 'Space') { In.shootHeld = true; In.shootDown = true; e.preventDefault(); }
       if (k === 'KeyK') In.passDown = true;
       if (k === 'Escape' || k === 'KeyP') In.pauseDown = true;
@@ -23,20 +24,21 @@ window.HW = window.HW || {};
       if (/^(Digit|Numpad)\d$/.test(k)) In.digits.push(k.slice(-1)); else if (k === 'Backspace') In.digits.push('DEL');   // queued: two keys in one slow frame both count
       if (/^Arrow/.test(k)) In.nav = k;
     });
-    window.addEventListener('keyup', function (e) { In.keys[e.code] = false; if (e.code === 'KeyJ' || e.code === 'Space') { In.shootHeld = false; In.shootUp = true; } });
+    window.addEventListener('keyup', function (e) { if (HW.PS && HW.PS.keyup(e)) return; var k = HW.PS ? HW.PS.code(e) : e.code; In.keys[k] = false; if (k === 'KeyJ' || k === 'Space') { In.shootHeld = false; In.shootUp = true; } });
     function toCanvas(cx, cy) { var r = cv.getBoundingClientRect(); return { x: (cx - r.left) / r.width * X.W, y: (cy - r.top) / r.height * X.H }; }
-    cv.addEventListener('mousedown', function (e) { Au.init(); In.tap = toCanvas(e.clientX, e.clientY); if (HW.Jam.phase !== 'menu' && !UI.overlay()) { In.shootHeld = true; In.shootDown = true; } });
+    // (on a PlayStation a click on a player or the rim passes, steals, shoves or dunks instead of shooting, ps.js)
+    cv.addEventListener('mousedown', function (e) { Au.init(); In.tap = toCanvas(e.clientX, e.clientY); if (HW.Jam.phase !== 'menu' && !UI.overlay() && !(HW.PS && HW.PS.click(In.tap))) { In.shootHeld = true; In.shootDown = true; } });
     window.addEventListener('mouseup', function () { if (In.shootHeld && !In.keys.KeyJ && !In.keys.Space) { In.shootHeld = false; In.shootUp = true; } });
     cv.addEventListener('touchstart', function (e) { e.preventDefault(); Au.init(); var t = e.changedTouches[0]; In.tap = toCanvas(t.clientX, t.clientY); UI.firstGesture(); }, { passive: false });
-    // the phone's share sheet (and the clipboard) only open straight from the tap itself, not a frame later: the online lobby's
-    // SEND INVITE button answers the finger lifting off it here
-    function shareTap(x, y) {
-      var p = toCanvas(x, y), b = UI.btns.filter(function (q) { return q.id === 'share'; })[0];
-      if (b && UI.screen === 'lobby' && !UI.popOn && HW.Net && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) HW.Net.share();
+    // the phone's share sheet, the clipboard and opening another app only work straight from the tap itself, not a frame later:
+    // buttons like the lobby's SEND INVITE (and GET BUZZED's) answer the finger lifting off them here
+    function gestureTap(x, y) {
+      var p = toCanvas(x, y); if (UI.popOn) return;
+      for (var i = UI.btns.length - 1; i >= 0; i--) { var b = UI.btns[i]; if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) { if (b.gesture && !b.disabled) b.gesture(); return; } }
     }
-    cv.addEventListener('touchend', function (e) { var t = e.changedTouches[0]; if (t) shareTap(t.clientX, t.clientY); });
-    cv.addEventListener('click', function (e) { shareTap(e.clientX, e.clientY); });
-    UI.initTouch();
+    cv.addEventListener('touchend', function (e) { var t = e.changedTouches[0]; if (t) gestureTap(t.clientX, t.clientY); });
+    cv.addEventListener('click', function (e) { gestureTap(e.clientX, e.clientY); });
+    UI.initTouch(); if (HW.PS) HW.PS.init(cv, toCanvas);
     if (HW.Presence) { HW.Presence.onArrive = arrived; HW.Presence.onInvite = invited; HW.Presence.describe = function () { return { nm: UI.who() || '', dv: HW.TOUCH ? 'p' : 'c', st: myState(), rm: openRoom() }; }; }
   };
   UI.firstGesture = function () {
@@ -78,6 +80,7 @@ window.HW = window.HW || {};
     if (In.touchMove.x || In.touchMove.y) { mx = In.touchMove.x; mz = In.touchMove.y; }
     In.mx = mx; In.mz = mz; In.comboTurbo = !!(k.ShiftLeft || k.ShiftRight || k.KeyL); In.turbo = In.comboTurbo || In.stickTurbo;
     if (HW.Pad) HW.Pad.read(In);   // a PlayStation (or any) controller adds to it (pad.js)
+    if (HW.PS) HW.PS.read(In);   // and in a PlayStation's browser, the pointer steers (ps.js)
   };
   // the touch controls follow the play: the third button is DUNK with the ball (lit when you're in range) or SHOVE without it,
   // and the ring round the stick is your turbo meter
@@ -347,11 +350,12 @@ window.HW = window.HW || {};
     g.drawImage(t, 1 + 2 * sc, 1 + sc); return spr[key] = c;
   }
   UI.emblem = emblem; UI.flaming = flaming; UI.bigBall = function () { return bigBall(); };   // (the menu art, for the promo poster)
+  UI.kit = { card: card, bevel: bevel, flaming: flaming, button: function () { return button.apply(null, arguments); }, blink: function (n) { return blink(n); } };   // (for screens drawn elsewhere: ps.js)
 
   /* ---------- buttons ---------- */
   function button(g, id, x, y, w, h, label, o) {
     o = o || {}; x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
-    UI.btns.push({ id: id, x: x, y: y, w: w, h: h, fn: o.fn, disabled: o.disabled });
+    UI.btns.push({ id: id, x: x, y: y, w: w, h: h, fn: o.fn, disabled: o.disabled, gesture: o.gesture });   // (gesture: runs inside the tap itself, gestureTap)
     var lit = o.on !== false, base = lit ? (o.color || '#ffc61a') : '#2a2d5c';
     if (o.disabled) g.globalAlpha = 0.4;
     g.fillStyle = '#000'; g.fillRect(x, y, w, h);
@@ -492,6 +496,8 @@ window.HW = window.HW || {};
     if (!Net || !Pr) return null;
     if (INV.want && (Net.mode !== 'host' || Net.stage !== 'connecting' && Net.stage !== 'lobby')) INV.want = false;
     if (INV.want && Net.mode === 'host' && Net.stage === 'lobby' && Net.code) sendInvite();
+    if (INV.buzz && Net.mode !== 'host') INV.buzz = null;   // (a buzz waiting for its room's code: BUZZ A PHONE)
+    if (INV.buzz && Net.mode === 'host' && Net.stage === 'lobby' && Net.code) sendBuzz();
     if (Net.playing()) { INV.ask = INV.got = null; return null; }
     if (INV.got && (t - INV.got.t > 90000 || !canTake(INV.got.code))) INV.got = null;
     // "came online" goes when it's old, when they've really gone (not seen for 10 s - the count dips for a moment whenever a phone
@@ -560,8 +566,10 @@ window.HW = window.HW || {};
       var go = HW.TOUCH ? 'TAP TO START' : 'CLICK TO START';
       if (blink()) Fo.draw(g, go, cx, C.T + 286, { scale: 2, scheme: 'yellow' });
       if (HW.Pad && HW.Pad.active) HW.Pad.legend(g, HW.Pad.PLAY, cx, C.B - 10, 1);   // (a controller: its buttons)
+      else if (HW.PS && HW.PS.on) Fo.draw(g, HW.PS.legend, cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });   // (a PlayStation's browser: point and click)
       else if (!HW.TOUCH) Fo.draw(g, 'MOVE: ARROWS  SHOOT: J  PASS: K  TURBO: L/SHIFT  PAUSE: P', cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
       UI.btns.push({ id: 'start', x: 0, y: 0, w: W, h: X.H, fn: function () { UI.show('fams'); } });
+      if (HW.PS && HW.PS.on) HW.PS.titleBtn(g, C);   // (a PlayStation's browser: SET UP BUTTONS, top left)
       // the ONLINE button (play the family on their own phones) and who's on right now (presence.js), as big as fits in the
       // bottom-right corner beside TAP TO START
       var Pr = HW.Presence, Ct = HW.Count, colR = C.R - 8, colW = colR - (cx + Fo.measure(go, 2) / 2 + 14);
@@ -597,11 +605,21 @@ window.HW = window.HW || {};
       scoreLine(g, cx2, C2.T + 74);
       var bw = Math.min(240, C2.W * 0.4);
       var onl = HW.Net && HW.Net.playing(), resume = function () { UI.screen = null; if (!onl) HW.Jam.phase = UI.prevPhase || 'play'; };
-      button(g, 'resume', cx2 - bw - 6, C2.T + 98, bw, 40, 'RESUME', { color: '#1fb04c', size: 2, fn: resume });
-      button(g, 'quit', cx2 + 6, C2.T + 98, bw, 40, onl ? 'LEAVE GAME' : 'QUIT', { color: '#e0302a', size: 2, fn: function () { UI.show('title'); HW.Jam.players = []; } });
-      if (onl) Fo.draw(g, HW.Net.mode === 'host' ? 'ONLINE: THE GAME KEEPS GOING. IF YOU LEAVE, IT ENDS FOR EVERYONE' : 'ONLINE: THE GAME KEEPS GOING. IF YOU LEAVE, THE CPU PLAYS FOR YOU', cx2, C2.T + 148, { scale: 1, scheme: 'cyan', shadow: 0 });
-      var hy = C2.T + (onl ? 158 : 152); bevel(g, C2.L + 6, hy, C2.W - 12, C2.B - hy - 6, '#000', CY, 3);
-      var help = HW.TOUCH ?
+      var quit = function () { UI.show('title'); HW.Jam.players = []; }, Vo = onl && HW.Voice && HW.Voice.can ? HW.Voice : null;
+      if (Vo) {   // online: voice chat in the middle (VOICE, and MUTE while it's on)
+        var b3 = Math.min(200, Math.floor((C2.W - 36) / 3));
+        button(g, 'resume', cx2 - 1.5 * b3 - 8, C2.T + 98, b3, 40, 'RESUME', { color: '#1fb04c', size: 2, fn: resume });
+        Vo.buttons(g, cx2 - b3 / 2, C2.T + 98, b3, 40, 2);
+        button(g, 'quit', cx2 + b3 / 2 + 8, C2.T + 98, b3, 40, 'LEAVE GAME', { color: '#e0302a', size: 2, fn: quit });
+        if (Vo.status()) Fo.draw(g, Vo.status(), cx2, C2.T + 146, { scale: 1, scheme: Vo.err ? 'yellow' : 'green', shadow: 0 });
+      } else {
+        button(g, 'resume', cx2 - bw - 6, C2.T + 98, bw, 40, 'RESUME', { color: '#1fb04c', size: 2, fn: resume });
+        button(g, 'quit', cx2 + 6, C2.T + 98, bw, 40, onl ? 'LEAVE GAME' : 'QUIT', { color: '#e0302a', size: 2, fn: quit });
+      }
+      var vy = Vo && Vo.status() ? 10 : 0;
+      if (onl) Fo.draw(g, HW.Net.mode === 'host' ? 'ONLINE: THE GAME KEEPS GOING. IF YOU LEAVE, IT ENDS FOR EVERYONE' : 'ONLINE: THE GAME KEEPS GOING. IF YOU LEAVE, THE CPU PLAYS FOR YOU', cx2, C2.T + 148 + vy, { scale: 1, scheme: 'cyan', shadow: 0 });
+      var hy = C2.T + (onl ? 158 + vy : 152); bevel(g, C2.L + 6, hy, C2.W - 12, C2.B - hy - 6, '#000', CY, 3);
+      var help = HW.PS && HW.PS.on && !(HW.Pad && HW.Pad.active) ? HW.PS.help : HW.TOUCH ?
         [['TURBO:', 'PUSH THE STICK PAST ITS RING'], ['SHOOT:', 'HOLD, LET GO AT THE TOP OF THE JUMP'], ['DUNK:', 'DUNK BUTTON, OR TURBO + SHOOT AT THE RIM (BALL HANDLERS LAY IT UP)'], ['DEFENSE:', 'PASS = STEAL  SHOVE  SHOOT = BLOCK'], ['NO BALL:', 'PASS = CALL FOR IT  SHOVE  SHOOT = TEAMMATE SHOOTS']] :
         [['SHOOT:', 'HOLD, LET GO AT THE TOP OF THE JUMP'], ['DUNK:', 'TURBO + SHOOT NEAR THE RIM'], ['DEFENSE:', 'PASS = STEAL  TURBO+PASS = SHOVE  SHOOT = BLOCK'], ['NO BALL:', 'PASS = CALL FOR IT  TURBO+PASS = SHOVE'], ['ON FIRE:', '3 BUCKETS IN A ROW']];
       var lx = C2.L + 20, sc = C2.W > 620 ? 2 : 1, lh = sc === 2 ? 0 : 0;
@@ -615,6 +633,9 @@ window.HW = window.HW || {};
     else if (s === 'join') drawJoin(g, fr);
     else if (s === 'lobby') drawLobby(g, fr);
     else if (s === 'neterr') drawNetErr(g, fr);
+    else if (s === 'psset' && HW.PS) HW.PS.drawSetup(g, fr);
+    else if (s === 'buzz') drawBuzz(g, fr);
+    else if (s === 'getbuzz') drawGetBuzz(g, fr);
     if (pop && UI.screen === s) { UI.btns = []; if (!fresh) { In.tap = held.tap; In.enter = held.enter; In.pauseDown = held.esc; } drawPop(g, pop); }   // (not the press that brought it up: Esc pausing the game)
     if (HW.Pad) HW.Pad.draw(g);   // (a controller's cursor on the menus)
     if (In.tap) { for (var i = UI.btns.length - 1; i >= 0; i--) { var b = UI.btns[i]; if (!b.disabled && In.tap.x >= b.x && In.tap.x <= b.x + b.w && In.tap.y >= b.y && In.tap.y <= b.y + b.h) { Au.click(); b.fn && b.fn(); break; } } }
@@ -808,6 +829,12 @@ window.HW = window.HW || {};
     if (!UI.who()) { UI.whoNext = 'online'; UI.screen = 'who'; drawWho(g, fr); return; }   // (not picked yet: who are you?)
     var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net;
     flaming(g, 'PLAY ONLINE', cx, C.T + 36, { scale: 4, scheme: 'fire', outline: 2, shadow: 2 }, fr);
+    // invites with no texting (notify.js): buzz someone's phone, or set this phone up to get buzzed
+    if (HW.Notify && HW.Notify.buzz) {
+      var cw = Math.min(124, Math.floor((C.W - Fo.measure('PLAY ONLINE', 4)) / 2) - 14);
+      button(g, 'getbuzz', C.L + 6, C.T + 6, cw, 22, 'GET BUZZED', { color: '#7a3cc8', size: 1, fn: function () { UI.show('getbuzz'); } });
+      button(g, 'buzz', C.R - 6 - cw, C.T + 6, cw, 22, 'BUZZ A PHONE', { color: '#e0a21a', size: 1, fn: function () { UI.show('buzz'); } });
+    }
     Fo.draw(g, 'THE FAMILY ON THEIR OWN PHONES, FROM ANYWHERE', cx, C.T + 72, { scale: 1, scheme: 'cyan', shadow: 0 });
     var bw = Math.floor(Math.min(250, (C.W - 40) / 2)), by = C.T + 90, bh = 56;
     button(g, 'host', cx - bw - 8, by, bw, bh, 'HOST A GAME', { color: '#1fb04c', size: 2, fn: function () { Net.host(); UI.show('lobby'); } });
@@ -877,6 +904,67 @@ window.HW = window.HW || {};
     if (cur) button(g, 'whoskip', cx - 60, C.B - 30, 120, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show(UI.whoNext || 'online'); } });   // (changing it; the first time there's no way round it)
     else Fo.draw(g, 'PICK YOURSELF TO START', cx, C.B - 18, { scale: 2, scheme: blink(2) ? 'yellow' : 'white' });
   }
+  /* ---------- BUZZ: an invite straight to someone's phone (no texting, and from the Quest too), notify.js ---------- */
+  // pick who: you get a room going (or use the one you're hosting) and their phone gets "X wants to play - tap to join"
+  function buzzThem(id) {
+    var Net = HW.Net; INV.buzz = id; INV.buzzed[id] = nowMs();
+    if (Net.mode === 'host' && Net.stage === 'lobby' && Net.code) { sendBuzz(); UI.show('lobby'); return; }
+    if (HW.Jam.phase !== 'menu') HW.Jam.players = [];
+    Net.host(); UI.show('lobby');
+  }
+  function sendBuzz() {
+    var Net = HW.Net, id = INV.buzz; INV.buzz = null;
+    var ok = HW.Notify && HW.Notify.buzz && HW.Notify.buzz(id, Net.code, UI.who());
+    Net.note = ok ? 'BUZZED ' + nameOf(id) + '! THEIR PHONE GETS ROOM ' + Net.code : 'COULDN\'T BUZZ FROM HERE'; Net.noteUntil = nowMs() + 5000;
+  }
+  INV.buzzed = {};
+  function drawBuzz(g, fr) {
+    if (!UI.who()) { UI.whoNext = 'buzz'; UI.screen = 'who'; drawWho(g, fr); return; }
+    var C = card(g), cx = Math.round((C.L + C.R) / 2), T = HW.TEAMS, me = UI.who(), Net = HW.Net, hosting = Net && Net.mode === 'host';
+    flaming(g, 'BUZZ A PHONE', cx, C.T + 26, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
+    Fo.draw(g, 'NO TEXTING: TAP SOMEONE AND THEIR PHONE GETS AN INVITE TO ' + (hosting ? 'ROOM ' + Net.code : 'A ROOM YOU OPEN'), cx, C.T + 52, { scale: 1, scheme: 'cyan', shadow: 0 });
+    var NF = T.length, pw = Math.floor((C.W - 4 * (NF + 1)) / NF), py = C.T + 64, maxR = 0, t = nowMs();
+    T.forEach(function (Tm) { maxR = Math.max(maxR, Tm.roster.length); });
+    var rowH = Math.min(34, Math.floor((C.B - 50 - py - 26) / maxR));
+    T.forEach(function (Tm, ti) {
+      var x = C.L + 4 + ti * (pw + 4);
+      bevel(g, x, py, pw, 26 + Tm.roster.length * rowH + 4, '#06081e', Tm.color, 3);
+      Fo.draw(g, Tm.name.toUpperCase(), x + pw / 2, py + 14, titleFit(Tm.name.toUpperCase(), pw - 8, { color: Tm.color }));
+      Tm.roster.forEach(function (id, r) {
+        var y = py + 26 + r * rowH, f = miniFace(id, rowH - 4), d = HW.PLAYERS[id], self = id === me, sent = t - (INV.buzzed[id] || -1e9) < 30000;
+        g.globalAlpha = self ? 0.35 : 1; g.drawImage(f, x + 10, y + 2);
+        Fo.draw(g, d.first, x + 16 + f.width, y + rowH / 2, nameFit(d.first, pw - f.width - 30, { scheme: 'white', align: 'left', shadow: 0 })); g.globalAlpha = 1;
+        if (sent) tab(g, x + pw - 30, y + rowH / 2 - 7, 'SENT', '#1fb04c');
+        if (!self) UI.btns.push({ id: 'bz' + id, x: x + 4, y: y, w: pw - 8, h: rowH - 1, disabled: sent, fn: function () { buzzThem(id); } });
+      });
+    });
+    Fo.draw(g, 'IT REACHES PHONES THAT TURNED IT ON: ONLINE > GET BUZZED', cx, C.B - 40, { scale: 1, scheme: 'yellow', shadow: 0 });
+    button(g, 'back', cx - 50, C.B - 30, 100, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show(hosting ? 'lobby' : 'online'); } });
+  }
+  // GET BUZZED: set up this phone to get those invites - the free ntfy app, subscribed to your own topic
+  function drawGetBuzz(g, fr) {
+    if (!UI.who()) { UI.whoNext = 'getbuzz'; UI.screen = 'who'; drawWho(g, fr); return; }
+    var C = card(g), cx = Math.round((C.L + C.R) / 2), Nt = HW.Notify, me = UI.who(), topic = Nt.topicFor(me), noted = UI.gbNote && nowMs() < UI.gbNoteT;
+    flaming(g, 'GET BUZZED', cx, C.T + 26, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
+    ['WHEN SOMEONE BUZZES YOU - FROM THE QUEST, A COMPUTER OR A PHONE - THIS', 'PHONE GETS A NOTIFICATION. TAP IT TO JUMP STRAIGHT INTO THEIR GAME.'].forEach(function (s, i) { Fo.draw(g, s, cx, C.T + 52 + i * 13, { scale: 1, scheme: 'cyan', shadow: 0 }); });
+    Fo.draw(g, '1. GET THE FREE NTFY APP (APP STORE OR GOOGLE PLAY)', C.L + 16, C.T + 92, { scale: 1, scheme: 'yellow', align: 'left', shadow: 0 });
+    Fo.draw(g, '2. SUBSCRIBE TO YOUR OWN INVITES: THE BUTTON BELOW, OR IN NTFY TAP + AND TYPE', C.L + 16, C.T + 108, { scale: 1, scheme: 'yellow', align: 'left', shadow: 0 });
+    // the topic in a real font: it's lower case, and has to be typed exactly
+    bevel(g, C.L + 16, C.T + 118, C.W - 32, 30, '#000', CY, 3);
+    g.save(); g.font = '12px "Press Start 2P", monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#ffffff'; g.fillText(topic, cx, C.T + 134); g.restore();
+    var bw = Math.floor((C.W - 48) / 3), by = C.T + 158, open = function (u, blank) { try { if (blank) window.open(u, '_blank'); else location.href = u; } catch (e) { } };
+    var pad = function (f) { return function () { if (HW.Pad && HW.Pad.active) f(); }; };   // (a controller's press isn't a tap: no new app from it, but try)
+    var app = function () { open(Nt.appLink(me)); }, web = function () { open(Nt.webLink(me), true); };
+    var copy = function () { try { navigator.clipboard.writeText(topic).then(function () { UI.gbNote = 'COPIED: PASTE IT IN NTFY'; UI.gbNoteT = nowMs() + 4000; }); } catch (e) { } };
+    button(g, 'ntapp', C.L + 16, by, bw, 34, 'OPEN IN THE NTFY APP', { color: '#1fb04c', size: 1, gesture: app, fn: pad(app) });
+    button(g, 'ntweb', C.L + 24 + bw, by, bw, 34, 'OR THE NTFY WEBSITE', { color: '#1aa6d8', size: 1, gesture: web, fn: pad(web) });
+    button(g, 'ntcopy', C.L + 32 + 2 * bw, by, bw, 34, 'COPY IT', { color: '#7a3cc8', size: 1, gesture: copy, fn: pad(copy) });
+    Fo.draw(g, '3. CHECK IT: SEND YOURSELF A TEST BUZZ', C.L + 16, C.T + 212, { scale: 1, scheme: 'yellow', align: 'left', shadow: 0 });
+    button(g, 'nttest', C.L + 16, C.T + 222, 190, 30, 'SEND ME A TEST', { color: '#e0a21a', size: 1, fn: function () { var ok = Nt.buzz(me, null, me, true); UI.gbNote = ok ? 'SENT! IT SHOULD POP UP IN A FEW SECONDS' : 'COULDN\'T SEND FROM HERE'; UI.gbNoteT = nowMs() + 6000; } });
+    if (noted) Fo.draw(g, UI.gbNote, C.L + 216, C.T + 237, { scale: 1, scheme: 'green', align: 'left', shadow: 0 });
+    Fo.draw(g, 'YOU: ' + nameOf(me) + '. THE OTHERS BUZZ YOU FROM ONLINE > BUZZ A PHONE', cx, C.B - 40, { scale: 1, scheme: 'gray', shadow: 0 });
+    button(g, 'back', cx - 50, C.B - 30, 100, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show('online'); } });
+  }
   function drawJoin(g, fr) {
     var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net, code = UI.code || '', busy = Net.mode === 'guest' && Net.stage === 'connecting';
     Fo.draw(g, busy ? 'JOINING ROOM ' + Net.code + '...' : 'TYPE THE ROOM CODE', cx, C.T + 18, { scale: 2, scheme: busy ? 'yellow' : 'cyan' });
@@ -913,8 +1001,9 @@ window.HW = window.HW || {};
     Fo.draw(g, Net.code, C.L + 12, C.T + 36, { scale: 4, scheme: 'fire', outline: 2, shadow: 2, align: 'left' });
     var noted = Net.note && performance.now() < (Net.noteUntil || 0);
     if (isHost) {
-      button(g, 'share', C.R - 172, C.T + 6, 162, 32, navigator.share ? 'SEND INVITE' : 'COPY LINK', { color: '#1fb04c', size: 2 });   // shareTap() does it
-      Fo.draw(g, noted ? Net.note : 'TEXT IT TO THE FAMILY', C.R - 10, C.T + 50, { scale: 1, scheme: noted ? 'green' : 'white', align: 'right', shadow: 0 });
+      button(g, 'share', C.R - 172, C.T + 6, 162, 32, navigator.share ? 'SEND INVITE' : 'COPY LINK', { color: '#1fb04c', size: 2, gesture: function () { Net.share(); }, fn: function () { if (HW.Pad && HW.Pad.active) Net.share(); } });
+      button(g, 'buzzl', C.R - 172, C.T + 41, 162, 16, 'OR BUZZ A PHONE', { color: '#e0a21a', size: 1, fn: function () { UI.show('buzz'); } });   // (no texting: a push to their phone, notify.js)
+      if (noted) { var nw = Fo.measure(Net.note, 1) + 16; g.fillStyle = 'rgba(0,0,0,0.85)'; g.fillRect(Math.round(cx - nw / 2), C.T + 50, Math.round(nw), 15); Fo.draw(g, Net.note, cx, C.T + 58, { scale: 1, scheme: 'green', shadow: 0 }); }
     } else Fo.draw(g, 'YOU\'RE IN! TAP WHO YOU PLAY', C.R - 10, C.T + 50, { scale: 1, scheme: 'green', align: 'right', shadow: 0 });
     // together (the people on one team vs the CPU) or against each other: the host picks
     var tw = 100, tmid = Math.round((C.L + 120 + C.R - 176) / 2), ty = C.T + 6;
@@ -940,8 +1029,13 @@ window.HW = window.HW || {};
       });
     });
     // who's here, the host's settings and START; everyone else waits for it
-    var by = py + ph + 9, ppl = Net.people.map(function (q) { return q.lbl + ' ' + (q.claim ? HW.PLAYERS[q.claim].first.toUpperCase() : 'PICKING...'); }).join('   ');
-    Fo.draw(g, ppl, cx, by, { scale: 1, scheme: 'white', shadow: 0 });
+    // (a mic by each one on voice chat - crossed out: listening only - and whoever's talking lit up green)
+    var by = py + ph + 9, Vo = HW.Voice, gap = 18, tw = -gap, ents = Net.people.map(function (q) {
+      var e = { t: q.lbl + ' ' + (q.claim ? HW.PLAYERS[q.claim].first.toUpperCase() : 'PICKING...'), vo: Vo ? q.vo || 0 : 0, talk: !!Vo && Vo.talk.indexOf(q.lbl) >= 0 };
+      e.w = Fo.measure(e.t, 1) + (e.vo ? 14 : 0); tw += e.w + gap; return e;
+    });
+    var ex = Math.round(cx - tw / 2);
+    ents.forEach(function (e) { Fo.draw(g, e.t, ex, by, { scale: 1, scheme: e.talk ? 'green' : 'white', shadow: 0, align: 'left' }); if (e.vo) Vo.icon(g, ex + e.w - 4, by, 1, e.talk ? '#7dff9a' : '#ffffff', e.vo === 1); ex += e.w + gap; });
     var y2 = by + 12;
     if (isHost) {
       var dw = 54, qw = 40, sx0 = C.L + 8;
@@ -956,6 +1050,7 @@ window.HW = window.HW || {};
       if (blink()) Fo.draw(g, Net.claim ? 'WAITING FOR P1 TO START' : 'PICK A PLAYER', C.R - 12, y2 + 10, { scale: 2, scheme: 'yellow', align: 'right' });
     }
     button(g, 'leave', C.L + 8, C.B - 26, 90, 22, 'LEAVE', { on: false, size: 1, fn: function () { UI.show('online'); Net.leave(); } });
+    if (Vo && Vo.buttons(g, C.L + 104, C.B - 26, 180, 22, 1)) Fo.draw(g, Vo.status() || 'TALK WHILE YOU PLAY', C.L + 292, C.B - 15, { scale: 1, scheme: Vo.err ? 'yellow' : Vo.on ? 'green' : 'gray', align: 'left', shadow: 0 });
   }
   function drawNetErr(g, fr) {
     var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net, msg = Net.err || 'SOMETHING WENT WRONG', badCode = /^NO (GAME|ANSWER)/.test(msg);

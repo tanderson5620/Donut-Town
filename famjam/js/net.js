@@ -61,6 +61,7 @@ window.HW = window.HW || {};
 
   /* ---------- shared ---------- */
   N.leave = function () {
+    if (HW.Voice) HW.Voice.drop();   // (voice chat, voice.js: off with the room)
     var p = peer; peer = null; host = null;
     conns.forEach(function (k) { try { k.c.close(); } catch (e) { } }); conns = [];
     if (p) try { p.destroy(); } catch (e) { }
@@ -81,7 +82,11 @@ window.HW = window.HW || {};
     if (navigator.share) { navigator.share({ title: 'FAM JAM', text: text, url: url }).catch(function () { }); return; }
     try { navigator.clipboard.writeText(url).then(function () { N.note = 'LINK COPIED'; N.noteUntil = performance.now() + 3000; }); } catch (e) { }
   };
-  function people() { return [{ lbl: 'P1', claim: N.claim, host: 1 }].concat(conns.map(function (k) { return { lbl: k.lbl, claim: k.claim }; })); }
+  function people() { return [{ lbl: 'P1', claim: N.claim, host: 1, vo: HW.Voice ? HW.Voice.state() : 0 }].concat(conns.map(function (k) { return { lbl: k.lbl, claim: k.claim, vo: k.vo || 0 }; })); }   // (vo: voice chat off / listening / mic on)
+  /* ---------- voice chat (voice.js rides on the same connections) ---------- */
+  N.voiceLink = function () { return peer ? { peer: peer, host: host, hostId: PRE + N.code, conns: conns } : null; };
+  N.voiceChanged = function () { if (N.mode === 'host') { if (N.stage !== 'connecting') sendLobby(); } else if (host) send(host, { t: 'vo', v: HW.Voice ? HW.Voice.state() : 0 }); };
+  N.voiceTalk = function (w) { conns.forEach(function (k) { send(k.c, { t: 'vt', w: w }); }); };
   N.claimedBy = function (id) { for (var i = 0; i < N.people.length; i++) if (id && N.people[i].claim === id) return N.people[i].lbl; return null; };
   function showMatchup(su, me, then) {
     var U = UI(); U.mu = { teams: su.teams, fams: su.fams, human: me, humans: su.humans, names: su.names, diff: su.diff, qlen: su.qlen, online: true }; U.screen = 'matchup'; U.loading = true;
@@ -101,6 +106,7 @@ window.HW = window.HW || {};
     var code = String(1000 + Math.floor(Math.random() * 9000)), p = peer = new window.Peer(PRE + code, peerOpts());
     p.on('open', function () { if (p !== peer) return; N.code = code; if (N.stage === 'connecting') N.stage = 'lobby'; });
     p.on('connection', function (c) { if (p === peer) hostConn(c); });
+    p.on('call', function (c) { if (p === peer && HW.Voice) HW.Voice.incoming(c); else try { c.close(); } catch (e) { } });   // a guest's voice
     // the phone slept or switched apps (to text the code): get back on the server under the same code
     p.on('disconnected', function () { if (p === peer) setTimeout(function () { if (p === peer && p.disconnected && !p.destroyed) try { p.reconnect(); } catch (e) { } }, 1000); });
     p.on('error', function (e) {
@@ -146,6 +152,7 @@ window.HW = window.HW || {};
       bye(k, 'THAT GAME ALREADY STARTED'); return;
     }
     if (!k.lbl) return;
+    if (m.t === 'vo') { var v = +m.v || 0; if (v !== k.vo) { k.vo = v; sendLobby(); } return; }
     if (m.t === 'claim') { if (N.stage === 'lobby' && canClaim(m.id, k)) k.claim = m.id || null; sendLobby(); return; }
     if (m.t === 'ready') { k.ready = true; if (N.stage === 'game') { attach(k); send(k.c, { t: 'go' }); } return; }
     if (m.t === 'in') { var I = k.inp; I.mx = +m.mx || 0; I.mz = +m.mz || 0; I.turbo = !!m.tb; I.comboTurbo = !!m.ct; if (m.e) for (var i = 0; i < m.e.length && I.q.length < 30; i++) I.q.push(m.e[i]); }
@@ -292,6 +299,7 @@ window.HW = window.HW || {};
   function guestMsg(m) {
     if (!m || !m.t) return;
     if (m.t === 's') { if (N.stage === 'game') arrive(m); return; }
+    if (m.t === 'vt') { if (HW.Voice) HW.Voice.heard(m.w); return; }
     if (m.t === 'lobby') {
       N.code = m.code; N.people = m.people; N.diff = m.diff; N.qlen = m.qlen; N.me = m.you; N.vs = m.vs !== false;
       var mine = m.people.filter(function (q) { return q.lbl === m.you; })[0]; N.claim = mine ? mine.claim : null;
