@@ -261,7 +261,7 @@ window.HW = window.HW || {};
       p: P.map(function (p) {
         return [r3(p.x), r3(p.y), r3(p.z), r3(p.vy), p.anim, p.dir, Math.round((p.frame || 0) * 100) / 100, p.face, p.state, r3(p.st), r3(p.ssj), p.onFire ? 1 : 0, r3(p.flash), r3(p.hitT), (p.tongue ? 1 : 0) | (p.dunkFace ? 2 : 0), p.hasBall ? 1 : 0, Math.round(p.turbo),
           p.released ? 1 : 0, r3(p.tApex), p.dk ? [r3(p.dk.T), p.dk.style || 0] : 0, p.jamArm ? [r3(p.jamArm.x), r3(p.jamArm.y), r3(p.jamArm.z)] : 0,
-          p.trail && p.trail.length ? p.trail.map(function (t) { return [r3(t.x), r3(t.y), r3(t.z), t.anim, t.dir, Math.round(t.frame * 100) / 100, t.face]; }) : 0, stats(p), p.human ? p.lbl || 'P1' : 0, r3(p.hurtT || 0)];
+          p.trail && p.trail.length ? p.trail.map(function (t) { return [r3(t.x), r3(t.y), r3(t.z), t.anim, t.dir, Math.round(t.frame * 100) / 100, t.face]; }) : 0, stats(p), p.human ? p.lbl || 'P1' : 0, r3(p.hurtT || 0), r3(p.faceCrater || 0)];
       })
     };
   }
@@ -347,7 +347,7 @@ window.HW = window.HW || {};
       p.jamArm = a[20] ? { x: a[20][0], y: a[20][1], z: a[20][2] } : null;
       p.trail = a[21] ? a[21].map(function (t) { return { x: t[0], y: t[1], z: t[2], anim: t[3], dir: t[4], frame: t[5], face: t[6] }; }) : null;
       var st = a[22]; p.stats = { pts: st[0], fgm: st[1], fga: st[2], tpm: st[3], tpa: st[4], ast: st[5], dunks: st[6], steals: st[7], blocks: st[8], shoves: st[9] };
-      p.human = !!a[23]; p.lbl = a[23] || null; p.hurtT = a[24] || 0;
+      p.human = !!a[23]; p.lbl = a[23] || null; p.hurtT = a[24] || 0; p.faceCrater = a[25] || 0;
     });
     var bb = s.b, nb = n && n.b, b = G.ball;
     if (bb && b) {

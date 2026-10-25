@@ -268,6 +268,11 @@ window.HW = window.HW || {};
       if (gold) { var P = img === f.front ? f.ssjPad : f.ssjPadBack, sx = hw / img.naturalWidth; img = img === f.front ? f.ssj : f.ssjBack; dx0 -= P[0] * sx; dy0 -= P[1] * sx; dw = img.naturalWidth * sx; dh = img.naturalHeight * sx; }
       if (rot) { g.save(); g.translate(hx, hy); g.rotate(rot); g.drawImage(img, dx0, dy0, dw, dh); g.restore(); }   // head turns with a flip or a fall
       else g.drawImage(img, hx + dx0, hy + dy0, dw, dh);
+      if (p.faceCrater > 0) {   // punched across the face (blocked under both legs): the crater, a little below his eyes, fading at the end
+        var mc = HW.MOUTH && HW.MOUTH[p.id] || [0.5, 0.8], sw = hw / hs;
+        g.save(); g.translate(hx, hy); if (rot) g.rotate(rot);
+        faceCrater(g, -hw / 2 + mc[0] * hw, -hh * 0.8 + (mc[1] - 0.22) * hh, 0.3 * sw, Math.min(1, p.faceCrater / 0.8)); g.restore();
+      }
       // Gator twerking hard after his flash: lips pursed, pushed out in a pout (pixel art, on the mouth, turning with the head)
       var J = HW.Jam, js = J && J.show, purse = js && js.kind === 'pu' && js.p === p && js.t >= J.TW.slow1;
       if (purse && f && (img === f.front || img === f.ssj)) {
@@ -540,11 +545,12 @@ window.HW = window.HW || {};
   // cinema bars; then back to the court for the slam. It runs off his anim and frame, so online guests get it too
   var CUT0 = 7, cutBg = null, cutKey = '', cutAt = { p: null, t: 0 };
   function bothCut(J) {
-    var c = J && J.cine, p = c && c.kind === 'both' && c.p; if (!p || p.anim !== 'dk_both') return null;
+    var c = J && J.cine, pun = c && c.kind === 'bothpunch', p = c && (c.kind === 'both' || pun) && c.p; if (!p || p.anim !== 'dk_both') return null;
     var sh = sheets[p.id], X2 = sh && sh.x, A = X2 && X2.meta && X2.img.naturalWidth && X2.meta.anim.dk_bothc; if (!A) return null;
-    var list = A.R || A[Object.keys(A)[0]], f = Math.floor(p.frame) - CUT0; if (f < 0 || f >= list.length) return null;
+    var list = A.R || A[Object.keys(A)[0]], f = Math.floor(p.frame) - CUT0;
+    if (pun) f = Math.max(0, Math.min(list.length - 1, f)); else if (f < 0 || f >= list.length) return null;   // (blocked: held on the moment it happened)
     var m = X2.meta, fi = list[f];
-    return { p: p, sh: X2, m: m, fi: fi, sx: (fi % m.cols) * m.fw, sy: Math.floor(fi / m.cols) * m.fh, zoom: m.cam && m.cam.dk_bothc || 1, hd0: m.head[list[0]] };
+    return { p: p, sh: X2, m: m, fi: fi, sx: (fi % m.cols) * m.fw, sy: Math.floor(fi / m.cols) * m.fh, zoom: m.cam && m.cam.dk_bothc || 1, hd0: m.head[list[0]], punch: pun ? c : null };
   }
   function buildCutBack() {
     var c = cutBg = canvas(W, H), g = c.getContext('2d'), seed = 7, rnd = function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -593,11 +599,63 @@ window.HW = window.HW || {};
     // head was as it cut in, the head itself a little over a third of the way down
     var m = c.m, s = 0.42 * H, k = s / (m.ppm * c.zoom), o = { sh: c.sh, m: m, fi: c.fi, sx: c.sx, sy: c.sy, k: k, fx: m.fw / 2, fy: m.fh / 2, ground: { s: s } };
     g.translate(0.6 * W, 0.4 * H - (c.hd0 ? (c.hd0[1] - o.fy) * k : -0.2 * H)); g.imageSmoothingEnabled = false;
+    var pc = c.punch, PU = HW.Jam && HW.Jam.PUNCH, hdp = m.head[c.fi], fcx = hdp ? (hdp[0] - o.fx) * k : 0, fcy = hdp ? (hdp[1] - o.fy) * k - 0.3 * HEAD_M * s : -0.3 * H, after = pc && PU ? pc.t - PU.hit : -1;
+    if (after > 0) {   // the punch lands: a jolt, and his head and body knocked away from the fist
+      var ej = Math.min(1, after / 0.22), ee = ej * ej * (3 - 2 * ej), jt = Math.max(0, 1 - after / 0.3);
+      g.translate((Math.sin(after * 90) * 0.014 * H) * jt - 0.05 * W * ee, Math.cos(after * 77) * 0.01 * H * jt);
+      g.translate(fcx, fcy); g.rotate(-0.45 * ee); g.translate(-fcx, -fcy);
+    }
+    var hit = { x: fcx + 0.1 * H, y: fcy + 0.06 * H };   // (where the fist lands: across his cheek)
+    if (pc && PU) punchMan(g, pc, PU, hit.x, hit.y, s / c.zoom * 1.05, after);   // (his man behind him, so the face and the crater stay in view)
     drawBody(g, p, o);
+    if (pc && PU) punchFx(g, hit.x, hit.y, after);
     var bp = m.ballp && m.ballp[c.fi];   // (the ball's in the frame, unless it's in front of his face: then we draw it, on top)
     if (bp && !bp[2]) { var br = 0.15 * s, bx = (bp[0] - o.fx) * k, by = (bp[1] - o.fy) * k; g.fillStyle = '#e8742a'; g.strokeStyle = '#2a0e02'; g.lineWidth = Math.max(1, br * 0.08); g.beginPath(); g.arc(bx, by, br, 0, 6.283); g.fill(); g.stroke(); g.beginPath(); g.moveTo(bx - br, by); g.lineTo(bx + br, by); g.moveTo(bx, by - br); g.lineTo(bx, by + br); g.stroke(); }
     g.restore(); g.imageSmoothingEnabled = true;
     var lb = H * 0.09; g.fillStyle = '#000'; g.fillRect(0, 0, W, lb); g.fillRect(0, H - lb, W, lb);
+  }
+
+  // the face punch in the close-up (dunker-local: his face at fx, fy): his man flies in from the side, winding up, the fist arriving
+  // right on the face at PUNCH.hit, then the follow-through; a white flash, an impact star and blood flying off (the crater itself is
+  // drawn on the face, faceCrater, by drawBody)
+  function punchMan(g, pc, PU, fx, fy, ppm, after) {
+    var q = pc.q; if (!q) return;
+    var t = pc.t, fr = t < PU.hit - 0.22 ? 0 : t < PU.hit ? 1 : after < 0.45 ? 2 : 3, hp = X.animPoint(q.id, 'shove_punch', 2, 'hand') || { x: 0.8, y: 1.45 };
+    var u = Math.min(1, t / PU.hit), e = 1 - Math.pow(1 - u, 3), sx = fx + hp.x * ppm, sy = fy + hp.y * ppm;   // (the fist on his face at the hit: the feet back from there)
+    var bx = sx + (1 - e) * 0.75 * W - (after > 0 ? Math.min(1, after / 0.3) * 0.04 * W : 0), by = sy + (1 - e) * 0.18 * H;
+    X.drawFrameAt(g, q.id, 'shove_punch', fr, bx, by, ppm, -1);
+  }
+  function punchFx(g, fx, fy, after) {
+    if (after < 0) return;
+    if (after < 0.35) {   // the impact star on his face
+      var a = 1 - after / 0.35, R = (0.08 + 0.1 * Math.min(1, after / 0.08)) * H;
+      g.save(); g.globalAlpha = a; g.translate(fx, fy); g.rotate(after * 2);
+      [['#ff3b1f', 1], ['#ffe14d', 0.78], ['#ffffff', 0.45]].forEach(function (L) {
+        g.fillStyle = L[0]; g.beginPath(); for (var i = 0; i < 24; i++) { var r = R * L[1] * (i % 2 ? 0.45 : 1) * (1 + 0.12 * Math.sin(i * 7.3)), an = i / 24 * 6.283; g.lineTo(Math.cos(an) * r, Math.sin(an) * r); } g.closePath(); g.fill();
+      });
+      g.restore();
+    }
+    if (after < 1) for (var i = 0; i < 14; i++) {   // blood off the face, flying away from the fist
+      var vx = -(0.25 + 0.5 * ((i * 37) % 10) / 10) * H, vy = -(0.1 + 0.4 * ((i * 53) % 10) / 10) * H, tt = after;
+      var x = fx + vx * tt, y = fy + vy * tt + 0.9 * H * tt * tt, r = 0.006 * H * (1 + (i % 3));
+      g.fillStyle = i % 2 ? '#a3080d' : '#d01318'; g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill();
+    }
+    if (after < 0.12) { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = 'rgba(255,255,255,' + (1 - after / 0.12) * 0.85 + ')'; g.fillRect(0, 0, W, H); g.restore(); }
+  }
+  // a crater stove into his face where the fist landed: a dark dent with a lighter rim, cracks running out of it, blood at the edges
+  function faceCrater(g, x, y, r, a) {
+    g.save(); g.globalAlpha = a;
+    var gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(30,6,4,0.95)'); gr.addColorStop(0.55, 'rgba(70,14,10,0.85)'); gr.addColorStop(0.8, 'rgba(150,40,30,0.55)'); gr.addColorStop(1, 'rgba(150,40,30,0)');
+    g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, r, r * 0.86, 0, 0, 6.283); g.fill();
+    g.strokeStyle = 'rgba(255,220,200,0.45)'; g.lineWidth = Math.max(1, r * 0.08); g.beginPath(); g.ellipse(x - r * 0.08, y - r * 0.1, r * 0.72, r * 0.6, 0, 3.6, 5.9); g.stroke();
+    for (var i = 0; i < 9; i++) {   // the cracks: jagged, out past the dent
+      var an = i / 9 * 6.283 + 0.3 * Math.sin(i * 5.1), L = r * (1.25 + 0.5 * ((i * 41) % 10) / 10), cx = x + Math.cos(an) * r * 0.5, cy = y + Math.sin(an) * r * 0.5;
+      g.strokeStyle = 'rgba(25,5,3,0.9)'; g.lineWidth = Math.max(1, r * 0.09); g.beginPath(); g.moveTo(cx, cy);
+      for (var j = 1; j <= 3; j++) { var d = r * 0.5 + (L - r * 0.5) * j / 3, kk = (j % 2 ? 1 : -1) * 0.22 * r; g.lineTo(x + Math.cos(an) * d - Math.sin(an) * kk, y + Math.sin(an) * d + Math.cos(an) * kk); }
+      g.stroke();
+    }
+    g.fillStyle = 'rgba(190,14,20,0.85)'; for (var b = 0; b < 4; b++) { g.beginPath(); g.ellipse(x + (b - 1.5) * r * 0.45, y + r * (0.7 + 0.25 * (b % 2)), r * 0.09, r * 0.22, 0, 0, 6.283); g.fill(); }
+    g.restore();
   }
 
   // full scene, back to front; `things` are players + ball, each with x,z

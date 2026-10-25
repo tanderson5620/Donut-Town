@@ -4,6 +4,7 @@ body { display: flex; align-items: center; justify-content: center; font-family:
 #touchui, #rotate { display: none; }
 body.touch #touchui { display: block; }
 body.touch.inmenu #touchui { display: none; }
+body.touch.pad #touchui { display: none; }   /* a controller in use: no thumb buttons over the picture */
 #stickZone { position: fixed; left: 0; top: 0; bottom: 0; width: 45%; z-index: 8; }
 #stickBase { position: fixed; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 3px solid rgba(255,255,255,.35); background: rgba(255,255,255,.07);
   left: calc(max(16px, env(safe-area-inset-left)) + 80px); top: calc(100% - 100px); opacity: .4; pointer-events: none; }
