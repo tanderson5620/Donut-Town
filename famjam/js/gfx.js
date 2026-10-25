@@ -602,13 +602,16 @@ window.HW = window.HW || {};
     var m = c.m, s = 0.42 * H, k = s / (m.ppm * c.zoom), o = { sh: c.sh, m: m, fi: c.fi, sx: c.sx, sy: c.sy, k: k, fx: m.fw / 2, fy: m.fh / 2, ground: { s: s } };
     g.translate(0.6 * W, 0.4 * H - (c.hd0 ? (c.hd0[1] - o.fy) * k : -0.2 * H)); g.imageSmoothingEnabled = false;
     var pc = c.punch, PU = HW.Jam && HW.Jam.PUNCH, hdp = m.head[c.fi], fcx = hdp ? (hdp[0] - o.fx) * k : 0, fcy = hdp ? (hdp[1] - o.fy) * k - 0.3 * HEAD_M * s : -0.3 * H, after = pc && PU ? pc.t - PU.hit : -1;
+    var hit = { x: fcx + 0.1 * H, y: fcy + 0.06 * H };   // (where the fist lands: across his cheek)
+    // his man behind him (so the face and the crater stay in view), at the same scale as him - a meter is s px for both, the same
+    // size he'd be standing next to him - even if that runs him off the bottom of the screen; drawn before the knock, so only the
+    // dunker is thrown
+    if (pc && PU) punchMan(g, pc, PU, hit.x, hit.y, s, after);
     if (after > 0) {   // the punch lands: a jolt, and his head and body knocked away from the fist
       var ej = Math.min(1, after / 0.22), ee = ej * ej * (3 - 2 * ej), jt = Math.max(0, 1 - after / 0.3);
       g.translate((Math.sin(after * 90) * 0.014 * H) * jt - 0.05 * W * ee, Math.cos(after * 77) * 0.01 * H * jt);
       g.translate(fcx, fcy); g.rotate(-0.45 * ee); g.translate(-fcx, -fcy);
     }
-    var hit = { x: fcx + 0.1 * H, y: fcy + 0.06 * H };   // (where the fist lands: across his cheek)
-    if (pc && PU) punchMan(g, pc, PU, hit.x, hit.y, s / c.zoom * 1.05, after);   // (his man behind him, so the face and the crater stay in view)
     drawBody(g, p, o);
     if (pc && PU) punchFx(g, hit.x, hit.y, after);
     var bp = m.ballp && m.ballp[c.fi];   // (the ball's in the frame, unless it's in front of his face: then we draw it, on top)
