@@ -7,7 +7,7 @@ window.HW = window.HW || {};
 (function (HW) {
   // ?notify=127.0.0.1:port posts to a stand-in on this machine instead (for testing; only local)
   var m = /[?&]notify=(localhost|127\.0\.0\.1):(\d+)/.exec(location.search);
-  var TOPIC = 'famjam-an8b5m62sbps', API = (m ? 'http://' + m[1] + ':' + m[2] : 'https://ntfy.sh') + '/' + TOPIC;
+  var TOPIC = 'famjam-an8b5m62sbps', BASE = m ? 'http://' + m[1] + ':' + m[2] : 'https://ntfy.sh', API = BASE + '/' + TOPIC;
   var ME = 'famjam.me', LAST = 'famjam.notified', GAP = 30 * 60000, WAIT = 12000, PICK = 120000;
   var GAME = 'https://tanderson5620.github.io/Donut-Town/famjam/';
   function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -35,4 +35,19 @@ window.HW = window.HW || {};
     // a plain POST (title and the tap-through link as query parameters, no custom headers), so the browser sends it as is
     fetch(API + '?title=' + encodeURIComponent('FAM JAM') + '&tags=basketball&click=' + encodeURIComponent(GAME), { method: 'POST', body: msg, mode: 'no-cors' }).catch(function () { });
   }
+
+  /* BUZZ: an invite straight to one family member's own phone, no texting - from the Quest, a computer or another phone. Each
+     person can turn it on once on their phone (ONLINE > GET BUZZED): the free ntfy app subscribes to a topic of their own, the
+     one below; a buzz posts "Tyler wants to play" there, and tapping it opens the game straight into the room. */
+  N.topicFor = function (id) { return TOPIC + '-' + id; };
+  N.appLink = function (id) { return 'ntfy://' + (m ? m[1] + ':' + m[2] : 'ntfy.sh') + '/' + N.topicFor(id); };   // (the Android app's subscribe link)
+  N.webLink = function (id) { return BASE + '/' + N.topicFor(id); };
+  N.buzz = function (id, code, from, test) {
+    if (!window.fetch || !HW.PLAYERS[id]) return false;
+    if (!m && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) return false;   // (testing on this machine: never the real phones)
+    var f = from && HW.PLAYERS[from], who = f ? f.first : 'Someone', url = test ? GAME : GAME + '?room=' + code;
+    var msg = test ? 'This is what an invite looks like. When someone buzzes you, tap it to jump straight into their game.' : who + ' wants to play FAM JAM with you! Tap to join room ' + code + '.';
+    fetch(N.webLink(id) + '?title=' + encodeURIComponent(test ? 'FAM JAM: you\'re all set' : 'FAM JAM: ' + who + ' is calling you') + '&tags=basketball&priority=high&click=' + encodeURIComponent(url), { method: 'POST', body: msg, mode: 'no-cors' }).catch(function () { });
+    return true;
+  };
 })(HW);

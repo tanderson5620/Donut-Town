@@ -15,6 +15,8 @@ window.HW = window.HW || {};
   X.setWidth = function (w) { W = X.W = Math.round(Math.max(560, Math.min(800, w)) / 2) * 2; };
   X.proj = function (x, y, z) { var d = D + z, s = F / d; return { x: W / 2 + (x - X.camX) * s + X.shakeX, y: HY + (CAMH - y) * s + X.shakeY, s: s }; };
   X.shakeX = 0; X.shakeY = 0;
+  // the spot on the floor under a point on the screen (null up in the stands, past the far sideline's horizon)
+  X.floorAt = function (sx, sy) { var s = (sy - HY - X.shakeY) / CAMH; return s > 0 ? { x: X.camX + (sx - W / 2 - X.shakeX) / s, z: F / s - D } : null; };
   // the camera slides along the court after the ball and stops with the stanchion at the screen edge
   X.camMax = function () { return Math.max(0, 14.4 - (W / 2) / SMID); };
   X.camClamp = function (x) { var m = X.camMax(); return Math.max(-m, Math.min(m, x)); };

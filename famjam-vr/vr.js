@@ -786,6 +786,13 @@
     el.addEventListener('touchend', function (e) { var t = e.changedTouches[0]; if (tdrag && !tdrag.moved && t) { var h = rayAt(t.clientX, t.clientY); if (h) In.tap = h.px; } tdrag = null; });
     window.addEventListener('keydown', function (e) { if (e.code === 'KeyV' && !e.repeat) cycleView(); });
     var help = document.getElementById('vrhide'); if (help) help.onclick = function () { document.body.classList.toggle('nohelp'); help.textContent = document.body.classList.contains('nohelp') ? 'HELP' : 'HIDE HELP'; };
+    // voice chat (the game's voice.js): the headset asks about the microphone out here, before VR, so VOICE in the lobby just works
+    var mb = document.getElementById('vrmic'), md = navigator.mediaDevices;
+    if (mb && md && md.getUserMedia) mb.onclick = function () {
+      mb.disabled = true; mb.textContent = 'ASKING...';
+      md.getUserMedia({ audio: true }).then(function (s) { s.getTracks().forEach(function (t) { t.stop(); }); mb.textContent = 'MIC ALLOWED'; }, function () { mb.disabled = false; mb.textContent = 'MIC NOT ALLOWED - TRY AGAIN'; });
+    };
+    else if (mb) mb.style.display = 'none';
   }
   function resize() { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); if (!R.xr.isPresenting) R.setSize(innerWidth, innerHeight); }
   // the arcade picture stays 640 x 360 (16:9, the jumbotron's shape) whatever shape the browser window is

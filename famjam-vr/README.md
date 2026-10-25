@@ -16,6 +16,8 @@ FAM JAM in a 3D arena for Meta Quest and other WebXR headsets. It's played at ht
 - **Callouts** (BANG!!!, BLOCKED BY JAMES!…) float big over the court, drawn by the game's own `UI.drawCallouts`.
 - **Menus** go on a big screen in front of you (the arcade picture itself). Point a controller at it and pull the trigger, which sets `HW.In.tap` in the picture's pixels.
 - **Online play works as normal.** A VR player can host or join. The invite link sends phones to the regular game (`famjam/?room=…`).
+- **Voice chat** (the game's `voice.js`): turn on VOICE in the lobby or the pause menu to talk with everyone in the game. Tap **MIC FOR VOICE CHAT** on this page before ENTER VR, so the headset asks about the microphone outside VR (`#vrmic`); after that VOICE just works in the headset.
+- **Invites without texting:** ONLINE > BUZZ A PHONE pushes an invite to a family member's phone (their phone set up once with GET BUZZED, the free ntfy app), and tapping it drops them into your room. CHALLENGE still reaches anyone who has the game open.
 
 ## Seats
 Press **X** (or click the right stick, or **V** on a keyboard) to switch seats:
