@@ -1,14 +1,14 @@
 /* notify.js - a push notification on the owner's phone when someone opens FAM JAM. It goes through ntfy (ntfy.sh, a free push
    service, no sign-up): the ntfy app on the phone subscribes to the topic below, and the game posts "Lisa just opened it" there -
-   the family member that phone picked on WHO ARE YOU? (the first screen until it has one: the post waits up to 2 minutes for the
-   pick), a phone or a computer, and how many are online. A device sends it at most once every
+   the family member that phone picked on WHO ARE YOU? (optional, ONLINE > WHO ARE YOU?; "Someone" if it hasn't), a phone or a
+   computer, and how many are online. A device sends it at most once every
    half hour (reloads don't buzz again), and the owner's own phones and computers never do: open the game once with ?me on each. */
 window.HW = window.HW || {};
 (function (HW) {
   // ?notify=127.0.0.1:port posts to a stand-in on this machine instead (for testing; only local)
   var m = /[?&]notify=(localhost|127\.0\.0\.1):(\d+)/.exec(location.search);
   var TOPIC = 'famjam-an8b5m62sbps', BASE = m ? 'http://' + m[1] + ':' + m[2] : 'https://ntfy.sh', API = BASE + '/' + TOPIC;
-  var ME = 'famjam.me', LAST = 'famjam.notified', GAP = 30 * 60000, WAIT = 12000, PICK = 120000;
+  var ME = 'famjam.me', LAST = 'famjam.notified', GAP = 30 * 60000, WAIT = 12000;
   var GAME = 'https://tanderson5620.github.io/Donut-Town/famjam/';
   function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function set(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
@@ -20,11 +20,9 @@ window.HW = window.HW || {};
     if (N.mine() || /[?&]nostats/.test(location.search) || !window.fetch) return;
     if (!m && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) return;   // testing on this machine: not the real phone
     if (Date.now() - (+get(LAST) || 0) < GAP) return;
-    var t0 = Date.now(), tP = 0, tick = setInterval(function () {
-      var Pr = HW.Presence, picked = HW.JamUI && HW.JamUI.who && HW.JamUI.who(), now = Date.now();
-      if (!picked && now - t0 < PICK) return;   // who it is first: they're picking on WHO ARE YOU?
-      if (!tP) tP = now;
-      if (!(Pr && Pr.ok) && now - tP < WAIT) return;   // and who's online, once it has a count
+    var t0 = Date.now(), tick = setInterval(function () {
+      var Pr = HW.Presence;
+      if (!(Pr && Pr.ok) && Date.now() - t0 < WAIT) return;   // who's online, once it has a count
       clearInterval(tick); send(Pr && Pr.ok ? Pr.count : 0);
     }, 500);
   };

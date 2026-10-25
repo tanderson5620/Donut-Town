@@ -510,9 +510,7 @@ window.HW = window.HW || {};
     }
     if (INV.got && /^(title|team|matchup|online|who|lobby|results|paused|neterr)$/.test(s)) return { kind: 'got', code: INV.got.code, fr: INV.got.fr };
     var hosting = Net.mode === 'host' && Net.stage === 'lobby' && Net.code && Net.people.length < 4;
-    // (by name: who they are now - someone new is on WHO ARE YOU? for a moment first, so it waits up to 45 s for their pick)
-    var askNames = INV.ask ? askedNames(INV.ask) : [];
-    if (INV.ask && !askNames.length && t - INV.ask.t < 45000 && (Pr.ok ? Pr.people : []).some(function (q) { return INV.ask.ids.indexOf(q.id) >= 0 && !q.nm; })) return null;
+    var askNames = INV.ask ? askedNames(INV.ask) : [];   // (by name when they've said who they are, SOMEONE otherwise)
     if (INV.ask && (/^(title|team|online|results|paused)$/.test(s) && !Net.mode || s === 'lobby' && hosting)) return { kind: 'ask', n: INV.ask.n, first: INV.ask.first, hosting: !!hosting, nm: askNames.length && askNames.length <= 2 ? askNames.map(nameOf).join(' AND ') : '', many: askNames.length > 1 };
     return null;
   }
@@ -540,9 +538,6 @@ window.HW = window.HW || {};
 
   UI.drawMenu = function (g, dt) {
     UI.t += dt; UI.btns = [];
-    // who are you? comes first, before the title, until this phone has picked (so the family's lists and the owner's notification
-    // say who it is); there's no skipping it
-    if ((UI.screen === 'title' || UI.screen === 'online') && !UI.who()) { UI.whoNext = UI.screen; UI.screen = 'who'; }
     var s = UI.screen, st = UI.st, T = HW.TEAMS;
     var fr = Math.floor(UI.t * 12);
     // a pop-up over this screen takes the input: the screen under it is drawn without any
@@ -826,7 +821,6 @@ window.HW = window.HW || {};
     if (cur) lines.push(cur); return lines;
   }
   function drawOnline(g, fr) {
-    if (!UI.who()) { UI.whoNext = 'online'; UI.screen = 'who'; drawWho(g, fr); return; }   // (not picked yet: who are you?)
     var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net;
     flaming(g, 'PLAY ONLINE', cx, C.T + 36, { scale: 4, scheme: 'fire', outline: 2, shadow: 2 }, fr);
     // invites with no texting (notify.js): buzz someone's phone, or set this phone up to get buzzed
@@ -881,14 +875,16 @@ window.HW = window.HW || {};
   function squeeze(text, w) { var m = Fo.measure(text, 2); return m <= w ? undefined : m * 0.75 <= w ? 1.5 : 1; }
   // a column's team name: big when it fits, squeezed narrower, then small
   function titleFit(text, w, o) { var m = Fo.measure(text, 2); o.scale = 2; if (m > w) { if (m / 2 * 1.5 <= w) o.sx = 1.5; else o.scale = 1; } return o; }
-  // WHO ARE YOU? - pick yourself from the family once on this phone, so the others see who's on and can challenge you
+  // WHO ARE YOU? - optional: pick yourself from the family on this phone (ONLINE > WHO ARE YOU?), so the others see who's on and
+  // can challenge you by name, and so GET BUZZED knows whose invites these are. Nothing makes you; SKIP goes back
   function drawWho(g, fr) {
     var C = card(g), cx = Math.round((C.L + C.R) / 2), T = HW.TEAMS, cur = UI.who();
     flaming(g, 'WHO ARE YOU?', cx, C.T + 28, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
-    Fo.draw(g, 'SO THE FAMILY CAN SEE WHO\'S ON AND CHALLENGE YOU', cx, C.T + 56, { scale: 1, scheme: 'cyan', shadow: 0 });
+    Fo.draw(g, 'OPTIONAL: SO THE FAMILY CAN SEE WHO\'S ON AND CHALLENGE YOU', cx, C.T + 56, { scale: 1, scheme: 'cyan', shadow: 0 });
     var NF = T.length, pw = Math.floor((C.W - 4 * (NF + 1)) / NF), py = C.T + 68, maxR = 0;
     T.forEach(function (Tm) { maxR = Math.max(maxR, Tm.roster.length); });
-    var rowH = Math.min(36, Math.floor((C.B - 36 - py - 26) / maxR)), done = function (id) { setWho(id); UI.show(UI.whoNext || 'title'); };
+    var out = function () { UI.show(UI.whoNext === 'getbuzz' ? 'online' : UI.whoNext || 'online'); };   // (out without a pick: GET BUZZED needs one, so not back there)
+    var rowH = Math.min(36, Math.floor((C.B - 36 - py - 26) / maxR)), done = function (id) { setWho(id); UI.show(UI.whoNext || 'online'); };
     T.forEach(function (Tm, ti) {
       var x = C.L + 4 + ti * (pw + 4);
       bevel(g, x, py, pw, 26 + Tm.roster.length * rowH + 4, '#06081e', Tm.color, 3);
@@ -901,8 +897,7 @@ window.HW = window.HW || {};
         UI.btns.push({ id: 'who' + id, x: x + 4, y: y, w: pw - 8, h: rowH - 1, fn: function () { done(id); } });
       });
     });
-    if (cur) button(g, 'whoskip', cx - 60, C.B - 30, 120, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show(UI.whoNext || 'online'); } });   // (changing it; the first time there's no way round it)
-    else Fo.draw(g, 'PICK YOURSELF TO START', cx, C.B - 18, { scale: 2, scheme: blink(2) ? 'yellow' : 'white' });
+    button(g, 'whoskip', cx - 60, C.B - 30, 120, 24, cur ? 'BACK' : 'SKIP', { on: false, size: 1, fn: out });
   }
   /* ---------- BUZZ: an invite straight to someone's phone (no texting, and from the Quest too), notify.js ---------- */
   // pick who: you get a room going (or use the one you're hosting) and their phone gets "X wants to play - tap to join"
@@ -919,7 +914,6 @@ window.HW = window.HW || {};
   }
   INV.buzzed = {};
   function drawBuzz(g, fr) {
-    if (!UI.who()) { UI.whoNext = 'buzz'; UI.screen = 'who'; drawWho(g, fr); return; }
     var C = card(g), cx = Math.round((C.L + C.R) / 2), T = HW.TEAMS, me = UI.who(), Net = HW.Net, hosting = Net && Net.mode === 'host';
     flaming(g, 'BUZZ A PHONE', cx, C.T + 26, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
     Fo.draw(g, 'NO TEXTING: TAP SOMEONE AND THEIR PHONE GETS AN INVITE TO ' + (hosting ? 'ROOM ' + Net.code : 'A ROOM YOU OPEN'), cx, C.T + 52, { scale: 1, scheme: 'cyan', shadow: 0 });
@@ -943,7 +937,7 @@ window.HW = window.HW || {};
   }
   // GET BUZZED: set up this phone to get those invites - the free ntfy app, subscribed to your own topic
   function drawGetBuzz(g, fr) {
-    if (!UI.who()) { UI.whoNext = 'getbuzz'; UI.screen = 'who'; drawWho(g, fr); return; }
+    if (!UI.who()) { UI.whoNext = 'getbuzz'; UI.screen = 'who'; drawWho(g, fr); return; }   // (your own invites: it has to know who you are)
     var C = card(g), cx = Math.round((C.L + C.R) / 2), Nt = HW.Notify, me = UI.who(), topic = Nt.topicFor(me), noted = UI.gbNote && nowMs() < UI.gbNoteT;
     flaming(g, 'GET BUZZED', cx, C.T + 26, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
     ['WHEN SOMEONE BUZZES YOU - FROM THE QUEST, A COMPUTER OR A PHONE - THIS', 'PHONE GETS A NOTIFICATION. TAP IT TO JUMP STRAIGHT INTO THEIR GAME.'].forEach(function (s, i) { Fo.draw(g, s, cx, C.T + 52 + i * 13, { scale: 1, scheme: 'cyan', shadow: 0 }); });
