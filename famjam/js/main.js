@@ -46,7 +46,7 @@ window.HW = window.HW || {};
     g.fillStyle = '#05050c'; g.fillRect(0, 0, X.W, X.H);
     var vz = G.show && G.show.kind === 'win' && G.show.t > G.WIN.hud;   // Gator's victory twerk: just him and the WIN! callout
     // (not under the stats screen: it covers the court, and its highlight reel draws its own)
-    if (UI.screen !== 'results' && G.players.length && G.phase !== 'menu') { X.drawScene(g, G.t, UI.screen === 'paused' ? 0 : dt, G.players, G.ball, G.hoopFx); if (!(G.pu && G.pu.t > 0.12 && G.pu.t < (G.pu.dur || G.PU.dur) - 0.15) && !G.cine && !vz) UI.drawHUD(g); else if (vz || G.cine && G.cine.kind === 'chase') UI.drawCallouts(g); }   // the power-up close-up gets the whole screen
+    if (UI.screen !== 'results' && G.players.length && G.phase !== 'menu') { X.drawScene(g, G.t, UI.screen === 'paused' ? 0 : dt, G.players, G.ball, G.hoopFx); if (!(G.pu && G.pu.t > 0.12 && G.pu.t < (G.pu.dur || G.PU.dur) - 0.15) && !G.cine && !vz) UI.drawHUD(g); else if (vz || G.cine && (G.cine.kind === 'chase' || G.cine.kind === 'bothpunch')) UI.drawCallouts(g); }   // the power-up close-up gets the whole screen
     else if (UI.screen !== 'results') { idleT += dt; X.camX = Math.sin(idleT * 0.15) * X.camMax(); X.drawScene(g, idleT, dt, [], null, [0, 0]); }
     // the end of the game fades out to the final scoreboard (slowly after Gator's victory twerk), which fades in
     var fo = G.vic ? G.WIN.fade : 0.45; if (G.phase === 'over' && UI.screen !== 'results' && G.phaseT < fo) { g.fillStyle = 'rgba(0,0,0,' + Math.min(1, 1 - G.phaseT / fo) + ')'; g.fillRect(0, 0, X.W, X.H); }

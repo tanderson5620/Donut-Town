@@ -77,6 +77,7 @@ window.HW = window.HW || {};
     if (k.ArrowRight || k.KeyD) mx += 1; if (k.ArrowLeft || k.KeyA) mx -= 1; if (k.ArrowUp || k.KeyW) mz += 1; if (k.ArrowDown || k.KeyS) mz -= 1;
     if (In.touchMove.x || In.touchMove.y) { mx = In.touchMove.x; mz = In.touchMove.y; }
     In.mx = mx; In.mz = mz; In.comboTurbo = !!(k.ShiftLeft || k.ShiftRight || k.KeyL); In.turbo = In.comboTurbo || In.stickTurbo;
+    if (HW.Pad) HW.Pad.read(In);   // a PlayStation (or any) controller adds to it (pad.js)
   };
   // the touch controls follow the play: the third button is DUNK with the ball (lit when you're in range) or SHOVE without it,
   // and the ring round the stick is your turbo meter
@@ -558,7 +559,8 @@ window.HW = window.HW || {};
       Fo.draw(g, '2 ON 2 ARCADE BASKETBALL', cx, C.T + 258, { scale: 1, scheme: 'cyan' });
       var go = HW.TOUCH ? 'TAP TO START' : 'CLICK TO START';
       if (blink()) Fo.draw(g, go, cx, C.T + 286, { scale: 2, scheme: 'yellow' });
-      if (!HW.TOUCH) Fo.draw(g, 'MOVE: ARROWS  SHOOT: J  PASS: K  TURBO: L/SHIFT  PAUSE: P', cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
+      if (HW.Pad && HW.Pad.active) HW.Pad.legend(g, HW.Pad.PLAY, cx, C.B - 10, 1);   // (a controller: its buttons)
+      else if (!HW.TOUCH) Fo.draw(g, 'MOVE: ARROWS  SHOOT: J  PASS: K  TURBO: L/SHIFT  PAUSE: P', cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
       UI.btns.push({ id: 'start', x: 0, y: 0, w: W, h: X.H, fn: function () { UI.show('fams'); } });
       // the ONLINE button (play the family on their own phones) and who's on right now (presence.js), as big as fits in the
       // bottom-right corner beside TAP TO START
@@ -614,6 +616,7 @@ window.HW = window.HW || {};
     else if (s === 'lobby') drawLobby(g, fr);
     else if (s === 'neterr') drawNetErr(g, fr);
     if (pop && UI.screen === s) { UI.btns = []; if (!fresh) { In.tap = held.tap; In.enter = held.enter; In.pauseDown = held.esc; } drawPop(g, pop); }   // (not the press that brought it up: Esc pausing the game)
+    if (HW.Pad) HW.Pad.draw(g);   // (a controller's cursor on the menus)
     if (In.tap) { for (var i = UI.btns.length - 1; i >= 0; i--) { var b = UI.btns[i]; if (!b.disabled && In.tap.x >= b.x && In.tap.x <= b.x + b.w && In.tap.y >= b.y && In.tap.y <= b.y + b.h) { Au.click(); b.fn && b.fn(); break; } } }
   };
 
@@ -872,7 +875,7 @@ window.HW = window.HW || {};
       });
     });
     if (cur) button(g, 'whoskip', cx - 60, C.B - 30, 120, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show(UI.whoNext || 'online'); } });   // (changing it; the first time there's no way round it)
-    else Fo.draw(g, 'TAP YOURSELF TO START', cx, C.B - 18, { scale: 2, scheme: blink(2) ? 'yellow' : 'white' });
+    else Fo.draw(g, 'PICK YOURSELF TO START', cx, C.B - 18, { scale: 2, scheme: blink(2) ? 'yellow' : 'white' });
   }
   function drawJoin(g, fr) {
     var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net, code = UI.code || '', busy = Net.mode === 'guest' && Net.stage === 'connecting';
