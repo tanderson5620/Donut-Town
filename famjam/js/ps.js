@@ -128,15 +128,13 @@ window.HW = window.HW || {};
     k.flaming(g, 'SET UP BUTTONS', cx, C.T + 26, { scale: 3, scheme: 'yellow', outline: 2, shadow: 2 }, fr);
     var y = C.T + 56;
     if (padOn()) {
-      Fo.draw(g, 'YOUR CONTROLLER IS COMING THROUGH AS A CONTROLLER:', cx, y + 10, { scale: 1, scheme: 'green', shadow: 0 });
-      Fo.draw(g, 'NOTHING TO SET UP. STICK MOVES, CROSS SHOOTS, SQUARE PASSES, CIRCLE SHOVES', cx, y + 26, { scale: 1, scheme: 'white', shadow: 0 });
+      Fo.draw(g, 'YOUR CONTROLLER WORKS', cx, y + 18, { scale: 2, scheme: 'green' });
     } else if (P.step >= 0 && P.step < ACTS.length) {
-      Fo.draw(g, 'PRESS THE CONTROLLER BUTTON FOR', cx, y + 6, { scale: 1, scheme: 'cyan', shadow: 0 });
+      Fo.draw(g, 'PRESS THE BUTTON FOR', cx, y + 6, { scale: 2, scheme: 'cyan' });
       Fo.draw(g, ACTS[P.step][1], cx, y + 30, { scale: 3, scheme: k.blink(3) ? 'white' : 'yellow' });
-      Fo.draw(g, 'NOTHING HAPPENING? THE BROWSER KEEPS THAT BUTTON: PICK ANOTHER, OR SKIP', cx, y + 54, { scale: 1, scheme: 'gray', shadow: 0 });
+      Fo.draw(g, 'NOTHING? TRY ANOTHER BUTTON, OR SKIP', cx, y + 56, { scale: 1, scheme: 'gray', shadow: 0 });
     } else {
-      Fo.draw(g, 'ALL SET! THESE BUTTONS WORK IN THE GAME ON THIS CONSOLE', cx, y + 10, { scale: 1, scheme: 'green', shadow: 0 });
-      Fo.draw(g, 'THE POINTER STILL STEERS: YOUR PLAYER RUNS TO IT', cx, y + 26, { scale: 1, scheme: 'white', shadow: 0 });
+      Fo.draw(g, 'ALL SET!', cx, y + 22, { scale: 3, scheme: 'green' });
     }
     // what each one is now
     var rows = ACTS.length, top = C.T + 132, colW = Math.min(260, (C.W - 40) / 2);
@@ -149,7 +147,7 @@ window.HW = window.HW || {};
     // what the browser has sent lately (to see what reaches the game at all)
     var ly = top + rows * 18 + 22, gp = navigator.getGamepads ? [].slice.call(navigator.getGamepads() || []).filter(Boolean) : [];
     Fo.draw(g, 'LAST FROM THE CONTROLLER: ' + (P.last.length ? P.last.map(function (l) { return l.s; }).join('  ') : 'NOTHING YET'), cx, ly, { scale: 1, scheme: 'cyan', shadow: 0 });
-    Fo.draw(g, gp.length ? 'GAMEPAD SEEN: ' + gp.map(function (q) { return (q.mapping || 'raw').toUpperCase(); }).join(', ') : 'NO GAMEPAD SEEN (THE POINTER AND THE BUTTONS ABOVE ARE THE WAY IN)', cx, ly + 14, { scale: 1, scheme: 'gray', shadow: 0 });
+    Fo.draw(g, gp.length ? 'GAMEPAD SEEN: ' + gp.map(function (q) { return (q.mapping || 'raw').toUpperCase(); }).join(', ') : 'NO GAMEPAD SEEN', cx, ly + 14, { scale: 1, scheme: 'gray', shadow: 0 });
     var bw = Math.min(150, (C.W - 60) / 3), by = C.B - 40;
     k.button(g, 'psskip', cx - 1.5 * bw - 10, by, bw, 32, 'SKIP', { color: '#e0a21a', size: 2, disabled: !(P.step >= 0 && P.step < ACTS.length), fn: function () { P.step++; } });
     k.button(g, 'psagain', cx - bw / 2, by, bw, 32, 'START OVER', { color: '#e0302a', size: 1, fn: function () { P.keys = {}; save(); P.step = 0; } });

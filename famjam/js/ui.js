@@ -439,7 +439,7 @@ window.HW = window.HW || {};
   var WHO = 'famjam.who';
   UI.who = function () { try { var v = localStorage.getItem(WHO); return v && HW.PLAYERS[v] ? v : null; } catch (e) { return null; } };
   UI.whoAsked = function () { try { return !!localStorage.getItem(WHO); } catch (e) { return true; } };
-  function setWho(id) { try { localStorage.setItem(WHO, id || '-'); } catch (e) { } if (HW.Presence && HW.Presence.update) HW.Presence.update(); }
+  function setWho(id) { try { localStorage.setItem(WHO, id || '-'); } catch (e) { } if (HW.Presence && HW.Presence.update) HW.Presence.update(); if (HW.Board && HW.PLAYERS[id]) HW.Board.picked(id); }   // (a game just finished counts for them now)
   function nameOf(id) { var d = id && HW.PLAYERS[id]; return d ? d.first.toUpperCase() : ''; }
   // m: on the menus, c: playing the CPU, h: hosting a room, r: in someone's room, g: in an online game
   function myState() { var Net = HW.Net, G = HW.Jam; if (Net && Net.playing()) return 'g'; if (Net && Net.mode === 'host') return 'h'; if (Net && Net.mode === 'guest') return 'r'; return G.players.length && G.phase !== 'menu' ? 'c' : 'm'; }
@@ -557,7 +557,6 @@ window.HW = window.HW || {};
       if (C.W >= 520) { g.drawImage(e0, Math.round(cx - ex - 64), C.T + 50); g.drawImage(e1, Math.round(cx + ex - 64), C.T + 50); Fo.draw(g, T[0].name, cx - ex, C.T + 190, { scale: 2, color: T[0].color }); Fo.draw(g, T[1].name, cx + ex, C.T + 190, { scale: 2, color: T[1].color }); }
       if (C.W >= 520) Fo.draw(g, 'VS', cx, C.T + 230, { scale: 3, scheme: 'red' });
       else Fo.draw(g, T[0].name + ' VS ' + T[1].name, cx, C.T + 230, { scale: 2, scheme: 'red' });
-      Fo.draw(g, '2 ON 2 ARCADE BASKETBALL', cx, C.T + 258, { scale: 1, scheme: 'cyan' });
       var go = HW.TOUCH ? 'TAP TO START' : 'CLICK TO START';
       if (blink()) Fo.draw(g, go, cx, C.T + 286, { scale: 2, scheme: 'yellow' });
       if (HW.Pad && HW.Pad.active) HW.Pad.legend(g, HW.Pad.PLAY, cx, C.B - 10, 1);   // (a controller: its buttons)
@@ -570,6 +569,13 @@ window.HW = window.HW || {};
       var Pr = HW.Presence, Ct = HW.Count, colR = C.R - 8, colW = colR - (cx + Fo.measure(go, 2) / 2 + 14);
       var obw = Math.round(Math.max(110, Math.min(200, colW))), big = obw >= 168, obh = big ? 46 : 34, obx = colR - obw, oby = C.T + 244;
       if (HW.Net) button(g, 'online', obx, oby, obw, obh, 'ONLINE', { color: '#22c4f2', size: big ? 3 : 2, fn: function () { UI.show('online'); } });
+      // the FAMILY BOARD (board.js) in the other corner, with who's on top
+      if (HW.Board) {
+        var bbx = C.L + 8, Bd = HW.Board, top1 = Bd.rows && Bd.rows[0];
+        button(g, 'board', bbx, oby, obw, obh, 'FAMILY BOARD', { color: '#7a3cc8', size: big ? 2 : 1, fn: function () { UI.show('board'); } });
+        if (top1) { var lt = '#1 ' + nameOf(top1.id), ls = Fo.measure(lt, 2) <= obw ? 2 : 1; Fo.draw(g, lt, bbx + obw / 2, oby + obh + (ls === 2 ? 14 : 10), { scale: ls, color: '#ffd23f', shadow: ls === 2 ? 2 : 0 }); }
+        if (!Bd.rows || Date.now() - Bd.t > 60000) Bd.load();
+      }
       var oth = Pr && Pr.ok ? Pr.count - 1 : 0;   // (everyone else: you're not news)
       if (oth > 0) {
         var ot = oth + (oth === 1 ? ' OTHER ONLINE NOW' : ' OTHERS ONLINE NOW'), os = 2;
@@ -600,7 +606,7 @@ window.HW = window.HW || {};
       scoreLine(g, cx2, C2.T + 74);
       var bw = Math.min(240, C2.W * 0.4);
       var onl = HW.Net && HW.Net.playing(), resume = function () { UI.screen = null; if (!onl) HW.Jam.phase = UI.prevPhase || 'play'; };
-      var quit = function () { UI.show('title'); HW.Jam.players = []; }, Vo = onl && HW.Voice && HW.Voice.can ? HW.Voice : null;
+      var quit = function () { if (HW.Board) HW.Board.quit(HW.Jam); UI.show('title'); HW.Jam.players = []; }, Vo = onl && HW.Voice && HW.Voice.can ? HW.Voice : null;
       if (Vo) {   // online: voice chat in the middle (VOICE, and MUTE while it's on)
         var b3 = Math.min(200, Math.floor((C2.W - 36) / 3));
         button(g, 'resume', cx2 - 1.5 * b3 - 8, C2.T + 98, b3, 40, 'RESUME', { color: '#1fb04c', size: 2, fn: resume });
@@ -615,8 +621,8 @@ window.HW = window.HW || {};
       if (onl) Fo.draw(g, HW.Net.mode === 'host' ? 'ONLINE: THE GAME KEEPS GOING. IF YOU LEAVE, IT ENDS FOR EVERYONE' : 'ONLINE: THE GAME KEEPS GOING. IF YOU LEAVE, THE CPU PLAYS FOR YOU', cx2, C2.T + 148 + vy, { scale: 1, scheme: 'cyan', shadow: 0 });
       var hy = C2.T + (onl ? 158 + vy : 152); bevel(g, C2.L + 6, hy, C2.W - 12, C2.B - hy - 6, '#000', CY, 3);
       var help = HW.PS && HW.PS.on && !(HW.Pad && HW.Pad.active) ? HW.PS.help : HW.TOUCH ?
-        [['TURBO:', 'PUSH THE STICK PAST ITS RING'], ['SHOOT:', 'HOLD, LET GO AT THE TOP OF THE JUMP'], ['DUNK:', 'DUNK BUTTON, OR TURBO + SHOOT AT THE RIM (BALL HANDLERS LAY IT UP)'], ['DEFENSE:', 'PASS = STEAL  SHOVE  SHOOT = BLOCK'], ['NO BALL:', 'PASS = CALL FOR IT  SHOVE  SHOOT = TEAMMATE SHOOTS']] :
-        [['SHOOT:', 'HOLD, LET GO AT THE TOP OF THE JUMP'], ['DUNK:', 'TURBO + SHOOT NEAR THE RIM'], ['DEFENSE:', 'PASS = STEAL  TURBO+PASS = SHOVE  SHOOT = BLOCK'], ['NO BALL:', 'PASS = CALL FOR IT  TURBO+PASS = SHOVE'], ['ON FIRE:', '3 BUCKETS IN A ROW']];
+        [['SHOOT:', 'HOLD, LET GO AT THE TOP'], ['DUNK:', 'DUNK BUTTON BY THE RIM'], ['TURBO:', 'STICK PAST ITS RING'], ['DEFENSE:', 'PASS STEALS, SHOOT BLOCKS']] :
+        [['SHOOT:', 'HOLD J, LET GO AT THE TOP'], ['DUNK:', 'SHIFT + J BY THE RIM'], ['SHOVE:', 'SHIFT + K'], ['DEFENSE:', 'K STEALS, J BLOCKS']];
       var lx = C2.L + 20, sc = C2.W > 620 ? 2 : 1, lh = sc === 2 ? 0 : 0;
       var fitsBig = help.every(function (r) { return Fo.measure(r[0] + ' ' + r[1], 2) + 8 < C2.W - 40; }); sc = fitsBig ? 2 : 1;
       help.forEach(function (r, i) { var yy = hy + 18 + i * (sc === 2 ? 30 : 22) + lh; var w1 = Fo.draw(g, r[0], lx, yy, { scale: sc, scheme: 'yellow', align: 'left' }); Fo.draw(g, r[1], lx + w1 + 4 * sc, yy, { scale: sc, scheme: 'white', align: 'left' }); });
@@ -630,6 +636,7 @@ window.HW = window.HW || {};
     else if (s === 'neterr') drawNetErr(g, fr);
     else if (s === 'psset' && HW.PS) HW.PS.drawSetup(g, fr);
     else if (s === 'buzz') drawBuzz(g, fr);
+    else if (s === 'board') drawBoard(g, fr);
     else if (s === 'getbuzz') drawGetBuzz(g, fr);
     if (pop && UI.screen === s) { UI.btns = []; if (!fresh) { In.tap = held.tap; In.enter = held.enter; In.pauseDown = held.esc; } drawPop(g, pop); }   // (not the press that brought it up: Esc pausing the game)
     if (HW.Pad) HW.Pad.draw(g);   // (a controller's cursor on the menus)
@@ -668,6 +675,16 @@ window.HW = window.HW || {};
     X.drawFrameAt(g, id, 'twerk', Math.floor(UI.t / 0.05) % 6, x + w * 0.5, y + h - 18, h * 0.6);
     g.restore();
   }
+  // LEVEL: NORMAL (green, yellow, red) and QUARTERS: 1:00 - tap to go to the next one
+  var DIFF_COL = { easy: '#1fb04c', normal: '#ffc61a', hard: '#e0302a' };
+  function levelBtn(g, x, y, w, h, cur, set) {
+    var t = 'LEVEL: ' + cur.toUpperCase();
+    button(g, 'level', x, y, w, h, t, { size: 2, sx: squeeze(t, w - 10), color: DIFF_COL[cur] || '#ffc61a', fn: set && function () { set(DIFFS[(DIFFS.indexOf(cur) + 1) % DIFFS.length]); } });
+  }
+  function qlenBtn(g, x, y, w, h, cur, set) {
+    var t = 'QUARTERS: ' + clockText(cur || 60);
+    button(g, 'qlen', x, y, w, h, t, { size: 2, sx: squeeze(t, w - 10), color: '#22c4f2', fn: set && function () { set(QLENS[(QLENS.indexOf(cur) + 1) % QLENS.length]); } });
+  }
   function drawTeamCard(g, fr) {
     var st = UI.st, T = HW.TEAMS, t = T[st.team]; fixPicks();
     var C = card(g), aw = 30, cL = C.L + aw + 4, cR = C.R - aw - 4, cw = cR - cL;
@@ -689,13 +706,11 @@ window.HW = window.HW || {};
     // your family and the one you play (tap either to pick again on the family screen); the big arrows on the card edges still step
     // through the families
     var tbw = Math.min(CW, 200), tbx = Math.round(mid - tbw / 2), ot = T[st.opp];
-    Fo.draw(g, 'YOUR FAMILY', mid, py + 10, { scale: 1, scheme: 'cyan', shadow: 0 });
-    button(g, 'myfam', tbx, py + 18, tbw, 28, t.name.toUpperCase(), { on: true, size: 2, sx: squeeze(t.name.toUpperCase(), tbw - 10), color: t.color, fn: function () { UI.famStepNext = 0; UI.show('fams'); } });
-    var oy = py + 64;
+    button(g, 'myfam', tbx, py + 12, tbw, 30, t.name.toUpperCase(), { on: true, size: 2, sx: squeeze(t.name.toUpperCase(), tbw - 10), color: t.color, fn: function () { UI.famStepNext = 0; UI.show('fams'); } });
+    var oy = py + 66;
     g.drawImage(emblem(st.team, 1), tbx + 2, oy - 14, 36, 36); g.drawImage(emblem(st.opp, 1), tbx + tbw - 38, oy - 14, 36, 36);
     flaming(g, 'VS', mid, oy + 4, { scale: 2, scheme: 'fire', outline: 1, shadow: 1 }, fr);
     button(g, 'opp', tbx, oy + 26, tbw, 28, ot.name.toUpperCase(), { on: true, size: 2, sx: squeeze(ot.name.toUpperCase(), tbw - 10), color: ot.color, fn: function () { UI.famStepNext = 1; UI.show('fams'); } });
-    if (blink()) Fo.draw(g, 'TAP A TEAM TO CHANGE IT', mid, oy + 68, { scale: 1, scheme: 'gray', shadow: 0 });
     // big arrows on the card edges switch team
     arrowBtn(g, 'tprev', C.oL - 6, C.T + 58, aw + 8, 90, 'l', function () { switchTeam(-1); }, true);
     arrowBtn(g, 'tnext', C.oR - aw - 2, C.T + 58, aw + 8, 90, 'r', function () { switchTeam(1); }, true);
@@ -709,19 +724,15 @@ window.HW = window.HW || {};
       Fo.draw(g, d.first, cxp, pTop + 22, nameFit(d.first, PWd - 4, { scheme: 'white', shadowColor: Fo.shade(d.color, -0.4) }));
       Fo.draw(g, HW.TYPES[d.type].label, cxp, pTop + 40, { scale: 1, color: d.color });
       statLines(g, d, x + 2, pTop + 58, PWd - 4, 2, 20);
-      if (me) Fo.draw(g, HW.TYPES[d.type].blurb, cxp, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
-      else button(g, 'as' + slot, x + 8, C.B - 22, PWd - 16, 18, 'PLAY AS ' + d.first.toUpperCase(), { size: 1, color: '#22c4f2', fn: function () { if (st.ctrl !== id) { st.ctrl = id; Au.click(); } } });
+      if (!me) { var pl = 'PLAY AS ' + d.first.toUpperCase(); button(g, 'as' + slot, x + 8, C.B - 28, PWd - 16, 24, pl, { size: 2, sx: squeeze(pl, PWd - 26), color: '#22c4f2', fn: function () { if (st.ctrl !== id) { st.ctrl = id; Au.click(); } } }); }
       if (me) bigTab(g, slot ? x + PWd - 34 : x + 34, py + 8, 'YOU', '#ffd23f'); else tab(g, cxp, divY - 8, 'CPU', '#5a5e7a', false);   // YOU in the portrait's free top corner (the arrows sit in the other one)
       UI.btns.push({ id: 'ctrl' + slot, x: x, y: pTop, w: PWd, h: pH, fn: function () { if (st.ctrl !== id) { st.ctrl = id; Au.click(); } } });
     });
-    var bw = Math.floor((ccw - 8) / 3);
-    DIFFS.forEach(function (dk, i) { button(g, 'd' + dk, ccx + i * (bw + 4), pTop + 22, bw, 20, dk.toUpperCase(), { on: st.diff === dk, size: 1, color: ['#1fb04c', '#ffc61a', '#e0302a'][i], fn: function () { st.diff = dk; } }); });
-    // quarter length
-    Fo.draw(g, 'QUARTER LENGTH', mid, pTop + 52, { scale: 1, scheme: 'gray', shadow: 0 });
-    var qw = Math.floor((ccw - 12) / 4);
-    QLENS.forEach(function (q, i) { button(g, 'q' + q, ccx + i * (qw + 4), pTop + 60, qw, 20, clockText(q), { on: st.qlen === q, size: 1, color: '#22c4f2', fn: function () { st.qlen = q; try { localStorage.setItem('famjam.qlen', q); } catch (e) { } } }); });
-    button(g, 'go', ccx, pTop + 88, ccw, 38, 'PLAY', { size: 3, fn: function () { UI.matchup(); } });
-    button(g, 'back', ccx + ccw / 2 - 40, pTop + 132, 80, 22, 'BACK', { on: false, size: 1, fn: function () { UI.show('title'); } });
+    // the level and the quarter length: one big button each, tap to change
+    levelBtn(g, ccx, pTop + 8, ccw, 30, st.diff, function (d) { st.diff = d; });
+    qlenBtn(g, ccx, pTop + 44, ccw, 30, st.qlen, function (q) { st.qlen = q; try { localStorage.setItem('famjam.qlen', q); } catch (e) { } });
+    button(g, 'go', ccx, pTop + 82, ccw, 42, 'PLAY', { size: 3, fn: function () { UI.matchup(); } });
+    button(g, 'back', ccx + ccw / 2 - 50, pTop + 128, 100, 24, 'BACK', { on: false, size: 2, fn: function () { UI.show('title'); } });
     if (In.nav === 'ArrowLeft') switchTeam(-1); else if (In.nav === 'ArrowRight') switchTeam(1);
     else if (In.nav === 'ArrowUp' || In.nav === 'ArrowDown') cycle(st.picks.indexOf(st.ctrl), In.nav === 'ArrowUp' ? -1 : 1);
     if (In.enter) UI.matchup();
@@ -732,8 +743,7 @@ window.HW = window.HW || {};
   function drawFams(g, fr) {
     var C = card(g), cx = Math.round((C.L + C.R) / 2), T = HW.TEAMS, st = UI.st, step = UI.famStep || 0, n = T.length;
     flaming(g, step ? 'WHO DO YOU PLAY?' : 'PICK YOUR FAMILY', cx, C.T + 26, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
-    Fo.draw(g, step ? 'TAP THE FAMILY YOU WANT TO TAKE ON' : 'TAP YOUR TEAM', cx, C.T + 52, { scale: 1, scheme: 'cyan', shadow: 0 });
-    var cols = n <= 6 ? n : Math.ceil(n / 2), rowsN = Math.ceil(n / cols), gap = 5, top = C.T + 62, bot = C.B - 34;
+    var cols = n <= 6 ? n : Math.ceil(n / 2), rowsN = Math.ceil(n / cols), gap = 5, top = C.T + 50, bot = C.B - 36;
     var cw = Math.floor((C.W - 8 - (cols - 1) * gap) / cols), ch = Math.floor((bot - top - (rowsN - 1) * gap) / rowsN), maxR = 0;
     T.forEach(function (Tm) { maxR = Math.max(maxR, Tm.roster.length); });
     var ok = function (ti) { return !step || ti !== st.team; };
@@ -755,10 +765,9 @@ window.HW = window.HW || {};
       });
       if (mine) { g.fillStyle = 'rgba(5,6,20,0.62)'; g.fillRect(x + 3, y + 3, cw - 6, ch - 6); tab(g, x + cw / 2, y + ch / 2, 'YOUR TEAM', '#ffd23f', true); }
       else if (cur) { var gl = blink(2) ? '#ffe14d' : '#ffb000'; g.fillStyle = gl; g.fillRect(x, y, cw, 3); g.fillRect(x, y + ch - 3, cw, 3); g.fillRect(x, y, 3, ch); g.fillRect(x + cw - 3, y, 3, ch); }
-      if (!step && ti === st.team) tab(g, x + cw / 2, y + ch - 10, 'LAST PICKED', '#5a5e7a', false);
       UI.btns.push({ id: 'fam' + ti, x: x, y: y, w: cw, h: ch, disabled: !!mine, fn: function () { choose(ti); } });
     });
-    button(g, 'fback', cx - 50, C.B - 28, 100, 22, 'BACK', { on: false, size: 1, fn: function () { if (step) { UI.famStep = 0; UI.famCur = null; } else UI.show('title'); } });
+    button(g, 'fback', cx - 55, C.B - 31, 110, 26, 'BACK', { on: false, size: 2, fn: function () { if (step) { UI.famStep = 0; UI.famCur = null; } else UI.show('title'); } });
     // keys: left / right (up / down a row) move the highlight, Enter picks it
     var mv = In.nav === 'ArrowLeft' ? -1 : In.nav === 'ArrowRight' ? 1 : In.nav === 'ArrowUp' ? -cols : In.nav === 'ArrowDown' ? cols : 0;
     if (mv) { var c = UI.famCur; for (var k = 0; k < n; k++) { c = ((c + mv) % n + n) % n; if (ok(c)) break; } UI.famCur = c; Au.click(); }
@@ -792,16 +801,17 @@ window.HW = window.HW || {};
     flaming(g, 'VS', mid, py + PH / 2, { scale: 4, scheme: 'fire', outline: 2, shadow: 3 }, fr);
     var e0 = emblem(m.fams ? m.fams[order[0]] : order[0], 1), e1 = emblem(m.fams ? m.fams[order[1]] : order[1], 1);
     if (vsW >= 64) { g.drawImage(e0, mid - 32, pTop + 4, 32, 32); g.drawImage(e1, mid, pTop + 50, 32, 32); }
-    Fo.draw(g, (HW.DIFFICULTY[m.diff] || { label: 'NORMAL' }).label + '   ' + clockText(m.qlen || 60) + ' QUARTERS', C.L + 14, stripY + 18, { scale: 1, scheme: 'gray', align: 'left', shadow: 0 });
+    Fo.draw(g, (HW.DIFFICULTY[m.diff] || { label: 'NORMAL' }).label.toUpperCase() + '  ' + clockText(m.qlen || 60), C.L + 14, stripY + 18, { scale: 2, color: DIFF_COL[m.diff] || '#ffc61a', align: 'left' });
     var Net = HW.Net, wait = m.online && Net && Net.mode === 'host' ? Net.waiting() : [];
-    if (UI.loading) Fo.draw(g, 'LOADING...', mid, stripY + 18, { scale: 2, scheme: 'white' });
-    else if (m.online && Net && Net.mode !== 'host') { if (blink()) Fo.draw(g, 'WAITING FOR P1 TO TIP OFF', mid, stripY + 18, { scale: 2, scheme: 'yellow' }); }
-    else if (wait.length) Fo.draw(g, 'WAITING FOR ' + wait.join(' + ') + '...', mid, stripY + 18, { scale: 2, scheme: 'white' });
+    var sx = C.R - 14, sr = { scale: 2, align: 'right' };   // (on the right, the level and quarter length on the left)
+    if (UI.loading) Fo.draw(g, 'LOADING...', sx, stripY + 18, Object.assign({ scheme: 'white' }, sr));
+    else if (m.online && Net && Net.mode !== 'host') { if (blink()) Fo.draw(g, 'WAITING FOR P1', sx, stripY + 18, Object.assign({ scheme: 'yellow' }, sr)); }
+    else if (wait.length) Fo.draw(g, 'WAITING FOR ' + wait.join(' + '), sx, stripY + 18, Object.assign({ scheme: 'white' }, sr));
     else if (m.online) {
-      if (blink()) Fo.draw(g, HW.TOUCH ? 'TAP TO TIP OFF' : 'CLICK TO TIP OFF', mid, stripY + 18, { scale: 2, scheme: 'yellow' });
+      if (blink()) Fo.draw(g, HW.TOUCH ? 'TAP TO TIP OFF' : 'CLICK TO TIP OFF', sx, stripY + 18, Object.assign({ scheme: 'yellow' }, sr));
       UI.btns.push({ id: 'tip', x: 0, y: 0, w: X.W, h: X.H, fn: function () { Net.go(); } }); if (In.enter) Net.go();
     } else {
-      if (blink()) Fo.draw(g, HW.TOUCH ? 'TAP TO TIP OFF' : 'CLICK TO TIP OFF', mid, stripY + 18, { scale: 2, scheme: 'yellow' });
+      if (blink()) Fo.draw(g, HW.TOUCH ? 'TAP TO TIP OFF' : 'CLICK TO TIP OFF', sx, stripY + 18, Object.assign({ scheme: 'yellow' }, sr));
       var go = function () { UI.screen = null; HW.Jam.start(m); };
       UI.btns.push({ id: 'tip', x: 0, y: 0, w: X.W, h: X.H, fn: go }); if (In.enter) go();
     }
@@ -822,31 +832,26 @@ window.HW = window.HW || {};
   }
   function drawOnline(g, fr) {
     var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net;
-    flaming(g, 'PLAY ONLINE', cx, C.T + 36, { scale: 4, scheme: 'fire', outline: 2, shadow: 2 }, fr);
-    // invites with no texting (notify.js): buzz someone's phone, or set this phone up to get buzzed
-    if (HW.Notify && HW.Notify.buzz) {
-      var cw = Math.min(124, Math.floor((C.W - Fo.measure('PLAY ONLINE', 4)) / 2) - 14);
-      button(g, 'getbuzz', C.L + 6, C.T + 6, cw, 22, 'GET BUZZED', { color: '#7a3cc8', size: 1, fn: function () { UI.show('getbuzz'); } });
-      button(g, 'buzz', C.R - 6 - cw, C.T + 6, cw, 22, 'BUZZ A PHONE', { color: '#e0a21a', size: 1, fn: function () { UI.show('buzz'); } });
-    }
-    Fo.draw(g, 'THE FAMILY ON THEIR OWN PHONES, FROM ANYWHERE', cx, C.T + 72, { scale: 1, scheme: 'cyan', shadow: 0 });
-    var bw = Math.floor(Math.min(250, (C.W - 40) / 2)), by = C.T + 90, bh = 56;
+    flaming(g, 'PLAY ONLINE', cx, C.T + 30, { scale: 4, scheme: 'fire', outline: 2, shadow: 2 }, fr);
+    var bw = Math.floor(Math.min(260, (C.W - 40) / 2)), by = C.T + 60, bh = 54;
     button(g, 'host', cx - bw - 8, by, bw, bh, 'HOST A GAME', { color: '#1fb04c', size: 2, fn: function () { Net.host(); UI.show('lobby'); } });
     button(g, 'joinb', cx + 8, by, bw, bh, 'JOIN A GAME', { color: '#1aa6d8', size: 2, fn: function () { UI.code = ''; UI.show('join'); } });
-    Fo.draw(g, 'GET A CODE TO SEND', cx - bw / 2 - 8, by + bh + 13, { scale: 1, scheme: 'white', shadow: 0 });
-    Fo.draw(g, 'TYPE THE HOST\'S CODE', cx + bw / 2 + 8, by + bh + 13, { scale: 1, scheme: 'white', shadow: 0 });
-    var hy = by + bh + 28, hh = C.B - hy - 40; bevel(g, C.L + 6, hy, C.W - 12, hh, '#000', CY, 3);
-    var Pr = HW.Presence, others = Pr && Pr.ok ? Pr.people : [];
-    if (others.length) drawOnNow(g, C, hy, hh, others);   // who's on, each with a CHALLENGE button
-    else ['1. ONE PERSON HOSTS AND SENDS THE CODE OR THE INVITE LINK', '2. EVERYONE ELSE JOINS AND PICKS WHO THEY PLAY', '3. THE HOST STARTS IT. ANY EMPTY SPOTS ARE CPU', 'UP TO 4 PEOPLE, 2 ON A TEAM'].forEach(function (t, i) {
-      Fo.draw(g, t, C.L + 20, hy + 18 + i * Math.min(20, (hh - 24) / 4), { scale: 1, scheme: i === 3 ? 'yellow' : 'white', align: 'left', shadow: 0 });
-    });
-    button(g, 'back', cx - 40, C.B - 30, 80, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show('title'); } });
+    // invites with no texting (notify.js): buzz someone's phone, or set this phone up to get buzzed
+    var by2 = by + bh + 8, bh2 = 30;
+    if (HW.Notify && HW.Notify.buzz) {
+      button(g, 'buzz', cx - bw - 8, by2, bw, bh2, 'BUZZ A PHONE', { color: '#e0a21a', size: 2, sx: squeeze('BUZZ A PHONE', bw - 10), fn: function () { UI.show('buzz'); } });
+      button(g, 'getbuzz', cx + 8, by2, bw, bh2, 'GET BUZZED', { color: '#7a3cc8', size: 2, sx: squeeze('GET BUZZED', bw - 10), fn: function () { UI.show('getbuzz'); } });
+    }
+    // who's on, each with a CHALLENGE button (nothing here when nobody else is)
+    var hy = by2 + bh2 + 8, hh = C.B - hy - 38, Pr = HW.Presence, others = Pr && Pr.ok ? Pr.people : [];
+    if (others.length) { bevel(g, C.L + 6, hy, C.W - 12, hh, '#000', CY, 3); drawOnNow(g, C, hy, hh, others); }
+    else Fo.draw(g, Pr && Pr.ok ? 'NOBODY ELSE IS ON' : '', cx, hy + hh / 2, { scale: 2, scheme: 'gray', shadow: 0 });
+    button(g, 'back', cx - 55, C.B - 31, 110, 26, 'BACK', { on: false, size: 2, fn: function () { UI.show('title'); } });
     // who you are (change it), bottom left
-    var me = UI.who(), mw = Math.min(150, cx - 52 - C.L - 6);
-    button(g, 'whoami', C.L + 6, C.B - 30, mw, 24, me ? 'YOU: ' + nameOf(me) : 'WHO ARE YOU?', { on: !!me, color: '#7a3cc8', size: 1, fn: function () { UI.whoNext = 'online'; UI.show('who'); } });
-    // who's on: big at the bottom right if it fits beside BACK
-    if (Pr && Pr.ok && Pr.count > 0) { var pt = Pr.count === 1 ? 'JUST YOU ONLINE NOW' : Pr.count === 2 ? '1 OTHER PERSON ONLINE NOW' : Pr.count - 1 + ' OTHER PEOPLE ONLINE NOW', ps = Fo.measure(pt, 2) <= C.R - 10 - (cx + 52) ? 2 : 1; Fo.draw(g, pt, C.R - 10, C.B - 18, { scale: ps, scheme: 'green', shadow: ps === 2 ? 2 : 0, align: 'right' }); }
+    var me = UI.who(), mw = Math.min(170, cx - 60 - C.L - 6), wt = me ? 'YOU: ' + nameOf(me) : 'WHO ARE YOU?';
+    button(g, 'whoami', C.L + 6, C.B - 31, mw, 26, wt, { on: !!me, color: '#7a3cc8', size: 2, sx: squeeze(wt, mw - 10), fn: function () { UI.whoNext = 'online'; UI.show('who'); } });
+    // how many others are on, bottom right
+    if (Pr && Pr.ok && Pr.count > 1) { var pt = Pr.count - 1 + ' ONLINE', ps = Fo.measure(pt, 2) <= C.R - 10 - (cx + 62) ? 2 : 1; Fo.draw(g, pt, C.R - 10, C.B - 18, { scale: ps, scheme: 'green', shadow: ps === 2 ? 2 : 0, align: 'right' }); }
     if (In.enter) { Net.host(); UI.show('lobby'); }
   }
   // the ON NOW list on the online screen: everyone else online - their face and name if they picked who they are, what they're up
@@ -857,7 +862,7 @@ window.HW = window.HW || {};
     var mine = HW.Net && HW.Net.code; others = others.filter(function (q) { return q.rm && q.rm !== mine; }).concat(others.filter(function (q) { return !q.rm || q.rm === mine; }));
     var open = others.filter(function (q) { return q.rm && q.rm !== mine; }).length;
     var free = others.filter(function (q) { return q.st !== 'r' && q.st !== 'g'; }), rowH = Math.floor((hh - 30) / 34) >= Math.min(others.length, Math.floor((hh - 30) / 30)) ? 34 : 30, rows = Math.max(1, Math.floor((hh - 30) / rowH)), x0 = C.L + 18, bw = 132;
-    Fo.draw(g, open ? (open === 1 ? '1 OPEN GAME - JOIN IT, OR CHALLENGE SOMEONE' : open + ' OPEN GAMES - JOIN ONE, OR CHALLENGE SOMEONE') : 'ON NOW', x0, hy + 14, { scale: 1, scheme: 'yellow', align: 'left', shadow: 0 });
+    Fo.draw(g, 'ON NOW', x0, hy + 14, { scale: 1, scheme: 'yellow', align: 'left', shadow: 0 });
     if (free.length > 1) button(g, 'chall', C.R - 16 - bw, hy + 5, bw, 20, 'CHALLENGE ALL', { color: '#e0302a', size: 1, fn: function () { inviteThem(null, ''); } });
     others.slice(0, others.length > rows ? rows - 1 : rows).forEach(function (q, i) {
       var y = hy + 28 + i * rowH, nm = nameOf(q.nm), busy = q.st === 'r' || q.st === 'g', fx = x0;
@@ -865,9 +870,9 @@ window.HW = window.HW || {};
       else { g.fillStyle = '#2a2d5c'; g.fillRect(fx, y + 2, rowH - 8, rowH - 8); Fo.draw(g, '?', fx + (rowH - 8) / 2, y + rowH / 2 - 1, { scale: 2, scheme: 'white', shadow: 0 }); fx += rowH; }
       var w1 = Fo.draw(g, nm || 'SOMEONE', fx, y + 9, { scale: 2, scheme: nm ? 'white' : 'gray', align: 'left', shadow: 0 });
       var room = q.rm && q.rm !== mine ? q.rm : '';
-      Fo.draw(g, room ? 'HOSTING ROOM ' + room + ' - THERE\'S ROOM FOR YOU' : (q.dv === 'c' ? 'ON A COMPUTER, ' : 'ON A PHONE, ') + DOING[q.st || 'm'], fx, y + 22, { scale: 1, scheme: room ? 'cyan' : busy ? 'gray' : 'green', align: 'left', shadow: 0 });
-      if (room) button(g, 'jn' + q.id, C.R - 16 - bw, y + 2, bw, rowH - 6, 'JOIN ' + room, { color: '#1aa6d8', size: 1, fn: function () { joinThem(room); } });
-      else button(g, 'ch' + q.id, C.R - 16 - bw, y + 2, bw, rowH - 6, busy ? 'BUSY' : 'CHALLENGE', { color: '#1fb04c', size: 1, disabled: busy, fn: function () { inviteThem(q.id, nm); } });
+      Fo.draw(g, room ? 'HOSTING ROOM ' + room : (q.dv === 'c' ? 'ON A COMPUTER, ' : 'ON A PHONE, ') + DOING[q.st || 'm'], fx, y + 22, { scale: 1, scheme: room ? 'cyan' : busy ? 'gray' : 'green', align: 'left', shadow: 0 });
+      if (room) button(g, 'jn' + q.id, C.R - 16 - bw, y + 2, bw, rowH - 6, 'JOIN ' + room, { color: '#1aa6d8', size: 2, sx: squeeze('JOIN ' + room, bw - 10), fn: function () { joinThem(room); } });
+      else button(g, 'ch' + q.id, C.R - 16 - bw, y + 2, bw, rowH - 6, busy ? 'BUSY' : 'CHALLENGE', { color: '#1fb04c', size: 2, sx: squeeze(busy ? 'BUSY' : 'CHALLENGE', bw - 10), disabled: busy, fn: function () { inviteThem(q.id, nm); } });
     });
     if (others.length > rows) Fo.draw(g, '+' + (others.length - rows + 1) + ' MORE ON', x0, hy + 28 + (rows - 1) * rowH + 12, { scale: 1, scheme: 'gray', align: 'left', shadow: 0 });
   }
@@ -877,14 +882,13 @@ window.HW = window.HW || {};
   function titleFit(text, w, o) { var m = Fo.measure(text, 2); o.scale = 2; if (m > w) { if (m / 2 * 1.5 <= w) o.sx = 1.5; else o.scale = 1; } return o; }
   // WHO ARE YOU? - optional: pick yourself from the family on this phone (ONLINE > WHO ARE YOU?), so the others see who's on and
   // can challenge you by name, and so GET BUZZED knows whose invites these are. Nothing makes you; SKIP goes back
-  function drawWho(g, fr) {
+  function drawWho(g, fr, back) {   // (back: after a pick or SKIP, instead of a screen - the final scoreboard's own WHO ARE YOU?)
     var C = card(g), cx = Math.round((C.L + C.R) / 2), T = HW.TEAMS, cur = UI.who();
     flaming(g, 'WHO ARE YOU?', cx, C.T + 28, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
-    Fo.draw(g, 'OPTIONAL: SO THE FAMILY CAN SEE WHO\'S ON AND CHALLENGE YOU', cx, C.T + 56, { scale: 1, scheme: 'cyan', shadow: 0 });
-    var NF = T.length, pw = Math.floor((C.W - 4 * (NF + 1)) / NF), py = C.T + 68, maxR = 0;
+    var NF = T.length, pw = Math.floor((C.W - 4 * (NF + 1)) / NF), py = C.T + 52, maxR = 0;
     T.forEach(function (Tm) { maxR = Math.max(maxR, Tm.roster.length); });
-    var out = function () { UI.show(UI.whoNext === 'getbuzz' ? 'online' : UI.whoNext || 'online'); };   // (out without a pick: GET BUZZED needs one, so not back there)
-    var rowH = Math.min(36, Math.floor((C.B - 36 - py - 26) / maxR)), done = function (id) { setWho(id); UI.show(UI.whoNext || 'online'); };
+    var out = back || function () { UI.show(UI.whoNext === 'getbuzz' ? 'online' : UI.whoNext || 'online'); };   // (out without a pick: GET BUZZED needs one, so not back there)
+    var rowH = Math.min(36, Math.floor((C.B - 36 - py - 26) / maxR)), done = function (id) { setWho(id); if (back) back(); else UI.show(UI.whoNext || 'online'); };
     T.forEach(function (Tm, ti) {
       var x = C.L + 4 + ti * (pw + 4);
       bevel(g, x, py, pw, 26 + Tm.roster.length * rowH + 4, '#06081e', Tm.color, 3);
@@ -897,7 +901,7 @@ window.HW = window.HW || {};
         UI.btns.push({ id: 'who' + id, x: x + 4, y: y, w: pw - 8, h: rowH - 1, fn: function () { done(id); } });
       });
     });
-    button(g, 'whoskip', cx - 60, C.B - 30, 120, 24, cur ? 'BACK' : 'SKIP', { on: false, size: 1, fn: out });
+    button(g, 'whoskip', cx - 60, C.B - 31, 120, 26, cur ? 'BACK' : 'SKIP', { on: false, size: 2, fn: out });
   }
   /* ---------- BUZZ: an invite straight to someone's phone (no texting, and from the Quest too), notify.js ---------- */
   // pick who: you get a room going (or use the one you're hosting) and their phone gets "X wants to play - tap to join"
@@ -916,10 +920,9 @@ window.HW = window.HW || {};
   function drawBuzz(g, fr) {
     var C = card(g), cx = Math.round((C.L + C.R) / 2), T = HW.TEAMS, me = UI.who(), Net = HW.Net, hosting = Net && Net.mode === 'host';
     flaming(g, 'BUZZ A PHONE', cx, C.T + 26, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
-    Fo.draw(g, 'NO TEXTING: TAP SOMEONE AND THEIR PHONE GETS AN INVITE TO ' + (hosting ? 'ROOM ' + Net.code : 'A ROOM YOU OPEN'), cx, C.T + 52, { scale: 1, scheme: 'cyan', shadow: 0 });
-    var NF = T.length, pw = Math.floor((C.W - 4 * (NF + 1)) / NF), py = C.T + 64, maxR = 0, t = nowMs();
+    var NF = T.length, pw = Math.floor((C.W - 4 * (NF + 1)) / NF), py = C.T + 52, maxR = 0, t = nowMs();
     T.forEach(function (Tm) { maxR = Math.max(maxR, Tm.roster.length); });
-    var rowH = Math.min(34, Math.floor((C.B - 50 - py - 26) / maxR));
+    var rowH = Math.min(36, Math.floor((C.B - 36 - py - 26) / maxR));
     T.forEach(function (Tm, ti) {
       var x = C.L + 4 + ti * (pw + 4);
       bevel(g, x, py, pw, 26 + Tm.roster.length * rowH + 4, '#06081e', Tm.color, 3);
@@ -932,32 +935,60 @@ window.HW = window.HW || {};
         if (!self) UI.btns.push({ id: 'bz' + id, x: x + 4, y: y, w: pw - 8, h: rowH - 1, disabled: sent, fn: function () { buzzThem(id); } });
       });
     });
-    Fo.draw(g, 'IT REACHES PHONES THAT TURNED IT ON: ONLINE > GET BUZZED', cx, C.B - 40, { scale: 1, scheme: 'yellow', shadow: 0 });
-    button(g, 'back', cx - 50, C.B - 30, 100, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show(hosting ? 'lobby' : 'online'); } });
+    button(g, 'back', cx - 55, C.B - 31, 110, 26, 'BACK', { on: false, size: 2, fn: function () { UI.show(hosting ? 'lobby' : 'online'); } });
   }
   // GET BUZZED: set up this phone to get those invites - the free ntfy app, subscribed to your own topic
   function drawGetBuzz(g, fr) {
     if (!UI.who()) { UI.whoNext = 'getbuzz'; UI.screen = 'who'; drawWho(g, fr); return; }   // (your own invites: it has to know who you are)
     var C = card(g), cx = Math.round((C.L + C.R) / 2), Nt = HW.Notify, me = UI.who(), topic = Nt.topicFor(me), noted = UI.gbNote && nowMs() < UI.gbNoteT;
-    flaming(g, 'GET BUZZED', cx, C.T + 26, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
-    ['WHEN SOMEONE BUZZES YOU - FROM THE QUEST, A COMPUTER OR A PHONE - THIS', 'PHONE GETS A NOTIFICATION. TAP IT TO JUMP STRAIGHT INTO THEIR GAME.'].forEach(function (s, i) { Fo.draw(g, s, cx, C.T + 52 + i * 13, { scale: 1, scheme: 'cyan', shadow: 0 }); });
-    Fo.draw(g, '1. GET THE FREE NTFY APP (APP STORE OR GOOGLE PLAY)', C.L + 16, C.T + 92, { scale: 1, scheme: 'yellow', align: 'left', shadow: 0 });
-    Fo.draw(g, '2. SUBSCRIBE TO YOUR OWN INVITES: THE BUTTON BELOW, OR IN NTFY TAP + AND TYPE', C.L + 16, C.T + 108, { scale: 1, scheme: 'yellow', align: 'left', shadow: 0 });
+    flaming(g, 'GET BUZZED', cx, C.T + 24, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
+    var L = C.L + 16, step = function (n, t, y) { Fo.draw(g, n, L, y, { scale: 2, scheme: 'yellow', align: 'left' }); if (t) Fo.draw(g, t, L + 30, y, { scale: 2, scheme: 'white', align: 'left' }); };
+    step('1', 'GET THE FREE NTFY APP', C.T + 60);
+    step('2', 'SUBSCRIBE TO:', C.T + 90);
     // the topic in a real font: it's lower case, and has to be typed exactly
-    bevel(g, C.L + 16, C.T + 118, C.W - 32, 30, '#000', CY, 3);
-    g.save(); g.font = '12px "Press Start 2P", monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#ffffff'; g.fillText(topic, cx, C.T + 134); g.restore();
-    var bw = Math.floor((C.W - 48) / 3), by = C.T + 158, open = function (u, blank) { try { if (blank) window.open(u, '_blank'); else location.href = u; } catch (e) { } };
+    bevel(g, L, C.T + 102, C.W - 32, 32, '#000', CY, 3);
+    g.save(); g.font = '12px "Press Start 2P", monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#ffffff'; g.fillText(topic, cx, C.T + 119); g.restore();
+    var bw = Math.floor((C.W - 48) / 3), by = C.T + 140, open = function (u, blank) { try { if (blank) window.open(u, '_blank'); else location.href = u; } catch (e) { } };
     var pad = function (f) { return function () { if (HW.Pad && HW.Pad.active) f(); }; };   // (a controller's press isn't a tap: no new app from it, but try)
     var app = function () { open(Nt.appLink(me)); }, web = function () { open(Nt.webLink(me), true); };
-    var copy = function () { try { navigator.clipboard.writeText(topic).then(function () { UI.gbNote = 'COPIED: PASTE IT IN NTFY'; UI.gbNoteT = nowMs() + 4000; }); } catch (e) { } };
-    button(g, 'ntapp', C.L + 16, by, bw, 34, 'OPEN IN THE NTFY APP', { color: '#1fb04c', size: 1, gesture: app, fn: pad(app) });
-    button(g, 'ntweb', C.L + 24 + bw, by, bw, 34, 'OR THE NTFY WEBSITE', { color: '#1aa6d8', size: 1, gesture: web, fn: pad(web) });
-    button(g, 'ntcopy', C.L + 32 + 2 * bw, by, bw, 34, 'COPY IT', { color: '#7a3cc8', size: 1, gesture: copy, fn: pad(copy) });
-    Fo.draw(g, '3. CHECK IT: SEND YOURSELF A TEST BUZZ', C.L + 16, C.T + 212, { scale: 1, scheme: 'yellow', align: 'left', shadow: 0 });
-    button(g, 'nttest', C.L + 16, C.T + 222, 190, 30, 'SEND ME A TEST', { color: '#e0a21a', size: 1, fn: function () { var ok = Nt.buzz(me, null, me, true); UI.gbNote = ok ? 'SENT! IT SHOULD POP UP IN A FEW SECONDS' : 'COULDN\'T SEND FROM HERE'; UI.gbNoteT = nowMs() + 6000; } });
-    if (noted) Fo.draw(g, UI.gbNote, C.L + 216, C.T + 237, { scale: 1, scheme: 'green', align: 'left', shadow: 0 });
-    Fo.draw(g, 'YOU: ' + nameOf(me) + '. THE OTHERS BUZZ YOU FROM ONLINE > BUZZ A PHONE', cx, C.B - 40, { scale: 1, scheme: 'gray', shadow: 0 });
-    button(g, 'back', cx - 50, C.B - 30, 100, 24, 'BACK', { on: false, size: 1, fn: function () { UI.show('online'); } });
+    var copy = function () { try { navigator.clipboard.writeText(topic).then(function () { UI.gbNote = 'COPIED'; UI.gbNoteT = nowMs() + 4000; }); } catch (e) { } };
+    [['ntapp', 'OPEN NTFY', '#1fb04c', app], ['ntweb', 'NTFY WEBSITE', '#1aa6d8', web], ['ntcopy', 'COPY', '#7a3cc8', copy]].forEach(function (b, i) {
+      button(g, b[0], L + i * (bw + 8), by, bw, 34, b[1], { color: b[2], size: 2, sx: squeeze(b[1], bw - 10), gesture: b[3], fn: pad(b[3]) });
+    });
+    step('3', '', C.T + 210);
+    button(g, 'nttest', L + 30, C.T + 194, 220, 32, 'SEND ME A TEST', { color: '#e0a21a', size: 2, sx: squeeze('SEND ME A TEST', 210), fn: function () { var ok = Nt.buzz(me, null, me, true); UI.gbNote = ok ? 'SENT!' : 'COULDN\'T SEND'; UI.gbNoteT = nowMs() + 6000; } });
+    if (noted) Fo.draw(g, UI.gbNote, L + 266, C.T + 210, { scale: 2, scheme: 'green', align: 'left' });
+    button(g, 'back', cx - 55, C.B - 31, 110, 26, 'BACK', { on: false, size: 2, fn: function () { UI.show('online'); } });
+  }
+  /* ---------- the FAMILY BOARD (board.js): everyone who's played, by points; you highlighted; gold, silver, bronze ---------- */
+  var MEDAL = ['#ffd23f', '#dfe4ee', '#e0914e'];
+  function drawBoard(g, fr, back) {
+    var C = card(g), cx = Math.round((C.L + C.R) / 2), Bd = HW.Board, me = UI.who(), rows = (Bd && Bd.rows) || [];
+    if (Bd) Bd.load();
+    flaming(g, 'FAMILY BOARD', cx, C.T + 24, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
+    var done = back || function () { UI.show('title'); };
+    if (!rows.length) Fo.draw(g, Bd && Bd.loading ? 'LOADING...' : 'NO GAMES YET', cx, C.T + 150, { scale: 3, scheme: 'gray' });
+    else {
+      var rowH = 30, top = C.T + 66, per = Math.max(1, Math.floor((C.B - 42 - top) / rowH)), two = rows.length > per, cw = two ? Math.floor((C.W - 18) / 2) : Math.min(C.W - 24, 440);
+      var show = rows.slice(0, per * (two ? 2 : 1)).map(function (r, i) { return { r: r, k: i + 1 }; });
+      var mk = me && Bd.rank(me); if (mk && mk > show.length) show[show.length - 1] = { r: rows[mk - 1], k: mk };   // (you're further down: you take the last spot)
+      [0, 1].slice(0, two ? 2 : 1).forEach(function (c) {
+        var x0 = two ? C.L + 6 + c * (cw + 6) : Math.round(cx - cw / 2);
+        Fo.draw(g, 'PTS', x0 + cw - 84, top - 10, { scale: 1, scheme: 'cyan', shadow: 0 }); Fo.draw(g, 'W-L', x0 + cw - 30, top - 10, { scale: 1, scheme: 'cyan', shadow: 0 });
+      });
+      show.forEach(function (e, i) {
+        var c = two && i >= per ? 1 : 0, x0 = two ? C.L + 6 + c * (cw + 6) : Math.round(cx - cw / 2), y = top + (i % per) * rowH, r = e.r, you = r.id === me;
+        g.fillStyle = you ? (blink(2) ? '#ffe14d' : '#ffb000') : i % 2 ? '#0b0e32' : '#10144a'; g.fillRect(x0, y, cw, rowH - 2);
+        if (you) { g.fillStyle = '#10144a'; g.fillRect(x0 + 2, y + 2, cw - 4, rowH - 6); }
+        Fo.draw(g, '#' + e.k, x0 + 6, y + rowH / 2 - 1, { scale: 2, color: MEDAL[e.k - 1] || '#ffffff', align: 'left' });
+        var f = miniFace(r.id, rowH - 6); g.drawImage(f, x0 + 50, y + 2);
+        Fo.draw(g, HW.PLAYERS[r.id].first, x0 + 56 + f.width, y + rowH / 2 - 1, nameFit(HW.PLAYERS[r.id].first, cw - f.width - 56 - 128, { scheme: 'white', align: 'left', shadow: 0 }));
+        Fo.draw(g, String(r.p), x0 + cw - 84, y + rowH / 2 - 1, { scale: 2, scheme: 'yellow' });
+        var wl = r.w + '-' + r.l; Fo.draw(g, wl, x0 + cw - 30, y + rowH / 2 - 1, { scale: 2, sx: Fo.measure(wl, 2) > 52 ? 1 : 2, sy: 2, scheme: 'white' });
+      });
+    }
+    if (!me) button(g, 'boardme', C.L + 8, C.B - 32, 200, 26, 'GET ON THE BOARD', { color: '#7a3cc8', size: 1, fn: function () { if (back) UI.resSub = 'who'; else { UI.whoNext = 'board'; UI.show('who'); } } });
+    button(g, 'back', cx - 55, C.B - 32, 110, 26, 'BACK', { on: false, size: 2, fn: done });
   }
   function drawJoin(g, fr) {
     var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net, code = UI.code || '', busy = Net.mode === 'guest' && Net.stage === 'connecting';
@@ -978,7 +1009,6 @@ window.HW = window.HW || {};
       var col = i % 3, row = (i / 3) | 0;
       button(g, 'k' + k, kx0 + col * (kw + kg), ky0 + row * (kh + kg), kw, kh, k, { size: k.length > 1 ? 1 : 2, color: k === 'JOIN' ? '#1fb04c' : k === 'DEL' ? '#e0302a' : '#22c4f2', disabled: busy || (k === 'JOIN' && code.length < 4), fn: function () { if (k === 'JOIN') Net.join(code); else add(k); } });
     });
-    if (!busy && HW.TOUCH) Fo.draw(g, 'GOT A LINK? JUST TAP IT', cx, C.B - 46, { scale: 1, scheme: 'gray', shadow: 0 });
     button(g, 'back', C.L + 10, C.B - 32, 90, 26, busy ? 'CANCEL' : 'BACK', { on: false, size: 1, fn: function () { if (Net.mode) Net.leave(); UI.show('online'); } });
     In.digits.forEach(add); if (In.enter && code.length === 4 && !busy) Net.join(code);
   }
@@ -998,13 +1028,12 @@ window.HW = window.HW || {};
       button(g, 'share', C.R - 172, C.T + 6, 162, 32, navigator.share ? 'SEND INVITE' : 'COPY LINK', { color: '#1fb04c', size: 2, gesture: function () { Net.share(); }, fn: function () { if (HW.Pad && HW.Pad.active) Net.share(); } });
       button(g, 'buzzl', C.R - 172, C.T + 41, 162, 16, 'OR BUZZ A PHONE', { color: '#e0a21a', size: 1, fn: function () { UI.show('buzz'); } });   // (no texting: a push to their phone, notify.js)
       if (noted) { var nw = Fo.measure(Net.note, 1) + 16; g.fillStyle = 'rgba(0,0,0,0.85)'; g.fillRect(Math.round(cx - nw / 2), C.T + 50, Math.round(nw), 15); Fo.draw(g, Net.note, cx, C.T + 58, { scale: 1, scheme: 'green', shadow: 0 }); }
-    } else Fo.draw(g, 'YOU\'RE IN! TAP WHO YOU PLAY', C.R - 10, C.T + 50, { scale: 1, scheme: 'green', align: 'right', shadow: 0 });
+    } else Fo.draw(g, 'PICK YOUR PLAYER', C.R - 10, C.T + 50, { scale: 1, scheme: 'green', align: 'right', shadow: 0 });
     // together (the people on one team vs the CPU) or against each other: the host picks
     var tw = 100, tmid = Math.round((C.L + 120 + C.R - 176) / 2), ty = C.T + 6;
     [['TOGETHER', false], ['AGAINST', true]].forEach(function (o, i) {
       button(g, i ? 'vs' : 'coop', tmid - tw - 3 + i * (tw + 6), ty, tw, 26, o[0], { on: Net.vs === o[1], size: 1, color: i ? '#e0302a' : '#1fb04c', fn: isHost ? function () { Net.setVs(o[1]); } : null });
     });
-    Fo.draw(g, Net.vs ? 'PEOPLE ON OPPOSITE TEAMS' : 'TEAM UP VS THE CPU (2 PEOPLE)', tmid, ty + 38, { scale: 1, scheme: Net.vs ? 'red' : 'green', shadow: 0 });
     // both families: tap a player to be him (again to let him go); people's picks are tagged, YOU flashing
     var NF = HW.TEAMS.length, py = C.T + 60, pw = Math.floor((C.W - 4 * (NF + 1)) / NF), rowH = 27, ph = 26 + 5 * rowH + 4;
     HW.TEAMS.forEach(function (T, ti) {
@@ -1032,19 +1061,19 @@ window.HW = window.HW || {};
     ents.forEach(function (e) { Fo.draw(g, e.t, ex, by, { scale: 1, scheme: e.talk ? 'green' : 'white', shadow: 0, align: 'left' }); if (e.vo) Vo.icon(g, ex + e.w - 4, by, 1, e.talk ? '#7dff9a' : '#ffffff', e.vo === 1); ex += e.w + gap; });
     var y2 = by + 12;
     if (isHost) {
-      var dw = 54, qw = 40, sx0 = C.L + 8;
-      DIFFS.forEach(function (dk, i) { button(g, 'd' + dk, sx0 + i * (dw + 4), y2, dw, 20, dk.toUpperCase(), { on: Net.diff === dk, size: 1, color: ['#1fb04c', '#ffc61a', '#e0302a'][i], fn: function () { Net.setDiff(dk); } }); });
-      QLENS.forEach(function (q, i) { button(g, 'q' + q, sx0 + 3 * (dw + 4) + 8 + i * (qw + 4), y2, qw, 20, clockText(q), { on: Net.qlen === q, size: 1, color: '#22c4f2', fn: function () { Net.setQlen(q); } }); });
+      var sx0 = C.L + 8, lw = Math.floor((C.R - 168 - sx0 - 6) / 2);
+      levelBtn(g, sx0, y2, lw, 26, Net.diff, function (d) { Net.setDiff(d); });
+      qlenBtn(g, sx0 + lw + 6, y2, lw, 26, Net.qlen, function (q) { Net.setQlen(q); });
       var ok = Net.canStart(), need = Net.need();
       button(g, 'start', C.R - 160, y2, 152, 50, 'START', { size: 3, disabled: !ok, fn: function () { Net.start(); } });
-      Fo.draw(g, ok ? 'CPU DIFFICULTY  /  QUARTER LENGTH' : need, sx0, y2 + 32, { scale: 1, scheme: ok ? 'gray' : 'yellow', align: 'left', shadow: 0 });
+      if (!ok) Fo.draw(g, need, sx0, y2 + 38, { scale: 1, scheme: 'yellow', align: 'left', shadow: 0 });
       if (In.enter && ok) Net.start();
     } else {
-      Fo.draw(g, 'CPU: ' + (HW.DIFFICULTY[Net.diff] || { label: 'NORMAL' }).label + '   ' + clockText(Net.qlen || 60) + ' QUARTERS', C.L + 12, y2 + 10, { scale: 1, scheme: 'gray', align: 'left', shadow: 0 });
-      if (blink()) Fo.draw(g, Net.claim ? 'WAITING FOR P1 TO START' : 'PICK A PLAYER', C.R - 12, y2 + 10, { scale: 2, scheme: 'yellow', align: 'right' });
+      Fo.draw(g, (Net.diff || 'normal').toUpperCase() + '  ' + clockText(Net.qlen || 60), C.L + 12, y2 + 12, { scale: 2, color: DIFF_COL[Net.diff] || '#ffc61a', align: 'left' });
+      if (blink()) Fo.draw(g, Net.claim ? 'WAITING FOR P1' : 'PICK A PLAYER', C.R - 12, y2 + 12, { scale: 2, scheme: 'yellow', align: 'right' });
     }
-    button(g, 'leave', C.L + 8, C.B - 26, 90, 22, 'LEAVE', { on: false, size: 1, fn: function () { UI.show('online'); Net.leave(); } });
-    if (Vo && Vo.buttons(g, C.L + 104, C.B - 26, 180, 22, 1)) Fo.draw(g, Vo.status() || 'TALK WHILE YOU PLAY', C.L + 292, C.B - 15, { scale: 1, scheme: Vo.err ? 'yellow' : Vo.on ? 'green' : 'gray', align: 'left', shadow: 0 });
+    button(g, 'leave', C.L + 8, C.B - 26, 90, 22, 'LEAVE', { on: false, size: 2, fn: function () { UI.show('online'); Net.leave(); } });
+    if (Vo && Vo.buttons(g, C.L + 104, C.B - 26, 200, 22, 2) && Vo.status()) Fo.draw(g, Vo.status(), C.L + 312, C.B - 15, { scale: 1, scheme: Vo.err ? 'yellow' : 'green', align: 'left', shadow: 0 });
   }
   function drawNetErr(g, fr) {
     var C = card(g), cx = Math.round((C.L + C.R) / 2), Net = HW.Net, msg = Net.err || 'SOMETHING WENT WRONG', badCode = /^NO (GAME|ANSWER)/.test(msg);
@@ -1068,8 +1097,19 @@ window.HW = window.HW || {};
     Fo.draw(g, G.score[1] + ' ' + T[1].name, cx + 20, y, { scale: 2, color: T[1].color, align: 'left' });
   }
 
+  // the final scoreboard's board button: +points and your place (who you passed, now and then), or GET ON THE BOARD
+  function boardLabel() {
+    var Bd = HW.Board, me = UI.who(); if (!Bd) return '';
+    if (!me) return Bd.pending ? 'GET ON THE BOARD' : '';
+    var L = Bd.last; if (!L || L.id !== me) return 'FAMILY BOARD';
+    if (L.passed.length && Math.floor(UI.t / 1.6) % 2) return 'PASSED ' + nameOf(L.passed[0]) + '!';
+    if (!L.rank) return 'FAMILY BOARD';
+    return L.pts ? '+' + L.pts + ' PTS  #' + L.rank : 'YOU\'RE #' + L.rank;
+  }
   // the final scoreboard, over the game's highlights replaying behind it (replay.js; the plain card if there are none); it fades in
   function drawResults(g, fr, dt) {
+    if (UI.resSub === 'who') { drawWho(g, fr, function () { UI.resSub = null; }); return; }   // (WHO ARE YOU? / the board, over the scoreboard)
+    if (UI.resSub === 'board') { drawBoard(g, fr, function () { UI.resSub = null; }); return; }
     var G = HW.Jam, T = [G.team(0), G.team(1)], w = G.score[0] > G.score[1] ? 0 : 1, Rp = HW.Replay, reel = !!(Rp && Rp.draw(g, dt || 0));
     var C = card(g, null, reel ? 'rgba(8,10,46,0.28)' : null), cx = Math.round((C.L + C.R) / 2);
     var hc = reel && Rp.now(); if (hc) {   // a TV-style REPLAY tag, and whose highlight it is when there's room left of the title
@@ -1098,16 +1138,18 @@ window.HW = window.HW || {};
       else if (p.lbl) tab(g, px + 52 + Fo.measure(p.def.first, 2) + 14, y - 7, p.lbl, '#1aa6d8', false);
       [sv.pts, sv.fgm + '/' + sv.fga, sv.tpm + '/' + sv.tpa, sv.ast, sv.dunks, sv.steals, sv.blocks].forEach(function (v, k) { Fo.draw(g, String(v), px + pw * cols[k][1], y, { scale: k === 1 || k === 2 ? 1 : 2, scheme: k ? 'white' : 'yellow' }); });
     });
-    var bw = Math.min(220, (C.W - 30) / 2), by = py + ph + 10, bh = Math.min(40, C.B - by - 2), Net = HW.Net;
+    var bw = Math.min(200, Math.floor((C.W - 36) / 3)), by = py + ph + 10, bh = Math.min(40, C.B - by - 2), Net = HW.Net, bx = cx - 1.5 * bw - 8;
+    // the family board in the middle: where this game put you (+points, your place, who you just passed), or how to get on it
+    var bl = boardLabel(); if (bl) button(g, 'resboard', cx - bw / 2, by, bw, bh, bl, { color: '#7a3cc8', size: 2, sx: squeeze(bl, bw - 10), fn: function () { UI.resSub = UI.who() ? 'board' : 'who'; } });
     if (Net && Net.mode === 'guest') {   // online, the host decides what's next
-      if (blink()) Fo.draw(g, 'WAITING FOR P1: REMATCH OR NEW TEAMS', cx - 70, by + bh / 2, { scale: 1, scheme: 'yellow' });
-      button(g, 'leave', C.R - 130, by, 120, bh, 'LEAVE', { color: '#e0302a', size: 2, fn: function () { UI.show('title'); } });
+      if (blink()) Fo.draw(g, 'WAITING FOR P1', bx + bw / 2, by + bh / 2, { scale: 2, scheme: 'yellow' });
+      button(g, 'leave', cx + bw / 2 + 8, by, bw, bh, 'LEAVE', { color: '#e0302a', size: 2, fn: function () { UI.show('title'); } });
     } else if (Net && Net.mode === 'host') {
-      button(g, 'again', cx - bw - 6, by, bw, bh, 'REMATCH', { size: 2, fn: function () { Net.go(); } });
-      button(g, 'new', cx + 6, by, bw, bh, 'NEW TEAMS', { color: '#1aa6d8', size: 2, fn: function () { Net.toLobby(); } });
+      button(g, 'again', bx, by, bw, bh, 'REMATCH', { size: 2, fn: function () { Net.go(); } });
+      button(g, 'new', cx + bw / 2 + 8, by, bw, bh, 'NEW TEAMS', { color: '#1aa6d8', size: 2, sx: squeeze('NEW TEAMS', bw - 10), fn: function () { Net.toLobby(); } });
     } else {
-      button(g, 'again', cx - bw - 6, by, bw, bh, 'REMATCH', { size: 2, fn: function () { UI.screen = null; HW.Jam.start(G.setup); } });
-      button(g, 'new', cx + 6, by, bw, bh, 'NEW TEAMS', { color: '#1aa6d8', size: 2, fn: function () { UI.show('fams'); HW.Jam.players = []; } });
+      button(g, 'again', bx, by, bw, bh, 'REMATCH', { size: 2, fn: function () { UI.screen = null; HW.Jam.start(G.setup); } });
+      button(g, 'new', cx + bw / 2 + 8, by, bw, bh, 'NEW TEAMS', { color: '#1aa6d8', size: 2, sx: squeeze('NEW TEAMS', bw - 10), fn: function () { UI.show('fams'); HW.Jam.players = []; } });
     }
     var fin = UI.resAt != null ? (UI.t - UI.resAt) / 0.5 : 1; if (fin < 1) { g.fillStyle = 'rgba(0,0,0,' + (1 - Math.max(0, fin)) + ')'; g.fillRect(0, 0, X.W, X.H); }
   }
