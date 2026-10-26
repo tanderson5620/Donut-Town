@@ -109,7 +109,7 @@ window.HW = window.HW || {};
   Player.prototype.busy = function () { return this.state === 'cartwheel' || this.state === 'dougie' || this.state === 'armbar' || this.state === 'slam' || this.state === 'punched' || this.state === 'punching' || this.state === 'stepback' || this.state === 'shimmy' || this.state === 'hammer' || this.state === 'chase' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
 
   G.start = function (setup) {
-    X.clearBlood(); if (X.clearFx) X.clearFx(); if (HW.Replay) HW.Replay.reset(); G.vic = false;
+    X.clearBlood(); if (X.clearFx) X.clearFx(); if (HW.Replay) HW.Replay.reset(); G.vic = false; G.boardDone = false;   // (boardDone: counted on the family board, board.js)
     if (HW.TOUCH && !G.tipShown) { G.tipShown = true; G.tipT = 1.2; }   // first game on a phone: show where turbo went
     G.setup = setup; G.players = []; G.diff = HW.DIFFICULTY[setup.diff || 'normal'];
     if (HW.Count) HW.Count.game(HW.Net && HW.Net.mode === 'guest');   // the anonymous play counter (count.js)
