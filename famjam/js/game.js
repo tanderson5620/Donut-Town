@@ -109,7 +109,7 @@ window.HW = window.HW || {};
   Player.prototype.busy = function () { return this.state === 'cartwheel' || this.state === 'dougie' || this.state === 'armbar' || this.state === 'slam' || this.state === 'punched' || this.state === 'punching' || this.state === 'stepback' || this.state === 'shimmy' || this.state === 'hammer' || this.state === 'chase' || this.state === 'powerup' || this.state === 'fall' || this.state === 'dunk' || this.state === 'shoot' || this.state === 'shove' || this.state === 'pass'; };
 
   G.start = function (setup) {
-    X.clearBlood(); if (X.clearFx) X.clearFx(); if (HW.Replay) HW.Replay.reset(); G.vic = false; G.boardDone = false;   // (boardDone: counted on the family board, board.js)
+    X.clearBlood(); if (X.clearFx) X.clearFx(); if (HW.Replay) HW.Replay.reset(); G.vic = false; G.boardDone = false;   // (boardDone: counted on the leaderboard, board.js)
     if (HW.TOUCH && !G.tipShown) { G.tipShown = true; G.tipT = 1.2; }   // first game on a phone: show where turbo went
     G.setup = setup; G.players = []; G.diff = HW.DIFFICULTY[setup.diff || 'normal'];
     if (HW.Count) HW.Count.game(HW.Net && HW.Net.mode === 'guest');   // the anonymous play counter (count.js)
@@ -258,7 +258,7 @@ window.HW = window.HW || {};
       if (k.style === 'jam' && p.jamArm) { b.x = p.jamArm.x; b.y = p.jamArm.y; b.z = p.jamArm.z; return; }
       // the reverses and the far-hand layups carry the ball in their frames (rendered with him): ours stays hidden but right where it is
       // drawn, so it leaves his hand from exactly there
-      if (k.lay || k.style === 'both') { var rw = X.ballWorld(p); if (rw) { b.x = rw.x; b.y = Math.max(0.2, rw.y); b.z = p.z - 0.2; b.baked = rw.baked && u < DUNK_SLAM; b.inFront = !b.baked; return; } }   // (over his face or up over his head we draw it, on top)
+      if (k.lay || k.style === 'both' || k.style === 'wind') { var rw = X.ballWorld(p); if (rw) { b.x = rw.x; b.y = Math.max(0.2, rw.y); b.z = p.z - 0.2; b.baked = rw.baked && u < DUNK_SLAM; b.inFront = !b.baked; return; } }   // (over his face or up over his head we draw it, on top)
       if (k.style === 'board' && u > 0.14 && u < 0.5) {   // tossed off the glass and back to himself (slow motion, the camera on the ball)
         if (!k.toss) k.toss = { x: b.x, y: b.y };   // it leaves from right where his hand had it
         var bd = { x: rx + sd * 0.45, y: 3.5 }, f1 = Math.min(1, (u - 0.14) / 0.16), f2 = Math.min(1, Math.max(0, (u - 0.3) / 0.2)); hand = X.handWorld(p) || { x: p.x, y: p.y + 2 };
@@ -508,8 +508,9 @@ window.HW = window.HW || {};
       else { p.dk.x1 = rx - s * (lb0 === 'roll' ? 0.75 : 0.85); p.dk.z1 = K.HZ + (farS ? 0.3 : -0.3); }   // stays on his side of the rim
       if (lb0 === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: 1 };   // regular speed: about 1 s from takeoff to the ball through the net
       if (lb0 === 'roll') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'roll', slow: 1 };   // full speed: the camera rides up with the ball, 1 s up and in
-    } else if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'both', 'btb', 'flip'] : ['legs', 'both', 'btb', 'board', 'flip', 'flex', 'bounce']); p.dk.spin = false;
+    } else if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'both', 'btb', 'flip', 'wind'] : ['legs', 'both', 'btb', 'board', 'flip', 'flex', 'bounce', 'wind', 'wind']); p.dk.spin = false;
       if (p.dk.style === 'both' && !X.hasAnim(p, 'dk_both')) p.dk.style = 'legs';
+      if (p.dk.style === 'wind' && !X.hasAnim(p, 'dk_wind')) p.dk.style = 'jam';   // (the windmill: at full speed, no slow motion)
       if (p.dk.style === 'mj') p.tongue = true;
       var slo = p.dk.style === 'legs' || p.dk.style === 'both';   // under the legs, under both legs
       if (slo) G.cine = { p: p, t: 0, dur: p.dk.T, kind: p.dk.style, slow: DUNK_SLAM * p.dk.T / 2.5 };   // 2.5 s of slow motion up to the slam

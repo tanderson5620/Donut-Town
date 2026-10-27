@@ -475,6 +475,15 @@ var DUNKS = {
   jam: [[0, DK_TAKE], [0.15, { lean: 0.3, rs: 1.6, re: 0.6, ls: 0.8, le: 1.0, rt: 0.6, rk: 1.0, lt: -0.3, lk: 0.9 }],
     [0.35, { lean: 0.4, rs: 2.1, re: 0.0, rz: 0.05, ls: -0.4, le: 0.4, lz: 0.4, rt: 0.4, rk: 0.8, lt: -0.6, lk: 1.0 }],
     [0.55, { lean: 0.45, rs: 2.0, re: 0.0, rz: 0.05, ls: -0.5, le: 0.4, lz: 0.5, rt: 0.4, rk: 0.8, lt: -0.6, lk: 1.0 }], [0.66, DK_SLAM], [0.9, DK_HANG]],
+  // the windmill: the near arm, straight, takes the ball down past his hip, back, up behind him and over the top in one big circle and
+  // slams it (the shoulder angle keeps going the same way round, so the slam's -4.08 is DK_SLAM's 2.2 a full turn on)
+  wind: [[0, DK_TAKE], [0.12, { lean: 0.1, rs: 0.6, re: 0.3, rz: 0.15, ls: 1.2, le: 0.8, lz: 0.3, rt: 0.6, rk: 1.2, lt: 0.1, lk: 0.6 }],
+    [0.24, { lean: 0.05, rs: -0.5, re: 0.1, rz: 0.2, ls: 1.4, le: 0.6, lz: 0.4, rt: 0.7, rk: 1.3, lt: 0.1, lk: 0.6 }],
+    [0.36, { lean: -0.05, rs: -1.6, re: 0.1, rz: 0.2, ls: 1.5, le: 0.5, lz: 0.5, rt: 0.7, rk: 1.3, lt: 0.15, lk: 0.6 }],
+    [0.46, { lean: -0.12, rs: -2.5, re: 0.1, rz: 0.15, ls: 1.4, le: 0.5, lz: 0.5, rt: 0.6, rk: 1.25, lt: 0.15, lk: 0.6 }],
+    [0.56, { lean: 0.0, rs: -3.3, re: 0.1, rz: 0.1, ls: 1.3, le: 0.6, lz: 0.5, rt: 0.55, rk: 1.2, lt: 0.1, lk: 0.55 }],
+    [0.66, { lean: 0.35, rs: -4.08, re: 0.05, rz: 0.1, ls: 1.2, le: 0.6, lz: 0.4, rt: 0.5, rk: 1.2, lt: 0.1, lk: 0.5 }],
+    [0.9, { lean: 0.2, rs: -3.58, re: 0.3, rz: 0.1, ls: 1.4, le: 0.6, lz: 0.5, rt: 0.2, rk: 0.6, lt: 0.1, lk: 0.4 }]],
   bounce: [[0, { crouch: 0.2, lean: 0.45, rs: 0.9, re: 0.2, ls: 0.6, le: 0.6, rt: 0.4, rk: 0.8, lt: 0.3, lk: 0.7 }], [0.12, DK_TAKE],
     [0.3, { rs: 1.6, re: 0.8, ls: 1.6, le: 0.8, rt: 0.7, rk: 1.4, lt: 0.2, lk: 0.7 }], [0.46, { lean: -0.05, rs: 2.9, re: 0.3, ls: 2.9, le: 0.3, rt: 0.6, rk: 1.4, lt: 0.2, lk: 0.8 }],
     [0.66, { lean: 0.35, rs: 2.1, re: 0.05, ls: 2.1, le: 0.05, rt: 0.5, rk: 1.2, lt: 0.2, lk: 0.6 }], [0.9, { lean: 0.2, rs: 2.7, re: 0.3, ls: 2.7, le: 0.3, rt: 0.2, rk: 0.6, lk: 0.4 }]]
@@ -517,8 +526,13 @@ ANIMS.stepback = { n: 3, dirs: ['R'], f: function (t, i) { return [
 // the under-the-legs and under-both-legs dunks play in 2.5 s of slow motion, so they get 30 frames (the rest 12)
 var DK_N = { legs: 30, both: 30 };
 // (under both legs: the ball on its own path, in his hands, up to the slam)
-var DK_HOLD = { both: { hold: true, until: 0.66 } };
+var DK_HOLD = { both: { hold: true, until: 0.66 }, wind: { hand: 0, until: 0.66 } };   // (the windmill: in his near hand all the way round)
 Object.keys(DUNKS).forEach(function (k) { var n = DK_N[k] || 12; ANIMS['dk_' + k] = { n: n, dirs: [k === 'flex' ? 'C' : 'R'], f: keyed(DUNKS[k], n), ball: DK_HOLD[k] || k === 'legs', armOver: !!DK_HOLD[k] }; });
+// the title screen's Jerry West pose (the NBA logo): leaning into a low dribble mid-stride, the near hand pushing the ball down out in
+// front (the ball a bounce below it, baked in), the far arm flung back for balance, the lead knee bent, the trail leg stretched behind
+ANIMS.logo = { n: 2, dirs: ['R'], ball: { hand: 0, until: 1, up: -0.17 }, f: function (t, i) {
+  return { crouch: 0.22, lean: 0.5, rs: 0.62, re: 0.2, rz: 0.1, ls: -1.2, le: 0.6, lz: 0.08, rt: 1.0, rk: 1.15, lt: -0.55, lk: 0.45, neck: -0.25 + 0.02 * i };
+} };
 // the under-both-legs dunk's cut-in (the game cuts to it through the tuck): the very moments of dk_both's frames 7-16, seen the way the
 // photos of the real dunk were taken - from low in front of him looking up, turned three-quarters to the camera, in closer
 var CUT0 = 7, CUT_N = 10;
