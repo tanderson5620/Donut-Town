@@ -545,56 +545,8 @@ window.HW = window.HW || {};
     if (pk && fresh) { Au.chime && Au.chime(); try { if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) navigator.vibrate([70, 50, 70]); } catch (e) { } }
     INV.key = pk; UI.popOn = !!pop;
     if (pop) { held = { tap: In.tap, enter: In.enter, esc: In.pauseDown }; In.tap = null; In.enter = false; In.pauseDown = false; In.nav = null; In.digits.length = 0; }
-    if (s === 'title') {
-      var C = card(g, '#141a6a'), W = X.W, cx = Math.round((C.L + C.R) / 2);
-      g.drawImage(rays(C), C.L, C.T);
-      // logo: FAM over a big flaming JAM with a ball behind it
-      var big = C.W >= 600 ? 9 : 8, by = C.T + 140;
-      var ball = bigBall(); g.drawImage(ball, cx - ball.width / 2, by - ball.height / 2 - 4);
-      flaming(g, 'JAM', cx, by, { scale: big, scheme: 'fire', outline: 3, shadow: 4, shadowColor: '#3a0800' }, fr);
-      Fo.draw(g, 'FAM', cx, C.T + 42, { scale: 6, scheme: 'white', outline: 2, shadow: 3, shadowColor: '#0a1050' });   // in front of JAM's flames
-      var e0 = emblem(0, 2), e1 = emblem(1, 2), ex = Math.min(C.W * 0.36, (C.W - 60) / 2 - 64);
-      if (C.W >= 520) { g.drawImage(e0, Math.round(cx - ex - 64), C.T + 50); g.drawImage(e1, Math.round(cx + ex - 64), C.T + 50); Fo.draw(g, T[0].name, cx - ex, C.T + 190, { scale: 2, color: T[0].color }); Fo.draw(g, T[1].name, cx + ex, C.T + 190, { scale: 2, color: T[1].color }); }
-      if (C.W >= 520) Fo.draw(g, 'VS', cx, C.T + 230, { scale: 3, scheme: 'red' });
-      else Fo.draw(g, T[0].name + ' VS ' + T[1].name, cx, C.T + 230, { scale: 2, scheme: 'red' });
-      var go = HW.TOUCH ? 'TAP TO START' : 'CLICK TO START';
-      if (blink()) Fo.draw(g, go, cx, C.T + 286, { scale: 2, scheme: 'yellow' });
-      if (HW.Pad && HW.Pad.active) HW.Pad.legend(g, HW.Pad.PLAY, cx, C.B - 10, 1);   // (a controller: its buttons)
-      else if (HW.PS && HW.PS.on) Fo.draw(g, HW.PS.legend, cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });   // (a PlayStation's browser: point and click)
-      else if (!HW.TOUCH) Fo.draw(g, 'MOVE: ARROWS  SHOOT: J  PASS: K  TURBO: L/SHIFT  PAUSE: P', cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
-      UI.btns.push({ id: 'start', x: 0, y: 0, w: W, h: X.H, fn: function () { UI.show('fams'); } });
-      if (HW.PS && HW.PS.on) HW.PS.titleBtn(g, C);   // (a PlayStation's browser: SET UP BUTTONS, top left)
-      // the ONLINE button (play the family on their own phones) and who's on right now (presence.js), as big as fits in the
-      // bottom-right corner beside TAP TO START
-      var Pr = HW.Presence, Ct = HW.Count, colR = C.R - 8, colW = colR - (cx + Fo.measure(go, 2) / 2 + 14);
-      var obw = Math.round(Math.max(110, Math.min(200, colW))), big = obw >= 168, obh = big ? 46 : 34, obx = colR - obw, oby = C.T + 244;
-      if (HW.Net) button(g, 'online', obx, oby, obw, obh, 'ONLINE', { color: '#22c4f2', size: big ? 3 : 2, fn: function () { UI.show('online'); } });
-      // the FAMILY BOARD (board.js) in the other corner, with who's on top
-      if (HW.Board) {
-        var bbx = C.L + 8, Bd = HW.Board, top1 = Bd.rows && Bd.rows[0];
-        button(g, 'board', bbx, oby, obw, obh, 'FAMILY BOARD', { color: '#7a3cc8', size: big ? 2 : 1, fn: function () { UI.show('board'); } });
-        if (top1) { var lt = '#1 ' + nameOf(top1.id), ls = Fo.measure(lt, 2) <= obw ? 2 : 1; Fo.draw(g, lt, bbx + obw / 2, oby + obh + (ls === 2 ? 14 : 10), { scale: ls, color: '#ffd23f', shadow: ls === 2 ? 2 : 0 }); }
-        if (!Bd.rows || Date.now() - Bd.t > 60000) Bd.load();
-      }
-      var oth = Pr && Pr.ok ? Pr.count - 1 : 0;   // (everyone else: you're not news)
-      if (oth > 0) {
-        var ot = oth + (oth === 1 ? ' OTHER ONLINE NOW' : ' OTHERS ONLINE NOW'), os = 2;
-        if (Fo.measure(ot, 2) > colW + 8) ot = oth + (oth === 1 ? ' OTHER ONLINE' : ' OTHERS ONLINE');
-        if (Fo.measure(ot, 2) > colW + 8) { ot = oth + (oth === 1 ? ' OTHER ONLINE NOW' : ' OTHERS ONLINE NOW'); os = 1; }
-        Fo.draw(g, ot, Math.min(obx + obw / 2, C.R - 4 - Fo.measure(ot, os) / 2), oby + obh + (os === 2 ? 14 : 10), { scale: os, scheme: 'green', shadow: os === 2 ? 2 : 0 });
-      }
-      // how many have played (count.js); on the owner's own devices, bottom left, also how many of those were his and how many everyone
-      // else's (the split started after the first Ct.PRE games, which can't be told apart)
-      var tot = Ct ? [Ct.games != null ? Ct.games + ' GAMES PLAYED' : '', Ct.players != null ? Ct.players + (Ct.players === 1 ? ' PLAYER' : ' PLAYERS') : ''].filter(Boolean).join('   ') : '';
-      var y0 = HW.TOUCH ? C.B - 10 : C.B - 24;
-      if (tot && Ct.owner != null && Ct.games != null) {
-        var oth = Math.max(0, Ct.games - Ct.owner - Ct.PRE);
-        Fo.draw(g, tot, C.L + 10, y0 - 14, { scale: 1, scheme: 'gray', shadow: 0, align: 'left' });
-        Fo.draw(g, Ct.owner + ' BY YOU, ' + oth + ' BY OTHERS' + (Ct.PRE ? ' (+' + Ct.PRE + ' FROM BEFORE)' : ''), C.L + 10, y0, { scale: 1, scheme: 'white', shadow: 0, align: 'left' });
-      } else if (tot) Fo.draw(g, tot, cx, y0, { scale: 1, scheme: 'gray', shadow: 0 });
-      if (HW.Notify && HW.Notify.marked) ['GOT IT: THIS DEVICE WON\'T', 'SEND YOU NOTIFICATIONS'].forEach(function (t, i) { Fo.draw(g, t, C.L + 10, C.T + 10 + i * 12, { scale: 1, scheme: 'green', shadow: 0, align: 'left' }); });   // (opened with ?me; top left, clear of the logo)
-      if (In.enter) UI.show('fams');
-    } else if (s === 'fams') {
+    if (s === 'title') drawTitle(g, fr);
+    else if (s === 'fams') {
       drawFams(g, fr);
     } else if (s === 'team') {
       drawTeamCard(g, fr);
@@ -643,6 +595,70 @@ window.HW = window.HW || {};
     if (In.tap) { for (var i = UI.btns.length - 1; i >= 0; i--) { var b = UI.btns[i]; if (!b.disabled && In.tap.x >= b.x && In.tap.x <= b.x + b.w && In.tap.y >= b.y && In.tap.y <= b.y + b.h) { Au.click(); b.fn && b.fn(); break; } } }
   };
 
+  /* ---------- the title: the menu down the left, the FAM JAM logo on the right with a few of the family in action round it ---------- */
+  // the cast, picked once per visit from whoever has the move: a dunker flying in under the legs, a shooter cartwheeling, a bruiser's
+  // flying front kick, and The Legend diving in for a body slam. at(L): where the frame's anchor goes, from the logo (L.cx, L.ly, its
+  // half-width L.hw), the room right of the menu (L.l, L.r), the card (L.C) and px per meter (L.m)
+  var CAST = [
+    { type: 'dunker', anim: 'dk_legs', frame: 20, face: -1, bob: 1, at: function (L) { return [Math.min(L.r - 0.7 * L.m, L.cx + L.hw + 0.55 * L.m), L.ly + 1.15 * L.m]; } },
+    { type: 'ram', anim: 'slam', frame: 2, face: 1, bob: 1.3, at: function (L) { return [Math.max(L.l + 0.3 * L.m, L.cx - L.hw - 1.95 * L.m), L.C.T + 1.45 * L.m]; } },
+    { type: 'shooter', anim: 'cartwheel', frame: 6, face: 1, bob: 0, at: function (L) { return [L.cx - 0.6 * L.hw - 0.4 * L.m, L.C.B - 0.62 * L.m]; } },
+    { type: 'strength', anim: 'shove_front', frame: 2, face: -1, bob: 0, at: function (L) { return [Math.min(L.r - 0.5 * L.m, L.cx + L.hw + 0.3 * L.m), L.C.B - 6]; } }
+  ], cast = null;
+  function pickCast() {
+    var ids = Object.keys(HW.PLAYERS);
+    cast = CAST.map(function (c) { var pool = ids.filter(function (id) { return HW.PLAYERS[id].type === c.type; }); return Object.assign({ id: pool[Math.floor(Math.random() * pool.length)] }, c); }).filter(function (c) { return c.id; });
+    cast.forEach(function (c) { X.loadPlayer(c.id); });   // (they appear as their sprites come in)
+  }
+  function drawTitle(g, fr) {
+    var C = card(g, '#141a6a'), Pr = HW.Presence, Ct = HW.Count, Bd = HW.Board;
+    g.drawImage(rays(C), C.L, C.T);
+    if (!cast) pickCast();
+    // the menu
+    var mw = Math.round(Math.max(190, Math.min(250, C.W * 0.34))), mx = C.L + 12, my = Math.round(C.T + (C.H - 196) / 2) - (HW.TOUCH ? 0 : 8);
+    button(g, 'go', mx, my, mw, 58, 'PLAY', { size: 4, sx: squeezeTo('PLAY', mw - 16, 4), fn: function () { UI.show('fams'); } });
+    var oy = my + 68;
+    if (HW.Net) {
+      button(g, 'online', mx, oy, mw, 44, 'ONLINE', { color: '#22c4f2', size: 3, fn: function () { UI.show('online'); } });
+      var oth = Pr && Pr.ok ? Pr.count - 1 : 0;   // (everyone else on right now, presence.js; you're not news)
+      if (oth > 0) Fo.draw(g, oth + ' ONLINE NOW', mx + mw / 2, oy + 55, { scale: 2, scheme: 'green', shadow: 2 });
+    }
+    var by = oy + 66;
+    if (Bd) {
+      var top1 = Bd.rows && Bd.rows[0], bt = 'FAMILY BOARD';
+      button(g, 'board', mx, by, mw, 44, bt, { color: '#7a3cc8', size: 2, sx: squeeze(bt, mw - 12), fn: function () { UI.show('board'); } });
+      if (top1) { var lt = '#1 ' + nameOf(top1.id), ls = Fo.measure(lt, 2) <= mw ? 2 : 1; Fo.draw(g, lt, mx + mw / 2, by + 55, { scale: ls, color: '#ffd23f', shadow: ls === 2 ? 2 : 0 }); }
+      if (!Bd.rows || Date.now() - Bd.t > 60000) Bd.load();
+    }
+    // the logo, in the middle of the room right of the menu, and the cast round it (behind it, so it reads)
+    var rL = mx + mw + 10, rR = C.R - 4, rw = rR - rL, cx = Math.round((rL + rR) / 2), ly = C.T + 132, ppm = Math.round(Math.max(44, Math.min(66, rw / 7.2))), t = UI.t;
+    var big = rw >= 360 ? 9 : rw >= 300 ? 8 : 7, L = { cx: cx, ly: ly, hw: Fo.measure('JAM', big) / 2, l: rL, r: rR, C: C, m: ppm };
+    g.save(); g.beginPath(); g.rect(rL - 6, C.T, rR - rL + 6, C.H); g.clip();
+    cast.forEach(function (c, i) {
+      var p = c.at(L), y = p[1] + (c.bob ? Math.sin(t * 2.2 + i * 1.7) * 3 * c.bob : 0);
+      X.drawFrameAt(g, c.id, c.anim, c.frame, Math.round(p[0]), Math.round(y), ppm, c.face);
+    });
+    g.restore();
+    var ball = bigBall();
+    g.drawImage(ball, cx - ball.width / 2, ly - ball.height / 2 - 4);
+    flaming(g, 'JAM', cx, ly, { scale: big, scheme: 'fire', outline: 3, shadow: 4, shadowColor: '#3a0800' }, fr);
+    Fo.draw(g, 'FAM', cx, ly - 98, { scale: 6, scheme: 'white', outline: 2, shadow: 3, shadowColor: '#0a1050' });   // (in front of JAM's flames)
+    // the controls, for a keyboard or a controller (a phone has its buttons on the screen)
+    if (HW.Pad && HW.Pad.active) HW.Pad.legend(g, HW.Pad.PLAY, cx, C.B - 10, 1);
+    else if (HW.PS && HW.PS.on) Fo.draw(g, HW.PS.legend, cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
+    else if (!HW.TOUCH) Fo.draw(g, 'ARROWS MOVE  J SHOOT  K PASS  SHIFT TURBO  P PAUSE', cx, C.B - 10, { scale: 1, scheme: 'white', shadow: 0 });
+    if (HW.PS && HW.PS.on) HW.PS.titleBtn(g, C);   // (a PlayStation's browser: SET UP BUTTONS, top left)
+    // the play totals (count.js) on the owner's own devices only (marked with ?me): all games and players, and his share of the games
+    if (Ct && HW.Notify && HW.Notify.mine() && Ct.games != null) {
+      var l1 = Ct.games + ' GAMES' + (Ct.players != null ? '  ' + Ct.players + ' PLAYERS' : ''), l2 = Ct.owner != null ? Ct.owner + ' YOU  ' + Math.max(0, Ct.games - Ct.owner - Ct.PRE) + ' OTHERS' + (Ct.PRE ? '  ' + Ct.PRE + ' EARLIER' : '') : '';
+      Fo.draw(g, l1, C.L + 12, C.B - (l2 ? 24 : 10), { scale: 1, scheme: 'white', shadow: 0, align: 'left' });
+      if (l2) Fo.draw(g, l2, C.L + 12, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0, align: 'left' });
+    }
+    if (HW.Notify && HW.Notify.marked) ['GOT IT: THIS DEVICE WON\'T', 'SEND YOU NOTIFICATIONS'].forEach(function (t, i) { Fo.draw(g, t, C.L + 10, C.T + 10 + i * 12, { scale: 1, scheme: 'green', shadow: 0, align: 'left' }); });   // (opened with ?me)
+    if (In.enter) UI.show('fams');
+  }
+  // a size-s label squeezed narrower (same height) to fit w
+  function squeezeTo(text, w, s) { var m = Fo.measure(text, s); return m <= w ? undefined : s * w / m; }
   // spotlight rays behind the title logo
   var raysC = null;
   function rays(C) {
