@@ -48,13 +48,13 @@ window.HW = window.HW || {};
     fetch(N.webLink(id) + '?title=' + encodeURIComponent(test ? 'FAM JAM: you\'re all set' : 'FAM JAM: ' + who + ' is calling you') + '&tags=basketball&priority=high&click=' + encodeURIComponent(url), { method: 'POST', body: msg, mode: 'no-cors' }).catch(function () { });
     return true;
   };
-  // the family board (board.js): someone's win just took them past you - on the same topic as the buzzes, at most every 6 hours
+  // the leaderboard (board.js): someone's win just took them past you - on the same topic as the buzzes, at most every 6 hours
   // from one phone to one person
   N.passed = function (id, from, rank) {
     if (!window.fetch || !HW.PLAYERS[id] || !HW.PLAYERS[from] || id === from) return false;
     if (!m && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) return false;
     var k = 'famjam.passed.' + id; if (Date.now() - (+get(k) || 0) < 6 * 3600000) return false; set(k, String(Date.now()));
-    var who = HW.PLAYERS[from].first, msg = who + ' just passed you on the FAM JAM family board' + (rank ? ' - ' + who + ' is #' + rank + ' now' : '') + '. Go win one back!';
+    var who = HW.PLAYERS[from].first, msg = who + ' just passed you on the FAM JAM leaderboard' + (rank ? ' - ' + who + ' is #' + rank + ' now' : '') + '. Go win one back!';
     fetch(N.webLink(id) + '?title=' + encodeURIComponent('FAM JAM: ' + who + ' passed you') + '&tags=trophy&click=' + encodeURIComponent(GAME), { method: 'POST', body: msg, mode: 'no-cors' }).catch(function () { });
     return true;
   };

@@ -42,7 +42,7 @@ window.HW = window.HW || {};
       if (!UI.screen || UI.screen === 'results' || live) G.update(dt, In); else G.update(0, In);
       if (Net) { Net.rec = false; if (HW.Replay && G.players.length && G.phase !== 'menu' && Net.snap) HW.Replay.frame(G.t, function () { return Net.snap(G.t); }, Net.ev); Net.post(); }
     }
-    if (G.phase === 'over' && G.phaseT <= 0 && UI.screen !== 'results') { UI.screen = 'results'; UI.resAt = UI.t; UI.resSub = null; if (HW.Replay) HW.Replay.stop(); if (HW.Board) HW.Board.gameOver(G); }   // (the family board counts it)
+    if (G.phase === 'over' && G.phaseT <= 0 && UI.screen !== 'results') { UI.screen = 'results'; UI.resAt = UI.t; UI.resSub = null; if (HW.Replay) HW.Replay.stop(); if (HW.Board) HW.Board.gameOver(G); }   // (the leaderboard counts it)
     g.fillStyle = '#05050c'; g.fillRect(0, 0, X.W, X.H);
     var vz = G.show && G.show.kind === 'win' && G.show.t > G.WIN.hud;   // Gator's victory twerk: just him and the WIN! callout
     // (not under the stats screen: it covers the court, and its highlight reel draws its own)

@@ -596,18 +596,19 @@ window.HW = window.HW || {};
   };
 
   /* ---------- the title: the menu down the left, the FAM JAM logo on the right with a few of the family in action round it ---------- */
-  // the cast, picked once per visit from whoever has the move: a dunker flying in under the legs, a shooter cartwheeling, a bruiser's
-  // flying front kick, and The Legend diving in for a body slam. at(L): where the frame's anchor goes, from the logo (L.cx, L.ly, its
-  // half-width L.hw), the room right of the menu (L.l, L.r), the card (L.C) and px per meter (L.m)
+  // the cast round the logo, in front of its edges: Carl's windmill up top on the right, The Legend diving in for a body slam on the
+  // left, Bianca dribbling low like the Jerry West NBA logo (facing left the way he does), and a bruiser's flying front kick, whoever
+  // it is this visit (type: picked at random from that type; id: always them). at(L): where the frame's anchor goes, from the logo
+  // (L.cx, L.ly, its half-width L.hw), the room right of the menu (L.l, L.r), the card (L.C) and px per meter (L.m)
   var CAST = [
-    { type: 'dunker', anim: 'dk_legs', frame: 20, face: -1, bob: 1, at: function (L) { return [Math.min(L.r - 0.7 * L.m, L.cx + L.hw + 0.55 * L.m), L.ly + 1.15 * L.m]; } },
-    { type: 'ram', anim: 'slam', frame: 2, face: 1, bob: 1.3, at: function (L) { return [Math.max(L.l + 0.3 * L.m, L.cx - L.hw - 1.95 * L.m), L.C.T + 1.45 * L.m]; } },
-    { type: 'shooter', anim: 'cartwheel', frame: 6, face: 1, bob: 0, at: function (L) { return [L.cx - 0.6 * L.hw - 0.4 * L.m, L.C.B - 0.62 * L.m]; } },
-    { type: 'strength', anim: 'shove_front', frame: 2, face: -1, bob: 0, at: function (L) { return [Math.min(L.r - 0.5 * L.m, L.cx + L.hw + 0.3 * L.m), L.C.B - 6]; } }
+    { type: 'ram', anim: 'slam', frame: 2, face: 1, bob: 1.3, at: function (L) { return [Math.max(L.l + 0.3 * L.m, L.cx - L.hw - 1.6 * L.m), L.C.T + 1.35 * L.m]; } },
+    { id: 'carl', anim: 'dk_wind', frame: 5, face: -1, bob: 1, at: function (L) { return [Math.min(L.r - 0.7 * L.m, L.cx + L.hw + 0.25 * L.m), L.ly + 1.0 * L.m]; } },
+    { id: 'bianca', anim: 'logo', frame: 0, face: -1, bob: 0, at: function (L) { return [L.cx - 0.55 * L.hw, L.C.B - 6]; } },
+    { type: 'strength', anim: 'shove_front', frame: 2, face: -1, bob: 0, at: function (L) { return [Math.min(L.r - 0.5 * L.m, L.cx + 0.85 * L.hw), L.C.B - 6]; } }
   ], cast = null;
   function pickCast() {
     var ids = Object.keys(HW.PLAYERS);
-    cast = CAST.map(function (c) { var pool = ids.filter(function (id) { return HW.PLAYERS[id].type === c.type; }); return Object.assign({ id: pool[Math.floor(Math.random() * pool.length)] }, c); }).filter(function (c) { return c.id; });
+    cast = CAST.map(function (c) { var pool = c.id ? [c.id] : ids.filter(function (id) { return HW.PLAYERS[id].type === c.type; }); return Object.assign({}, c, { id: pool[Math.floor(Math.random() * pool.length)] }); }).filter(function (c) { return HW.PLAYERS[c.id]; });
     cast.forEach(function (c) { X.loadPlayer(c.id); });   // (they appear as their sprites come in)
   }
   function drawTitle(g, fr) {
@@ -625,24 +626,24 @@ window.HW = window.HW || {};
     }
     var by = oy + 66;
     if (Bd) {
-      var top1 = Bd.rows && Bd.rows[0], bt = 'FAMILY BOARD';
+      var top1 = Bd.sorted('w')[0], bt = 'LEADERBOARD';
       button(g, 'board', mx, by, mw, 44, bt, { color: '#7a3cc8', size: 2, sx: squeeze(bt, mw - 12), fn: function () { UI.show('board'); } });
       if (top1) { var lt = '#1 ' + nameOf(top1.id), ls = Fo.measure(lt, 2) <= mw ? 2 : 1; Fo.draw(g, lt, mx + mw / 2, by + 55, { scale: ls, color: '#ffd23f', shadow: ls === 2 ? 2 : 0 }); }
       if (!Bd.rows || Date.now() - Bd.t > 60000) Bd.load();
     }
     // the logo, in the middle of the room right of the menu, and the cast round it (behind it, so it reads)
-    var rL = mx + mw + 10, rR = C.R - 4, rw = rR - rL, cx = Math.round((rL + rR) / 2), ly = C.T + 132, ppm = Math.round(Math.max(44, Math.min(66, rw / 7.2))), t = UI.t;
-    var big = rw >= 360 ? 9 : rw >= 300 ? 8 : 7, L = { cx: cx, ly: ly, hw: Fo.measure('JAM', big) / 2, l: rL, r: rR, C: C, m: ppm };
+    var rL = mx + mw + 10, rR = C.R - 4, rw = rR - rL, cx = Math.round((rL + rR) / 2), ly = C.T + 132, ppm = Math.round(Math.max(52, Math.min(80, rw / 6))), t = UI.t;
+    var big = rw >= 360 ? 9 : rw >= 300 ? 8 : 7, L = { cx: cx, ly: ly, hw: Fo.measure('JAM', big) / 2, l: rL, r: rR, C: C, m: ppm }, ball = bigBall();
+    g.drawImage(ball, cx - ball.width / 2, ly - ball.height / 2 - 4);
+    flaming(g, 'JAM', cx, ly, { scale: big, scheme: 'fire', outline: 3, shadow: 4, shadowColor: '#3a0800' }, fr);
+    Fo.draw(g, 'FAM', cx, ly - 98, { scale: 6, scheme: 'white', outline: 2, shadow: 3, shadowColor: '#0a1050' });   // (in front of JAM's flames)
+    // the cast, in front of the logo's edges (kept out of the menu)
     g.save(); g.beginPath(); g.rect(rL - 6, C.T, rR - rL + 6, C.H); g.clip();
     cast.forEach(function (c, i) {
       var p = c.at(L), y = p[1] + (c.bob ? Math.sin(t * 2.2 + i * 1.7) * 3 * c.bob : 0);
       X.drawFrameAt(g, c.id, c.anim, c.frame, Math.round(p[0]), Math.round(y), ppm, c.face);
     });
     g.restore();
-    var ball = bigBall();
-    g.drawImage(ball, cx - ball.width / 2, ly - ball.height / 2 - 4);
-    flaming(g, 'JAM', cx, ly, { scale: big, scheme: 'fire', outline: 3, shadow: 4, shadowColor: '#3a0800' }, fr);
-    Fo.draw(g, 'FAM', cx, ly - 98, { scale: 6, scheme: 'white', outline: 2, shadow: 3, shadowColor: '#0a1050' });   // (in front of JAM's flames)
     // the controls, for a keyboard or a controller (a phone has its buttons on the screen)
     if (HW.Pad && HW.Pad.active) HW.Pad.legend(g, HW.Pad.PLAY, cx, C.B - 10, 1);
     else if (HW.PS && HW.PS.on) Fo.draw(g, HW.PS.legend, cx, C.B - 10, { scale: 1, scheme: 'gray', shadow: 0 });
@@ -976,21 +977,32 @@ window.HW = window.HW || {};
     if (noted) Fo.draw(g, UI.gbNote, L + 266, C.T + 210, { scale: 2, scheme: 'green', align: 'left' });
     button(g, 'back', cx - 55, C.B - 31, 110, 26, 'BACK', { on: false, size: 2, fn: function () { UI.show('online'); } });
   }
-  /* ---------- the FAMILY BOARD (board.js): everyone who's played, by points; you highlighted; gold, silver, bronze ---------- */
+  /* ---------- the LEADERBOARD (board.js): everyone who's said who they are and played. WINS: games, wins and losses; then one tab
+     per stat, by the average a game. You highlighted, gold, silver and bronze for the top three ---------- */
   var MEDAL = ['#ffd23f', '#dfe4ee', '#e0914e'];
+  UI.lbTab = 'w';
   function drawBoard(g, fr, back) {
-    var C = card(g), cx = Math.round((C.L + C.R) / 2), Bd = HW.Board, me = UI.who(), rows = (Bd && Bd.rows) || [];
+    var C = card(g), cx = Math.round((C.L + C.R) / 2), Bd = HW.Board, me = UI.who(), tab = UI.lbTab || 'w';
     if (Bd) Bd.load();
-    flaming(g, 'FAMILY BOARD', cx, C.T + 24, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
+    flaming(g, 'LEADERBOARD', cx, C.T + 22, { scale: 3, scheme: 'fire', outline: 2, shadow: 2 }, fr);
     var done = back || function () { UI.show('title'); };
-    if (!rows.length) Fo.draw(g, Bd && Bd.loading ? 'LOADING...' : 'NO GAMES YET', cx, C.T + 150, { scale: 3, scheme: 'gray' });
+    // the tabs
+    var tabs = [['w', 'WINS']].concat(Bd ? Bd.STATS.map(function (st) { return [st[0], st[2]]; }) : []), tw = Math.floor((C.W - 12 - (tabs.length - 1) * 4) / tabs.length);
+    tabs.forEach(function (t, i) {
+      button(g, 'lb' + t[0], C.L + 6 + i * (tw + 4), C.T + 44, tw, 26, t[1], { on: tab === t[0], color: t[0] === 'w' ? '#ffc61a' : '#22c4f2', size: 2, sx: squeeze(t[1], tw - 8), fn: function () { UI.lbTab = t[0]; } });
+    });
+    var rows = Bd ? Bd.sorted(tab) : [], wins = tab === 'w';
+    if (!rows.length) Fo.draw(g, Bd && Bd.loading ? 'LOADING...' : 'NO GAMES YET', cx, C.T + 160, { scale: 3, scheme: 'gray' });
     else {
-      var rowH = 30, top = C.T + 66, per = Math.max(1, Math.floor((C.B - 42 - top) / rowH)), two = rows.length > per, cw = two ? Math.floor((C.W - 18) / 2) : Math.min(C.W - 24, 440);
+      var rowH = 30, top = C.T + 92, per = Math.max(1, Math.floor((C.B - 40 - top) / rowH)), two = rows.length > per, cw = two ? Math.floor((C.W - 18) / 2) : Math.min(C.W - 24, 480);
       var show = rows.slice(0, per * (two ? 2 : 1)).map(function (r, i) { return { r: r, k: i + 1 }; });
-      var mk = me && Bd.rank(me); if (mk && mk > show.length) show[show.length - 1] = { r: rows[mk - 1], k: mk };   // (you're further down: you take the last spot)
+      var mk = me && Bd.rank(me, rows); if (mk && mk > show.length) show[show.length - 1] = { r: rows[mk - 1], k: mk };   // (you're further down: you take the last spot)
+      // columns from the right: WINS - GP, W, L; a stat - its average a game, GP
+      var cols = wins ? [['L', function (r) { return r.l; }], ['W', function (r) { return r.w; }], ['GP', function (r) { return Bd.games(r); }]]
+        : [['GP', function (r) { return r.g; }], ['PER GAME', function (r) { return Bd.avg(r, tab).toFixed(1); }]], colW = wins ? 46 : 70;
       [0, 1].slice(0, two ? 2 : 1).forEach(function (c) {
         var x0 = two ? C.L + 6 + c * (cw + 6) : Math.round(cx - cw / 2);
-        Fo.draw(g, 'PTS', x0 + cw - 84, top - 10, { scale: 1, scheme: 'cyan', shadow: 0 }); Fo.draw(g, 'W-L', x0 + cw - 30, top - 10, { scale: 1, scheme: 'cyan', shadow: 0 });
+        cols.forEach(function (cl, k) { Fo.draw(g, cl[0], x0 + cw - 24 - k * colW, top - 9, { scale: 1, scheme: 'cyan', shadow: 0 }); });
       });
       show.forEach(function (e, i) {
         var c = two && i >= per ? 1 : 0, x0 = two ? C.L + 6 + c * (cw + 6) : Math.round(cx - cw / 2), y = top + (i % per) * rowH, r = e.r, you = r.id === me;
@@ -998,9 +1010,11 @@ window.HW = window.HW || {};
         if (you) { g.fillStyle = '#10144a'; g.fillRect(x0 + 2, y + 2, cw - 4, rowH - 6); }
         Fo.draw(g, '#' + e.k, x0 + 6, y + rowH / 2 - 1, { scale: 2, color: MEDAL[e.k - 1] || '#ffffff', align: 'left' });
         var f = miniFace(r.id, rowH - 6); g.drawImage(f, x0 + 50, y + 2);
-        Fo.draw(g, HW.PLAYERS[r.id].first, x0 + 56 + f.width, y + rowH / 2 - 1, nameFit(HW.PLAYERS[r.id].first, cw - f.width - 56 - 128, { scheme: 'white', align: 'left', shadow: 0 }));
-        Fo.draw(g, String(r.p), x0 + cw - 84, y + rowH / 2 - 1, { scale: 2, scheme: 'yellow' });
-        var wl = r.w + '-' + r.l; Fo.draw(g, wl, x0 + cw - 30, y + rowH / 2 - 1, { scale: 2, sx: Fo.measure(wl, 2) > 52 ? 1 : 2, sy: 2, scheme: 'white' });
+        Fo.draw(g, HW.PLAYERS[r.id].first, x0 + 56 + f.width, y + rowH / 2 - 1, nameFit(HW.PLAYERS[r.id].first, cw - f.width - 56 - cols.length * colW - 4, { scheme: 'white', align: 'left', shadow: 0 }));
+        cols.forEach(function (cl, k) {
+          var v = String(cl[1](r)), main = wins ? k === 1 : k === 1;   // (the column it's sorted by in yellow)
+          Fo.draw(g, v, x0 + cw - 24 - k * colW, y + rowH / 2 - 1, { scale: 2, sx: Fo.measure(v, 2) > colW - 6 ? 1 : 2, sy: 2, scheme: main ? 'yellow' : 'white' });
+        });
       });
     }
     if (!me) button(g, 'boardme', C.L + 8, C.B - 32, 200, 26, 'GET ON THE BOARD', { color: '#7a3cc8', size: 1, fn: function () { if (back) UI.resSub = 'who'; else { UI.whoNext = 'board'; UI.show('who'); } } });
@@ -1113,14 +1127,13 @@ window.HW = window.HW || {};
     Fo.draw(g, G.score[1] + ' ' + T[1].name, cx + 20, y, { scale: 2, color: T[1].color, align: 'left' });
   }
 
-  // the final scoreboard's board button: +points and your place (who you passed, now and then), or GET ON THE BOARD
+  // the final scoreboard's leaderboard button: the win and your place (who you passed, now and then), or GET ON THE BOARD
   function boardLabel() {
     var Bd = HW.Board, me = UI.who(); if (!Bd) return '';
     if (!me) return Bd.pending ? 'GET ON THE BOARD' : '';
-    var L = Bd.last; if (!L || L.id !== me) return 'FAMILY BOARD';
+    var L = Bd.last; if (!L || L.id !== me || !L.rank) return 'LEADERBOARD';
     if (L.passed.length && Math.floor(UI.t / 1.6) % 2) return 'PASSED ' + nameOf(L.passed[0]) + '!';
-    if (!L.rank) return 'FAMILY BOARD';
-    return L.pts ? '+' + L.pts + ' PTS  #' + L.rank : 'YOU\'RE #' + L.rank;
+    return L.win ? '+1 WIN  #' + L.rank : 'YOU\'RE #' + L.rank;
   }
   // the final scoreboard, over the game's highlights replaying behind it (replay.js; the plain card if there are none); it fades in
   function drawResults(g, fr, dt) {
@@ -1155,7 +1168,7 @@ window.HW = window.HW || {};
       [sv.pts, sv.fgm + '/' + sv.fga, sv.tpm + '/' + sv.tpa, sv.ast, sv.dunks, sv.steals, sv.blocks].forEach(function (v, k) { Fo.draw(g, String(v), px + pw * cols[k][1], y, { scale: k === 1 || k === 2 ? 1 : 2, scheme: k ? 'white' : 'yellow' }); });
     });
     var bw = Math.min(200, Math.floor((C.W - 36) / 3)), by = py + ph + 10, bh = Math.min(40, C.B - by - 2), Net = HW.Net, bx = cx - 1.5 * bw - 8;
-    // the family board in the middle: where this game put you (+points, your place, who you just passed), or how to get on it
+    // the leaderboard in the middle: where this game put you (the win, your place, who you just passed), or how to get on it
     var bl = boardLabel(); if (bl) button(g, 'resboard', cx - bw / 2, by, bw, bh, bl, { color: '#7a3cc8', size: 2, sx: squeeze(bl, bw - 10), fn: function () { UI.resSub = UI.who() ? 'board' : 'who'; } });
     if (Net && Net.mode === 'guest') {   // online, the host decides what's next
       if (blink()) Fo.draw(g, 'WAITING FOR P1', bx + bw / 2, by + bh / 2, { scale: 2, scheme: 'yellow' });
