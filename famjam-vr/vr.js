@@ -7,7 +7,7 @@
    so you sit on the near side looking down -z with +x on your right, like the arcade camera. */
 (function () {
   'use strict';
-  var FALLBACK = ['data', 'audio', 'font', 'gfx', 'crowd', 'game', 'ai', 'replay', 'net', 'count', 'presence', 'notify', 'ui', 'main'].map(function (n) { return 'js/' + n + '.js'; });
+  var FALLBACK = ['data', 'audio', 'font', 'gfx', 'crowd', 'game', 'ai', 'replay', 'net', 'voice', 'abacus', 'count', 'board', 'presence', 'notify', 'pad', 'ps', 'ui', 'main'].map(function (n) { return 'js/' + n + '.js'; });
   var V = window.FJVR = { view: 'high' };
   var HW, X, G, UI, In, K, Au, Fo;
 
