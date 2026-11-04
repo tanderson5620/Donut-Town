@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b2b2a">
+<title>Live Translator</title>
+<meta name="description" content="Speak and read the translation live. Works in Chrome and Safari, no install.">
+<style>
+:root {
+  --bg: #0b2b2a; --panel: #123f3c; --ink: #f2fbf9; --muted: #8fb5b0; --accent: #f2a93b; --live: #ff5d5d; --rule: #1d5550;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex; flex-direction: column;
+  padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  gap: 12px;
+}
+.bar { display: flex; gap: 8px; align-items: center; }
+.bar select { flex: 1; min-width: 0; background: var(--panel); color: var(--ink); border: 1px solid var(--rule); border-radius: 10px; padding: 11px 10px; font: inherit; }
+.bar button { background: var(--panel); color: var(--ink); border: 1px solid var(--rule); border-radius: 10px; padding: 11px 14px; font: inherit; cursor: pointer; }
+.stage { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.now { background: var(--panel); border-radius: 16px; padding: 16px; }
+.now .src { color: var(--muted); font-size: 1rem; min-height: 1.4em; }
+.now .dst { font-size: clamp(1.7rem, 6.5vw, 2.8rem); font-weight: 700; line-height: 1.15; margin-top: 8px; min-height: 1.2em; text-wrap: balance; }
+.interim { opacity: 0.65; }
+.log { display: flex; flex-direction: column; gap: 10px; }
+.log > div { border-top: 1px solid var(--rule); padding-top: 10px; }
+.log .d { font-size: 1.15rem; font-weight: 600; }
+.log .s { color: var(--muted); font-size: 0.9rem; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+#mic { flex: 1 1 200px; border: 0; border-radius: 999px; padding: 18px; font-family: inherit; font-weight: 700; font-size: 1.1rem; background: var(--accent); color: #231600; cursor: pointer; }
+#mic.on { background: var(--live); color: #fff; }
+label.opt { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
+#typed { display: none; gap: 8px; }
+#typed.show { display: flex; }
+#typed input { flex: 1; min-width: 0; background: var(--panel); color: var(--ink); border: 1px solid var(--rule); border-radius: 10px; padding: 12px; font: inherit; }
+#typed button { background: var(--accent); color: #231600; border: 0; border-radius: 10px; padding: 0 18px; font-family: inherit; font-weight: 700; font-size: 1rem; }
+#status { color: var(--muted); font-size: 0.85rem; min-height: 1.2em; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <select id="from" aria-label="I speak"></select>
+  <button id="swap" aria-label="Swap languages">⇄</button>
+  <select id="to" aria-label="Translate to"></select>
+</div>
+
+<div class="stage" id="stage">
+  <div class="now">
+    <div class="src" id="src">Tap the mic and start talking.</div>
+    <div class="dst" id="dst"></div>
+  </div>
+  <div class="log" id="log"></div>
+</div>
+
+<div id="status"></div>
+<form id="typed">
+  <input id="typedIn" type="text" placeholder="Type instead" autocomplete="off">
+  <button type="submit">Translate</button>
+</form>
+<div class="controls">
+  <button id="mic">Start listening</button>
+  <label class="opt"><input type="checkbox" id="speak"> Read translation aloud</label>
+</div>
+
+<script>
+(function () {
+  var LANGS = [
+    ["en", "English", "en-US"], ["es", "Spanish", "es-MX"], ["fr", "French", "fr-FR"], ["de", "German", "de-DE"],
+    ["it", "Italian", "it-IT"], ["pt", "Portuguese", "pt-BR"], ["zh", "Chinese", "zh-CN"], ["ja", "Japanese", "ja-JP"],
+    ["ko", "Korean", "ko-KR"], ["ar", "Arabic", "ar-SA"], ["hi", "Hindi", "hi-IN"], ["ru", "Russian", "ru-RU"]
+  ];
+  var $ = function (id) { return document.getElementById(id); };
+  var fromEl = $("from"), toEl = $("to"), micEl = $("mic"), srcEl = $("src"), dstEl = $("dst"), logEl = $("log"), statusEl = $("status");
+
+  LANGS.forEach(function (l) {
+    fromEl.add(new Option(l[1], l[0]));
+    toEl.add(new Option(l[1], l[0]));
+  });
+  try {
+    fromEl.value = localStorage.getItem("lt_from") || "en";
+    toEl.value = localStorage.getItem("lt_to") || "es";
+  } catch (e) { fromEl.value = "en"; toEl.value = "es"; }
+
+  var langInfo = function (code) { return LANGS.filter(function (l) { return l[0] === code; })[0]; };
+  var save = function () { try { localStorage.setItem("lt_from", fromEl.value); localStorage.setItem("lt_to", toEl.value); } catch (e) {} };
+
+  /* ---------- translation ---------- */
+  var native = {};
+  function prepNative() {
+    var from = fromEl.value, to = toEl.value, key = from + ">" + to;
+    if (native[key] !== undefined || !("Translator" in self) || from === to) return;
+    native[key] = null;
+    Translator.availability({ sourceLanguage: from, targetLanguage: to })
+      .then(function (a) { return a === "unavailable" ? null : Translator.create({ sourceLanguage: from, targetLanguage: to }); })
+      .then(function (t) { native[key] = t; })
+      .catch(function () {});
+  }
+  function webTranslate(text, from, to) {
+    var url = "https://api.mymemory.translated.net/get?q=" + encodeURIComponent(text) + "&langpair=" + from + "|" + to;
+    return fetch(url).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || !j.responseData || !j.responseData.translatedText) throw new Error("no result");
+      return j.responseData.translatedText;
+    });
+  }
+  function translate(text, from, to) {
+    if (from === to) return Promise.resolve(text);
+    var t = native[from + ">" + to];
+    return t ? t.translate(text).catch(function () { return webTranslate(text, from, to); }) : webTranslate(text, from, to);
+  }
+
+  /* ---------- UI state ---------- */
+  var seq = 0, lastInterimAt = 0, interimTimer = null;
+
+  function showTranslation(text, interim) {
+    var my = ++seq;
+    translate(text, fromEl.value, toEl.value).then(function (out) {
+      if (my !== seq) return;
+      dstEl.textContent = out;
+      dstEl.className = "dst" + (interim ? " interim" : "");
+      statusEl.textContent = "";
+      if (!interim) {
+        addLog(text, out);
+        speak(out);
+      }
+    }).catch(function () {
+      if (my === seq) statusEl.textContent = "Translation failed. Check your connection.";
+    });
+  }
+  function addLog(s, d) {
+    var row = document.createElement("div");
+    var dd = document.createElement("div"); dd.className = "d"; dd.textContent = d;
+    var ss = document.createElement("div"); ss.className = "s"; ss.textContent = s;
+    row.appendChild(dd); row.appendChild(ss);
+    logEl.insertBefore(row, logEl.firstChild);
+  }
+
+  /* ---------- speech out ---------- */
+  var speaking = false;
+  function speak(text) {
+    if (!$("speak").checked || !("speechSynthesis" in window)) return;
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = langInfo(toEl.value)[2];
+    speaking = true;
+    if (rec && listening) { try { rec.stop(); } catch (e) {} }
+    var done = function () { speaking = false; if (listening) startRec(); };
+    u.onend = done; u.onerror = done;
+    speechSynthesis.speak(u);
+  }
+
+  /* ---------- speech in ---------- */
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var rec = null, listening = false, wakeLock = null;
+
+  function startRec() {
+    if (!SR || speaking) return;
+    rec = new SR();
+    rec.lang = langInfo(fromEl.value)[2];
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = function (ev) {
+      var interim = "", final = "";
+      for (var i = ev.resultIndex; i < ev.results.length; i++) {
+        var r = ev.results[i];
+        if (r.isFinal) final += r[0].transcript; else interim += r[0].transcript;
+      }
+      if (final.trim()) {
+        srcEl.textContent = final.trim();
+        showTranslation(final.trim(), false);
+      } else if (interim.trim()) {
+        srcEl.textContent = interim.trim();
+        var now = Date.now();
+        clearTimeout(interimTimer);
+        var wait = Math.max(0, 900 - (now - lastInterimAt));
+        interimTimer = setTimeout(function () { lastInterimAt = Date.now(); showTranslation(interim.trim(), true); }, wait);
+      }
+    };
+    rec.onerror = function (ev) {
+      if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+        statusEl.textContent = "Microphone blocked. Allow mic access for this site, then tap again.";
+        stopListening();
+      } else if (ev.error !== "no-speech" && ev.error !== "aborted") {
+        statusEl.textContent = "Mic error: " + ev.error;
+      }
+    };
+    rec.onend = function () { if (listening && !speaking) setTimeout(startRec, 150); };
+    try { rec.start(); } catch (e) {}
+  }
+  function startListening() {
+    listening = true;
+    prepNative();
+    micEl.textContent = "Stop listening";
+    micEl.className = "on";
+    statusEl.textContent = "Listening in " + langInfo(fromEl.value)[1] + "…";
+    startRec();
+    if (navigator.wakeLock) navigator.wakeLock.request("screen").then(function (l) { wakeLock = l; }).catch(function () {});
+  }
+  function stopListening() {
+    listening = false;
+    micEl.textContent = "Start listening";
+    micEl.className = "";
+    if (rec) { try { rec.stop(); } catch (e) {} }
+    if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+  }
+
+  micEl.onclick = function () { listening ? stopListening() : startListening(); };
+  function restartIfListening() {
+    save();
+    prepNative();
+    if (listening && rec) { try { rec.stop(); } catch (e) {} }
+  }
+  fromEl.onchange = toEl.onchange = restartIfListening;
+  $("swap").onclick = function () {
+    var f = fromEl.value; fromEl.value = toEl.value; toEl.value = f;
+    restartIfListening();
+  };
+
+  if (!SR) {
+    micEl.disabled = true;
+    micEl.textContent = "Mic not supported here";
+    statusEl.textContent = "This browser has no speech recognition. Use Chrome or Safari, or type below.";
+    $("typed").className = "show";
+  } else {
+    var tw = document.createElement("button");
+    tw.textContent = "Type";
+    tw.onclick = function () { $("typed").classList.toggle("show"); };
+    document.querySelector(".bar").appendChild(tw);
+  }
+  $("typed").onsubmit = function (e) {
+    e.preventDefault();
+    var t = $("typedIn").value.trim();
+    if (!t) return;
+    srcEl.textContent = t;
+    showTranslation(t, false);
+    $("typedIn").value = "";
+  };
+})();
+</script>
+</body>
+</html>
