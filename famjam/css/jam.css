@@ -27,3 +27,5 @@ body.touch.pad #touchui { display: none; }   /* a controller in use: no thumb bu
   body.touch #rotate { display: flex; position: fixed; inset: 0; z-index: 50; background: #05050c; color: #ffe14d; flex-direction: column; align-items: center; justify-content: center; font: 14px "Press Start 2P", monospace; text-align: center; padding: 30px; gap: 22px; line-height: 1.6; }
   body.touch #rotate div { font-size: 60px; color: #ff7a1a; }
 }
+/* while letting go would be a green release (UI.shootGreen) */
+#bShoot.green { background: #22c45a; border-color: #d9ffe4; box-shadow: 0 0 18px 6px rgba(80,255,140,.75), 0 4px 12px rgba(0,0,0,.6); }

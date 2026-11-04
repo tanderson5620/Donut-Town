@@ -335,6 +335,14 @@ window.HW = window.HW || {};
   G.shotWin = function (p) {
     return 0.16 * (1 + (p.def.stats.tp - 5) * 0.06) * (threeFrom(p, takeoff(p)) && p.def.type === 'shooter' ? 1.6 : 1);
   };
+  // the zones, as times after he left the floor in tops of the jump: green, then ok; letting go at the top of the jump (or a little
+  // after, LATE_OK) is never bad, even when his sweet spot comes earlier (a shooter's two used to be bad right at the top)
+  var LATE_OK = 1.25;
+  G.relZones = function (p) {
+    var k = G.relFrac(p), w = G.shotWin(p);
+    return { g0: k - w, g1: k + w, o0: k - 2.5 * w, o1: Math.max(k + 2.5 * w, LATE_OK) };
+  };
+  G.relQuality = function (p, t) { var z = G.relZones(p); return t > z.g0 && t < z.g1 ? 'green' : t > z.o0 && t < z.o1 ? 'ok' : 'bad'; };
   G.startShot = function (p) {
     if (!p.hasBall || !p.grounded() || p.busy()) return;
     // the shot clock starts on the press and runs until he lets go (through a step-back or cartwheel first, whose length then
@@ -402,7 +410,7 @@ window.HW = window.HW || {};
     // from deep), counted from when he left the floor - after a step-back or cartwheel that's the move's length later (G.relOff).
     // Online, a guest's release is timed on his own phone, press to let-go (p.relPress)
     var rst = p.relPress != null ? p.relPress : p.sht != null ? p.sht : p.st; p.relPress = null; p.sht = null; p.sbAuto = false;
-    var off = Math.abs(rst - G.relOff(p) - p.tApex * G.relFrac(p)) / p.tApex, win = G.shotWin(p), quality = off < win ? 'green' : off < win * 2.5 ? 'ok' : 'bad';
+    var quality = G.relQuality(p, (rst - G.relOff(p)) / p.tApex);
     if (rst < G.relOff(p)) quality = 'ok';   // let go before he's off the floor (during the step-back's hop): it just goes up, no bonus
     if (!p.human) quality = Math.random() < (G.diff.green != null ? G.diff.green : 0.35) ? 'green' : 'ok';   // the computer's timing: 40 / 60 / 80% green by difficulty
     if (sig(p, 'tp')) quality = 'green';   // a shooter on fire can't miss the window
@@ -516,7 +524,7 @@ window.HW = window.HW || {};
       else { p.dk.x1 = rx - s * (lb0 === 'roll' ? 0.75 : 0.85); p.dk.z1 = K.HZ + (farS ? 0.3 : -0.3); }   // stays on his side of the rim
       if (lb0 === 'rev') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'rev', slow: 1 };   // regular speed: about 1 s from takeoff to the ball through the net
       if (lb0 === 'roll') G.cine = { p: p, t: 0, dur: p.dk.T, kind: 'roll', slow: 1 };   // full speed: the camera rides up with the ball, 1 s up and in
-    } else if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'both', 'btb', 'flip', 'wind'] : ['legs', 'both', 'btb', 'board', 'flip', 'flex', 'bounce', 'wind', 'wind']); p.dk.spin = false;
+    } else if (dk >= 9) { var far = Math.abs(p.x - rx) > 4.2; p.dk.style = !far && p.def.type === 'dunker' && Math.random() < 0.1 ? 'board' : pick(far ? ['mj', 'jam', 'legs', 'both', 'btb', 'flip', 'wind'] : ['legs', 'both', 'btb', 'board', 'flip', 'flex', 'bounce', 'wind']); p.dk.spin = false;   // (the windmill once: it's full speed, so the slow-motion ones - the easiest to get up and stop - keep their share)
       if (p.dk.style === 'both' && !X.hasAnim(p, 'dk_both')) p.dk.style = 'legs';
       if (p.dk.style === 'wind' && !X.hasAnim(p, 'dk_wind')) p.dk.style = 'jam';   // (the windmill: at full speed, no slow motion)
       if (p.dk.style === 'mj') p.tongue = true;

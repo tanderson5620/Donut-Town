@@ -97,7 +97,13 @@ window.HW = window.HW || {};
     var lv = Math.round(h.onFire ? 100 : h.turbo);
     if (lv !== tLevel) { tLevel = lv; var r = document.getElementById('stickRing'); r.style.setProperty('--t', lv); r.style.setProperty('--tc', h.onFire ? '#ff7a1a' : lv > 25 ? '#3df07a' : '#ff4b3a'); }
   };
-  UI.endFrame = function () { In.shootDown = In.shootUp = In.passDown = In.actDown = In.pauseDown = In.enter = false; In.tap = null; In.nav = null; In.digits.length = 0; };
+  // the SHOOT button lights up green while letting go would be a green release (the shot meter says so each frame it's up; any
+  // frame it doesn't, the button goes back)
+  var sgOn = false, sgNow = false;
+  UI.shootGreen = function (on) { sgNow = sgNow || on; };
+  UI.endFrame = function () {
+    if (HW.TOUCH && sgNow !== sgOn) { sgOn = sgNow; var sb = document.getElementById('bShoot'); if (sb) sb.classList.toggle('green', sgOn); }
+    sgNow = false; In.shootDown = In.shootUp = In.passDown = In.actDown = In.pauseDown = In.enter = false; In.tap = null; In.nav = null; In.digits.length = 0; };
 
   /* ---------- safe area (notch, home bar) in canvas pixels ---------- */
   var probe, safeKey, safeV = { l: 0, r: 0, t: 0, b: 0 };
@@ -1225,13 +1231,16 @@ window.HW = window.HW || {};
         // the bar runs from the press to 1.6x the top of the jump (after a step-back's hop or a cartwheel, that much later): dark red for
         // a bad release, amber for ok, green for green - the same window the game judges it by (G.shotWin, wider for a shooter's three);
         // anywhere in a zone counts the same
-        var ta = h.tApex || G.shotApex(h), o0 = G.relOff(h), span = o0 + 1.6 * ta;
-        var mw = 44, mx = Math.round(h.screen.x - mw / 2), yy = my - 10, prog = Math.min(span, sht) / span, win = G.shotWin(h);
-        var k = G.relFrac(h);   // (the sweet spot: the top of the jump, a 3-point shooter's on the way up)
-        var zone = function (w, col) { var a = Math.max(0, (o0 + (k - w) * ta) / span), b = Math.min(1, (o0 + (k + w) * ta) / span); g.fillStyle = col; g.fillRect(Math.round(mx + mw * a), yy, Math.max(2, Math.round(mw * (b - a))), 5); };
-        g.fillStyle = '#000'; g.fillRect(mx - 1, yy - 1, mw + 2, 7); g.fillStyle = '#3a1010'; g.fillRect(mx, yy, mw, 5);
-        zone(win * 2.5, '#8a6a12'); zone(win, '#35e07c');
-        var kx = Math.round(mx + mw * prog); g.fillStyle = '#000'; g.fillRect(kx - 2, yy - 3, 4, 11); g.fillStyle = '#fff'; g.fillRect(kx - 1, yy - 2, 2, 9);
+        var ta = h.tApex || G.shotApex(h), o0 = G.relOff(h), span = o0 + 1.6 * ta, Z = G.relZones(h);
+        // big enough to read at a glance on a phone (it used to be 44 x 5)
+        var mw = 84, mh = 10, mx = Math.round(h.screen.x - mw / 2), yy = my - mh - 6, prog = Math.min(span, sht) / span;
+        var zone = function (lo, hi, col) { var a = Math.max(0, (o0 + lo * ta) / span), b = Math.min(1, (o0 + hi * ta) / span); g.fillStyle = col; g.fillRect(Math.round(mx + mw * a), yy, Math.max(2, Math.round(mw * (b - a))), mh); };
+        g.fillStyle = '#000'; g.fillRect(mx - 2, yy - 2, mw + 4, mh + 4); g.fillStyle = '#3a1010'; g.fillRect(mx, yy, mw, mh);
+        zone(Z.o0, Z.o1, '#a07a14'); zone(Z.g0, Z.g1, '#35e07c');
+        var inG = G.relQuality(h, (sht - o0) / ta) === 'green';
+        if (inG) { g.fillStyle = 'rgba(160,255,190,0.55)'; g.fillRect(mx, yy, mw, mh); }   // (the whole bar lights up while a release would be green)
+        var kx = Math.round(mx + mw * prog); g.fillStyle = '#000'; g.fillRect(kx - 3, yy - 5, 6, mh + 10); g.fillStyle = '#fff'; g.fillRect(kx - 1, yy - 4, 3, mh + 8);
+        UI.shootGreen(inG);
       }
     }
     // arrows at the screen edge for players the camera can't see
